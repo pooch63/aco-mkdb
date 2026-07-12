@@ -1,0 +1,5 @@
+Dataset Transformation Metadata
+=================================
+Timestamp Offset (min_timestamp subtracted): 1485302279000
+Total Unique Users: 15237
+Total Unique Items: 1128
