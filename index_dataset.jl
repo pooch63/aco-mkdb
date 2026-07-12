@@ -16,10 +16,10 @@ Prerequisites:
 
 How to Run from the Command Line:
   Format:
-    julia index.jl <input_csv> <output_csv> <output_mapping_dir>
+    julia index_dataset.jl <input_csv> <output_csv> <output_mapping_dir>
 
   Example:
-    julia index.jl data/interactions.csv data/indexed_interactions.csv mappings/
+    julia index_dataset.jl data/interactions.csv data/indexed_interactions.csv mappings/
 =================================================================================
 =#
 

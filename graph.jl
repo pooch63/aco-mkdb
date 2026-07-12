@@ -481,3 +481,38 @@ function nondegree_in_subgraph_v(fg::FrozenBipartite, v_id::Int, sg::SubGraph)
     total = length(neighbor_range_v(fg, vi))
     return total - degree_in_subgraph_v(fg, v_id, sg)
 end
+
+function nondegree_in_subgraph(fg::FrozenBipartite, is_u::Bool, node_id::Int, sg::SubGraph)
+    return is_u ? nondegree_in_subgraph_u(fg, node_id, sg) : nondegree_in_subgraph_v(fg, node_id, sg)
+end
+
+
+module Subgraph
+    export add_node!, remove_node!, add_subgraph!, minus
+
+    function add_node!(sg::SubGraph, is_u::Bool, node::Int)
+        if is_u
+            push!(sg.U, node)
+        else
+            push!(sg.V, node)
+        end
+    end
+    function remove_node!(sg::SubGraph, is_u::Bool, node::Int)
+        if is_u
+            delete!(sg.U, node)
+        else
+            delete!(sg.V, node)
+        end
+    end
+
+    function add_subgraph!(sg1::SubGraph, sg2::SubGraph)
+        sg1.U = union(sg1.U, sg2.U)
+        sg1.V = union(sg1.V, sg2.V)
+        return sg1
+    end
+    function minus!(sg1::SubGraph, sg2::SubGraph)
+        sg1.U = setdiff(sg1.U, sg2.U)
+        sg1.V = setdiff(sg1.V, sg2.V)
+        return sg1
+    end
+end
