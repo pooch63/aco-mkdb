@@ -194,7 +194,7 @@ end
 # grouped together. No dense-index bookkeeping required from you.
 # --------------------------------------------------------------------------
 
-struct SubGraph
+mutable struct SubGraph
     U::Set{Int}   # original u ids in this subgraph
     V::Set{Int}   # original v ids in this subgraph
 end
@@ -232,7 +232,7 @@ end
 # --------------------------------------------------------------------------
 
 """
-    split(fg, subgraphs::Vector{SubGraph}) -> Vector{Vector{Tuple{Int,Int}}}
+    split_fg(fg, subgraphs::Vector{SubGraph}) -> Vector{Vector{Tuple{Int,Int}}}
 
 Given the subgraphs you want (each specifying its own U/V vertex ids), find
 all edges that fall inside each one, in a single O(V+E) pass over the frozen
@@ -241,7 +241,7 @@ Returns `sub_edges[s]` = list of (u_id, v_id) pairs for `subgraphs[s]`.
 
 Vertex ids in `subgraphs` that don't exist in `fg` are silently ignored.
 """
-function split(fg::FrozenBipartite, subgraphs::Vector{SubGraph})
+function split_fg(fg::FrozenBipartite, subgraphs::Vector{SubGraph})
     u_subgraph, v_subgraph = _dense_assignment(fg, subgraphs)
     n_sub = length(subgraphs)
 
@@ -285,23 +285,6 @@ function subgraph_edge_counts(fg::FrozenBipartite, subgraphs::Vector{SubGraph})
         end
     end
     return counts
-end
-
-"""
-    subgraph_edge_count(fg, sg::SubGraph) -> Int
-
-Single-subgraph version, when you only need one count.
-"""
-function subgraph_edge_count(fg::FrozenBipartite, sg::SubGraph)
-    u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
-    count = 0
-    for ui in eachindex(fg.u_ids)
-        u_subgraph[ui] == 1 || continue
-        for k in neighbor_range_u(fg, ui)
-            v_subgraph[fg.v_adj[k]] == 1 && (count += 1)
-        end
-    end
-    return count
 end
 
 """
@@ -459,27 +442,23 @@ end
 """
     nondegree_in_subgraph_u(fg, u_id, sg::SubGraph) -> Int
 
-Number of `u_id`'s neighbors that fall OUTSIDE `sg.V`
-(i.e. total degree minus `degree_in_subgraph_u`).
+Number of nodes in `sg.V` that `u_id` does NOT share an edge with
+(i.e. `length(sg.V) - degree_in_subgraph_u`). `u_id` need not itself be a
+member of `sg.U`; if `u_id` isn't in `fg` at all, this is `length(sg.V)`
+since it shares no edges with anything.
 """
 function nondegree_in_subgraph_u(fg::FrozenBipartite, u_id::Int, sg::SubGraph)
-    ui = get(fg.u_index, u_id, nothing)
-    ui === nothing && return 0
-    total = length(neighbor_range_u(fg, ui))
-    return total - degree_in_subgraph_u(fg, u_id, sg)
+    return length(sg.V) - degree_in_subgraph_u(fg, u_id, sg)
 end
 
 """
     nondegree_in_subgraph_v(fg, v_id, sg::SubGraph) -> Int
 
-Number of `v_id`'s neighbors that fall OUTSIDE `sg.U`
-(i.e. total degree minus `degree_in_subgraph_v`).
+Number of nodes in `sg.U` that `v_id` does NOT share an edge with
+(i.e. `length(sg.U) - degree_in_subgraph_v`).
 """
 function nondegree_in_subgraph_v(fg::FrozenBipartite, v_id::Int, sg::SubGraph)
-    vi = get(fg.v_index, v_id, nothing)
-    vi === nothing && return 0
-    total = length(neighbor_range_v(fg, vi))
-    return total - degree_in_subgraph_v(fg, v_id, sg)
+    return length(sg.U) - degree_in_subgraph_v(fg, v_id, sg)
 end
 
 function nondegree_in_subgraph(fg::FrozenBipartite, is_u::Bool, node_id::Int, sg::SubGraph)
@@ -488,7 +467,8 @@ end
 
 
 module Subgraph
-    export add_node!, remove_node!, add_subgraph!, minus
+    import ..SubGraph, ..FrozenBipartite, .._dense_assignment, ..neighbor_range_u, ..neighbor_range_v
+    export add_node!, remove_node!, add_subgraph!, minus, missing_edges, edge_count, nonneighbors_in_subgraph
 
     function add_node!(sg::SubGraph, is_u::Bool, node::Int)
         if is_u
@@ -510,9 +490,69 @@ module Subgraph
         sg1.V = union(sg1.V, sg2.V)
         return sg1
     end
+    function minus(sg1::SubGraph, sg2::SubGraph)
+        return SubGraph(
+            setdiff(sg1.U, sg2.U),
+            setdiff(sg1.V, sg2.V)
+        )
+    end
     function minus!(sg1::SubGraph, sg2::SubGraph)
         sg1.U = setdiff(sg1.U, sg2.U)
         sg1.V = setdiff(sg1.V, sg2.V)
         return sg1
+    end
+
+    function missing_edges(fg::FrozenBipartite, sg::SubGraph)
+        return length(sg.U) * length(sg.V) / 2 - edge_count(fg, sg)
+    end
+
+    """
+        subgraph_edge_count(fg, sg::SubGraph) -> Int
+
+    Single-subgraph version, when you only need one count.
+    """
+    function edge_count(fg::FrozenBipartite, sg::SubGraph)
+        u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
+        count = 0
+        for ui in eachindex(fg.u_ids)
+            u_subgraph[ui] == 1 || continue
+            for k in neighbor_range_u(fg, ui)
+                v_subgraph[fg.v_adj[k]] == 1 && (count += 1)
+            end
+        end
+        return count
+    end
+
+    """
+        nonneighbors_in_subgraph(fg, is_u, node_id, sg::SubGraph) -> Vector{Int}
+
+    Nodes on the *other* side of `sg` that `node_id` does NOT share an edge
+    with. If `is_u`, this returns the subset of `sg.V` not adjacent to
+    `node_id` (a U-side id); otherwise it returns the subset of `sg.U` not
+    adjacent to `node_id` (a V-side id). `node_id` need not itself be a
+    member of `sg`. If `node_id` isn't in `fg` at all, every node on the
+    opposite side of `sg` is returned, since it shares no edges with
+    anything.
+    """
+    function nonneighbors_in_subgraph(fg::FrozenBipartite, is_u::Bool, node_id::Int, sg::SubGraph)
+        if is_u
+            ui = get(fg.u_index, node_id, nothing)
+            neighbor_set = Set{Int}()
+            if ui !== nothing
+                for k in neighbor_range_u(fg, ui)
+                    push!(neighbor_set, fg.v_ids[fg.v_adj[k]])
+                end
+            end
+            return setdiff(sg.V, neighbor_set)
+        else
+            vi = get(fg.v_index, node_id, nothing)
+            neighbor_set = Set{Int}()
+            if vi !== nothing
+                for k in neighbor_range_v(fg, vi)
+                    push!(neighbor_set, fg.u_ids[fg.u_adj[k]])
+                end
+            end
+            return setdiff(sg.U, neighbor_set)
+        end
     end
 end
