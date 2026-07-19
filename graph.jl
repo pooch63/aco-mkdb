@@ -503,7 +503,7 @@ module Subgraph
     end
 
     function missing_edges(fg::FrozenBipartite, sg::SubGraph)
-        return length(sg.U) * length(sg.V) / 2 - edge_count(fg, sg)
+        return length(sg.U) * length(sg.V) - edge_count(fg, sg)
     end
 
     """

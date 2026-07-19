@@ -24,33 +24,21 @@ using JSON3
 using DataFrames
 using CSV
 
-function main()
-    # Validate command line arguments
-    if length(ARGS) < 2
-        println(stderr, "Error: Missing arguments.")
-        println(stderr, "Usage: julia process_reviews.jl <input_jsonl_path> <output_csv_path>")
-        exit(1)
-    end
-
-    input_path = ARGS[1]
-    output_path = ARGS[2]
-
-    # Verify input file exists
+function convert_jsonl_to_csv(input_path::String, output_path::String)
     if !isfile(input_path)
-        println(stderr, "Error: Input file '$input_path' does not exist.")
-        exit(1)
+        error("Input file '$input_path' does not exist.")
     end
+
+    mkpath(dirname(output_path))
 
     println("Starting conversion...")
     println("Input source:  $input_path")
     println("Output target: $output_path")
 
-    # Initialize typed collections for high-performance array construction
     user_ids = String[]
     item_ids = String[]
     timestamps = Int64[]
 
-    # Stream the JSONL file line-by-line to minimize memory footprint
     try
         open(input_path, "r") do file
             line_count = 0
@@ -58,10 +46,8 @@ function main()
                 line_count += 1
                 cleaned_line = strip(line)
                 if !isempty(cleaned_line)
-                    # Parse using JSON3 for optimized performance
                     row = JSON3.read(cleaned_line)
-                    
-                    # Extract fields with fallback protection
+
                     if haskey(row, :user_id) && haskey(row, :asin) && haskey(row, :timestamp)
                         push!(user_ids, string(row[:user_id]))
                         push!(item_ids, string(row[:asin]))
@@ -73,11 +59,9 @@ function main()
             end
         end
     catch e
-        println(stderr, "An error occurred while reading the file: $e")
-        exit(1)
+        error("An error occurred while reading the file: $e")
     end
 
-    # Build the target DataFrame
     println("Assembling dataset...")
     df = DataFrame(
         user_id = user_ids,
@@ -85,15 +69,28 @@ function main()
         timestamp = timestamps
     )
 
-    # Export to the specified CSV destination
     try
         CSV.write(output_path, df)
         println("Success! Successfully processed $(nrow(df)) entries.")
     catch e
-        println(stderr, "An error occurred while writing the CSV file: $e")
-        exit(1)
+        error("An error occurred while writing the CSV file: $e")
     end
+
+    return df
 end
 
-# Trigger execution
-main()
+function main()
+    if length(ARGS) < 2
+        println(stderr, "Error: Missing arguments.")
+        println(stderr, "Usage: julia edges.jl <input_jsonl_path> <output_csv_path>")
+        exit(1)
+    end
+
+    input_path = ARGS[1]
+    output_path = ARGS[2]
+    convert_jsonl_to_csv(input_path, output_path)
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end
