@@ -4,6 +4,31 @@ include("graph.jl")
 const OPTIMIZATION_PRUNE_K_1_MISSING_EDGE_CANDIDATES = true
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 
+function argmax_nodes(f, sg::SubGraph)
+    best_score = -Inf
+    best_is_u = false
+    best_node = -1
+
+    for u in sg.U
+        score = f(true, u)
+        if score > best_score
+            best_score = score
+            best_is_u = true
+            best_node = u
+        end
+    end
+    
+    for v in sg.V
+       score = f(false, v)
+        if score > best_score
+            best_score = score
+            best_is_u = false
+            best_node = v
+        end
+    end
+
+    return best_is_u, best_node
+end
 function _index_to_node(index::Int, left::Vector{T}, right::Vector{T}) where {T}
     is_u = index <= length(left)
     node = is_u ? left[index] : right[index-length(left)]
@@ -26,15 +51,6 @@ function add_node!(S::SubGraph, is_u::Bool, node::Int)
         push!(S.U, node)
     else
         push!(S.V, node)
-    end
-end
-function add_subgraph!(S::SubGraph, to_add::SubGraph)
-    # Look up more efficient Julia syntax for combining sets
-    for u in to_add.U
-        push!(S.U, u)
-    end
-    for v in to_add.V
-        push!(S.V, v)
     end
 end
 function remove_subgraph!(S::SubGraph, to_remove::SubGraph)
@@ -106,27 +122,11 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
         return D
     end
 
-    C_U = [u for u in C.U]
-    C_V = [v for v in C.V]
-    S_nondegrees = [[nondegree_in_subgraph_u(g, u, S) for u in C.U]; [nondegree_in_subgraph_v(g, v, S) for v in C.V]]
-
-    # Hack to avoid re-implementing logic. If there are no elements in S, just set the first element to 1
-    # so we pick the first U element
-    # if length(S_nondegrees) == 0
-    #     S_nondegrees[1] = 1
-    # end
-
-    # @show S_nondegrees
-    # @show S.U
-    # @show S.V
-    idx = argmax(S_nondegrees)
-    is_u, node = _index_to_node(idx, C_U, C_V)
+    is_u, node = argmax_nodes((u, n) -> nondegree_in_subgraph(g, u, n, S), C)
 
     nondegree = is_u ? nondegree_in_subgraph_u(g, node, S) : nondegree_in_subgraph_v(g, node, S)
     if nondegree == 0
-        C_nondegrees = [[nondegree_in_subgraph_u(g, u, C) for u in C.U]; [nondegree_in_subgraph_v(g, v, C) for v in C.V]]
-        idx = argmax(C_nondegrees)
-        _is_u, _node = _index_to_node(idx, C_U, C_V)
+        _is_u, _node = argmax_nodes((u, n) -> nondegree_in_subgraph(g, u, n, C), C)
         is_u = _is_u
         node = _node
     end
@@ -143,13 +143,11 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
     D = branch_binary(S, C, g, D, k, θ)
 
     # S′ = S ∪ C′_0
-    add_subgraph!(S, C′_0)
+    Subgraph.add!(S, C′_0)
     # S′ ∪ {u}
     add_node!(S, is_u, node)
 
-    # C′ = C′ ∖ C′_0
-    C′_minus_C′_0 = Subgraph.minus!(C′, C′_0)
-    D = branch_binary(S, C′_minus_C′_0, g, D, k, θ)
+    D = branch_binary(S, C′, g, D, k, θ)
 
     remove_subgraph!(S, C′_0)
     remove_node!(S, is_u, node)
@@ -175,7 +173,7 @@ function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph,
         end
     end
 
-    println("S=", length(S.U) + length(S.V), "C=", length(C.U)+length(C.V))
+    # println("S=", length(S.U) + length(S.V), "C=", length(C.U)+length(C.V))
 
     if subgraph_vertex_count(C) == 0
         @static if @isdefined(DEBUG)
@@ -192,8 +190,9 @@ function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph,
         return D
     end
 
-    C_0_u = [u for u in C.U if nondegree_in_subgraph(g, true, u::Int, C) == 0]
-    C_0_v = [v for v in C.V if nondegree_in_subgraph(g, false, v::Int, C) == 0]
+    # BRAIN EXERCISE: why does changing this to nondegree in subgraph C not work?
+    C_0_u = [u for u in C.U if nondegree_in_subgraph(g, true, u::Int, S) == 0]
+    C_0_v = [v for v in C.V if nondegree_in_subgraph(g, false, v::Int, S) == 0]
 
     C_0 = SubGraph(Set(C_0_u), Set(C_0_v))
 
@@ -207,7 +206,7 @@ function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph,
         C′, C′_0 = update(S, C, g, is_u, node, k)
 
         # S′ = S ∪ C′_0
-        add_subgraph!(S, C′_0)
+        Subgraph.add!(S, C′_0)
         # S′ ∪ {u}
         add_node!(S, is_u, node)
 
@@ -232,16 +231,14 @@ function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph,
         is_u, node = _index_to_node(idx, C_U, C_V)
 
 
-        if nondegree_in_subgraph(g, is_u, node, C_0) > k - Subgraph.missing_edges(g, S) > 0
+        if nondegree_in_subgraph(g, is_u, node, C) > k - Subgraph.missing_edges(g, S) > 0
             C′, C′_0 = update(S, C, g, is_u, node, k)
 
             # S′ = S ∪ C′_0 ∪ {u}
-            add_subgraph!(S, C′_0)
+            Subgraph.add!(S, C′_0)
             add_node!(S, is_u, node)
-            # C′ = C′ ∖ C′_0
-            C′_minus_C′_0 = Subgraph.minus!(C′::SubGraph, C′_0::SubGraph)
 
-            D = branch_pivot(S, C′_minus_C′_0, g, D, k, θ)
+            D = branch_pivot(S, C′, g, D, k, θ)
 
             # S = S′ ∖ C′_0 ∖ {u}
             remove_subgraph!(S, C′_0)
@@ -254,7 +251,7 @@ function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph,
             C′, C′_0 = update(S, C, g, is_u, node, k)
 
             # S′ = S ∪ C′_0 ∪ {u}
-            add_subgraph!(S, C′_0)
+            Subgraph.add!(S, C′_0)
             add_node!(S, is_u, node)
 
             # Let L = search space
@@ -272,18 +269,16 @@ function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph,
 
                 # S′ = S ∪ C′_0 ∪ {u}
 
-                add_subgraph!(S, C′_0)
-                add_node!(S, !is_u, node)
+                Subgraph.add!(S, C′_0)
+                add_node!(S, !is_u, v)
 
                 D = branch_pivot(S, C′, g, D, k, θ)
 
                 remove_subgraph!(S, C′_0)
-                remove_node!(S, !is_u, node)
+                remove_node!(S, !is_u, v)
 
-                remove_node!(C, !is_u, node)
+                remove_node!(C, !is_u, v)
             end
-
-            @error "Reached pivot where candidate set is too large"
         end
     end
 
@@ -317,7 +312,7 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
     add_node!(C, is_u, node::Int)
 
     # T = S ∪ {u} ∪ C′
-    add_subgraph!(C′, S)
+    Subgraph.add!(C′, S)
     add_node!(C′, is_u, node::Int)
 
     # C′_0 = {v ∈ C′ | nondegree_{T}(v) = 0}
@@ -332,6 +327,8 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
     remove_node!(C′, is_u, node::Int)
 
     C′_0 = SubGraph(C′_0_u, C′_0_v)
+
+    Subgraph.minus!(C′, C′_0)
 
     return C′, C′_0
 end
