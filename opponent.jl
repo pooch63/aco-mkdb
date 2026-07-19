@@ -7,9 +7,9 @@ const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 # or fewer V nodes than the current best k-MBD. If this setting
 # is disabled, any k-MDB found that has more edges than the current k-MDB
 # will be used
-# BE CAREFUL, because if the inflate setting is not the same as is used in
+# BE CAREFUL, because if the PRIORITIZE_VERTEX_COUNT setting is not the same as is used in
 # the test suite, you may get mismatches
-const INFLATE = false
+const PRIORITIZE_VERTEX_COUNT = false
 
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
@@ -59,8 +59,8 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     end
 
     if OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES
-        max_u = INFLATE ? max(length(D.U), θ) : θ
-        max_v = INFLATE ? max(length(D.V), θ) : θ
+        max_u = PRIORITIZE_VERTEX_COUNT ? max(length(D.U), θ) : θ
+        max_v = PRIORITIZE_VERTEX_COUNT ? max(length(D.V), θ) : θ
         if length(C.U) + length(S.U) < max_u || length(C.V) + length(S.V) < max_v
             TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ)")
             return D
