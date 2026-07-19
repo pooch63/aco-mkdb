@@ -485,10 +485,10 @@ module Subgraph
         end
     end
 
-    function add_subgraph!(sg1::SubGraph, sg2::SubGraph)
-        sg1.U = union(sg1.U, sg2.U)
-        sg1.V = union(sg1.V, sg2.V)
-        return sg1
+    function add!(S::SubGraph, to_add::SubGraph)
+        union!(S.U, to_add.U)
+        union!(S.V, to_add.V)
+        return S
     end
     function minus(sg1::SubGraph, sg2::SubGraph)
         return SubGraph(
