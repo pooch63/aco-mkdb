@@ -26,6 +26,8 @@ How to Run from the Command Line:
 include("graph.jl")
 include("opponent.jl")
 
+global const DEBUG = true
+
 """
     load_bipartite_graph(filepath::String) -> FrozenBipartite{Int}
 
@@ -70,7 +72,7 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name = length(ARGS) >= 1 ? ARGS[1] : nothing
+    dataset_name = length(ARGS) >= 1 ? ARGS[1] : DEBUG ? "boxes" : nothing
     graph_path = resolve_graph_path(dataset_name)
 
     if !isfile(graph_path)
@@ -81,10 +83,10 @@ function main()
     println("Loading graph from: $graph_path")
 
     with_stacksize(2_000_000_000) do
-        g = load_bipartite_graph(graph_path)
+        g = load_bipartite_graph(graph_path; max_lines = nothing)
         D = SubGraph(Set(), Set())
 
-        D = branch_binary(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 2, 4)
+        D = branch_binary(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 3)
         # D = branch_pivot(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 2)
 
         @show D
