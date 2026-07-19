@@ -1,7 +1,9 @@
 include("graph.jl")
 
-const DEBUG = true
+const TRACE = false
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
+
+sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
 function argmax_nodes(f, sg::SubGraph)
     best_score = -Inf
@@ -29,38 +31,44 @@ function argmax_nodes(f, sg::SubGraph)
     return best_is_u, best_node
 end
 
-# Returns the largest k-MDB of the graph
-function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph, k::Int, θ::Int)
-    @static if @isdefined(DEBUG)
-        # @show S
-        # @show C
-        println("S=", length(S.U) + length(S.V), "C=", length(C.U) + length(C.V))
+# BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
+# times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
+# and still result in a k-MDB, although we don't necessarily know which subset of C could be added to S.
+function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph, k::Int, θ::Int, depth::Int=0)
+    if TRACE
+        me = Subgraph.missing_edges(g, S)
+        println("  "^depth, "depth=$depth  S.U=", sorted_str(S.U), " S.V=", sorted_str(S.V),
+                "  missing(S)=$me/$k  C.U=", sorted_str(C.U), " C.V=", sorted_str(C.V))
+        if me > k
+            println("  "^depth, "!!! INVARIANT VIOLATED: missing_edges(S)=$me > k=$k  <-- bug is here or in the parent frame's update() call")
+            error("stopping so you can inspect the call stack")
+        end
+        if !isempty(intersect(S.U, C.U)) || !isempty(intersect(S.V, C.V))
+            println("  "^depth, "!!! S and C OVERLAP: S.U∩C.U=", intersect(S.U, C.U), " S.V∩C.V=", intersect(S.V, C.V))
+            error("S and C should always be disjoint")
+        end
     end
 
-    @static if @isdefined(OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES)
+    if OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES
         max_u = max(length(D.U), θ)
         max_v = max(length(D.V), θ)
         if length(C.U) + length(S.U) < max_u || length(C.V) + length(S.V) < max_v
-            @static if @isdefined(DEBUG)
-                println("Pruning impossibly small branch")
-            end
-
+            TRACE && println("  "^depth, "-> pruned (too few reachable vertices)")
             return D
         end
     end
-    if Subgraph.vertex_count(C) == 0
-        @static if @isdefined(DEBUG)
-            println("Reached end of candidate set")
-        end
 
+    if Subgraph.missing_edges(g, S) > k
+        return D
+    end
+
+    if Subgraph.vertex_count(C) == 0
         if Subgraph.edge_count(g, S) > Subgraph.edge_count(g, D) && length(S.U) >= θ && length(S.V) >= θ
-            # @static if @isdefined(DEBUG)
-                println("Achieved a k-MDB")
-                # @assert Subgraph.missing_edges(g, S) <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
-            # end
+            TRACE && println("  "^depth, "-> LEAF: new best D, edges=", Subgraph.edge_count(g, S))
+            @assert Subgraph.missing_edges(g, S) <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
             return Subgraph.clone(S)
         end
-
+        TRACE && println("  "^depth, "-> LEAF: not better than D")
         return D
     end
 
@@ -73,7 +81,9 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
         node = _node
     end
 
-    C′, C′_0 = update(S, C, g, is_u, node, k)
+    TRACE && println("  "^depth, "branching on ", is_u ? "u=" : "v=", node, "  (d̄_S=$nondegree)")
+
+    C′, C′_0, maximum_nondegree = update(S, C, g, is_u, node, k)
 
     # FLAG: This is the reversed order from the way the authors
     # did it, because this way we don't have to make a complete copy
@@ -82,19 +92,76 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
 
     # BranchB(S, C ∖ {u})
     Subgraph.remove_node!(C, is_u, node)
-    D = branch_binary(S, C, g, D, k, θ)
+    D = branch_binary(S, C, g, D, k, θ, depth + 1)
 
-    # S′ = S ∪ C′_0
-    Subgraph.add!(S, C′_0)
-    # S′ ∪ {u}
-    Subgraph.add_node!(S, is_u, node)
+    missing_edges_budget = k - Subgraph.missing_edges(g, S)
+    nondegree = nondegree_in_subgraph(g, is_u, node, S)
+    
+    # if nondegree <= maximum_nondegree
+    if nondegree <= missing_edges_budget
+        # S′ = S ∪ C′_0
+        Subgraph.add!(S, C′_0)
+        # S′ ∪ {u}
+        Subgraph.add_node!(S, is_u, node)
 
-    D = branch_binary(S, C′, g, D, k, θ)
+        D = branch_binary(S, C′, g, D, k, θ, depth + 1)
 
-    Subgraph.minus!(S, C′_0)
-    Subgraph.remove_node!(S, is_u, node)
+        Subgraph.minus!(S, C′_0)
+        Subgraph.remove_node!(S, is_u, node)
+    end
 
     return D
+end
+
+# If we add u to S, what does C become? What "free" nodes can we add to S that don't limit the search space?
+function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int)
+    # C′ = {v ∈ C ∖ {u} | nondegree_{ S ∪ {u} }(v) ≤ k - Ē(S)}
+
+    Subgraph.remove_node!(C, is_u, node)
+    Subgraph.add_node!(S, is_u, node)
+
+    S_edges = Subgraph.edge_count(g, S)
+    S_missing = length(S.U) * length(S.V) - S_edges
+
+    maximum_nondegree = k - S_missing
+
+    C′_u = Set(
+        node for node in C.U if nondegree_in_subgraph(g, true, node::Int, S) ≤ maximum_nondegree
+    )
+    C′_v = Set(
+        node for node in C.V if nondegree_in_subgraph(g, false, node::Int, S) ≤ maximum_nondegree
+    )
+
+    C′ = SubGraph(copy(C′_u), copy(C′_v))
+    Subgraph.remove_node!(S, is_u, node::Int)
+    Subgraph.add_node!(C, is_u, node::Int)
+
+    # T = S ∪ {u} ∪ C′
+    Subgraph.add!(C′, S)
+    Subgraph.add_node!(C′, is_u, node::Int)
+
+    # C′_0 = {v ∈ C′ | nondegree_T(v) = 0}
+    C′_0_u = Set(
+        node for node in C′_u if nondegree_in_subgraph(g, true, node::Int, C′) == 0
+    )
+    C′_0_v = Set(
+        node for node in C′_v if nondegree_in_subgraph(g, false, node::Int, C′) == 0
+    )
+
+    Subgraph.minus!(C′, S)
+    Subgraph.remove_node!(C′, is_u, node::Int)
+
+    C′_0 = SubGraph(C′_0_u, C′_0_v)
+
+    Subgraph.minus!(C′, C′_0)
+
+    if TRACE
+        println("    [update] branched-on=$node  maximum_nondegree=$maximum_nondegree",
+                "  C′.U=", sorted_str(C′.U), " C′.V=", sorted_str(C′.V),
+                "  C′_0.U=", sorted_str(C′_0.U), " C′_0.V=", sorted_str(C′_0.V))
+    end
+
+    return C′, C′_0, maximum_nondegree
 end
 
 function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph, k::Int, θ::Int)
@@ -225,51 +292,6 @@ function branch_pivot(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph,
     end
 
     return D
-end
-
-function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int)
-    S_edges = Subgraph.edge_count(g, S)
-    S_missing = length(S.U) * length(S.V) - S_edges
-
-    # C′ = {v ∈ C ∖ {u} | nondegree_{ S ∪ {u} }(v) ≤ k - Ē(S)}
-    Subgraph.remove_node!(C, is_u, node)
-    Subgraph.add_node!(S, is_u, node)
-
-    # maximum_nondegree = k - S_edges
-    # println("S_e = $S_edges, S_m = $S_missing")
-    maximum_nondegree = k - S_missing
-
-    C′_u = Set(
-        node for node in C.U if nondegree_in_subgraph(g, true, node::Int, S) ≤ maximum_nondegree
-    )
-    C′_v = Set(
-        node for node in C.V if nondegree_in_subgraph(g, false, node::Int, S) ≤ maximum_nondegree
-    )
-
-    C′ = SubGraph(copy(C′_u), copy(C′_v))
-    Subgraph.remove_node!(S, is_u, node::Int)
-    Subgraph.add_node!(C, is_u, node::Int)
-
-    # T = S ∪ {u} ∪ C′
-    Subgraph.add!(C′, S)
-    Subgraph.add_node!(C′, is_u, node::Int)
-
-    # C′_0 = {v ∈ C′ | nondegree_{T}(v) = 0}
-    C′_0_u = Set(
-        node for node in C′_u if nondegree_in_subgraph(g, true, node::Int, C′) == 0
-    )
-    C′_0_v = Set(
-        node for node in C′_v if nondegree_in_subgraph(g, false, node::Int, C′) == 0
-    )
-
-    Subgraph.minus!(C′, S)
-    Subgraph.remove_node!(C′, is_u, node::Int)
-
-    C′_0 = SubGraph(C′_0_u, C′_0_v)
-
-    Subgraph.minus!(C′, C′_0)
-
-    return C′, C′_0
 end
 
 function heuristic(g::FrozenBipartite, k::Int, θ::Int)
