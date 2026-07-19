@@ -1,7 +1,7 @@
 include("graph.jl")
 
 # const DEBUG = true
-const OPTIMIZATION_PRUNE_K_1_MISSING_EDGE_CANDIDATES = true
+# const OPTIMIZATION_PRUNE_K_1_MISSING_EDGE_CANDIDATES = true
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 
 function argmax_nodes(f, sg::SubGraph)
@@ -93,7 +93,7 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
     @static if @isdefined(DEBUG)
         # @show S
         # @show C
-        println("S=", length(S.U) + length(S.V), "C=", length(C.U) + length(C.V))
+        # println("S=", length(S.U) + length(S.V), "C=", length(C.U) + length(C.V))
     end
 
     @static if @isdefined(OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES)
@@ -291,8 +291,7 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
     add_node!(S, is_u, node)
 
     S_edges = subgraph_edge_count(g, S)
-
-    S_missing = length(S.U) * length(S.V) / 2 - S_edges
+    S_missing = length(S.U) * length(S.V) - S_edges
 
     @static if @isdefined(OPTIMIZATION_PRUNE_K_1_MISSING_EDGE_CANDIDATES)
         maximum_nondegree = S_missing ≥ 0 ? 0 : k - S_edges

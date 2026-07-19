@@ -468,7 +468,7 @@ end
 
 module Subgraph
     import ..SubGraph, ..FrozenBipartite, .._dense_assignment, ..neighbor_range_u, ..neighbor_range_v
-    export add_node!, remove_node!, add_subgraph!, minus, missing_edges, edge_count, nonneighbors_in_subgraph
+    export add_node!, remove_node!, add!, minus, minus!, missing_edges, edge_count, nonneighbors_in_subgraph
 
     function add_node!(sg::SubGraph, is_u::Bool, node::Int)
         if is_u

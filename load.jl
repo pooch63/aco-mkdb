@@ -84,7 +84,7 @@ function main()
         g = load_bipartite_graph(graph_path)
         D = SubGraph(Set(), Set())
 
-        D = branch_binary(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 4, 10)
+        D = branch_binary(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 2, 4)
         # D = branch_pivot(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 2)
 
         @show D
