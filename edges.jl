@@ -13,10 +13,10 @@ Prerequisites:
 
 How to Run from the Command Line:
   Format:
-    julia process.jl <path_to_input_jsonl> <path_to_output_csv>
+    julia edges.jl <path_to_input_jsonl> <path_to_output_csv>
 
   Example:
-    julia process.jl data/reviews.jsonl data/interactions.csv
+    julia edges.jl data/reviews.jsonl data/interactions.csv
 =================================================================================
 =#
 
