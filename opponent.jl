@@ -3,6 +3,14 @@ include("graph.jl")
 const TRACE = false
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 
+# When enabled, throw away any k-MDB that will have fewer U
+# or fewer V nodes than the current best k-MBD. If this setting
+# is disabled, any k-MDB found that has more edges than the current k-MDB
+# will be used
+# BE CAREFUL, because if the inflate setting is not the same as is used in
+# the test suite, you may get mismatches
+const INFLATE = false
+
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
 function argmax_nodes(f, sg::SubGraph)
@@ -34,9 +42,10 @@ end
 # BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
 # times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
 # and still result in a k-MDB, although we don't necessarily know which subset of C could be added to S.
-function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph, k::Int, θ::Int, depth::Int=0)
+function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite,
+    D::SubGraph, k::Int, θ::Int, S_missing::Int=0, depth::Int=0)
     if TRACE
-        me = Subgraph.missing_edges(g, S)
+        me = S_missing
         println("  "^depth, "depth=$depth  S.U=", sorted_str(S.U), " S.V=", sorted_str(S.V),
                 "  missing(S)=$me/$k  C.U=", sorted_str(C.U), " C.V=", sorted_str(C.V))
         if me > k
@@ -50,22 +59,24 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
     end
 
     if OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES
-        max_u = max(length(D.U), θ)
-        max_v = max(length(D.V), θ)
+        max_u = INFLATE ? max(length(D.U), θ) : θ
+        max_v = INFLATE ? max(length(D.V), θ) : θ
         if length(C.U) + length(S.U) < max_u || length(C.V) + length(S.V) < max_v
-            TRACE && println("  "^depth, "-> pruned (too few reachable vertices)")
+            TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ)")
             return D
         end
     end
 
-    if Subgraph.missing_edges(g, S) > k
+    # TODO: Remove this check. Performance bottleneck and I'm pretty sure I don't need it
+    if S_missing > k
         return D
     end
 
     if Subgraph.vertex_count(C) == 0
-        if Subgraph.edge_count(g, S) > Subgraph.edge_count(g, D) && length(S.U) >= θ && length(S.V) >= θ
+        S_edges = length(S.U) + length(S.V) - S_missing
+        if S_edges > Subgraph.edge_count(g, D) && length(S.U) >= θ && length(S.V) >= θ
             TRACE && println("  "^depth, "-> LEAF: new best D, edges=", Subgraph.edge_count(g, S))
-            @assert Subgraph.missing_edges(g, S) <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
+            @assert S_missing<= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
             return Subgraph.clone(S)
         end
         TRACE && println("  "^depth, "-> LEAF: not better than D")
@@ -92,11 +103,12 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
 
     # BranchB(S, C ∖ {u})
     Subgraph.remove_node!(C, is_u, node)
-    D = branch_binary(S, C, g, D, k, θ, depth + 1)
+    D = branch_binary(S, C, g, D, k, θ, S_missing, depth + 1)
 
-    missing_edges_budget = k - Subgraph.missing_edges(g, S)
+    missing_edges_budget = k - S_missing
+    # missing_edges_budget = k - Subgraph.missing_edges(g, S)
     nondegree = nondegree_in_subgraph(g, is_u, node, S)
-    
+
     # if nondegree <= maximum_nondegree
     if nondegree <= missing_edges_budget
         # S′ = S ∪ C′_0
@@ -104,7 +116,7 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite, D::SubGraph
         # S′ ∪ {u}
         Subgraph.add_node!(S, is_u, node)
 
-        D = branch_binary(S, C′, g, D, k, θ, depth + 1)
+        D = branch_binary(S, C′, g, D, k, θ, nondegree, depth + 1)
 
         Subgraph.minus!(S, C′_0)
         Subgraph.remove_node!(S, is_u, node)
