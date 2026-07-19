@@ -33,13 +33,17 @@ function with_stacksize(f, bytes::Int)
     fetch(schedule(Task(f, bytes)))
 end
 
-# Example: Run your deep recursive function with a 2 GB stack
-with_stacksize(2_000_000_000) do
-    g = load_bipartite_graph("data/indexed_interactions.csv")
-    D = SubGraph(Set(), Set())
-    # D = branch_binary(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 3)
+function main()
+    # Example: Run your deep recursive function with a 2 GB stack
+    with_stacksize(2_000_000_000) do
+        g = load_bipartite_graph("data/indexed_interactions.csv"; max_lines=1000)
+        D = SubGraph(Set(), Set())
 
-D = branch_pivot(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 2)
+        D = branch_binary(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 2)
+        # D = branch_pivot(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 2)
+
+        @show D
+    end
 end
 
-@show D
+main()
