@@ -3,6 +3,18 @@ include(joinpath(@__DIR__, "..", "opponent.jl"))
 
 using Random
 
+function parse_seed()
+    for arg in ARGS
+        if startswith(arg, "--seed=")
+            return parse(UInt64, split(arg, "=", limit=2)[2])
+        end
+    end
+    return UInt64(time_ns())
+end
+
+const SEED = parse_seed()
+Random.seed!(SEED)
+
 # =============================================================================
 # DRIVER: brute force + build the real graph + run branch_binary + compare
 # =============================================================================
@@ -133,6 +145,8 @@ else
     if !use_premade
         println()
         println("Reproduce with these exact parameters by hardcoding them,")
-        println("or re-run (this seed was not fixed, so the failure may not recur).")
+        println("or re-run with --seed=$SEED to reproduce this exact random instance.")
     end
 end
+
+println("Seed used: $SEED")
