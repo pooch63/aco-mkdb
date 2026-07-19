@@ -468,7 +468,7 @@ end
 
 module Subgraph
     import ..SubGraph, ..FrozenBipartite, .._dense_assignment, ..neighbor_range_u, ..neighbor_range_v
-    export add_node!, remove_node!, add!, minus, minus!, missing_edges, edge_count, nonneighbors_in_subgraph
+    export add_node!, remove_node!, add!, minus, minus!, missing_edges, edge_count, nonneighbors_in_subgraph, vertex_count, clone
 
     function add_node!(sg::SubGraph, is_u::Bool, node::Int)
         if is_u
@@ -512,16 +512,26 @@ module Subgraph
     Single-subgraph version, when you only need one count.
     """
     function edge_count(fg::FrozenBipartite, sg::SubGraph)
-        u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
         count = 0
-        for ui in eachindex(fg.u_ids)
-            u_subgraph[ui] == 1 || continue
+        for u in sg.U
+            ui = get(fg.u_index, u, nothing)
+            ui === nothing && continue
             for k in neighbor_range_u(fg, ui)
-                v_subgraph[fg.v_adj[k]] == 1 && (count += 1)
+                fg.v_ids[fg.v_adj[k]] in sg.V && (count += 1)
             end
         end
         return count
     end
+    #     u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
+    #     count = 0
+    #     for ui in eachindex(fg.u_ids)
+    #         u_subgraph[ui] == 1 || continue
+    #         for k in neighbor_range_u(fg, ui)
+    #             v_subgraph[fg.v_adj[k]] == 1 && (count += 1)
+    #         end
+    #     end
+    #     return count
+    # end
 
     """
         nonneighbors_in_subgraph(fg, is_u, node_id, sg::SubGraph) -> Vector{Int}
@@ -554,5 +564,13 @@ module Subgraph
             end
             return setdiff(sg.U, neighbor_set)
         end
+    end
+
+    function vertex_count(sg::SubGraph)
+        return length(sg.U) + length(sg.V)
+    end
+
+    function clone(sg::SubGraph)
+        return SubGraph(copy(sg.U), copy(sg.V))
     end
 end
