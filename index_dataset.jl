@@ -41,11 +41,11 @@ function index_dataset(input_path::String, output_csv_path::String, mapping_dir:
 
     println("Processing user mappings...")
     unique_users = unique(df.user_id)
-    user_to_idx = Dict(user => i - 1 for (i, user) in enumerate(unique_users))
+    user_to_idx = Dict(user => i for (i, user) in enumerate(unique_users))
 
     println("Processing item mappings...")
     unique_items = unique(df.item_id)
-    item_to_idx = Dict(item => i - 1 for (i, item) in enumerate(unique_items))
+    item_to_idx = Dict(item => i for (i, item) in enumerate(unique_items))
 
     println("Calculating timestamp baseline...")
     min_timestamp = minimum(df.timestamp)
@@ -65,8 +65,8 @@ function index_dataset(input_path::String, output_csv_path::String, mapping_dir:
     CSV.write(output_csv_path, transformed_df)
 
     println("Saving reverse mapping files...")
-    user_mapping_df = DataFrame(index = 0:(length(unique_users)-1), user_id = unique_users)
-    item_mapping_df = DataFrame(index = 0:(length(unique_items)-1), item_id = unique_items)
+    user_mapping_df = DataFrame(index = 1:length(unique_users), user_id = unique_users)
+    item_mapping_df = DataFrame(index = 1:length(unique_items), item_id = unique_items)
 
     CSV.write(joinpath(mapping_dir, "user_mapping.csv"), user_mapping_df)
     CSV.write(joinpath(mapping_dir, "item_mapping.csv"), item_mapping_df)

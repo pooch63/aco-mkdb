@@ -6,7 +6,7 @@ This script runs the full preprocessing pipeline for a temporal graph dataset.
 It expects a path to a JSONL file and a dataset name, then:
 
   1. Converts the JSONL records into a raw edge CSV at data/<dataset_name>/interactions.csv
-  2. Maps user/item IDs to zero-based integers and saves the indexed graph at
+  2. Maps user/item IDs to one-based integers and saves the indexed graph at
      data/<dataset_name>/indexed_interactions.csv
   3. Writes the reverse mappings and metadata into data/<dataset_name>/mappings/
 
