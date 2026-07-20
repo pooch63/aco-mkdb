@@ -1,6 +1,8 @@
 using Test
 
 include(joinpath(@__DIR__, "..", "graph.jl"))
+include(joinpath(@__DIR__, "..", "opponent.jl"))
+include(joinpath(@__DIR__, "..", "reduction.jl"))
 using .Subgraph
 
 # =============================================================================
@@ -145,6 +147,15 @@ end
 
     # backward-compat alias
     @test neighbor_range(fg, ui1) == neighbor_range_u(fg, ui1)
+end
+
+@testset "reduction pipeline accepts mutable graphs" begin
+    g = build_base_graph()
+    reduced = reduce_graph(g)
+    @test reduced === g
+
+    result = find_kmdb(g, false, pivot)
+    @test result isa SubGraph
 end
 
 # =============================================================================

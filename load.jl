@@ -28,14 +28,16 @@ using ProfileCanvas
 
 include("graph.jl")
 include("opponent.jl")
+include("reduction.jl")
 
 global const DEBUG = true
 
 """
-    load_bipartite_graph(filepath::String) -> FrozenBipartite{Int}
+    load_bipartite_graph(filepath::String) -> BipartiteGraph{Int}
 
-Reads a `user_id,item_id,timestamp` CSV (with header) and builds a frozen
+Reads a `user_id,item_id,timestamp` CSV (with header) and builds a mutable
 bipartite graph where U = user_id, V = item_id, and edge data = timestamp.
+The graph is reduced and then frozen inside the search pipeline.
 """
 function load_bipartite_graph(filepath::String; max_lines::Union{Int,Nothing}=nothing)
     g = BipartiteGraph{Int}()
@@ -54,7 +56,7 @@ function load_bipartite_graph(filepath::String; max_lines::Union{Int,Nothing}=no
             max_lines !== nothing && count >= max_lines && break
         end
     end
-    return freeze(g)
+    return g
 end
 
 function resolve_graph_path(dataset_name::Union{String,Nothing}=nothing)
@@ -118,19 +120,17 @@ function main()
     with_stacksize(2_000_000_000) do
         if profile
             println("Profile mode enabled: warming up compilation on a small graph...")
-            # Warm up: run branch once on a very small slice to compile methods
+            # Warm up: run the search once on a very small slice to compile methods
             gw = load_bipartite_graph(graph_path; max_lines = 50)
-            Dw = heuristic(gw, k, θ)
-            Dw = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in gw.u_ids), Set(v for v in gw.v_ids)), gw, Dw, k, θ, mode)
+            Dw = find_kmdb(gw, true, mode)
 
             # Load full graph for the actual profiled run
             g = load_bipartite_graph(graph_path; max_lines = 20000)
-            D = heuristic(g, k, θ)
 
             println("Starting profiling run (branch) — this may take a while...")
             Profile.clear()
             @profile begin
-                D = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, k, θ, mode)
+                D = find_kmdb(g, true, mode)
             end
 
             # Display profile using ProfileCanvas
@@ -142,10 +142,7 @@ function main()
             @show D
         else
             g = load_bipartite_graph(graph_path; max_lines = 20000)
-            D = heuristic(g, k, θ)
-            println("Found heuristic, |D_u|=$(length(D.U)), |D_V|=$(length(D.V))")
-
-            D = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, k, θ, mode)
+            D = find_kmdb(g, true, mode)
 
             @show D
         end

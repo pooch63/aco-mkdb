@@ -1,4 +1,5 @@
 include("graph.jl")
+include("reduction.jl")
 
 const TRACE = false
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
@@ -84,6 +85,32 @@ function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_mis
 end
 
 @enum BranchMode binary pivot
+
+function find_kmdb(g::BipartiteGraph, use_heuristic::Bool=true, mode::BranchMode=pivot)
+    reduced_graph = reduce_graph(g)
+    frozen_graph = freeze(reduced_graph)
+    return search(frozen_graph, use_heuristic, mode)
+end
+
+function search(g::FrozenBipartite, use_heuristic::Bool=true, mode::BranchMode=pivot)
+    k = 1
+    θ = 3
+
+    D = use_heuristic ? heuristic(g, k, θ) : SubGraph(Set(), Set())
+
+    return branch(
+        SubGraph(Set(), Set()),
+        SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)),
+        g,
+        D,
+        k,
+        θ,
+        mode,
+    )
+end
+
+find_mkdb(g, use_heuristic::Bool=true, mode::BranchMode=pivot) = find_kmdb(g, use_heuristic, mode)
+
 # BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
 # times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
 # and still result in a k-MDB, although we don't necessarily know which subset of C could be added to S.
