@@ -9,7 +9,7 @@ const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 # will be used
 # BE CAREFUL, because if the PRIORITIZE_VERTEX_COUNT setting is not the same as is used in
 # the test suite, you may get mismatches
-const PRIORITIZE_VERTEX_COUNT = false
+const PRIORITIZE_VERTEX_COUNT = true
 
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
@@ -59,9 +59,9 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     end
 
     if OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES
-        max_u = PRIORITIZE_VERTEX_COUNT ? max(length(D.U), θ) : θ
-        max_v = PRIORITIZE_VERTEX_COUNT ? max(length(D.V), θ) : θ
-        if length(C.U) + length(S.U) < max_u || length(C.V) + length(S.V) < max_v
+        min_u = PRIORITIZE_VERTEX_COUNT ? max(length(D.U), θ) : θ
+        min_v = PRIORITIZE_VERTEX_COUNT ? max(length(D.V), θ) : θ
+        if length(C.U) + length(S.U) < min_u || length(C.V) + length(S.V) < min_v
             TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ)")
             return D
         end
@@ -73,13 +73,15 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     end
 
     if Subgraph.vertex_count(C) == 0
-        S_edges = length(S.U) + length(S.V) - S_missing
+        S_edges = length(S.U) * length(S.V) - S_missing
+        # S_edges = Subgraph.edge_count(g, S)
         if S_edges > Subgraph.edge_count(g, D) && length(S.U) >= θ && length(S.V) >= θ
-            TRACE && println("  "^depth, "-> LEAF: new best D, edges=", Subgraph.edge_count(g, S))
+            TRACE && println("  "^depth, "-> LEAF: new best D, S_edges=", S_edges, " D_edges=", Subgraph.edge_count(g,D))
+            TRACE && println(" "^depth, " -> S.U=", sort(collect(S.U)), " S.V=", sort(collect(S.V)))
             @assert S_missing<= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
             return Subgraph.clone(S)
         end
-        TRACE && println("  "^depth, "-> LEAF: not better than D")
+        TRACE && println("  "^depth, "-> LEAF: not better than D, S_e=$S_edges, D_e=$(Subgraph.edge_count(g, D))")
         return D
     end
 
@@ -94,7 +96,7 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
     TRACE && println("  "^depth, "branching on ", is_u ? "u=" : "v=", node, "  (d̄_S=$nondegree)")
 
-    C′, C′_0, maximum_nondegree = update(S, C, g, is_u, node, k)
+    C′, C′_0, maximum_nondegree = update(S, C, g, is_u, node, k, S_missing)
 
     # FLAG: This is the reversed order from the way the authors
     # did it, because this way we don't have to make a complete copy
@@ -116,7 +118,7 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         # S′ ∪ {u}
         Subgraph.add_node!(S, is_u, node)
 
-        D = branch_binary(S, C′, g, D, k, θ, nondegree, depth + 1)
+        D = branch_binary(S, C′, g, D, k, θ, nondegree + S_missing, depth + 1)
 
         Subgraph.minus!(S, C′_0)
         Subgraph.remove_node!(S, is_u, node)
@@ -126,16 +128,15 @@ function branch_binary(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 end
 
 # If we add u to S, what does C become? What "free" nodes can we add to S that don't limit the search space?
-function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int)
+function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int, S_missing::Int)
     # C′ = {v ∈ C ∖ {u} | nondegree_{ S ∪ {u} }(v) ≤ k - Ē(S)}
+
+    new_S_missing = S_missing + nondegree_in_subgraph(g, is_u, node, S)
 
     Subgraph.remove_node!(C, is_u, node)
     Subgraph.add_node!(S, is_u, node)
 
-    S_edges = Subgraph.edge_count(g, S)
-    S_missing = length(S.U) * length(S.V) - S_edges
-
-    maximum_nondegree = k - S_missing
+    maximum_nondegree = k - new_S_missing
 
     C′_u = Set(
         node for node in C.U if nondegree_in_subgraph(g, true, node::Int, S) ≤ maximum_nondegree

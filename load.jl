@@ -94,5 +94,6 @@ function main()
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    main()
+    a = @allocated begin main() end
+    a > 0 && @show a
 end
