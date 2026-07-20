@@ -66,13 +66,36 @@ function resolve_graph_path(dataset_name::Union{String,Nothing}=nothing)
     return joinpath("data", dataset_name, "indexed_interactions.csv")
 end
 
+function parse_dataset_and_mode()
+    dataset_name = nothing
+    mode = pivot
+
+    for arg in ARGS
+        if arg == "--pivot"
+            mode = pivot
+        elseif arg == "--binary"
+            mode = binary
+        elseif dataset_name === nothing
+            dataset_name = arg
+        else
+            throw(ArgumentError("Unexpected argument: $arg"))
+        end
+    end
+
+    if dataset_name === nothing
+        dataset_name = DEBUG ? "boxes" : nothing
+    end
+
+    return dataset_name, mode
+end
+
 # Create a wrapper function that runs code with a custom stack size
 function with_stacksize(f, bytes::Int)
     fetch(schedule(Task(f, bytes)))
 end
 
 function main()
-    dataset_name = length(ARGS) >= 1 ? ARGS[1] : DEBUG ? "boxes" : nothing
+    dataset_name, mode = parse_dataset_and_mode()
     graph_path = resolve_graph_path(dataset_name)
 
     if !isfile(graph_path)
@@ -81,12 +104,13 @@ function main()
     end
 
     println("Loading graph from: $graph_path")
+    println("Mode: $(mode == pivot ? "pivot" : "binary")")
 
     with_stacksize(2_000_000_000) do
-        g = load_bipartite_graph(graph_path; max_lines = nothing)
+        g = load_bipartite_graph(graph_path; max_lines = 20000)
         D = SubGraph(Set(), Set())
 
-        D = branch_binary(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 3)
+        D = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 3, mode)
         # D = branch_pivot(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 2)
 
         @show D

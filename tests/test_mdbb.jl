@@ -12,11 +12,22 @@ function parse_seed()
     return UInt64(time_ns())
 end
 
+function parse_mode()
+    if "--pivot" in ARGS
+        return pivot
+    elseif "--binary" in ARGS
+        return binary
+    else
+        return binary
+    end
+end
+
 const SEED = parse_seed()
 Random.seed!(SEED)
+const MODE = parse_mode()
 
 # =============================================================================
-# DRIVER: brute force + build the real graph + run branch_binary + compare
+# DRIVER: brute force + build the real graph + compare with selected branch mode
 # =============================================================================
 
 function find_optimum(edges, nU, nV, k, θ)
@@ -123,17 +134,22 @@ if use_premade
 end
 
 println("="^70)
-println("branch_binary trace:")
+println("branch_$(MODE) trace:")
 fg = build_frozen(edges, nU, nV)
 
 S0 = SubGraph(Set{Int}(), Set{Int}())
 C0 = SubGraph(Set{Int}(1:nU), Set{Int}(1:nV))
 D0 = SubGraph(Set{Int}(), Set{Int}())
 
-D = branch_binary(S0, C0, fg, D0, k, θ)
+D = branch(S0, C0, fg, D0, k, θ, MODE)
 
 println("="^70)
-println("branch_binary result:")
+println("Brute force:")
+bf_edges, bf_U, bf_V = find_optimum(edges, nU, nV, k, θ)
+println("  edges=$bf_edges  U=$bf_U  V=$bf_V")
+
+println("="^70)
+println("branch_$(MODE) result:")
 println("  D.U=", sort(collect(D.U)), "  D.V=", sort(collect(D.V)))
 println("  edges=", Subgraph.edge_count(fg, D), "  missing_edges=", Subgraph.missing_edges(fg, D))
 
@@ -141,7 +157,7 @@ println("="^70)
 if Subgraph.edge_count(fg, D) == bf_edges
     println("MATCH")
 else
-    println("MISMATCH: branch_binary=", Subgraph.edge_count(fg, D), " vs brute force=", bf_edges)
+    println("MISMATCH: branch_$(MODE)=", Subgraph.edge_count(fg, D), " vs brute force=", bf_edges)
     if !use_premade
         println()
         println("Reproduce with these exact parameters by hardcoding them,")
