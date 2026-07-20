@@ -35,6 +35,46 @@ end
 argmax_nodes(f, sg::SubGraph) = arg_nodes(f, true, sg)
 argmin_nodes(f, sg::SubGraph) = arg_nodes(f, false, sg)
 
+function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_missing::Int)
+    S_edges = length(S.U) * length(S.V) - S_missing
+    budget = k - S_missing
+    # Note: may have to redo C's structure, because a collect call every time might have significant overhead
+    u = sort(collect(C.U), by = u -> nondegree_in_subgraph(g, true, u, S))
+    v = sort(collect(C.V), by = v -> nondegree_in_subgraph(g, false, v, S))
+
+    nondegree_U, nondegree_V = 0, 0
+    nodes_U, nodes_V = 0, 0
+
+    for i in 1:length(u)
+        nondegree_in_S = nondegree_in_subgraph(g, true, u[i], S)
+        if nondegree_U + nondegree_in_S ≤ budget
+            nondegree_U = nondegree_U + nondegree_in_S
+            nodes_U += 1
+        end
+    end
+
+    e = (length(S.U) + nodes_U) * length(S.V) - S_missing - nondegree_U
+    i = nodes_U
+
+    for j in 1:length(v)
+        if nondegree_U + nondegree_V + nondegree_in_subgraph(g, false, v[j], S) ≤ budget
+            
+            while i > 1 && nondegree_U + nondegree_V + nondegree_in_subgraph(g, false, v[j], S) > budget
+                println("forever in the while loop, nondegree_Ui_in_S=$(nondegree_in_subgraph(g, true, u[i], S))")
+                nondegree_U = nondegree_U - nondegree_in_subgraph(g, true, u[i], S)
+                i -= 1
+            end
+
+            nondegree_V = nondegree_V + nondegree_in_subgraph(g, false, v[j], S)
+            nodes_V += 1
+
+            e = max(e, (length(S.U) + i) * (length(S.V) + j) - S_missing - nondegree_U - nondegree_V)
+        end
+    end
+
+    return length(S.U) + nodes_U, length(S.V) + nodes_V, e
+end
+
 @enum BranchMode binary pivot
 # BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
 # times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
@@ -59,8 +99,11 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         max_u = length(C.U) + length(S.U)
         max_v = length(C.V) + length(S.V)
 
-        if (max_u < θ || max_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
-            (max_u * max_v - S_missing < Subgraph.edge_count(g, D)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
+        upper_u, upper_v, upper_e = θ, θ, Subgraph.edge_count(g, D)
+        # upper_u, upper_v, upper_e = upper_bound(S, C, g, k, S_missing)
+
+        if (upper_u < θ || upper_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
+            (upper_e < Subgraph.edge_count(g, D)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
             TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, |D_u|=$(length(D.U)), |D_v|=$(length(D.V)))")
             return D
         end
