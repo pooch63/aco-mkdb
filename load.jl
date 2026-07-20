@@ -106,6 +106,8 @@ function main()
     dataset_name, mode, profile = parse_dataset_and_mode()
     graph_path = resolve_graph_path(dataset_name)
 
+    k, θ = 2, 5
+
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
         exit(1)
@@ -114,15 +116,12 @@ function main()
     println("Loading graph from: $graph_path")
     println("Mode: $(mode == pivot ? "pivot" : "binary")")
 
-    k = 1
-    θ = 3
-
     with_stacksize(2_000_000_000) do
         if profile
             println("Profile mode enabled: warming up compilation on a small graph...")
             # Warm up: run the search once on a very small slice to compile methods
             gw = load_bipartite_graph(graph_path; max_lines = 50)
-            Dw = find_kmdb(gw, true, mode)
+            Dw = find_kmdb!(gw, true, mode)
 
             # Load full graph for the actual profiled run
             g = load_bipartite_graph(graph_path; max_lines = 20000)
@@ -130,7 +129,7 @@ function main()
             println("Starting profiling run (branch) — this may take a while...")
             Profile.clear()
             @profile begin
-                D = find_kmdb(g, true, mode)
+                D = find_kmdb(g, true, mode, k, θ)
             end
 
             # Display profile using ProfileCanvas
@@ -142,7 +141,7 @@ function main()
             @show D
         else
             g = load_bipartite_graph(graph_path; max_lines = 20000)
-            D = find_kmdb(g, true, mode)
+            D = find_kmdb!(g, true, mode, k, θ)
 
             @show D
         end

@@ -70,6 +70,14 @@ function rem_v!(g::BipartiteGraph, v::Int)
     return true
 end
 
+function rem_node!(g::BipartiteGraph, is_u::Bool, node_id::Int)
+    if is_u
+        return rem_u!(g, node_id)
+    else
+        return rem_v!(g, node_id)
+    end
+end
+
 # --- edges ---
 function add_edge!(g::BipartiteGraph{T}, u::Int, v::Int, data::T) where {T}
     add_u!(g, u)
@@ -89,6 +97,7 @@ function rem_edge!(g::BipartiteGraph, u::Int, v::Int)
 end
 
 # --- queries (still available on the live graph if needed) ---
+node_exists(g::BipartiteGraph, is_u::Bool, node_id::Int) = is_u ? haskey(g.adjU, node_id) : haskey(g.adjV, node_id)
 neighbors_u(g::BipartiteGraph, u::Int) = g.adjU[u]
 neighbors_v(g::BipartiteGraph, v::Int) = g.adjV[v]
 get_neighbors(g::BipartiteGraph, is_u::Bool, node_id::Int) = is_u ? neighbors_u(g, node_id) : neighbors_v(g, node_id)

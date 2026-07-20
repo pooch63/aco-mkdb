@@ -86,16 +86,13 @@ end
 
 @enum BranchMode binary pivot
 
-function find_kmdb(g::BipartiteGraph, use_heuristic::Bool=true, mode::BranchMode=pivot)
-    reduced_graph = reduce_graph(g)
-    frozen_graph = freeze(reduced_graph)
-    return search(frozen_graph, use_heuristic, mode)
+function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int)
+    reduce_graph!(g, k, θ)
+    frozen_graph = freeze(g)
+    return search(frozen_graph, use_heuristic, mode, k, θ)
 end
 
-function search(g::FrozenBipartite, use_heuristic::Bool=true, mode::BranchMode=pivot)
-    k = 1
-    θ = 3
-
+function search(g::FrozenBipartite, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int)
     D = use_heuristic ? heuristic(g, k, θ) : SubGraph(Set(), Set())
 
     return branch(
