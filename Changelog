@@ -1,0 +1,3 @@
+7.19.26
+Tried to include sizehint! in C'_u and C'_v arrays in
+update function. It made things significantly worse
