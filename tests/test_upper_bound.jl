@@ -149,4 +149,4 @@ for trial in 1:N
         break
     end
 end
-println("Done. Seed used: $SEED")
+println("Done. $N/$N trials passed. Seed used: --seed=$SEED")

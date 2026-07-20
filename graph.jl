@@ -180,6 +180,20 @@ function freeze(g::BipartiteGraph{T}) where {T}
     )
 end
 
+function build_frozen(edges, nU, nV)
+    g = BipartiteGraph{Nothing}()
+    for u in 1:nU
+        add_u!(g, u)
+    end
+    for v in 1:nV
+        add_v!(g, v)
+    end
+    for (u, v) in edges
+        add_edge!(g, u, v, nothing)
+    end
+    return freeze(g)
+end
+
 # Range into v_adj/edge_data for the neighbors of dense u-index ui
 @inline neighbor_range_u(fg::FrozenBipartite, ui::Int) = fg.u_offsets[ui]:(fg.u_offsets[ui+1] - 1)
 # Range into u_adj/v_edge_data for the neighbors of dense v-index vi

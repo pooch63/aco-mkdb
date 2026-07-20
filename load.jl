@@ -23,6 +23,9 @@ How to Run from the Command Line:
 =================================================================================
 =#
 
+using Profile
+using ProfileCanvas
+
 include("graph.jl")
 include("opponent.jl")
 
@@ -69,10 +72,13 @@ end
 function parse_dataset_and_mode()
     dataset_name = nothing
     mode = pivot
+    profile = false
 
     for arg in ARGS
         if arg == "--pivot"
             mode = pivot
+        elseif arg == "--profile"
+            profile = true
         elseif arg == "--binary"
             mode = binary
         elseif dataset_name === nothing
@@ -86,7 +92,7 @@ function parse_dataset_and_mode()
         dataset_name = DEBUG ? "boxes" : nothing
     end
 
-    return dataset_name, mode
+    return dataset_name, mode, profile
 end
 
 # Create a wrapper function that runs code with a custom stack size
@@ -95,7 +101,7 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, mode = parse_dataset_and_mode()
+    dataset_name, mode, profile = parse_dataset_and_mode()
     graph_path = resolve_graph_path(dataset_name)
 
     if !isfile(graph_path)
@@ -106,14 +112,43 @@ function main()
     println("Loading graph from: $graph_path")
     println("Mode: $(mode == pivot ? "pivot" : "binary")")
 
+    k = 1
+    θ = 3
+
     with_stacksize(2_000_000_000) do
-        g = load_bipartite_graph(graph_path; max_lines = 20000)
-        D = SubGraph(Set(), Set())
+        if profile
+            println("Profile mode enabled: warming up compilation on a small graph...")
+            # Warm up: run branch once on a very small slice to compile methods
+            gw = load_bipartite_graph(graph_path; max_lines = 50)
+            Dw = heuristic(gw, k, θ)
+            Dw = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in gw.u_ids), Set(v for v in gw.v_ids)), gw, Dw, k, θ, mode)
 
-        D = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 3, mode)
-        # D = branch_pivot(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, 1, 2)
+            # Load full graph for the actual profiled run
+            g = load_bipartite_graph(graph_path; max_lines = 20000)
+            D = heuristic(g, k, θ)
 
-        @show D
+            println("Starting profiling run (branch) — this may take a while...")
+            Profile.clear()
+            @profile begin
+                D = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, k, θ, mode)
+            end
+
+            # Display profile using ProfileCanvas
+            try
+                ProfileCanvas.canvas()
+            catch e
+                @warn "ProfileCanvas failed to display:" exception=(e, catch_backtrace())
+            end
+            @show D
+        else
+            g = load_bipartite_graph(graph_path; max_lines = 20000)
+            D = heuristic(g, k, θ)
+            println("Found heuristic, |D_u|=$(length(D.U)), |D_V|=$(length(D.V))")
+
+            D = branch(SubGraph(Set(), Set()), SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)), g, D, k, θ, mode)
+
+            @show D
+        end
     end
 end
 

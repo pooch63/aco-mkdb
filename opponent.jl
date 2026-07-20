@@ -2,6 +2,7 @@ include("graph.jl")
 
 const TRACE = false
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
+const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = true
 
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
@@ -50,6 +51,8 @@ function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_mis
         if nondegree_U + nondegree_in_S ≤ budget
             nondegree_U = nondegree_U + nondegree_in_S
             nodes_U += 1
+        else
+            break
         end
     end
 
@@ -57,19 +60,24 @@ function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_mis
     i = nodes_U
 
     for j in 1:length(v)
-        if nondegree_U + nondegree_V + nondegree_in_subgraph(g, false, v[j], S) ≤ budget
-            
-            while i > 1 && nondegree_U + nondegree_V + nondegree_in_subgraph(g, false, v[j], S) > budget
-                println("forever in the while loop, nondegree_Ui_in_S=$(nondegree_in_subgraph(g, true, u[i], S))")
-                nondegree_U = nondegree_U - nondegree_in_subgraph(g, true, u[i], S)
-                i -= 1
-            end
+        cost_V = nondegree_in_subgraph(g, false, v[j], S)
 
-            nondegree_V = nondegree_V + nondegree_in_subgraph(g, false, v[j], S)
-            nodes_V += 1
-
-            e = max(e, (length(S.U) + i) * (length(S.V) + j) - S_missing - nondegree_U - nondegree_V)
+        if nondegree_V + cost_V > budget
+            break
         end
+        
+
+        while i > 0 && nondegree_U + nondegree_V + cost_V > budget
+            nondegree_U -= nondegree_in_subgraph(g, true, u[i], S)
+            i -= 1
+        end
+
+        nondegree_V += cost_V
+        nodes_V += 1
+        e = max(
+            e,
+            (length(S.U) + i) * (length(S.V) + j) - S_missing - nondegree_U - nondegree_V
+        )
     end
 
     return length(S.U) + nodes_U, length(S.V) + nodes_V, e
@@ -99,9 +107,11 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         max_u = length(C.U) + length(S.U)
         max_v = length(C.V) + length(S.V)
 
-        upper_u, upper_v, upper_e = θ, θ, Subgraph.edge_count(g, D)
-        # upper_u, upper_v, upper_e = upper_bound(S, C, g, k, S_missing)
-
+        if OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION
+            upper_u, upper_v, upper_e = upper_bound(S, C, g, k, S_missing)
+        else
+            upper_u, upper_v, upper_e = θ, θ, Subgraph.edge_count(g, D)
+        end
         if (upper_u < θ || upper_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
             (upper_e < Subgraph.edge_count(g, D)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
             TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, |D_u|=$(length(D.U)), |D_v|=$(length(D.V)))")
@@ -330,10 +340,39 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
 end
 
 function heuristic(g::FrozenBipartite, k::Int, θ::Int)
-    U′ = Set()
-    V′ = copy(g.V)
+    sg = SubGraph(Set(), Set(g.v_ids))
 
-    while length(U′) < θ
-        nondegs = []
+    search = copy(g.u_ids)
+
+    while length(sg.U) < θ && !isempty(search)
+        u = argmax(u -> degree_in_subgraph_u(g, u, sg), search)
+        new_missing = nondegree_in_subgraph(g, true, u, sg)
+        
+        Subgraph.add_node!(sg, true, u)
+        deleteat!(search, findfirst(==(u), search))
+
+        sg_missing = Subgraph.missing_edges(g, sg)
+        
+        if sg_missing > k
+            Vs = collect(sg.V)
+            nondegrees = [nondegree_in_subgraph(g, false, v, sg) for v in Vs]
+            idxs = sortperm(nondegrees, rev=true)
+
+            missing_edges_to_remove = sg_missing - k
+            num_nodes_removed = 0
+
+            while missing_edges_to_remove > 0
+                num_nodes_removed += 1
+                idx = idxs[num_nodes_removed]
+                missing_edges_to_remove -= nondegrees[idx]
+                delete!(sg.V, Vs[idx])
+            end
+        end
     end
+
+    if length(sg.V) < θ
+        return SubGraph(Set(), Set())
+    end
+
+    return sg
 end

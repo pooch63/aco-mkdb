@@ -1,5 +1,6 @@
 include(joinpath(@__DIR__, "..", "graph.jl"))
 include(joinpath(@__DIR__, "..", "opponent.jl"))
+include(joinpath(@__DIR__, "generate.jl"))
 
 using Random
 
@@ -55,20 +56,6 @@ function find_optimum(edges, nU, nV, k, θ)
     return best
 end
 
-function build_frozen(edges, nU, nV)
-    g = BipartiteGraph{Nothing}()
-    for u in 1:nU
-        add_u!(g, u)
-    end
-    for v in 1:nV
-        add_v!(g, v)
-    end
-    for (u, v) in edges
-        add_edge!(g, u, v, nothing)
-    end
-    return freeze(g)
-end
-
 # =============================================================================
 # GRAPH SOURCES
 # =============================================================================
@@ -83,27 +70,6 @@ function premade_graph()
     ])
     nU, nV = 5, 5
     k, θ = 1, 3
-    return edges, nU, nV, k, θ
-end
-
-# Small enough to brute force: 2^nU * 2^nV masks, each doing nU*nV work.
-# Keep nU, nV <= 6 or so to stay fast (2^6 * 2^6 * 36 ≈ 147k ops -- fine).
-function random_graph(; nU_range=3:6, nV_range=3:6, edge_prob=0.5)
-    nU = rand(nU_range)
-    nV = rand(nV_range)
-
-    edges = Set{Tuple{Int,Int}}()
-    for u in 1:nU, v in 1:nV
-        if rand() < edge_prob
-            push!(edges, (u, v))
-        end
-    end
-
-    # θ must be small enough that a valid biclique can exist at all.
-    θ = rand(1:min(nU, nV))
-    # k must be small enough to keep brute force meaningful (not "anything goes").
-    k = rand(0:min(nU * nV, 4))
-
     return edges, nU, nV, k, θ
 end
 
