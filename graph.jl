@@ -197,7 +197,10 @@ end
 mutable struct SubGraph
     U::Set{Int}   # original u ids in this subgraph
     V::Set{Int}   # original v ids in this subgraph
+    edge_count_cache::Union{Nothing,Int}
 end
+
+SubGraph(U::Set, V::Set) = SubGraph(U, V, nothing)
 
 subgraph_length(sg::SubGraph) = length(sg.U) + length(sg.V)
 
@@ -321,6 +324,21 @@ end
 # --------------------------------------------------------------------------
 
 # ---- whole-graph neighbors, by original id ----
+
+"""
+    is_neighbor(fg, is_u, node_id, other_id) -> Bool
+
+Return whether `other_id` is adjacent to `node_id` in the frozen graph, where
+`is_u` tells which side `node_id` lives on. This is the direct lookup used by
+`opponent.jl` during branch updates.
+"""
+function is_neighbor(fg::FrozenBipartite, is_u::Bool, node_id::Int, other_id::Int)
+    if is_u
+        return other_id in neighbors_u(fg, node_id)
+    else
+        return other_id in neighbors_v(fg, node_id)
+    end
+end
 
 """
     neighbors_u(fg, u_id) -> Vector{Int}
@@ -476,6 +494,8 @@ module Subgraph
         else
             push!(sg.V, node)
         end
+        sg.edge_count_cache = nothing
+        return sg
     end
     function remove_node!(sg::SubGraph, is_u::Bool, node::Int)
         if is_u
@@ -483,11 +503,14 @@ module Subgraph
         else
             delete!(sg.V, node)
         end
+        sg.edge_count_cache = nothing
+        return sg
     end
 
     function add!(S::SubGraph, to_add::SubGraph)
         union!(S.U, to_add.U)
         union!(S.V, to_add.V)
+        S.edge_count_cache = nothing
         return S
     end
     function minus(sg1::SubGraph, sg2::SubGraph)
@@ -499,6 +522,7 @@ module Subgraph
     function minus!(sg1::SubGraph, sg2::SubGraph)
         sg1.U = setdiff(sg1.U, sg2.U)
         sg1.V = setdiff(sg1.V, sg2.V)
+        sg1.edge_count_cache = nothing
         return sg1
     end
 
@@ -512,6 +536,7 @@ module Subgraph
     Single-subgraph version, when you only need one count.
     """
     function edge_count(fg::FrozenBipartite, sg::SubGraph)
+        sg.edge_count_cache !== nothing && return sg.edge_count_cache
         count = 0
         for u in sg.U
             ui = get(fg.u_index, u, nothing)
@@ -520,6 +545,7 @@ module Subgraph
                 fg.v_ids[fg.v_adj[k]] in sg.V && (count += 1)
             end
         end
+        sg.edge_count_cache = count
         return count
     end
     #     u_subgraph, v_subgraph = _dense_assignment(fg, [sg])

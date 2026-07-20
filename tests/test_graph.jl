@@ -148,6 +148,23 @@ end
 end
 
 # =============================================================================
+# Frozen adjacency checks
+# =============================================================================
+@testset "is_neighbor on frozen graph" begin
+    fg = freeze(build_base_graph())
+
+    @test is_neighbor(fg, true, 1, 10)
+    @test is_neighbor(fg, true, 1, 20)
+    @test !is_neighbor(fg, true, 1, 30)
+    @test !is_neighbor(fg, true, 999, 10)
+
+    @test is_neighbor(fg, false, 10, 1)
+    @test is_neighbor(fg, false, 30, 2)
+    @test !is_neighbor(fg, false, 10, 2)
+    @test !is_neighbor(fg, false, 40, 1)
+end
+
+# =============================================================================
 # SubGraph basics
 # =============================================================================
 @testset "SubGraph basics" begin
@@ -156,6 +173,9 @@ end
 
     empty_sg = SubGraph(Set{Int}(), Set{Int}())
     @test subgraph_length(empty_sg) == 0
+
+    empty_generic_sg = SubGraph(Set{Any}(), Set{Any}())
+    @test subgraph_length(empty_generic_sg) == 0
 end
 
 # =============================================================================
@@ -182,6 +202,21 @@ function build_community_graph()
     add_edge!(g, 5, 10, 9.0)   # u=5 unassigned
     add_edge!(g, 5, 30, 10.0)  # u=5 unassigned
     return g
+end
+
+@testset "SubGraph caches invalidate on mutation" begin
+    g = build_community_graph()
+    fg = freeze(g)
+
+    sg = SubGraph(Set([1]), Set([10]))
+    @test sg.edge_count_cache === nothing
+    @test Subgraph.edge_count(fg, sg) == 1
+    @test sg.edge_count_cache == 1
+
+    Subgraph.add_node!(sg, true, 2)
+    @test sg.edge_count_cache === nothing
+    @test Subgraph.edge_count(fg, sg) == 2
+    @test sg.edge_count_cache == 2
 end
 
 @testset "split_fg / subgraph_edge_counts / accumulate_edges!" begin
