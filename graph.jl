@@ -91,6 +91,10 @@ end
 # --- queries (still available on the live graph if needed) ---
 neighbors_u(g::BipartiteGraph, u::Int) = g.adjU[u]
 neighbors_v(g::BipartiteGraph, v::Int) = g.adjV[v]
+get_neighbors(g::BipartiteGraph, is_u::Bool, node_id::Int) = is_u ? neighbors_u(g, node_id) : neighbors_v(g, node_id)
+degree_u(g::BipartiteGraph, u::Int) = length(g.adjU[u])
+degree_v(g::BipartiteGraph, v::Int) = length(g.adjV[v])
+get_degree(g::BipartiteGraph, is_u::Bool, node_id::Int) = is_u ? degree_u(g, node_id) : degree_v(g, node_id)
 edge_data(g::BipartiteGraph, u::Int, v::Int) = g.edge_data[(u, v)]
 has_edge(g::BipartiteGraph, u::Int, v::Int) = haskey(g.edge_data, (u, v))
 
