@@ -1,7 +1,7 @@
 include("graph.jl")
 include("reduction.jl")
 
-const TRACE = false
+const TRACE = true
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = true
 const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = true
@@ -89,45 +89,61 @@ function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_mis
 end
 
 @enum BranchMode binary pivot
+@enum ReductionMode simple progressive none
 
-function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int)
-    num_U = length(g.adjU)
-    num_V = length(g.adjV)
+# If the number of entries in g.adjU is not equal to the number of nodes or same for V,
+# e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
+function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int,
+    reduction::ReductionMode=progressive; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
 
-    reduce_graph!(g, k, θ, num_U, num_V)
+    @assert θ > k "θ must be greater than k"
+
+    num_U = num_U === nothing ? length(g.adjU) : num_U
+    num_V = num_V === nothing ? length(g.adjV) : num_V
+
     fg = freeze(g)
-
-    u_degrees = Int[]
-    for u in fg.u_ids
-        push!(u_degrees, degree_u(fg, u))
-    end
-
-    θ_U = maximum(u_degrees) + k
-    θ_V = 0
 
     D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
 
-    while θ_U > θ
-        θ_V = max(θ, floor(Int, Subgraph.edge_count(fg, D) / θ_U))
-        θ_U = max(θ, floor(Int, θ_U / 2))
-
-        println()
-
-        reduce_graph!(g, k, min(θ_U, θ_V), num_U, num_V)
-        fg = freeze(g)
+    if isempty(fg.u_ids) || isempty(fg.v_ids)
+        return search(fg, use_heuristic, mode, D, k, θ)
     end
 
+    if reduction == simple
+        reduce_graph!(g, k, θ, num_U, num_V)
+        fg = freeze(g)
+    elseif reduction == progressive
+        reduce_graph!(g, k, θ, num_U, num_V)
+        fg = freeze(g)
+
+        u_degrees = Int[]
+        for u in fg.u_ids
+            push!(u_degrees, degree_u(fg, u))
+        end
+
+        isempty(u_degrees) && return search(fg, use_heuristic, mode, D, k, θ)
+
+        θ_U = maximum(u_degrees) + k
+        θ_V = 0
+
+        D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
+
+        while θ_U > θ
+            θ_V = max(θ, floor(Int, Subgraph.edge_count(fg, D) / θ_U))
+            θ_U = max(θ, floor(Int, θ_U / 2))
+
+            reduce_graph!(g, k, min(θ_U, θ_V), num_U, num_V)
+            fg = freeze(g)
+        end
+    end
+
+    D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
+
     println("Reduction is complete")
-
-    return search(fg, use_heuristic, mode, D, k, θ)
-end
-
-function search(g::FrozenBipartite, use_heuristic::Bool, mode::BranchMode, D::SubGraph, k::Int, θ::Int)
-
     return branch(
         SubGraph(Set(), Set()),
-        SubGraph(Set(u for u in g.u_ids), Set(v for v in g.v_ids)),
-        g,
+        SubGraph(Set(u for u in fg.u_ids), Set(v for v in fg.v_ids)),
+        fg,
         D,
         k,
         θ,
@@ -135,7 +151,10 @@ function search(g::FrozenBipartite, use_heuristic::Bool, mode::BranchMode, D::Su
     )
 end
 
-find_mkdb(g, use_heuristic::Bool=true, mode::BranchMode=pivot) = find_kmdb(g, use_heuristic, mode)
+function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode,
+    k::Int, θ::Int, reduction::ReductionMode=progressive)
+    return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction)
+end
 
 # BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
 # times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
@@ -182,10 +201,10 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         # S_edges = Subgraph.edge_count(g, S)
         if S_edges > Subgraph.edge_count(g, D) && length(S.U) >= θ && length(S.V) >= θ
             TRACE && println("  "^depth, "-> LEAF: new best D, S_edges=", S_edges, " D_edges=", Subgraph.edge_count(g,D))
-            @assert S_missing<= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
+            @assert S_missing <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
             return Subgraph.clone(S)
         end
-        TRACE && println("  "^depth, "-> LEAF: not better than D, S_e=$S_edges, D_e=$(Subgraph.edge_count(g, D))")
+        TRACE && println("  "^depth, "-> LEAF: not better than D, S_e=$S_edges, D_e=$(Subgraph.edge_count(g, D)), D_u=", collect(D.U), " D_v=", collect(D.V))
         return D
     end
 

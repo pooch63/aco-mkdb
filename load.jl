@@ -71,10 +71,30 @@ function resolve_graph_path(dataset_name::Union{String,Nothing}=nothing)
     return joinpath("data", dataset_name, "indexed_interactions.csv")
 end
 
+function parse_reduction()
+    for arg in ARGS
+        if startswith(arg, "--reduce=")
+            value = split(arg, "=", limit=2)[2]
+            if value == "lo"
+                return simple
+            elseif value == "hi"
+                return progressive
+            elseif value == "none"
+                return none
+            else
+                throw(ArgumentError("Unsupported reduction setting: $value"))
+            end
+        end
+    end
+
+    return progressive
+end
+
 function parse_dataset_and_mode()
     dataset_name = nothing
     mode = pivot
     profile = false
+    reduction = parse_reduction()
 
     for arg in ARGS
         if arg == "--pivot"
@@ -83,6 +103,8 @@ function parse_dataset_and_mode()
             profile = true
         elseif arg == "--binary"
             mode = binary
+        elseif startswith(arg, "--reduce=")
+            continue
         elseif dataset_name === nothing
             dataset_name = arg
         else
@@ -94,7 +116,7 @@ function parse_dataset_and_mode()
         dataset_name = DEBUG ? "boxes" : nothing
     end
 
-    return dataset_name, mode, profile
+    return dataset_name, mode, profile, reduction
 end
 
 # Create a wrapper function that runs code with a custom stack size
@@ -103,7 +125,7 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, mode, profile = parse_dataset_and_mode()
+    dataset_name, mode, profile, reduction = parse_dataset_and_mode()
     graph_path = resolve_graph_path(dataset_name)
 
     k, θ = 2, 5
@@ -115,13 +137,14 @@ function main()
 
     println("Loading graph from: $graph_path")
     println("Mode: $(mode == pivot ? "pivot" : "binary")")
+    println("Reduction: $(reduction == simple ? "simple" : reduction == none ? "none" : "progressive")")
 
     with_stacksize(2_000_000_000) do
         if profile
             println("Profile mode enabled: warming up compilation on a small graph...")
             # Warm up: run the search once on a very small slice to compile methods
             gw = load_bipartite_graph(graph_path; max_lines = 50)
-            Dw = find_kmdb!(gw, true, mode)
+            Dw = find_kmdb!(gw, true, mode, k, θ, reduction)
 
             # Load full graph for the actual profiled run
             g = load_bipartite_graph(graph_path)
@@ -129,7 +152,7 @@ function main()
             println("Starting profiling run (branch) — this may take a while...")
             Profile.clear()
             @profile begin
-                D = find_kmdb(g, true, mode, k, θ)
+                D = find_kmdb(g, true, mode, k, θ, reduction)
             end
 
             # Display profile using ProfileCanvas
@@ -141,7 +164,7 @@ function main()
             @show D
         else
             g = load_bipartite_graph(graph_path)
-            D = find_kmdb!(g, true, mode, k, θ)
+            D = find_kmdb!(g, true, mode, k, θ, reduction)
 
             @show D
         end

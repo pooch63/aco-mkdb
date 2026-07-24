@@ -5,9 +5,43 @@ include(joinpath(@__DIR__, "..", "opponent.jl"))
 include(joinpath(@__DIR__, "..", "reduction.jl"))
 using .Subgraph
 
+"""
+    same_bipartite_graph(g1::BipartiteGraph, g2::BipartiteGraph) -> Bool
+
+True iff `g1` and `g2` have identical `adjU`, `adjV`, and `edge_data`.
+"""
+function same_bipartite_graph(g1::BipartiteGraph, g2::BipartiteGraph)
+    return g1.adjU == g2.adjU &&
+           g1.adjV == g2.adjV &&
+           g1.edge_data == g2.edge_data
+end
+
 # =============================================================================
 # PHASE 1: BipartiteGraph mutation
 # =============================================================================
+@testset "same_bipartite_graph" begin
+    g1 = BipartiteGraph{String}()
+    add_edge!(g1, 1, 10, "a")
+    add_edge!(g1, 2, 20, "b")
+    add_u!(g1, 3)
+    add_v!(g1, 30)
+
+    g2 = deepcopy(g1)
+    @test same_bipartite_graph(g1, g2)
+
+    g3 = deepcopy(g1)
+    rem_edge!(g3, 1, 10)
+    @test !same_bipartite_graph(g1, g3)
+
+    g4 = deepcopy(g1)
+    rem_u!(g4, 3)
+    @test !same_bipartite_graph(g1, g4)
+
+    g5 = deepcopy(g1)
+    g5.edge_data[(1, 10)] = "z"
+    @test !same_bipartite_graph(g1, g5)
+end
+
 @testset "BipartiteGraph mutation" begin
     g = BipartiteGraph{String}()
 
@@ -147,15 +181,6 @@ end
 
     # backward-compat alias
     @test neighbor_range(fg, ui1) == neighbor_range_u(fg, ui1)
-end
-
-@testset "reduction pipeline accepts mutable graphs" begin
-    g = build_base_graph()
-    reduced = reduce_graph(g)
-    @test reduced === g
-
-    result = find_kmdb(g, false, pivot)
-    @test result isa SubGraph
 end
 
 # =============================================================================

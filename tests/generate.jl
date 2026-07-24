@@ -14,7 +14,7 @@ function random_graph(; nU_range=3:6, nV_range=3:6, edge_prob=0.5)
     # θ must be small enough that a valid biclique can exist at all.
     θ = rand(1:min(nU, nV))
     # k must be small enough to keep brute force meaningful (not "anything goes").
-    k = rand(0:min(nU * nV, 4))
+    k = rand(0:min(nU * nV, 4, θ - 1))
 
     return edges, nU, nV, k, θ
 end

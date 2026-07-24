@@ -572,6 +572,14 @@ module Subgraph
                 fg.v_ids[fg.v_adj[k]] in sg.V && (count += 1)
             end
         end
+        #         u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
+        # count = 0
+        # for ui in eachindex(fg.u_ids)
+        #     u_subgraph[ui] == 1 || continue
+        #     for k in neighbor_range_u(fg, ui)
+        #         v_subgraph[fg.v_adj[k]] == 1 && (count += 1)
+        #     end
+        # end
         sg.edge_count_cache = count
         return count
     end
