@@ -37,7 +37,15 @@ depth=0  S.U={} S.V={}  missing(S)=0/0  C.U={1,2,3,4,5} C.V={1,2,3,5,6}
     [update] branched-on=6  maximum_nondegree=0  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
         [pivot] branch B2 -> recurse on primary branch with nondegree=0
           depth=5  S.U={1,3,4,5} S.V={6}  missing(S)=0/0  C.U={} C.V={1}
-          -> pruned (too few reachable vertices, θ=2, |D_u|=2, |D_v|=4)
+          [pivot] entering pivot mode, remaining_budget=0
+          [pivot] C_0 size=1  C_0.U={} C_0.V={1}
+          [pivot] branch B: selected v=1 with C_nondegree=0
+          [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=1  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch B2 -> recurse on primary branch with nondegree=0
+            depth=6  S.U={1,3,4,5} S.V={1,6}  missing(S)=0/0  C.U={} C.V={}
+            -> LEAF: not better than D, S_e=8, D_e=8, D_u=[5, 4] D_v=[5, 6, 3, 1]
+          [pivot] branch B2 -> exploring 0 nonneighbors
         [pivot] branch B2 -> exploring 1 nonneighbors
     [update] branched-on=2  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
         [pivot] branch B2 -> recurse on nonneighbor u=2, nondegree=0
@@ -61,7 +69,7 @@ depth=0  S.U={} S.V={}  missing(S)=0/0  C.U={1,2,3,4,5} C.V={1,2,3,5,6}
     [update] branched-on=1  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
           [pivot] branch B2 -> recurse on primary branch with nondegree=0
             depth=6  S.U={3,4,5} S.V={1,5,6}  missing(S)=0/0  C.U={} C.V={}
-            -> LEAF: not better than D, S_e=9, D_e=9, D_u=[5, 4] D_v=[5, 6, 3, 1]
+            -> LEAF: new best D, S_edges=9 D_edges=8
           [pivot] branch B2 -> exploring 0 nonneighbors
         [pivot] branch B2 -> exploring 0 nonneighbors
     [pivot] branch B2 -> exploring 1 nonneighbors
@@ -89,18 +97,18 @@ depth=0  S.U={} S.V={}  missing(S)=0/0  C.U={1,2,3,4,5} C.V={1,2,3,5,6}
     [update] branched-on=1  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
           [pivot] branch B2 -> recurse on primary branch with nondegree=0
             depth=6  S.U={1,4,5} S.V={1,3,6}  missing(S)=0/0  C.U={} C.V={}
-            -> LEAF: not better than D, S_e=9, D_e=9, D_u=[5, 4] D_v=[5, 6, 3, 1]
+            -> LEAF: not better than D, S_e=9, D_e=9, D_u=[5, 4, 3] D_v=[5, 6, 1]
           [pivot] branch B2 -> exploring 0 nonneighbors
         [pivot] branch B2 -> exploring 1 nonneighbors
     [update] branched-on=2  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
         [pivot] branch B2 -> recurse on nonneighbor u=2, nondegree=0
           depth=5  S.U={1,2,4,5} S.V={3}  missing(S)=0/0  C.U={} C.V={}
-          -> pruned (too few reachable vertices, θ=2, |D_u|=2, |D_v|=4)
+          -> pruned (too few reachable vertices, θ=2, |D_u|=3, |D_v|=3)
       [pivot] branch B2 -> exploring 1 nonneighbors
     [update] branched-on=5  maximum_nondegree=0  C′.U={} C′.V={1,6}  C′_0.U={} C′_0.V={}
       [pivot] branch B2 -> recurse on nonneighbor v=5, nondegree=0
         depth=4  S.U={4,5} S.V={3,5}  missing(S)=0/0  C.U={} C.V={1,6}
-        -> pruned (too few reachable vertices, θ=2, |D_u|=2, |D_v|=4)
+        -> pruned (too few reachable vertices, θ=2, |D_u|=3, |D_v|=3)
   [pivot] branch B2 -> exploring 1 nonneighbors
     [update] branched-on=2  maximum_nondegree=0  C′.U={2,3} C′.V={1,3,5,6}  C′_0.U={} C′_0.V={}
   [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
@@ -119,12 +127,12 @@ depth=0  S.U={} S.V={}  missing(S)=0/0  C.U={1,2,3,4,5} C.V={1,2,3,5,6}
     [update] branched-on=5  maximum_nondegree=0  C′.U={} C′.V={1,6}  C′_0.U={} C′_0.V={}
       [pivot] branch B2 -> recurse on primary branch with nondegree=0
         depth=4  S.U={3,5} S.V={2,5}  missing(S)=0/0  C.U={} C.V={1,6}
-        -> pruned (too few reachable vertices, θ=2, |D_u|=2, |D_v|=4)
+        -> pruned (too few reachable vertices, θ=2, |D_u|=3, |D_v|=3)
       [pivot] branch B2 -> exploring 1 nonneighbors
     [update] branched-on=2  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
       [pivot] branch B2 -> recurse on nonneighbor u=2, nondegree=0
         depth=4  S.U={2,3,5} S.V={2}  missing(S)=0/0  C.U={} C.V={}
-        -> pruned (too few reachable vertices, θ=2, |D_u|=2, |D_v|=4)
+        -> pruned (too few reachable vertices, θ=2, |D_u|=3, |D_v|=3)
     [pivot] branch B2 -> exploring 1 nonneighbors
     [update] branched-on=3  maximum_nondegree=0  C′.U={2} C′.V={1,5,6}  C′_0.U={} C′_0.V={}
     [pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=0
@@ -136,65 +144,22 @@ depth=0  S.U={} S.V={}  missing(S)=0/0  C.U={1,2,3,4,5} C.V={1,2,3,5,6}
     [update] branched-on=5  maximum_nondegree=0  C′.U={} C′.V={1,6}  C′_0.U={} C′_0.V={}
       [pivot] branch B2 -> recurse on primary branch with nondegree=0
         depth=4  S.U={5} S.V={2,3,5}  missing(S)=0/0  C.U={} C.V={1,6}
-        -> pruned (too few reachable vertices, θ=2, |D_u|=2, |D_v|=4)
+        -> pruned (too few reachable vertices, θ=2, |D_u|=3, |D_v|=3)
       [pivot] branch B2 -> exploring 1 nonneighbors
     [update] branched-on=2  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
       [pivot] branch B2 -> recurse on nonneighbor u=2, nondegree=0
         depth=4  S.U={2,5} S.V={2,3}  missing(S)=0/0  C.U={} C.V={}
-        -> pruned (too few reachable vertices, θ=2, |D_u|=2, |D_v|=4)
+        -> pruned (too few reachable vertices, θ=2, |D_u|=3, |D_v|=3)
 [pivot] branch B2 -> exploring 0 nonneighbors
-
-find_kmdb! disagreed with brute force on 1 trial(s).
-
----------- trial 1 ----------
-Reproduce suite:  julia tests/test_mkdb.jl --seed=12017303479291754718
-Reproduce graph:  julia tests/test_mkdb.jl --seed=12017303479291754718 --N=1
-Graph: nU=5  nV=6  |E|=19  k=0  θ=2
-Edges: [(1, 1), (1, 3), (1, 6), (2, 2), (2, 3), (3, 1), (3, 2), (3, 4), (3, 5), (3, 6), (4, 1), (4, 3), (4, 5), (4, 6), (5, 1), (5, 2), (5, 3), (5, 5), (5, 6)]
-Brute-force optimum: edges=9 missing=0 U=[3, 4, 5]  V=[1, 5, 6]
-
-  default
-    edges=8  missing=0  ratio=0.8888888888888888  (valid)
-    U=[4, 5]
-    V=[1, 3, 5, 6]
-----------------------------------------------
 
 ==================== RESULTS ====================
 Trials               : 1
 Seed                 : --seed=12017303479291754718
 Valid solutions      : 1 / 1
-Optimal solutions    : 0 / 1
-Optimality rate      : 0.0%
-Average ratio        : 0.8888888888888888
-Worst ratio          : 0.8888888888888888
-Non-optimal trials:
-
----------- trial 1 ----------
-Reproduce suite:  julia tests/test_mkdb.jl --seed=12017303479291754718
-Reproduce graph:  julia tests/test_mkdb.jl --seed=12017303479291754718 --N=1
-Graph: nU=5  nV=6  |E|=19  k=0  θ=2
-Edges: [(1, 1), (1, 3), (1, 6), (2, 2), (2, 3), (3, 1), (3, 2), (3, 4), (3, 5), (3, 6), (4, 1), (4, 3), (4, 5), (4, 6), (5, 1), (5, 2), (5, 3), (5, 5), (5, 6)]
-Brute-force optimum: edges=9 missing=0 U=[3, 4, 5]  V=[1, 5, 6]
-
-  default *
-    edges=8  missing=0  ratio=0.8888888888888888  (valid)
-    U=[4, 5]
-    V=[1, 3, 5, 6]
-----------------------------------------------
+Optimal solutions    : 1 / 1
+Optimality rate      : 100.0%
+Average ratio        : 1.0
+Worst ratio          : 1.0
 =================================================
-find_kmdb! matches brute force: Test Failed at /home/kiyaanpillai/Documents/pioneer-academics/temporal-mkdb/tests/test_mkdb.jl:99
-  Expression: isempty(mismatches)
-   Evaluated: isempty([1])
-
-Stacktrace:
- [1] top-level scope
-   @ ~/Documents/pioneer-academics/temporal-mkdb/tests/test_mkdb.jl:86
- [2] macro expansion
-   @ ~/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
- [3] macro expansion
-   @ ~/Documents/pioneer-academics/temporal-mkdb/tests/test_mkdb.jl:99 [inlined]
- [4] macro expansion
-   @ ~/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
-Test Summary:                  | Fail  Total  Time
-find_kmdb! matches brute force |    1      1  3.6s
-RNG of the outermost testset: Xoshiro(0xbd889493fd3652d6, 0x34c3718dd61f51e6, 0xaab4fba2b54424e2, 0xc3697f0fc7579d13, 0x093e4cd97d4e4c77)
+Test Summary:                  | Pass  Total  Time
+find_kmdb! matches brute force |    1      1  2.7s

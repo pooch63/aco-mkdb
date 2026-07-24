@@ -240,21 +240,6 @@ function build_community_graph()
     return g
 end
 
-@testset "SubGraph caches invalidate on mutation" begin
-    g = build_community_graph()
-    fg = freeze(g)
-
-    sg = SubGraph(Set([1]), Set([10]))
-    @test sg.edge_count_cache === nothing
-    @test Subgraph.edge_count(fg, sg) == 1
-    @test sg.edge_count_cache == 1
-
-    Subgraph.add_node!(sg, true, 2)
-    @test sg.edge_count_cache === nothing
-    @test Subgraph.edge_count(fg, sg) == 2
-    @test sg.edge_count_cache == 2
-end
-
 @testset "split_fg / subgraph_edge_counts / accumulate_edges!" begin
     g = build_community_graph()
     fg = freeze(g)

@@ -109,9 +109,6 @@ end
 
 function record_trial!(stats::SolverStats, g::FrozenBipartite, sol::SubGraph, k::Int, θ::Int,
     opt_edges::Int; seed=nothing, graph_seed::UInt64=UInt64(0), trial::Int=0, label::AbstractString="")
-    # SubGraph may carry a cache from a different FrozenBipartite inside the solver.
-    sol.edge_count_cache = nothing
-
     solution_edges = Subgraph.edge_count(g, sol)
     missing_edges = Subgraph.missing_edges(g, sol)
     # Either the subgraph is big enough, or there was no optimal solutions

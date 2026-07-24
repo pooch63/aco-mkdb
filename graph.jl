@@ -224,10 +224,7 @@ end
 mutable struct SubGraph
     U::Set{Int}   # original u ids in this subgraph
     V::Set{Int}   # original v ids in this subgraph
-    edge_count_cache::Union{Nothing,Int}
 end
-
-SubGraph(U::Set, V::Set) = SubGraph(U, V, nothing)
 
 subgraph_length(sg::SubGraph) = length(sg.U) + length(sg.V)
 
@@ -521,7 +518,6 @@ module Subgraph
         else
             push!(sg.V, node)
         end
-        sg.edge_count_cache = nothing
         return sg
     end
     function remove_node!(sg::SubGraph, is_u::Bool, node::Int)
@@ -530,14 +526,12 @@ module Subgraph
         else
             delete!(sg.V, node)
         end
-        sg.edge_count_cache = nothing
         return sg
     end
 
     function add!(S::SubGraph, to_add::SubGraph)
         union!(S.U, to_add.U)
         union!(S.V, to_add.V)
-        S.edge_count_cache = nothing
         return S
     end
     function minus(sg1::SubGraph, sg2::SubGraph)
@@ -549,7 +543,6 @@ module Subgraph
     function minus!(sg1::SubGraph, sg2::SubGraph)
         sg1.U = setdiff(sg1.U, sg2.U)
         sg1.V = setdiff(sg1.V, sg2.V)
-        sg1.edge_count_cache = nothing
         return sg1
     end
 
@@ -563,7 +556,6 @@ module Subgraph
     Single-subgraph version, when you only need one count.
     """
     function edge_count(fg::FrozenBipartite, sg::SubGraph)
-        sg.edge_count_cache !== nothing && return sg.edge_count_cache
         count = 0
         for u in sg.U
             ui = get(fg.u_index, u, nothing)
@@ -572,15 +564,6 @@ module Subgraph
                 fg.v_ids[fg.v_adj[k]] in sg.V && (count += 1)
             end
         end
-        #         u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
-        # count = 0
-        # for ui in eachindex(fg.u_ids)
-        #     u_subgraph[ui] == 1 || continue
-        #     for k in neighbor_range_u(fg, ui)
-        #         v_subgraph[fg.v_adj[k]] == 1 && (count += 1)
-        #     end
-        # end
-        sg.edge_count_cache = count
         return count
     end
     #     u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
