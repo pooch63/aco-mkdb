@@ -51,53 +51,6 @@ end
 argmax_nodes(f, sg::SubGraph) = arg_nodes(f, true, sg)
 argmin_nodes(f, sg::SubGraph) = arg_nodes(f, false, sg)
 
-function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_missing::Int)
-    S_edges = length(S.U) * length(S.V) - S_missing
-    budget = k - S_missing
-    # Note: may have to redo C's structure, because a collect call every time might have significant overhead
-    u = sort(collect(C.U), by = u -> nondegree_in_subgraph(g, true, u, S))
-    v = sort(collect(C.V), by = v -> nondegree_in_subgraph(g, false, v, S))
-
-    nondegree_U, nondegree_V = 0, 0
-    nodes_U, nodes_V = 0, 0
-
-    for i in 1:length(u)
-        nondegree_in_S = nondegree_in_subgraph(g, true, u[i], S)
-        if nondegree_U + nondegree_in_S ≤ budget
-            nondegree_U = nondegree_U + nondegree_in_S
-            nodes_U += 1
-        else
-            break
-        end
-    end
-
-    e = (length(S.U) + nodes_U) * length(S.V) - S_missing - nondegree_U
-    i = nodes_U
-
-    for j in 1:length(v)
-        cost_V = nondegree_in_subgraph(g, false, v[j], S)
-
-        if nondegree_V + cost_V > budget
-            break
-        end
-        
-
-        while i > 0 && nondegree_U + nondegree_V + cost_V > budget
-            nondegree_U -= nondegree_in_subgraph(g, true, u[i], S)
-            i -= 1
-        end
-
-        nondegree_V += cost_V
-        nodes_V += 1
-        e = max(
-            e,
-            (length(S.U) + i) * (length(S.V) + j) - S_missing - nondegree_U - nondegree_V
-        )
-    end
-
-    return length(S.U) + nodes_U, length(S.V) + nodes_V, e
-end
-
 @enum BranchMode binary pivot
 @enum ReductionMode simple progressive none
 
@@ -164,6 +117,44 @@ end
 function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode,
     k::Int, θ::Int, reduction::ReductionMode=progressive)
     return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction)
+end
+
+function initial_heuristic(g::FrozenBipartite, k::Int, θ::Int)
+    sg = SubGraph(Set(), Set(g.v_ids))
+
+    search = copy(g.u_ids)
+
+    while length(sg.U) < θ && !isempty(search)
+        u = argmax(u -> degree_in_subgraph_u(g, u, sg), search)
+        new_missing = nondegree_in_subgraph(g, true, u, sg)
+        
+        Subgraph.add_node!(sg, true, u)
+        deleteat!(search, findfirst(==(u), search))
+
+        sg_missing = Subgraph.missing_edges(g, sg)
+        
+        if sg_missing > k
+            Vs = collect(sg.V)
+            nondegrees = [nondegree_in_subgraph(g, false, v, sg) for v in Vs]
+            idxs = sortperm(nondegrees, rev=true)
+
+            missing_edges_to_remove = sg_missing - k
+            num_nodes_removed = 0
+
+            while missing_edges_to_remove > 0
+                num_nodes_removed += 1
+                idx = idxs[num_nodes_removed]
+                missing_edges_to_remove -= nondegrees[idx]
+                delete!(sg.V, Vs[idx])
+            end
+        end
+    end
+
+    if length(sg.V) < θ
+        return SubGraph(Set(), Set())
+    end
+
+    return sg
 end
 
 # BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
@@ -411,6 +402,53 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     return D
 end
 
+function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_missing::Int)
+    S_edges = length(S.U) * length(S.V) - S_missing
+    budget = k - S_missing
+    # Note: may have to redo C's structure, because a collect call every time might have significant overhead
+    u = sort(collect(C.U), by = u -> nondegree_in_subgraph(g, true, u, S))
+    v = sort(collect(C.V), by = v -> nondegree_in_subgraph(g, false, v, S))
+
+    nondegree_U, nondegree_V = 0, 0
+    nodes_U, nodes_V = 0, 0
+
+    for i in 1:length(u)
+        nondegree_in_S = nondegree_in_subgraph(g, true, u[i], S)
+        if nondegree_U + nondegree_in_S ≤ budget
+            nondegree_U = nondegree_U + nondegree_in_S
+            nodes_U += 1
+        else
+            break
+        end
+    end
+
+    e = (length(S.U) + nodes_U) * length(S.V) - S_missing - nondegree_U
+    i = nodes_U
+
+    for j in 1:length(v)
+        cost_V = nondegree_in_subgraph(g, false, v[j], S)
+
+        if nondegree_V + cost_V > budget
+            break
+        end
+        
+
+        while i > 0 && nondegree_U + nondegree_V + cost_V > budget
+            nondegree_U -= nondegree_in_subgraph(g, true, u[i], S)
+            i -= 1
+        end
+
+        nondegree_V += cost_V
+        nodes_V += 1
+        e = max(
+            e,
+            (length(S.U) + i) * (length(S.V) + j) - S_missing - nondegree_U - nondegree_V
+        )
+    end
+
+    return length(S.U) + nodes_U, length(S.V) + nodes_V, e
+end
+
 # If we add u to S, what does C become? What "free" nodes can we add to S that don't limit the search space?
 function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int, S_missing::Int)
     # C′ = {v ∈ C ∖ {u} | nondegree_{ S ∪ {u} }(v) ≤ k - Ē(S)}
@@ -460,42 +498,4 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
     end
 
     return C′, C′_0, maximum_nondegree
-end
-
-function initial_heuristic(g::FrozenBipartite, k::Int, θ::Int)
-    sg = SubGraph(Set(), Set(g.v_ids))
-
-    search = copy(g.u_ids)
-
-    while length(sg.U) < θ && !isempty(search)
-        u = argmax(u -> degree_in_subgraph_u(g, u, sg), search)
-        new_missing = nondegree_in_subgraph(g, true, u, sg)
-        
-        Subgraph.add_node!(sg, true, u)
-        deleteat!(search, findfirst(==(u), search))
-
-        sg_missing = Subgraph.missing_edges(g, sg)
-        
-        if sg_missing > k
-            Vs = collect(sg.V)
-            nondegrees = [nondegree_in_subgraph(g, false, v, sg) for v in Vs]
-            idxs = sortperm(nondegrees, rev=true)
-
-            missing_edges_to_remove = sg_missing - k
-            num_nodes_removed = 0
-
-            while missing_edges_to_remove > 0
-                num_nodes_removed += 1
-                idx = idxs[num_nodes_removed]
-                missing_edges_to_remove -= nondegrees[idx]
-                delete!(sg.V, Vs[idx])
-            end
-        end
-    end
-
-    if length(sg.V) < θ
-        return SubGraph(Set(), Set())
-    end
-
-    return sg
 end
