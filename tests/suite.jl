@@ -285,7 +285,7 @@ function print_trial_detail(summary::SuiteSummary, trial::Int; labels=nothing, h
     println("Reproduce graph:  julia $(PROGRAM_FILE) --seed=$(info.graph_seed) --N=1")
     println("Graph: nU=$(info.nU)  nV=$(info.nV)  |E|=$(info.n_edges)  k=$(info.k)  θ=$(info.θ)")
     println("Edges: $(info.edges)")
-    println("Brute-force optimum: edges=$(info.opt_edges) missing=$(Subgraph.missing_edges(fg, info.opt_sol)) U=$(sort!(collect(info.opt_U)))  V=$(sort!(collect(info.opt_V)))")
+    println("Brute-force optimum: edges=$(info.opt_edges) missing=$(length(info.opt_U) * length(info.opt_V) - info.opt_edges) U=$(sort!(collect(info.opt_U)))  V=$(sort!(collect(info.opt_V)))")
     println()
 
     for label in ordered

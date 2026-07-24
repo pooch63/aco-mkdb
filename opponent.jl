@@ -6,6 +6,16 @@ const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = true
 const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = true
 
+# Trying to maximize number of vertices or number of edges?
+# In large graphs, this almost certainly doesn't matter. If, somehow, a subgraph
+# with the most vertices isn't equal to the subgraph with the most edges, we'd
+# want to record both. In the small graphs with a lot of variation that we use for testing,
+# it's just good to have this setting enabled. I've spent at least two painful debugging sessions
+# trying to figure out why my algorithm wasn't performing only to find it WAS and was just optimizing
+# for the wrong thing (which again, doesn't actually matter!), so I'll just set this to edges for now
+@enum GraphPart Vertices Edges
+const MAXIMIZING = Edges
+
 @assert !(!OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES && OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION) ||
     error("Cannot enable tight upper bounding without enabling branch pruning")
 
@@ -106,7 +116,7 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k:
     D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
 
     if isempty(fg.u_ids) || isempty(fg.v_ids)
-        return search(fg, use_heuristic, mode, D, k, θ)
+        return branch(fg, use_heuristic, mode, D, k, θ, mode)
     end
 
     if reduction == simple
@@ -121,7 +131,7 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k:
             push!(u_degrees, degree_u(fg, u))
         end
 
-        isempty(u_degrees) && return search(fg, use_heuristic, mode, D, k, θ)
+        isempty(u_degrees) && return SubGraph(Set(), Set())
 
         θ_U = maximum(u_degrees) + k
         θ_V = 0
@@ -197,13 +207,19 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     end
 
     if Subgraph.vertex_count(C) == 0
+        @assert length(S.U) >= θ && length(S.V) >= θ "Should not have reached leaf node that contains invalid solution"
+
         S_edges = length(S.U) * length(S.V) - S_missing
         # S_edges = Subgraph.edge_count(g, S)
-        if S_edges > Subgraph.edge_count(g, D) && length(S.U) >= θ && length(S.V) >= θ
-            TRACE && println("  "^depth, "-> LEAF: new best D, S_edges=", S_edges, " D_edges=", Subgraph.edge_count(g,D))
+        D_edges = Subgraph.edge_count(g, D)
+
+        if (MAXIMIZING == Vertices && length(S.U) + length(S.V) > length(D.U) + length(D.V)) ||
+            (MAXIMIZING == Edges && S_edges > D_edges)
             @assert S_missing <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
+            TRACE && println("  "^depth, "-> LEAF: new best D, S_edges=", S_edges, " D_edges=$(D_edges)")
             return Subgraph.clone(S)
         end
+
         TRACE && println("  "^depth, "-> LEAF: not better than D, S_e=$S_edges, D_e=$(Subgraph.edge_count(g, D)), D_u=", collect(D.U), " D_v=", collect(D.V))
         return D
     end
