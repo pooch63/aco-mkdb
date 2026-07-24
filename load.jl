@@ -124,7 +124,7 @@ function main()
             Dw = find_kmdb!(gw, true, mode)
 
             # Load full graph for the actual profiled run
-            g = load_bipartite_graph(graph_path; max_lines = 20000)
+            g = load_bipartite_graph(graph_path)
 
             println("Starting profiling run (branch) — this may take a while...")
             Profile.clear()
@@ -140,7 +140,7 @@ function main()
             end
             @show D
         else
-            g = load_bipartite_graph(graph_path; max_lines = 20000)
+            g = load_bipartite_graph(graph_path)
             D = find_kmdb!(g, true, mode, k, θ)
 
             @show D

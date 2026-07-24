@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bipartite Graph Lab — k/θ-MDBB Visual Debugger</title>
+<style>
+  :root{
+    --bg: #0d0f13;
+    --panel: #14171e;
+    --panel-2: #191d26;
+    --border: #262b36;
+    --text: #e7e9ee;
+    --muted: #838c9c;
+    --u-color: #4fc3e0;
+    --u-dim: #2a5866;
+    --v-color: #e3b23c;
+    --v-dim: #5c4a1f;
+    --edge: #3a4150;
+    --removed: #ef5b6f;
+    --solution: #6fe08a;
+    --solution-missing: #ff8a4c;
+    --accent: #8a7bff;
+    --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
+  body{display:flex;flex-direction:column;min-height:100vh;}
+
+  header{
+    padding:14px 20px;border-bottom:1px solid var(--border);
+    display:flex;align-items:baseline;gap:12px;background:linear-gradient(180deg,#12151b,#0d0f13);
+  }
+  header h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.02em;}
+  header .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:8px;box-shadow:0 0 8px var(--accent);}
+  header .sub{color:var(--muted);font-size:12px;font-family:var(--mono);}
+
+  .layout{display:flex;flex:1;min-height:0;}
+
+  .sidebar{
+    width:300px;flex:none;background:var(--panel);border-right:1px solid var(--border);
+    overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:16px;
+  }
+  .section{border:1px solid var(--border);border-radius:8px;background:var(--panel-2);padding:10px 12px;}
+  .section h2{
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+    margin:0 0 9px 0;font-weight:700;
+  }
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:7px;}
+  .row:last-child{margin-bottom:0;}
+  .row label{font-size:12px;color:var(--muted);flex:1;}
+  .row input[type=number]{
+    width:64px;background:#0d0f13;border:1px solid var(--border);color:var(--text);
+    border-radius:5px;padding:5px 7px;font-family:var(--mono);font-size:12px;
+  }
+  .row input[type=range]{flex:1;}
+  .btnrow{display:flex;gap:6px;flex-wrap:wrap;}
+  button{
+    background:#1d222c;border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:var(--sans);
+    transition:background .12s, border-color .12s;
+  }
+  button:hover:not(:disabled){background:#262d3a;border-color:#3a4254;}
+  button:disabled{opacity:.35;cursor:not-allowed;}
+  button.active{background:var(--accent);border-color:var(--accent);color:#0d0f13;font-weight:600;}
+  button.wide{flex:1;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#0d0f13;font-weight:600;}
+  button.primary:hover:not(:disabled){filter:brightness(1.08);}
+  button.danger{border-color:#5a2a34;color:#ff9aa8;}
+  button.danger:hover:not(:disabled){background:#331a20;}
+
+  .hint{font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:6px;}
+  .warn{color:var(--solution-missing);}
+
+  .canvas-wrap{flex:1;min-width:0;display:flex;flex-direction:column;background:
+      radial-gradient(circle at 20% 0%, #12151d 0%, var(--bg) 55%);
+  }
+  .toolbar{
+    display:flex;justify-content:space-between;align-items:center;padding:8px 16px;
+    border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);
+    gap:16px; flex-wrap:wrap;
+  }
+  .toolbar .stats span{margin-right:14px;}
+  .toolbar .stats b{color:var(--text);}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;}
+  .legend .item{display:flex;align-items:center;gap:5px;}
+  .legend .swatch{width:10px;height:10px;border-radius:3px;display:inline-block;}
+
+  #canvasScroll{flex:1;overflow:auto;position:relative;}
+  svg{display:block;}
+  .node-label{font-family:var(--mono);font-size:9.5px;fill:var(--muted);pointer-events:none;user-select:none;}
+  .col-label{font-family:var(--mono);font-size:11px;fill:var(--muted);letter-spacing:.08em;}
+
+  .log{
+    font-family:var(--mono);font-size:10.5px;color:var(--muted);max-height:150px;overflow-y:auto;
+    line-height:1.6;
+  }
+  .log div{border-bottom:1px dotted #23283333;padding:2px 0;}
+  .log .ok{color:var(--solution);}
+  .log .info{color:var(--u-color);}
+  .log .err{color:var(--removed);}
+
+  input[type=file]{display:none;}
+  .filelabel{display:inline-block;}
+
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:#262b36;border-radius:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="dot"></span>
+  <h1>Bipartite Graph Lab</h1>
+  <span class="sub">visual editor · reduction phase · k/θ-MDBB search</span>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+
+    <div class="section">
+      <h2>Parameters</h2>
+      <div class="row"><label for="kInput">k (missing-edge budget)</label><input type="number" id="kInput" min="0" step="1" value="1"></div>
+      <div class="row"><label for="thetaInput">θ (min side size)</label><input type="number" id="thetaInput" min="1" step="1" value="2"></div>
+    </div>
+
+    <div class="section">
+      <h2>Edit Mode</h2>
+      <div class="btnrow">
+        <button class="wide" id="modeMove" title="Drag nodes to reposition">Move</button>
+        <button class="wide" id="modeAddNode" title="Click U/V column to add a node">Add Node</button>
+        <button class="wide" id="modeAddEdge" title="Click two nodes on opposite sides">Add Edge</button>
+        <button class="wide" id="modeDelete" title="Click a node or edge to remove it">Delete</button>
+      </div>
+      <div class="hint" id="modeHint">Drag a node to move it.</div>
+      <div class="btnrow" style="margin-top:8px;">
+        <button class="wide danger" id="clearGraphBtn">Clear graph</button>
+        <button class="wide" id="undoBtn" disabled>Undo</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Random Graph</h2>
+      <div class="row"><label for="rnU">|U|</label><input type="number" id="rnU" min="1" max="60" value="8"></div>
+      <div class="row"><label for="rnV">|V|</label><input type="number" id="rnV" min="1" max="60" value="8"></div>
+      <div class="row"><label for="rDensity">edge density</label><input type="range" id="rDensity" min="0.05" max="1" step="0.05" value="0.4"><span id="rDensityVal" style="font-family:var(--mono);font-size:11px;width:32px;text-align:right;">0.4</span></div>
+      <button class="wide primary" id="genRandomBtn" style="width:100%;">Generate random graph</button>
+    </div>
+
+    <div class="section">
+      <h2>Reduction Phase</h2>
+      <div class="btnrow">
+        <button class="wide" id="previewReduceBtn">Preview reduction</button>
+        <button class="wide" id="applyReduceBtn" disabled>Apply (commit)</button>
+      </div>
+      <div class="hint">Ports <code>common_neighbor_reduction!</code> from reduction.jl using the current k/θ. Preview overlays removed nodes/edges in red without changing the graph; Apply commits it.</div>
+    </div>
+
+    <div class="section">
+      <h2>k/θ-MDBB Search</h2>
+      <button class="wide primary" id="runSearchBtn" style="width:100%;">Run search</button>
+      <button class="wide" id="clearSolutionBtn" style="width:100%;margin-top:6px;" disabled>Clear solution</button>
+      <div class="hint">Finds S=(S<sub>U</sub>,S<sub>V</sub>) maximizing edges with |S<sub>U</sub>|,|S<sub>V</sub>|≥θ and missing edges ≤ k, via branch &amp; bound over the graph currently shown on canvas.</div>
+      <div class="hint warn" id="searchWarn" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+      <h2>File</h2>
+      <div class="btnrow">
+        <button class="wide" id="saveJsonBtn">Save .json</button>
+        <button class="wide" id="saveCsvBtn">Save .csv</button>
+      </div>
+      <div class="btnrow" style="margin-top:6px;">
+        <label class="filelabel wide" style="flex:1;">
+          <button class="wide" id="loadBtnVisual" style="width:100%;">Load file…</button>
+          <input type="file" id="loadInput" accept=".json,.csv">
+        </label>
+      </div>
+      <div class="hint">.csv matches load.jl's <code>user_id,item_id,timestamp</code> format. .json preserves layout + k/θ.</div>
+    </div>
+
+    <div class="section">
+      <h2>Log</h2>
+      <div class="log" id="logBox"></div>
+    </div>
+
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="toolbar">
+      <div class="stats" id="statsBar">
+        <span>|U|=<b id="statU">0</b></span>
+        <span>|V|=<b id="statV">0</b></span>
+        <span>|E|=<b id="statE">0</b></span>
+        <span id="statMode">mode: original</span>
+      </div>
+      <div class="legend">
+        <div class="item"><span class="swatch" style="background:var(--u-color)"></span>U node</div>
+        <div class="item"><span class="swatch" style="background:var(--v-color)"></span>V node</div>
+        <div class="item"><span class="swatch" style="background:var(--edge)"></span>edge</div>
+        <div class="item"><span class="swatch" style="background:var(--removed)"></span>removed by reduction</div>
+        <div class="item"><span class="swatch" style="background:var(--solution)"></span>solution S</div>
+        <div class="item"><span class="swatch" style="background:var(--solution-missing)"></span>missing edge in S</div>
+      </div>
+    </div>
+    <div id="canvasScroll">
+      <svg id="canvas" width="100%" height="100%"></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// graph_lab.js
+//
+// Self-contained visual debugger companion to graph.jl / reduction.jl / opponent.jl.
+// Everything runs client-side; nothing here mutates or requires Julia.
+//
+// NOTE on fidelity:
+//  - The reduction preview below is a faithful port of common_neighbor_reduction!
+//    from reduction.jl (same ascending-degree pass, same non-reset accumulator
+//    arrays, same removal rules), so what you see after "Preview reduction" is
+//    what reduce_graph! would actually do to this graph at this k/θ.
+//  - The k/θ-MDBB search is a clean, independent branch-and-bound for the
+//    problem opponent.jl's branch()/search() are trying to solve (maximize
+//    edges(S) subject to |S_U|,|S_V| >= θ and missing_edges(S) <= k). It is
+//    NOT a line-by-line port of branch()/update() in opponent.jl -- as written,
+//    search() in opponent.jl references an undefined global `D` and will not
+//    run standalone. This gives you a correct reference result to compare
+//    your branch-and-bound's output against while you debug it.
+// =============================================================================
+
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------
+  const state = {
+    nextUId: 1,
+    nextVId: 1,
+    U: new Map(),      // id -> {x, y}
+    V: new Map(),      // id -> {x, y}
+    edges: new Map(),  // "u,v" -> timestamp
+    mode: "move",
+    selected: null,    // {isU, id} while in add-edge mode
+    drag: null,        // {isU, id, dx, dy} while dragging
+    reducedPreview: null, // {removedU:Set, removedV:Set, removedEdges:Set, keptCounts} or null
+    solution: null,    // {U:Set, V:Set, edges:Int, missing:Int, k:Int, theta:Int} or null
+    history: [],        // stack of snapshots for Undo
+  };
+
+  const edgeKey = (u, v) => u + "," + v;
+
+  function snapshot() {
+    return {
+      nextUId: state.nextUId,
+      nextVId: state.nextVId,
+      U: new Map([...state.U].map(([k, p]) => [k, { x: p.x, y: p.y }])),
+      V: new Map([...state.V].map(([k, p]) => [k, { x: p.x, y: p.y }])),
+      edges: new Map(state.edges),
+    };
+  }
+
+  function pushHistory() {
+    state.history.push(snapshot());
+    if (state.history.length > 25) state.history.shift();
+    els.undoBtn.disabled = false;
+  }
+
+  function restoreSnapshot(snap) {
+    state.nextUId = snap.nextUId;
+    state.nextVId = snap.nextVId;
+    state.U = new Map([...snap.U].map(([k, p]) => [k, { x: p.x, y: p.y }]));
+    state.V = new Map([...snap.V].map(([k, p]) => [k, { x: p.x, y: p.y }]));
+    state.edges = new Map(snap.edges);
+  }
+
+  // ---------------------------------------------------------------------
+  // Basic graph helpers (operate on plain {U:Map, V:Map, edges:Map} bags)
+  // ---------------------------------------------------------------------
+  function neighborsOf(g, isU, id) {
+    const out = [];
+    if (isU) {
+      for (const v of g.V.keys()) if (g.edges.has(edgeKey(id, v))) out.push(v);
+    } else {
+      for (const u of g.U.keys()) if (g.edges.has(edgeKey(u, id))) out.push(u);
+    }
+    return out;
+  }
+  function degreeOf(g, isU, id) { return neighborsOf(g, isU, id).length; }
+
+  function currentGraphBag() {
+    return { U: state.U, V: state.V, edges: state.edges };
+  }
+
+  // ---------------------------------------------------------------------
+  // Reduction port: mirrors common_neighbor_reduction! (reduction.jl)
+  // ---------------------------------------------------------------------
+  function runReduction(g, k, theta) {
+    // Work on a deep, mutable copy.
+    const U = new Set(g.U.keys());
+    const V = new Set(g.V.keys());
+    const edges = new Set(g.edges.keys()); // "u,v" strings
+
+    const nodeExists = (isU, id) => (isU ? U.has(id) : V.has(id));
+    const getNeighbors = (isU, id) => {
+      const out = [];
+      if (isU) { for (const v of V) if (edges.has(edgeKey(id, v))) out.push(v); }
+      else { for (const u of U) if (edges.has(edgeKey(u, id))) out.push(u); }
+      return out;
+    };
+    const getDegree = (isU, id) => getNeighbors(isU, id).length;
+    const remEdge = (u, v) => edges.delete(edgeKey(u, v));
+    const remNode = (isU, id) => {
+      if (isU) {
+        if (!U.has(id)) return false;
+        for (const v of getNeighbors(true, id)) edges.delete(edgeKey(id, v));
+        U.delete(id);
+      } else {
+        if (!V.has(id)) return false;
+        for (const u of getNeighbors(false, id)) edges.delete(edgeKey(u, id));
+        V.delete(id);
+      }
+      return true;
+    };
+
+    // Ascending-degree processing order, computed once up front (same as O
+    // in reduction.jl -- degrees are NOT recomputed as nodes disappear).
+    const order = [];
+    for (const u of U) order.push({ isU: true, id: u, deg: degreeOf(g, true, u) });
+    for (const v of V) order.push({ isU: false, id: v, deg: degreeOf(g, false, v) });
+    order.sort((a, b) => a.deg - b.deg);
+
+    // Common-neighbor accumulator maps. In reduction.jl these arrays are
+    // allocated ONCE before the loop and never reset between nodes -- that
+    // is preserved here intentionally so this preview matches the actual
+    // (possibly surprising) behavior of reduce_graph!.
+    const commonU = new Map();
+    const commonV = new Map();
+    const bump = (isU, id) => {
+      const m = isU ? commonU : commonV;
+      m.set(id, (m.get(id) || 0) + 1);
+    };
+    const getCommon = (isU, id) => (isU ? commonU : commonV).get(id) || 0;
+
+    for (const node of order) {
+      if (!nodeExists(node.isU, node.id)) continue;
+
+      const neighbors = getNeighbors(node.isU, node.id);
+
+      for (const v of neighbors) {
+        const twoHop = getNeighbors(!node.isU, v);
+        for (const w of twoHop) bump(node.isU, w);
+      }
+
+      for (const v of neighbors) {
+        const twoHop = getNeighbors(!node.isU, v);
+        let validConnections = 0;
+        for (const w of twoHop) {
+          if (getCommon(node.isU, w) >= theta - k) validConnections += 1;
+        }
+        if (validConnections < theta - k) {
+          if (node.isU) remEdge(node.id, v); else remEdge(v, node.id);
+        }
+      }
+
+      const degree = getDegree(node.isU, node.id);
+      if (degree < theta - k) {
+        remNode(node.isU, node.id);
+      }
+
+      for (const v of neighbors) {
+        if (getDegree(!node.isU, v) < theta - k) {
+          remNode(!node.isU, v);
+        }
+      }
+    }
+
+    const removedU = new Set([...g.U.keys()].filter((u) => !U.has(u)));
+    const removedV = new Set([...g.V.keys()].filter((v) => !V.has(v)));
+    const removedEdges = new Set([...g.edges.keys()].filter((e) => !edges.has(e)));
+
+    return { U, V, edges, removedU, removedV, removedEdges };
+  }
+
+  // ---------------------------------------------------------------------
+  // k/θ-MDBB search: clean branch & bound (see file header note).
+  // Maximize edges(S) s.t. |S_U|,|S_V| >= theta and missing(S) <= k.
+  // ---------------------------------------------------------------------
+  function runSearch(g, k, theta) {
+    const uIds = [...g.U.keys()];
+    const vIds = [...g.V.keys()];
+    const nodes = uIds.map((id) => ({ isU: true, id }))
+      .concat(vIds.map((id) => ({ isU: false, id })));
+
+    // Suffix counts for pruning: how many U/V nodes remain from index i onward.
+    const suffixU = new Array(nodes.length + 1).fill(0);
+    const suffixV = new Array(nodes.length + 1).fill(0);
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      suffixU[i] = suffixU[i + 1] + (nodes[i].isU ? 1 : 0);
+      suffixV[i] = suffixV[i + 1] + (nodes[i].isU ? 0 : 1);
+    }
+
+    const hasEdge = (u, v) => g.edges.has(edgeKey(u, v));
+
+    let best = { U: new Set(), V: new Set(), edges: 0 };
+    let bestMissing = 0;
+    let nodesExplored = 0;
+    const NODE_CAP = 4_000_000; // safety valve against runaway recursion
+
+    function edgeCountBetween(SU, SV) {
+      let c = 0;
+      for (const u of SU) for (const v of SV) if (hasEdge(u, v)) c++;
+      return c;
+    }
+
+    function branch(index, SU, SV) {
+      nodesExplored++;
+      if (nodesExplored > NODE_CAP) return;
+
+      if (index === nodes.length) {
+        if (SU.size >= theta && SV.size >= theta) {
+          const e = edgeCountBetween(SU, SV);
+          const missing = SU.size * SV.size - e;
+          if (missing <= k && e > best.edges) {
+            best = { U: new Set(SU), V: new Set(SV), edges: e };
+            bestMissing = missing;
+          }
+        }
+        return;
+      }
+
+      const potentialU = SU.size + suffixU[index];
+      const potentialV = SV.size + suffixV[index];
+      if (potentialU < theta || potentialV < theta) return;
+
+      // Safe upper bound on achievable edges from here: current confirmed
+      // edges plus a fully-connected best case over everything still reachable.
+      const confirmedEdges = edgeCountBetween(SU, SV);
+      const upperBound = potentialU * potentialV;
+      if (upperBound <= best.edges) return;
+      void confirmedEdges;
+
+      const node = nodes[index];
+
+      // Include branch
+      if (node.isU) SU.add(node.id); else SV.add(node.id);
+      const missingSoFar = SU.size * SV.size - edgeCountBetween(SU, SV);
+      if (missingSoFar <= k) branch(index + 1, SU, SV);
+      if (node.isU) SU.delete(node.id); else SV.delete(node.id);
+
+      // Exclude branch
+      branch(index + 1, SU, SV);
+    }
+
+    branch(0, new Set(), new Set());
+
+    return {
+      U: best.U, V: best.V, edges: best.edges, missing: bestMissing,
+      k, theta, truncated: nodesExplored > NODE_CAP,
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // DOM refs
+  // ---------------------------------------------------------------------
+  const els = {};
+  ["kInput", "thetaInput", "modeMove", "modeAddNode", "modeAddEdge", "modeDelete",
+    "modeHint", "clearGraphBtn", "undoBtn", "rnU", "rnV", "rDensity", "rDensityVal",
+    "genRandomBtn", "previewReduceBtn", "applyReduceBtn", "runSearchBtn",
+    "clearSolutionBtn", "searchWarn", "saveJsonBtn", "saveCsvBtn", "loadBtnVisual",
+    "loadInput", "logBox", "statU", "statV", "statE", "statMode", "canvas",
+    "canvasScroll",
+  ].forEach((id) => { els[id] = document.getElementById(id); });
+
+  function log(msg, cls) {
+    const line = document.createElement("div");
+    if (cls) line.className = cls;
+    const t = new Date().toLocaleTimeString();
+    line.textContent = "[" + t + "] " + msg;
+    els.logBox.prepend(line);
+  }
+
+  function getK() { return Math.max(0, parseInt(els.kInput.value || "0", 10) || 0); }
+  function getTheta() { return Math.max(1, parseInt(els.thetaInput.value || "1", 10) || 1); }
+
+  // ---------------------------------------------------------------------
+  // Layout helpers
+  // ---------------------------------------------------------------------
+  const NODE_R = 13;
+  const COL_MARGIN = 90;
+  const ROW_SPACING = 42;
+  const TOP_MARGIN = 46;
+
+  function layoutColumn(map, width, isU) {
+    const ids = [...map.keys()].sort((a, b) => a - b);
+    const x = isU ? COL_MARGIN : width - COL_MARGIN;
+    ids.forEach((id, i) => {
+      map.set(id, { x, y: TOP_MARGIN + i * ROW_SPACING });
+    });
+  }
+
+  function relayoutAll() {
+    const width = Math.max(els.canvasScroll.clientWidth, 500);
+    layoutColumn(state.U, width, true);
+    layoutColumn(state.V, width, false);
+  }
+
+  function canvasHeight() {
+    const n = Math.max(state.U.size, state.V.size, 1);
+    return TOP_MARGIN * 2 + n * ROW_SPACING;
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  const SVGNS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function render() {
+    const svg = els.canvas;
+    svg.innerHTML = "";
+    const width = Math.max(els.canvasScroll.clientWidth, 500);
+    const height = canvasHeight();
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+
+    // Column labels
+    svg.appendChild(svgEl("text", { x: COL_MARGIN, y: 20, class: "col-label", "text-anchor": "middle" })).textContent = "U";
+    svg.appendChild(svgEl("text", { x: width - COL_MARGIN, y: 20, class: "col-label", "text-anchor": "middle" })).textContent = "V";
+
+    const sol = state.solution;
+    const prev = state.reducedPreview;
+
+    // --- edges (existing) ---
+    for (const key of state.edges.keys()) {
+      const [uStr, vStr] = key.split(",");
+      const u = parseInt(uStr, 10), v = parseInt(vStr, 10);
+      const pu = state.U.get(u), pv = state.V.get(v);
+      if (!pu || !pv) continue;
+
+      const isRemoved = prev && prev.removedEdges.has(key);
+      const inSolution = sol && sol.U.has(u) && sol.V.has(v);
+
+      let stroke = "var(--edge)", width_ = 1.4, dash = "none", opacity = 1;
+      if (isRemoved) { stroke = "var(--removed)"; dash = "4,3"; opacity = 0.55; }
+      else if (inSolution) { stroke = "var(--solution)"; width_ = 2.4; }
+
+      const line = svgEl("line", {
+        x1: pu.x, y1: pu.y, x2: pv.x, y2: pv.y,
+        stroke, "stroke-width": width_, "stroke-dasharray": dash, opacity,
+        "data-edge": key,
+      });
+      svg.appendChild(line);
+    }
+
+    // --- missing edges within the solution (S pairs with no real edge) ---
+    if (sol) {
+      for (const u of sol.U) {
+        for (const v of sol.V) {
+          if (!state.edges.has(edgeKey(u, v))) {
+            const pu = state.U.get(u), pv = state.V.get(v);
+            if (!pu || !pv) continue;
+            svg.appendChild(svgEl("line", {
+              x1: pu.x, y1: pu.y, x2: pv.x, y2: pv.y,
+              stroke: "var(--solution-missing)", "stroke-width": 1.6,
+              "stroke-dasharray": "3,3", opacity: 0.85,
+            }));
+          }
+        }
+      }
+    }
+
+    // --- removed-node ghost edges (edges incident to a node the reduction deleted) ---
+    // (already captured above via removedEdges, since remNode also removes its edges)
+
+    // --- nodes ---
+    function drawNode(isU, id, pos) {
+      const isRemoved = prev && (isU ? prev.removedU.has(id) : prev.removedV.has(id));
+      const inSolution = sol && (isU ? sol.U.has(id) : sol.V.has(id));
+      const isSelected = state.selected && state.selected.isU === isU && state.selected.id === id;
+
+      const g = svgEl("g", { transform: `translate(${pos.x},${pos.y})`, "data-node": (isU ? "u" : "v") + id, style: "cursor:pointer" });
+
+      let fill = isU ? "var(--u-color)" : "var(--v-color)";
+      let opacity = 1, strokeColor = "none", strokeW = 0;
+      if (isRemoved) { fill = "#2a2f3a"; opacity = 0.45; strokeColor = "var(--removed)"; strokeW = 1.5; }
+      if (inSolution) { strokeColor = "var(--solution)"; strokeW = 3; }
+      if (isSelected) { strokeColor = "#fff"; strokeW = 2.5; }
+
+      const circle = svgEl("circle", {
+        r: NODE_R, fill, opacity, stroke: strokeColor, "stroke-width": strokeW,
+      });
+      g.appendChild(circle);
+
+      const label = svgEl("text", {
+        x: 0, y: 3.5, "text-anchor": "middle", class: "node-label",
+        fill: isRemoved ? "#5a6270" : "#0d0f13", "font-weight": "700", "font-size": "10",
+      });
+      label.textContent = id;
+      g.appendChild(label);
+
+      const title = svgEl("title", {});
+      title.textContent = `${isU ? "U" : "V"}${id}  deg=${degreeOf(currentGraphBag(), isU, id)}` + (isRemoved ? "  [removed by reduction]" : "") + (inSolution ? "  [in solution]" : "");
+      g.appendChild(title);
+
+      g.addEventListener("mousedown", (ev) => onNodeMouseDown(ev, isU, id));
+      g.addEventListener("click", (ev) => { ev.stopPropagation(); onNodeClick(isU, id); });
+
+      svg.appendChild(g);
+    }
+
+    for (const [id, pos] of state.U) drawNode(true, id, pos);
+    for (const [id, pos] of state.V) drawNode(false, id, pos);
+
+    // stats
+    els.statU.textContent = state.U.size;
+    els.statV.textContent = state.V.size;
+    els.statE.textContent = state.edges.size;
+    let modeTxt = "original";
+    if (prev) modeTxt = "reduction preview";
+    if (sol) modeTxt += (prev ? " + " : "") + "solution highlighted";
+    els.statMode.textContent = "view: " + modeTxt;
+  }
+
+  // ---------------------------------------------------------------------
+  // Interaction: modes
+  // ---------------------------------------------------------------------
+  const modeButtons = {
+    move: els.modeMove, addnode: els.modeAddNode, addedge: els.modeAddEdge, delete: els.modeDelete,
+  };
+  const modeHints = {
+    move: "Drag a node to move it.",
+    addnode: "Click inside the U or V column to add a node there.",
+    addedge: "Click a U node then a V node (or vice-versa) to toggle an edge between them.",
+    delete: "Click a node to delete it, or click an edge to delete just that edge.",
+  };
+  function setMode(m) {
+    state.mode = m;
+    state.selected = null;
+    Object.values(modeButtons).forEach((b) => b.classList.remove("active"));
+    modeButtons[m].classList.add("active");
+    els.modeHint.textContent = modeHints[m];
+    render();
+  }
+  els.modeMove.addEventListener("click", () => setMode("move"));
+  els.modeAddNode.addEventListener("click", () => setMode("addnode"));
+  els.modeAddEdge.addEventListener("click", () => setMode("addedge"));
+  els.modeDelete.addEventListener("click", () => setMode("delete"));
+
+  function clearOverlays() {
+    state.reducedPreview = null;
+    state.solution = null;
+    els.applyReduceBtn.disabled = true;
+    els.clearSolutionBtn.disabled = true;
+  }
+
+  function onCanvasClick(ev) {
+    if (ev.target !== els.canvas) return; // only background clicks
+    if (state.mode !== "addnode") return;
+    const rect = els.canvas.getBoundingClientRect();
+    const width = Math.max(els.canvasScroll.clientWidth, 500);
+    const scaleX = width / rect.width;
+    const x = (ev.clientX - rect.left) * scaleX;
+    const y = (ev.clientY - rect.top) * scaleX;
+    const isU = x < width / 2;
+    pushHistory();
+    clearOverlays();
+    if (isU) {
+      const id = state.nextUId++;
+      state.U.set(id, { x: COL_MARGIN, y: Math.max(TOP_MARGIN, y) });
+      log(`added U${id}`, "info");
+    } else {
+      const id = state.nextVId++;
+      state.V.set(id, { x: width - COL_MARGIN, y: Math.max(TOP_MARGIN, y) });
+      log(`added V${id}`, "info");
+    }
+    render();
+  }
+  els.canvas.addEventListener("click", onCanvasClick);
+
+  function onNodeMouseDown(ev, isU, id) {
+    if (state.mode !== "move") return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    pushHistory();
+    const pos = isU ? state.U.get(id) : state.V.get(id);
+    state.drag = { isU, id, startX: pos.x, startY: pos.y };
+
+    const onMove = (mv) => {
+      const rect = els.canvas.getBoundingClientRect();
+      const width = Math.max(els.canvasScroll.clientWidth, 500);
+      const scaleX = width / rect.width;
+      const y = (mv.clientY - rect.top) * scaleX;
+      const map = isU ? state.U : state.V;
+      const p = map.get(id);
+      p.y = Math.max(TOP_MARGIN - 10, y);
+      render();
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      state.drag = null;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
+  function onNodeClick(isU, id) {
+    if (state.mode === "addedge") {
+      if (!state.selected) {
+        state.selected = { isU, id };
+        render();
+        return;
+      }
+      if (state.selected.isU === isU) {
+        // same side re-click: just reselect
+        state.selected = { isU, id };
+        render();
+        return;
+      }
+      const u = isU ? id : state.selected.id;
+      const v = isU ? state.selected.id : id;
+      pushHistory();
+      clearOverlays();
+      const key = edgeKey(u, v);
+      if (state.edges.has(key)) {
+        state.edges.delete(key);
+        log(`removed edge U${u}-V${v}`, "info");
+      } else {
+        state.edges.set(key, Date.now());
+        log(`added edge U${u}-V${v}`, "info");
+      }
+      state.selected = null;
+      render();
+    } else if (state.mode === "delete") {
+      pushHistory();
+      clearOverlays();
+      if (isU) {
+        for (const v of state.V.keys()) state.edges.delete(edgeKey(id, v));
+        state.U.delete(id);
+        log(`deleted U${id}`, "err");
+      } else {
+        for (const u of state.U.keys()) state.edges.delete(edgeKey(u, id));
+        state.V.delete(id);
+        log(`deleted V${id}`, "err");
+      }
+      render();
+    }
+  }
+
+  // Edge deletion by clicking a line, in delete mode
+  els.canvas.addEventListener("click", (ev) => {
+    if (state.mode !== "delete") return;
+    const target = ev.target;
+    if (target.tagName === "line" && target.dataset.edge) {
+      pushHistory();
+      clearOverlays();
+      state.edges.delete(target.dataset.edge);
+      log(`deleted edge ${target.dataset.edge.replace(",", "-V").replace(/^/, "U")}`, "err");
+      render();
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // Clear / undo
+  // ---------------------------------------------------------------------
+  els.clearGraphBtn.addEventListener("click", () => {
+    if (state.U.size === 0 && state.V.size === 0) return;
+    pushHistory();
+    state.U.clear(); state.V.clear(); state.edges.clear();
+    state.nextUId = 1; state.nextVId = 1;
+    clearOverlays();
+    log("cleared graph", "err");
+    render();
+  });
+
+  els.undoBtn.addEventListener("click", () => {
+    if (state.history.length === 0) return;
+    restoreSnapshot(state.history.pop());
+    clearOverlays();
+    els.undoBtn.disabled = state.history.length === 0;
+    log("undo", "info");
+    render();
+  });
+
+  // ---------------------------------------------------------------------
+  // Random graph
+  // ---------------------------------------------------------------------
+  els.rDensity.addEventListener("input", () => { els.rDensityVal.textContent = els.rDensity.value; });
+
+  els.genRandomBtn.addEventListener("click", () => {
+    const nU = Math.max(1, Math.min(60, parseInt(els.rnU.value, 10) || 1));
+    const nV = Math.max(1, Math.min(60, parseInt(els.rnV.value, 10) || 1));
+    const density = parseFloat(els.rDensity.value) || 0.4;
+
+    pushHistory();
+    state.U.clear(); state.V.clear(); state.edges.clear();
+    clearOverlays();
+
+    for (let i = 1; i <= nU; i++) state.U.set(i, { x: 0, y: 0 });
+    for (let i = 1; i <= nV; i++) state.V.set(i, { x: 0, y: 0 });
+    state.nextUId = nU + 1;
+    state.nextVId = nV + 1;
+
+    let count = 0;
+    for (let u = 1; u <= nU; u++) {
+      for (let v = 1; v <= nV; v++) {
+        if (Math.random() < density) {
+          state.edges.set(edgeKey(u, v), Date.now());
+          count++;
+        }
+      }
+    }
+    relayoutAll();
+    log(`generated random graph: |U|=${nU} |V|=${nV} |E|=${count} (density≈${density})`, "ok");
+    render();
+  });
+
+  // ---------------------------------------------------------------------
+  // Reduction preview / apply
+  // ---------------------------------------------------------------------
+  els.previewReduceBtn.addEventListener("click", () => {
+    const k = getK(), theta = getTheta();
+    state.solution = null;
+    els.clearSolutionBtn.disabled = true;
+    const result = runReduction(currentGraphBag(), k, theta);
+    state.reducedPreview = result;
+    els.applyReduceBtn.disabled = false;
+    log(`reduction preview (k=${k}, θ=${theta}): removed ${result.removedU.size} U-nodes, ${result.removedV.size} V-nodes, ${result.removedEdges.size} edges`, "ok");
+    render();
+  });
+
+  els.applyReduceBtn.addEventListener("click", () => {
+    if (!state.reducedPreview) return;
+    pushHistory();
+    const prev = state.reducedPreview;
+    for (const u of prev.removedU) state.U.delete(u);
+    for (const v of prev.removedV) state.V.delete(v);
+    for (const e of prev.removedEdges) state.edges.delete(e);
+    state.reducedPreview = null;
+    els.applyReduceBtn.disabled = true;
+    log("reduction applied — graph committed", "ok");
+    render();
+  });
+
+  // ---------------------------------------------------------------------
+  // Search
+  // ---------------------------------------------------------------------
+  els.runSearchBtn.addEventListener("click", () => {
+    const k = getK(), theta = getTheta();
+    const g = currentGraphBag();
+    const total = g.U.size + g.V.size;
+
+    if (total > 30) {
+      els.searchWarn.style.display = "block";
+      els.searchWarn.textContent = `Graph has ${total} nodes — exhaustive branch & bound may be slow. Consider running on the reduced graph, or a smaller graph.`;
+    } else {
+      els.searchWarn.style.display = "none";
+    }
+
+    log(`running k/θ-MDBB search (k=${k}, θ=${theta}) on ${g.U.size}×${g.V.size} graph…`, "info");
+    const t0 = performance.now();
+    const result = runSearch(g, k, theta);
+    const dt = (performance.now() - t0).toFixed(1);
+
+    state.solution = result;
+    els.clearSolutionBtn.disabled = false;
+
+    if (result.U.size === 0 && result.V.size === 0) {
+      log(`no valid S found meeting θ=${theta} within k=${k} (${dt}ms)`, "err");
+    } else {
+      log(`solution: |S_U|=${result.U.size} |S_V|=${result.V.size} edges=${result.edges} missing=${result.missing}/${k} (${dt}ms${result.truncated ? ", search truncated by node cap" : ""})`, "ok");
+    }
+    render();
+  });
+
+  els.clearSolutionBtn.addEventListener("click", () => {
+    state.solution = null;
+    els.clearSolutionBtn.disabled = true;
+    render();
+  });
+
+  // ---------------------------------------------------------------------
+  // Save / load
+  // ---------------------------------------------------------------------
+  function download(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  els.saveJsonBtn.addEventListener("click", () => {
+    const data = {
+      k: getK(), theta: getTheta(),
+      U: [...state.U].map(([id, p]) => ({ id, x: p.x, y: p.y })),
+      V: [...state.V].map(([id, p]) => ({ id, x: p.x, y: p.y })),
+      edges: [...state.edges].map(([key, ts]) => {
+        const [u, v] = key.split(",").map(Number);
+        return { u, v, timestamp: ts };
+      }),
+    };
+    download("graph.json", JSON.stringify(data, null, 2), "application/json");
+    log("saved graph.json", "ok");
+  });
+
+  els.saveCsvBtn.addEventListener("click", () => {
+    let lines = ["user_id,item_id,timestamp"];
+    for (const [key, ts] of state.edges) {
+      const [u, v] = key.split(",");
+      lines.push(`${u},${v},${ts}`);
+    }
+    download("indexed_interactions.csv", lines.join("\n"), "text/csv");
+    log("saved indexed_interactions.csv (load.jl format)", "ok");
+  });
+
+  els.loadBtnVisual.addEventListener("click", () => els.loadInput.click());
+  els.loadInput.addEventListener("change", (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (file.name.toLowerCase().endsWith(".json")) {
+          loadFromJson(JSON.parse(reader.result));
+        } else {
+          loadFromCsv(reader.result);
+        }
+        log(`loaded ${file.name}`, "ok");
+      } catch (e) {
+        log(`failed to load ${file.name}: ${e.message}`, "err");
+      }
+      els.loadInput.value = "";
+    };
+    reader.readAsText(file);
+  });
+
+  function loadFromJson(data) {
+    pushHistory();
+    state.U.clear(); state.V.clear(); state.edges.clear();
+    clearOverlays();
+    let maxU = 0, maxV = 0;
+    for (const n of data.U || []) { state.U.set(n.id, { x: n.x, y: n.y }); maxU = Math.max(maxU, n.id); }
+    for (const n of data.V || []) { state.V.set(n.id, { x: n.x, y: n.y }); maxV = Math.max(maxV, n.id); }
+    for (const e of data.edges || []) { state.edges.set(edgeKey(e.u, e.v), e.timestamp || 0); }
+    state.nextUId = maxU + 1;
+    state.nextVId = maxV + 1;
+    if (typeof data.k === "number") els.kInput.value = data.k;
+    if (typeof data.theta === "number") els.thetaInput.value = data.theta;
+    if (!data.U || !data.U.length || !data.U[0] || data.U[0].x === undefined) relayoutAll();
+    render();
+  }
+
+  function loadFromCsv(text) {
+    pushHistory();
+    state.U.clear(); state.V.clear(); state.edges.clear();
+    clearOverlays();
+    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    let start = 0;
+    if (lines.length && isNaN(parseInt(lines[0].split(",")[0], 10))) start = 1; // skip header
+    let maxU = 0, maxV = 0;
+    for (let i = start; i < lines.length; i++) {
+      const parts = lines[i].split(",");
+      const u = parseInt(parts[0], 10);
+      const v = parseInt(parts[1], 10);
+      const ts = parts.length > 2 ? parseInt(parts[2], 10) : 0;
+      if (Number.isNaN(u) || Number.isNaN(v)) continue;
+      if (!state.U.has(u)) state.U.set(u, { x: 0, y: 0 });
+      if (!state.V.has(v)) state.V.set(v, { x: 0, y: 0 });
+      state.edges.set(edgeKey(u, v), Number.isNaN(ts) ? 0 : ts);
+      maxU = Math.max(maxU, u); maxV = Math.max(maxV, v);
+    }
+    state.nextUId = maxU + 1;
+    state.nextVId = maxV + 1;
+    relayoutAll();
+    render();
+  }
+
+  // ---------------------------------------------------------------------
+  // Resize handling + init
+  // ---------------------------------------------------------------------
+  window.addEventListener("resize", () => { relayoutAll(); render(); });
+
+  function seedDemoGraph() {
+    const edgesSeed = [
+      [1, 1], [1, 2], [1, 3], [2, 1], [2, 2], [2, 4],
+      [3, 2], [3, 3], [3, 4], [4, 1], [4, 4], [5, 3], [5, 4],
+    ];
+    for (const [u, v] of edgesSeed) {
+      if (!state.U.has(u)) state.U.set(u, { x: 0, y: 0 });
+      if (!state.V.has(v)) state.V.set(v, { x: 0, y: 0 });
+      state.edges.set(edgeKey(u, v), Date.now());
+    }
+    state.nextUId = 6; state.nextVId = 5;
+    relayoutAll();
+  }
+
+  seedDemoGraph();
+  setMode("move");
+  render();
+  log("ready — demo graph loaded. Generate a random graph or edit this one to get started.", "info");
+})();
+
+</script>
+</body>
+</html>

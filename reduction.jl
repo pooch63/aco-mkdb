@@ -25,16 +25,16 @@ function get_ascending_degree_order(g::BipartiteGraph)
     return nodes
 end
 
-function reduce_graph!(g::BipartiteGraph{T}, k::Int, θ::Int) where {T}
-    common_neighbor_reduction!(g, k, θ)
+function reduce_graph!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U::Int, num_V::Int) where {T}
+    common_neighbor_reduction!(g, k, θ, num_U, num_V)
 end
 
 # Note: REQUIRES node id's to start at 1, otherwise it will crash
-function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int) where {T}
+function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U::Int, num_V::Int) where {T}
     O = get_ascending_degree_order(g)
 
-    common_neighbors_U = zeros(Int, length(g.adjU))
-    common_neighbors_V = zeros(Int, length(g.adjV))
+    common_neighbors_U = zeros(Int, num_U)
+    common_neighbors_V = zeros(Int, num_V)
 
     for node in O
         # It may have already been removed, in which case, just continue

@@ -4,6 +4,10 @@ include("reduction.jl")
 const TRACE = false
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = true
+const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = true
+
+@assert !(!OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES && OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION) ||
+    error("Cannot enable tight upper bounding without enabling branch pruning")
 
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
@@ -87,13 +91,38 @@ end
 @enum BranchMode binary pivot
 
 function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int)
-    reduce_graph!(g, k, θ)
-    frozen_graph = freeze(g)
-    return search(frozen_graph, use_heuristic, mode, k, θ)
+    num_U = length(g.adjU)
+    num_V = length(g.adjV)
+
+    reduce_graph!(g, k, θ, num_U, num_V)
+    fg = freeze(g)
+
+    u_degrees = Int[]
+    for u in fg.u_ids
+        push!(u_degrees, degree_u(fg, u))
+    end
+
+    θ_U = maximum(u_degrees) + k
+    θ_V = 0
+
+    D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
+
+    while θ_U > θ
+        θ_V = max(θ, floor(Int, Subgraph.edge_count(fg, D) / θ_U))
+        θ_U = max(θ, floor(Int, θ_U / 2))
+
+        println()
+
+        reduce_graph!(g, k, min(θ_U, θ_V), num_U, num_V)
+        fg = freeze(g)
+    end
+
+    println("Reduction is complete")
+
+    return search(fg, use_heuristic, mode, D, k, θ)
 end
 
-function search(g::FrozenBipartite, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int)
-    D = use_heuristic ? heuristic(g, k, θ) : SubGraph(Set(), Set())
+function search(g::FrozenBipartite, use_heuristic::Bool, mode::BranchMode, D::SubGraph, k::Int, θ::Int)
 
     return branch(
         SubGraph(Set(), Set()),
@@ -202,7 +231,6 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     elseif mode == pivot
         TRACE && println("  "^depth, "[pivot] entering pivot mode, remaining_budget=$(k - S_missing)")
 
-        # BRAIN EXERCISE: why does changing this to nondegree in subgraph C not work?
         C_0_u = [u for u in C.U if nondegree_in_subgraph(g, true, u::Int, S) == 0]
         C_0_v = [v for v in C.V if nondegree_in_subgraph(g, false, v::Int, S) == 0]
 
@@ -228,11 +256,44 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             Subgraph.minus!(S, C′_0)
             Subgraph.remove_node!(S, is_u, node)
 
-            # C′ C ∖ {u}
+            total_nondegree = nondegree + nondegree_in_subgraph(g, is_u, node, C)
+
+            # C′ = C ∖ {u}
             Subgraph.remove_node!(C, is_u, node)
+
+            # One non-neighbor reduction
+            if total_nondegree <= 1 && OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION
+                removed_nodes = Vector{Int}()
+
+                if is_u
+                    for u in C.U
+                        if nondegree_in_subgraph(g, true, u, S) ≥ 1
+                            Subgraph.remove_node!(C, true, u)
+                            push!(removed_nodes, u)
+                            println("one-nonneighbor reduction!")
+                        end
+                    end
+                else
+                    for v in C.V
+                        if nondegree_in_subgraph(g, false, v, S) ≥ 1
+                            Subgraph.remove_node!(C, false, v)
+                            push!(removed_nodes, v)
+                            println("one-nonneighbor reduction!")
+                        end
+                    end
+                end
+            end
 
             TRACE && println("  "^depth, "[pivot] branch A -> recurse on reduced candidate set")
             D = branch(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+                        
+            if total_nondegree <= 1 && OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION
+                if is_u
+                    union!(C.U, removed_nodes)
+                else
+                    union!(C.V, removed_nodes)
+                end
+            end
 
             # C = C′ ∪ {u}
             Subgraph.add_node!(C, is_u, node)
@@ -244,6 +305,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
             if C_nondegree > k - S_missing > 0
                 TRACE && println("  "^depth, "[pivot] branch B1: C_nondegree exceeds remaining budget")
+                
                 C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
 
                 # S′ = S ∪ C′_0 ∪ {u}
@@ -263,6 +325,8 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 Subgraph.remove_node!(C, is_u, node)
                 TRACE && println("  "^depth, "[pivot] branch B1 -> recurse after removing node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
                 D = branch(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+            
+                Subgraph.add_node!(C, is_u, node)
             else
                 TRACE && println("  "^depth, "[pivot] branch B2: using the zero-nondegree candidate set")
                 C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
@@ -363,7 +427,7 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
     return C′, C′_0, maximum_nondegree
 end
 
-function heuristic(g::FrozenBipartite, k::Int, θ::Int)
+function initial_heuristic(g::FrozenBipartite, k::Int, θ::Int)
     sg = SubGraph(Set(), Set(g.v_ids))
 
     search = copy(g.u_ids)

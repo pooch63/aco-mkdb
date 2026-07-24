@@ -73,7 +73,7 @@ function main()
         edges, nU, nV, k, θ = random_graph()
         g = build_frozen(edges, nU, nV)
 
-        heuristic_sol = heuristic(g, k, θ)
+        heuristic_sol = initial_heuristic(g, k, θ)
 
         missing_edges = Subgraph.missing_edges(g, heuristic_sol)
 
