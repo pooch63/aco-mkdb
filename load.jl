@@ -9,17 +9,28 @@ workflow on it. It accepts either:
   2. A dataset name, in which case it looks for data/<dataset_name>/indexed_interactions.csv
   3. An explicit file path to a CSV graph file
 
+Solver flags (independent of branch mode):
+  --ga         use the genetic algorithm
+  --heuristic  use only the initial heuristic (no search)
+  (default)    use branch-and-bound (find_kmdb!)
+
+Branch mode flags (only used by branch-and-bound):
+  --pivot    pivot branching (default)
+  --binary   binary branching
+
 Prerequisites:
   Ensure you have Julia and the required packages installed.
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path]
+    julia load.jl [dataset_name_or_path] [--ga|--heuristic|--binary|--pivot] [--reduce=...]
 
   Examples:
     julia load.jl
-    julia load.jl Grocery_and_Gourmet_Food
-    julia load.jl /path/to/indexed_interactions.csv
+    julia load.jl Grocery_and_Gourmet_Food --binary
+    julia load.jl Grocery_and_Gourmet_Food --ga
+    julia load.jl Grocery_and_Gourmet_Food --heuristic
+    julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
 =#
 
@@ -28,9 +39,15 @@ using ProfileCanvas
 
 include("graph.jl")
 include("opponent.jl")
+include("ga.jl")
 include("reduction.jl")
 
 global const DEBUG = true
+
+# Placeholder for ga()'s subgraph-split parameter until the GA is fully wired up.
+const GA_N = 10
+
+@enum Solver ga_solver branch_solver heuristic_solver
 
 """
     load_bipartite_graph(filepath::String) -> BipartiteGraph{Int}
@@ -90,19 +107,24 @@ function parse_reduction()
     return progressive
 end
 
-function parse_dataset_and_mode()
+function parse_args()
     dataset_name = nothing
+    solver = branch_solver
     mode = pivot
     profile = false
     reduction = parse_reduction()
 
     for arg in ARGS
-        if arg == "--pivot"
+        if arg == "--ga"
+            solver = ga_solver
+        elseif arg == "--heuristic"
+            solver = heuristic_solver
+        elseif arg == "--pivot"
             mode = pivot
-        elseif arg == "--profile"
-            profile = true
         elseif arg == "--binary"
             mode = binary
+        elseif arg == "--profile"
+            profile = true
         elseif startswith(arg, "--reduce=")
             continue
         elseif dataset_name === nothing
@@ -116,7 +138,35 @@ function parse_dataset_and_mode()
         dataset_name = DEBUG ? "boxes" : nothing
     end
 
-    return dataset_name, mode, profile, reduction
+    return dataset_name, solver, mode, profile, reduction
+end
+
+"""
+Run the selected solver in-place on `g`, returning the best SubGraph found.
+Branch-and-bound uses `mode`; GA and heuristic ignore it.
+"""
+function solve!(g::BipartiteGraph, solver::Solver, mode::BranchMode,
+    k::Int, θ::Int, reduction::ReductionMode)
+    if solver == ga_solver
+        return ga(g, k, θ, GA_N, 2, 100)
+    elseif solver == heuristic_solver
+        fg = if reduction == none
+            freeze(g)
+        else
+            apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+        end
+        if length(fg.u_ids) < θ || length(fg.v_ids) < θ
+            return SubGraph(Set(), Set())
+        end
+        return initial_heuristic(fg, k, θ)
+    else
+        return find_kmdb!(g, true, mode, k, θ, reduction)
+    end
+end
+
+function solve(g::BipartiteGraph, solver::Solver, mode::BranchMode,
+    k::Int, θ::Int, reduction::ReductionMode)
+    return solve!(deepcopy(g), solver, mode, k, θ, reduction)
 end
 
 # Create a wrapper function that runs code with a custom stack size
@@ -125,10 +175,10 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, mode, profile, reduction = parse_dataset_and_mode()
+    dataset_name, solver, mode, profile, reduction = parse_args()
     graph_path = resolve_graph_path(dataset_name)
 
-    k, θ = 2, 5
+    k, θ = 3, 6
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
@@ -136,7 +186,13 @@ function main()
     end
 
     println("Loading graph from: $graph_path")
-    println("Mode: $(mode == pivot ? "pivot" : "binary")")
+    if solver == ga_solver
+        println("Solver: genetic algorithm")
+    elseif solver == heuristic_solver
+        println("Solver: initial heuristic only")
+    else
+        println("Solver: branch-and-bound ($(mode == pivot ? "pivot" : "binary"))")
+    end
     println("Reduction: $(reduction == simple ? "simple" : reduction == none ? "none" : "progressive")")
 
     with_stacksize(2_000_000_000) do
@@ -144,15 +200,15 @@ function main()
             println("Profile mode enabled: warming up compilation on a small graph...")
             # Warm up: run the search once on a very small slice to compile methods
             gw = load_bipartite_graph(graph_path; max_lines = 50)
-            Dw = find_kmdb!(gw, true, mode, k, θ, reduction)
+            Dw = solve!(gw, solver, mode, k, θ, reduction)
 
             # Load full graph for the actual profiled run
             g = load_bipartite_graph(graph_path)
 
-            println("Starting profiling run (branch) — this may take a while...")
+            println("Starting profiling run — this may take a while...")
             Profile.clear()
             @profile begin
-                D = find_kmdb(g, true, mode, k, θ, reduction)
+                D = solve(g, solver, mode, k, θ, reduction)
             end
 
             # Display profile using ProfileCanvas
@@ -164,9 +220,10 @@ function main()
             @show D
         else
             g = load_bipartite_graph(graph_path)
-            D = find_kmdb!(g, true, mode, k, θ, reduction)
+            D = solve!(g, solver, mode, k, θ, reduction)
 
             @show D
+            println(Subgraph.missing_edges(freeze(g), D))
         end
     end
 end

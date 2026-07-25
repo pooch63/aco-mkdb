@@ -481,6 +481,9 @@ function degree_in_subgraph_v(fg::FrozenBipartite, v_id::Int, sg::SubGraph)
     return count
 end
 
+degree_in_subgraph(fg::FrozenBipartite, is_u::Bool, node_id::Int, sg::SubGraph) =
+    is_u ? degree_in_subgraph_u(fg, node_id, sg) : degree_in_subgraph_v(fg, node_id, sg)
+
 """
     nondegree_in_subgraph_u(fg, u_id, sg::SubGraph) -> Int
 
@@ -529,6 +532,16 @@ module Subgraph
         return sg
     end
 
+    function has_node(sg::SubGraph, is_u::Bool, node::Int)
+        return is_u ? node in sg.U : node in sg.V
+    end
+
+    function add(S::SubGraph, to_add::SubGraph)
+        return SubGraph(
+            union(S.U, to_add.U),
+            union(S.V, to_add.V)
+        )
+    end
     function add!(S::SubGraph, to_add::SubGraph)
         union!(S.U, to_add.U)
         union!(S.V, to_add.V)

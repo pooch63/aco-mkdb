@@ -21,36 +21,6 @@ const MAXIMIZING = Edges
 
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
-function arg_nodes(f, is_max::Bool, sg::SubGraph)
-    best_score = is_max ? -Inf : Inf
-    best_is_u = false
-    best_node = -1
-
-    for u in sg.U
-        score = f(true, u)
-        if (is_max && score > best_score) || (!is_max && score < best_score)
-            best_score = score
-            best_is_u = true
-            best_node = u
-        end
-    end
-    
-    for v in sg.V
-       score = f(false, v)
-        if (is_max && score > best_score) || (!is_max && score < best_score)
-            best_score = score
-            best_is_u = false
-            best_node = v
-        end
-    end
-
-    best_node != -1 || error("arg_nodes called on empty candidate set")
-
-    return best_is_u, best_node
-end
-argmax_nodes(f, sg::SubGraph) = arg_nodes(f, true, sg)
-argmin_nodes(f, sg::SubGraph) = arg_nodes(f, false, sg)
-
 @enum BranchMode binary pivot
 
 # If the number of entries in g.adjU is not equal to the number of nodes or same for V,

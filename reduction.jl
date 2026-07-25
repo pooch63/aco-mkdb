@@ -1,23 +1,23 @@
 include("graph.jl")
 
-struct Node
+struct DegreeNode
     is_u::Bool
     id::Int
     deg::Int
 end
 
 function get_ascending_degree_order(g::BipartiteGraph)
-    nodes = Vector{Node}()
+    nodes = Vector{DegreeNode}()
     sizehint!(nodes, length(g.adjU) + length(g.adjV))
 
     for u in keys(g.adjU)
         deg = degree_u(g, u)
-        push!(nodes, Node(true, u, deg))
+        push!(nodes, DegreeNode(true, u, deg))
     end
 
     for v in keys(g.adjV)
         deg = degree_v(g, v)
-        push!(nodes, Node(false, v, deg))
+        push!(nodes, DegreeNode(false, v, deg))
     end
 
     sort!(nodes, by = node -> node.deg)
