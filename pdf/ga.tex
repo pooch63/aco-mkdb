@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\begin{document}
+
+First, initiate N instances with a softmax distribution based on degree.
+Calculate instance fitness as the size of the clique.
+With a softmax-like tournament, perform the following:
+
+Select N pairs of mates to breed.
+Cross over. The crossover process is like so:
+    If the intersection is not null, take the intersection.
+    If the intersection is null, see if the intersection between their candidate sets is not null.
+    If the intersection between the candidate sets is null, choose a partner at random and just greedily add.
+
+On a softmax random O nodes, perform k-opt.
+
+Repeat.
+
+\begin{algorithm}
+\caption{Genetic Algorithm}\label{alg:euclid}
+\begin{algorithmic}[1] % [1] adds line numbers
+\Procedure{GeneticAlgorithm}{$G=(U,V,E), N, M$}
+    \State 
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}
