@@ -16,7 +16,8 @@ function heuristic(g::BipartiteGraph, use_heuristic::Bool,
         return search(fg, k, θ, n, use_heuristic)
     end
 
-    fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, reduction)
+    apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, reduction)
+    fg = freeze(g)
 
     # If there's not enough nodes remaining on either side, then we
     # already know it's an invalid solution
@@ -28,12 +29,15 @@ function heuristic(g::BipartiteGraph, use_heuristic::Bool,
         fg,
         k,
         θ,
-        n,
         use_heuristic
     )
 end
 
 
+
+function ga(fg::FrozenBipartite, k::Int, θ::Int, use_heuristic::Int)
+
+end
 
 # Implement heuristic that branches and bounds on only a subset of the graph,
 # then branch and bound on the vertices that won
