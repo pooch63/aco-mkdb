@@ -4,7 +4,7 @@ include("reduction.jl")
 @enum ReductionMode simple progressive none
 
 function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
-    num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing,
+    num_U::Union{Int, Nothing}, num_V::Union{Int, Nothing},
     use_heuristic::Bool, reduction::ReductionMode)
 
     num_U = num_U === nothing ? length(g.adjU) : num_U
