@@ -4,9 +4,17 @@ include("sa.jl")
 using Random
 using StatsBase
 
+struct Instance
+    subgraph::SubGraph
+    k::Int
+end
+
+global U::Set{Int} = Set()
+global V::Set{Int} = Set()
+
 # If the number of entrigeneres in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
-function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, generations::Int;
+function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float64, generations::Int;
     H::Int = 2,
     use_heuristic::Bool=true, reduction::ReductionMode=progressive,
     num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
@@ -27,50 +35,89 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, generations::Int
         @warn "N cannot exceed the number of nodes in optimized graph. Automatically clamping N to $(N)"
     end
 
-    return search(
+    sol = search(
         fg,
         k,
         N,
         H,
         O,
+        k_mutate,
         generations
     )
+
+    println("After graph, reductions, G=(U,V)=($(length(fg.u_ids)), $(length(fg.v_ids)))")
+
+    println(length(U), " ", length(V))
+    @show U
+    @show V
+
+    # fg.u_ids = U
+    # fg.v_ids = V
+
+    return sol
 end
 
-function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, O::Int, generations::Int) where {T}
+function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, O::Int, k_mutate::Float64, generations::Int) where {T}
     G = SubGraph(Set(u for u in fg.u_ids), Set(v for v in fg.v_ids))
     # Choose softmax-distributed N nodes
     nodes = softmax_sample_nodes((u, n) -> u ? degree_u(fg, n) : degree_v(fg, n), G, N)
 
-    instances = SubGraph[]
+    instances = Instance[]
     for node in nodes
         set = Set(node.id)
         empty = Set()
-        instance = node.is_u ? SubGraph(set, empty) : SubGraph(empty, set)
-        push!(instances, instance)
+        subgraph = node.is_u ? SubGraph(set, empty) : SubGraph(empty, set)
+        push!(instances, Instance(subgraph, k))
     end
 
     # Room for algorithmic improvement: Keep track of parents that mutated so we don't
     # have parents breed together twice
     for _ in 1:generations
-        instances = evolve(instances, fg, k, N, H, O)
+        instances = evolve(instances, fg, k, N, H, O, k_mutate)
+        best = argmax(instance -> instance_fitness(fg, instance.subgraph), instances)
+
+        union!(U, best.subgraph.U)
+        union!(V, best.subgraph.V)
+
+        # @show best
+        # @show instance_fitness(fg, best.subgraph)
     end
 
-    return argmax(instance -> Subgraph.edge_count(fg, instance), instances)
+    return argmax(instance -> instance_fitness(fg, instance.subgraph), instances).subgraph
 end
 
-function evolve(instances::Vector{SubGraph}, fg::FrozenBipartite, k::Int, N::Int, H::Int, O::Int)
-    next = SubGraph[]
+function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, N::Int, H::Int, O::Int, k_mutate::Float64)
+    next = Instance[]
 
-    for _ in 1:N
-        male, female = softmax_sample(instance -> Subgraph.edge_count(fg, instance), instances, 2)
+    for _ in 1:N-2
+        male, female = softmax_sample(instance -> instance_fitness(fg, instance.subgraph), instances, 2)
+        
+        k = rand(1, 2) == 1 ? male.k : female.k
 
-        push!(next, crossover(fg, male, female, k))
+        if rand() < k_mutate
+            if rand(1, 2) == 1
+                k = min(max_k, k + 1)
+            else
+                k = max(0, k - 1)
+            end
+        end
+
+        @show k
+
+        offspring = crossover(fg, male.subgraph, female.subgraph, k)
+        @show instance_fitness(fg, offspring)
+        push!(next, Instance(offspring, k))
     end
 
-    opt = softmax_sample(instance -> instance_fitness(fg, instance), next, O)
+    elites = softmax_sample(instance -> instance_fitness(fg, instance.subgraph), instances, 2)
+    
+    for elite in elites
+        push!(next, Instance(deepcopy(elite.subgraph), elite.k))
+    end
+
+    opt = softmax_sample(instance -> instance_fitness(fg, instance.subgraph), next, O)
     for offspring in opt
-        H_opt!(fg, offspring, k, H)
+        H_opt!(fg, offspring.subgraph, offspring.k, H)
     end
 
     return next
@@ -84,8 +131,6 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
     S = subgraph_intersection(male, female)
 
     next::SubGraph = S
-
-    println("male=$(Subgraph.vertex_count(male)), female=$(Subgraph.vertex_count(female)), intersection=$(Subgraph.vertex_count(next))")
 
     # If the intersection is null, try taking the crossover of the candidate set
     if Subgraph.vertex_count(S) == 0
@@ -104,6 +149,12 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
             Subgraph.add_node!(next, is_u, node)
             Subgraph.remove_node!(candidate, is_u, node)
         end
+    end
+
+    # Because the two parents' k values might be different, we might need to make the graph valid for that k again
+    while Subgraph.missing_edges(fg, next) > k
+        is_u, node = argmax_nodes((u, n) -> nondegree_in_subgraph(fg, u, n, next), next)
+        Subgraph.remove_node!(next, is_u, node)
     end
 
     println("Before greedily add, next=", Subgraph.vertex_count(next))
@@ -125,7 +176,7 @@ end
 # ROOM FOR IMPROVEMENT: Should we do nondegree with C, nondegree with S, or nondegree with everything?
 function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, H::Int)
     C = candidate_set(fg, offspring, k)
-    nodes = softmax_sample_nodes((u, n) -> nondegree_in_subgraph(fg, u, n, C), offspring, H)
+    nodes = softmax_sample_nodes((u, n) -> nondegree_in_subgraph(fg, u, n, C), offspring, min(H, Subgraph.vertex_count(offspring)))
 
     for node in nodes
         Subgraph.remove_node!(offspring, node.is_u, node.id)
