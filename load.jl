@@ -163,7 +163,7 @@ Branch-and-bound uses `mode`; GA and heuristic ignore it.
 function solve!(g::BipartiteGraph, solver::Solver, mode::BranchMode,
     k::Int, θ::Int, reduction::ReductionMode)
     if solver == ga_solver
-        return ga(g, k, θ, GA_N, 2, 100)
+        return ga(g, k, θ, GA_N, 2, 0.02, 2000)
     elseif solver == heuristic_solver
         fg = if reduction == none
             freeze(g)

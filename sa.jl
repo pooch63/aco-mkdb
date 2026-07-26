@@ -41,7 +41,14 @@ function softmax_sample_nodes(f, sg::SubGraph, n::Int)
 end
 
 function instance_fitness(fg::FrozenBipartite, instance::SubGraph)
-    return Subgraph.edge_count(fg, instance) * (1 + 1 / (abs(length(instance.U) - length(instance.V)) + 1))
+    θ = 5
+    min_nodes, max_nodes = minmax(length(instance.U), length(instance.V))
+    return (min_nodes >= θ ? max_nodes : 1) *
+        # Give a higher score to subgraphs with more nodes
+        min_nodes ^ 2
+        # Linearly penalize a disparity in the graph
+        # Room for improvement: if both sides have at least θ nodes, then we don't penalize at all?
+        # *(1 + 1 / (abs(length(instance.U) - length(instance.V)) + 1))
 end
 @inline instance_energy(fg::FrozenBipartite, instance::SubGraph) = -instance_fitness(fg, instance)
 

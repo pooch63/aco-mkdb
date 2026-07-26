@@ -1,2 +1,30 @@
 1. Test the heuristic to see if a solver with the heuristic performs
 better than a solver without.
+
+2. Finish the paper's implementation with all its optimizations
+
+3. Implement tabu-search and everything else. Here's the full list
+:
+    1. Replace pure greedy repair with tabu-based local search
+    The single biggest lever. "Greedily add" gets stuck because it never accepts a temporarily worse move. Papers on this problem class (Battiti & Protasi's Reactive Local Search, and later "Breakout Local Search" by Benlic & Hao) alternate between a construction phase and a tabu-driven plateau search that allows sideways/backward moves with a memory of recently-touched nodes so it doesn't undo its own progress. This alone often outperforms a GA wrapper on the same base heuristic.
+
+    2. Configuration checking
+    Borrowed from local search SAT/CSP solvers (Cai et al.'s NuMVC and descendants), this is a scoring mechanism that suppresses "cycling" — flipping the same node in and out repeatedly. It's cheap to add on top of your existing add/remove step and tends to buy a lot of extra scale before things stall.
+
+    3. Kernelization / reduction rules before you search at all
+    Instead of heuristically reducing dimensionality, there's a rigorous version: fixed-parameter tractable reduction rules that provably remove nodes that can't be in an optimal solution (or merge them), shrinking the graph before any search starts. This is standard in max-clique/independent-set solvers (e.g., the "MoMC" and "WLMC" solver lines) and can shrink instances by an order of magnitude for free.
+
+    4. Use graph structure to order/restrict the search
+    Degeneracy ordering / k-core decomposition gives you a principled way to prune: nodes with low coreness can often be discarded early, and the ordering itself gives a much better construction heuristic than naive greedy-by-degree.
+
+    5. Rethink the GA's crossover operator
+    Standard bitmask crossover on a node-selection vector tends to be nearly useless at scale because random combinations of two decent solutions are usually infeasible or far from either parent's quality. Graph-aware crossover (recombining based on shared substructure, e.g. "path relinking" between two elite solutions) tends to do much better than naive crossover — this is the "memetic algorithm" literature (Lü & Hao et al. have several papers specifically on memetic search for clique/independent-set-style problems).
+
+    6. Population diversity mechanisms
+    If you're plateauing, check whether your population has actually converged to near-identical individuals. Techniques like distance-based replacement (only accept a child if it's sufficiently different from existing population members) or explicit diversification phases (breakout local search's "perturbation" step) are standard fixes.
+
+    7. Learned heuristics / GNN-guided search
+    More recent work (roughly 2018 onward) uses graph neural networks to predict which nodes are likely to be in the optimal structure, then uses that as a prior for construction or as a branching heuristic in combination with local search — this is worth a look if you have training data or can generate similar instances cheaply.
+
+    8. Large Neighborhood Search / GRASP as an alternative framing
+    If the GA wrapper itself feels like the bottleneck rather than the local search, it's worth trying Large Neighborhood Search (destroy a chunk of the current solution, rebuild it with a smarter constructive heuristic) or GRASP (randomized greedy construction + local search, restarted many times) — these often scale further than population-based GAs on this problem class because they don't pay the overhead of maintaining a whole population.

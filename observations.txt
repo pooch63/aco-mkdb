@@ -4,5 +4,34 @@ when k gets bigger, but branch and bound is VERY sensitive to k.
 Also, injecting a theta=5 k=2 into the boxes dataset shows that the genetic algorithm
 gets it in about 10 seconds, whereas the branch-and-bound gets it in what seems like a minute, forever
 
+7.26.26
+
 HOWEVER, when k=2, the genetic algorithm tends to get great solutions. When
-k is 3 or something like that, it tends to act
+k is 3 or something like that, it tends to act crazy and find those solutions with only one node on one side
+and a ton of nodes on the other. I'm trying to update the fitness function and create a mechanism by which k
+can evolve so it can still find those solutions when k = 2, even if the initial k value was 3.
+This could eliminate having to tune k as a hyperparameter -- you just set it to theta - 1, and then the algorithm
+will find a large, balanced solution.
+Because otherwise, if you set k too high, it will greedily grow until it can't anymore, and it will remove
+more balanced solutions that have k = 2 rather than k = 3. A solution with k = 2 might not have any more nodes
+able to be added because adding any other node wouldn't be connected to enough and might set k higher than theta.
+That's why the solution is maximal in the first place -- you can't add any other nodes to it.
+So by greedily growing to k = 3, the algorithm might be too liberal at the start and find solutions that already
+have too many missing edges to regress back to k = 2 and then become maximal.
+The solution is either (or both):
+* Have k evolve. This would do away with having to tune k.
+* Create the initial population with every valid value of k. Then offspring choose a k value at random, so what turns out to be the best k
+    value would evolve anyway.
+
+Could we do something like run the genetic algorithm once, check the k value that it returns, and then run it AGAIN with that initial k value?
+
+When I set theta to 6 for a GA on a graph with a k=2 theta=5 MDB, GA found it. When I set theta to 5, it instead just found a 4x3.
+The number of nodes that GA explores is _crucial_ to how effectively it can find a solution. Wonder if there's a way to significantly
+reduce the number of nodes. Could we count the number of times each node appeared in the best P solutions for each generation,
+and then rerun the algorithm with ONLY those nodes?
+
+Idea
+
+Could I train a GNN to predict which nodes are likely to appear in a k-MDB, then just run the branch-and-bound or GA on those?
+
+Problem I'm currently facing: the genetic algorithm struggles when there are more than, like 100 nodes. It finds good solutions, but not the optimal solutions.
