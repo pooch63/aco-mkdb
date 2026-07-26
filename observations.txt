@@ -1,0 +1,8 @@
+it seems like the genetic algorithm doesn't really change too much in performance
+when k gets bigger, but branch and bound is VERY sensitive to k.
+
+Also, injecting a theta=5 k=2 into the boxes dataset shows that the genetic algorithm
+gets it in about 10 seconds, whereas the branch-and-bound gets it in what seems like a minute, forever
+
+HOWEVER, when k=2, the genetic algorithm tends to get great solutions. When
+k is 3 or something like that, it tends to act

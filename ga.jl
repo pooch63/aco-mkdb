@@ -1,5 +1,5 @@
-include("graph.jl")
 include("search.jl")
+include("sa.jl")
 
 using Random
 using StatsBase
@@ -13,14 +13,7 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, generations::Int
 
     @assert θ > k "θ must be greater than k"
 
-    fg = freeze(g)
-
-    if isempty(fg.u_ids) || isempty(fg.v_ids)
-        return SubGraph(Set(), Set())
-    end
-
-    apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, reduction)
-    fg = freeze(g)
+    fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, reduction)
 
     # If there's not enough nodes remaining on either side, then we
     # already know it's an invalid solution
@@ -39,58 +32,19 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, generations::Int
         k,
         N,
         H,
+        O,
         generations
     )
 end
 
-struct Node
-    is_u::Bool
-    node_id::Int
-end
-
-function softmax_sample(objects::Vector{T}, scores::Vector{<:Real}, n::Int) where T
-    # softmax with max-subtraction for numerical stability
-    w = exp.(scores .- maximum(scores))
-    w ./= sum(w)
-    return sample(objects, Weights(w), n; replace=false)
-end
-function softmax_sample(f, objects::Vector{T}, n::Int) where T
-    return softmax_sample(objects, [f(object) for object in objects], n)
-end
-
-function softmax_sample_nodes(f, sg::SubGraph, n::Int)
-    nodes = Vector{Node}()
-    sizehint!(nodes, length(sg.U) + length(sg.V))
-
-    for u in sg.U
-        push!(nodes, Node(true, u))
-    end
-    for v in sg.V
-        push!(nodes, Node(false, v))
-    end
-
-    isempty(nodes) && error("softmax_sample_nodes called on empty candidate set")
-    n <= length(nodes) || error("requested $n samples but only $(length(nodes)) candidates available")
-
-    scores = [f(node.is_u, node.node_id) for node in nodes]
-
-    w = exp.(scores .- maximum(scores))
-    w ./= sum(w)
-
-    sampled = sample(nodes, Weights(w), n; replace=false)
-
-    # NOTE FOR LLMS TO TELL ME: Do i need to do it like this, or can I just return sampled
-    return [Node(node.is_u, node.node_id) for node in sampled]
-end
-
-function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, generations::Int) where {T}
+function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, O::Int, generations::Int) where {T}
     G = SubGraph(Set(u for u in fg.u_ids), Set(v for v in fg.v_ids))
     # Choose softmax-distributed N nodes
     nodes = softmax_sample_nodes((u, n) -> u ? degree_u(fg, n) : degree_v(fg, n), G, N)
 
     instances = SubGraph[]
     for node in nodes
-        set = Set(node.node_id)
+        set = Set(node.id)
         empty = Set()
         instance = node.is_u ? SubGraph(set, empty) : SubGraph(empty, set)
         push!(instances, instance)
@@ -99,23 +53,24 @@ function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, generations::Int
     # Room for algorithmic improvement: Keep track of parents that mutated so we don't
     # have parents breed together twice
     for _ in 1:generations
-        instances = evolve(instances, fg, G, k, N, H)
+        instances = evolve(instances, fg, k, N, H, O)
     end
 
     return argmax(instance -> Subgraph.edge_count(fg, instance), instances)
 end
 
-function instance_fitness(fg::FrozenBipartite, instance::SubGraph)
-    return Subgraph.edge_count(fg, instance) * (1 + 1 / (abs(length(instance.U) - length(instance.V)) + 1))
-end
-
-function evolve(instances::Vector{SubGraph}, fg::FrozenBipartite, G::SubGraph, k::Int, N::Int, H::Int)
+function evolve(instances::Vector{SubGraph}, fg::FrozenBipartite, k::Int, N::Int, H::Int, O::Int)
     next = SubGraph[]
 
     for _ in 1:N
         male, female = softmax_sample(instance -> Subgraph.edge_count(fg, instance), instances, 2)
 
         push!(next, crossover(fg, male, female, k))
+    end
+
+    opt = softmax_sample(instance -> instance_fitness(fg, instance), next, O)
+    for offspring in opt
+        H_opt!(fg, offspring, k, H)
     end
 
     return next
@@ -168,11 +123,12 @@ end
 
 # Remove H vertices from S, softmaxed by their nondegree with C
 # ROOM FOR IMPROVEMENT: Should we do nondegree with C, nondegree with S, or nondegree with everything?
-function H_opt(fg::FrozenBipartite, offspring::SubGraph, k::Int, H::Int)
-    nodes = softmax_sample_nodes((u, n) -> nondegree_in_subgraph(fg, u, n, offspring.C), S, H)
+function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, H::Int)
+    C = candidate_set(fg, offspring, k)
+    nodes = softmax_sample_nodes((u, n) -> nondegree_in_subgraph(fg, u, n, C), offspring, H)
 
     for node in nodes
-        Subgraph.remove_node!(offspring, node.is_u, node.node_id)
+        Subgraph.remove_node!(offspring, node.is_u, node.id)
     end
 
     greedily_add!(fg, offspring, k)
@@ -182,24 +138,6 @@ function subgraph_intersection(sg1::SubGraph, sg2::SubGraph)
     U = intersect(sg1.U, sg2.U)
     V = intersect(sg1.V, sg2.V)
     return SubGraph(U, V)
-end
-
-# Room for efficiency improvement: we can just compute C once and then order it by descending degree in S
-# Then just add nodes from C with a moving pointer until we've hit k
-function greedily_add!(fg::FrozenBipartite, S::SubGraph, k::Int)
-    # Room for algorithm improvement: could we randomly choose a maximum missing
-    # edges variable that could be greater or less than k?
-    while Subgraph.missing_edges(fg, S) < k
-        C = candidate_set(fg, S, k)
-
-        if Subgraph.vertex_count(C) == 0
-            return
-        end
-
-        is_u, node = argmax_nodes((u, n) -> degree_in_subgraph(fg, u, n, S), C)
-
-        Subgraph.add_node!(S, is_u, node)
-    end
 end
 
 # Implement heuristic that branches and bounds on only a subset of the graph,

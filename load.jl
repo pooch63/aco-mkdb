@@ -18,17 +18,21 @@ Branch mode flags (only used by branch-and-bound):
   --pivot    pivot branching (default)
   --binary   binary branching
 
+GA-only flags:
+  --seed=S   random seed for reproducible GA runs (default: time_ns())
+
 Prerequisites:
   Ensure you have Julia and the required packages installed.
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path] [--ga|--heuristic|--binary|--pivot] [--reduce=...]
+    julia load.jl [dataset_name_or_path] [--ga|--heuristic|--binary|--pivot] [--reduce=...] [--seed=...]
 
   Examples:
     julia load.jl
     julia load.jl Grocery_and_Gourmet_Food --binary
     julia load.jl Grocery_and_Gourmet_Food --ga
+    julia load.jl Grocery_and_Gourmet_Food --ga --seed=12345
     julia load.jl Grocery_and_Gourmet_Food --heuristic
     julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
@@ -36,6 +40,7 @@ How to Run from the Command Line:
 
 using Profile
 using ProfileCanvas
+using Random
 
 include("graph.jl")
 include("opponent.jl")
@@ -107,12 +112,22 @@ function parse_reduction()
     return progressive
 end
 
+function parse_seed()
+    for arg in ARGS
+        if startswith(arg, "--seed=")
+            return parse(UInt64, split(arg, "=", limit=2)[2])
+        end
+    end
+    return nothing
+end
+
 function parse_args()
     dataset_name = nothing
     solver = branch_solver
     mode = pivot
     profile = false
     reduction = parse_reduction()
+    seed = parse_seed()
 
     for arg in ARGS
         if arg == "--ga"
@@ -125,7 +140,7 @@ function parse_args()
             mode = binary
         elseif arg == "--profile"
             profile = true
-        elseif startswith(arg, "--reduce=")
+        elseif startswith(arg, "--reduce=") || startswith(arg, "--seed=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -138,7 +153,7 @@ function parse_args()
         dataset_name = DEBUG ? "boxes" : nothing
     end
 
-    return dataset_name, solver, mode, profile, reduction
+    return dataset_name, solver, mode, profile, reduction, seed
 end
 
 """
@@ -175,10 +190,10 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction = parse_args()
+    dataset_name, solver, mode, profile, reduction, seed = parse_args()
     graph_path = resolve_graph_path(dataset_name)
 
-    k, θ = 3, 6
+    k, θ = 3, 5
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
@@ -187,6 +202,9 @@ function main()
 
     println("Loading graph from: $graph_path")
     if solver == ga_solver
+        # Default to a fresh seed when none was provided so the run is printable/replicable.
+        seed = seed === nothing ? UInt64(time_ns()) : seed
+        Random.seed!(seed)
         println("Solver: genetic algorithm")
     elseif solver == heuristic_solver
         println("Solver: initial heuristic only")
@@ -223,8 +241,16 @@ function main()
             D = solve!(g, solver, mode, k, θ, reduction)
 
             @show D
+
+            # D = sa(freeze(g), D, k, 0.99, 0.95, 20, 300)
+
+            # @show D
             println(Subgraph.missing_edges(freeze(g), D))
         end
+    end
+
+    if solver == ga_solver
+        println("Random seed: --seed=$seed")
     end
 end
 

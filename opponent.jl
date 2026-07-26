@@ -30,14 +30,6 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k:
 
     @assert θ > k "θ must be greater than k"
 
-    fg = freeze(g)
-
-    D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
-
-    if isempty(fg.u_ids) || isempty(fg.v_ids)
-        return branch(fg, use_heuristic, mode, D, k, θ, mode)
-    end
-
     fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, reduction)
 
     # If there's not enough nodes remaining on either side, then we
