@@ -7,7 +7,7 @@ const N = parse_N(20)
 Random.seed!(SEED)
 
 const REDUCTION_LABELS = ("none", "lo", "hi")
-const REDUCTION_MODES = (none, simple, progressive)
+const REDUCTION_MODES = (ReductionMode.none, ReductionMode.simple, ReductionMode.progressive)
 
 function build_mutable_graph(g::FrozenBipartite)
     mutable_graph = BipartiteGraph{Nothing}()
@@ -30,7 +30,7 @@ end
 function solve_reduction_mode(mode::ReductionMode)
     return function (g::FrozenBipartite, k::Int, θ::Int)
         mutable_graph = build_mutable_graph(g)
-        return find_kmdb(mutable_graph, true, pivot, k, θ, mode)
+        return find_kmdb(mutable_graph, true, BranchMode.pivot, k, θ, mode)
     end
 end
 

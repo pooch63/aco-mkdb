@@ -4,9 +4,9 @@ include(joinpath(@__DIR__, "suite.jl"))
 
 function parse_mode()
     if "--binary" in ARGS
-        return binary
+        return BranchMode.binary
     else
-        return pivot
+        return BranchMode.pivot
     end
 end
 
@@ -15,19 +15,19 @@ function parse_reduction()
         if startswith(arg, "--reduce=")
             val = split(arg, "=", limit=2)[2]
             if val == "none"
-                return none
+                return ReductionMode.none
             elseif val == "simple"
-                return simple
+                return ReductionMode.simple
             elseif val == "progressive"
-                return progressive
+                return ReductionMode.progressive
             elseif val == "all"
-                return all_reductions
+                return ReductionMode.all_reductions
             else
                 error("Unknown reduction mode: $val (expected none, simple, or progressive)")
             end
         end
     end
-    return progressive
+    return ReductionMode.progressive
 end
 
 const SEED = parse_seed()
@@ -35,24 +35,7 @@ const N = parse_N(20)
 Random.seed!(SEED)
 const MODE = parse_mode()
 const REDUCTION = parse_reduction()
-
-function build_mutable_graph(g::FrozenBipartite)
-    mutable_graph = BipartiteGraph{Nothing}()
-    for u in g.u_ids
-        add_u!(mutable_graph, u)
-    end
-    for v in g.v_ids
-        add_v!(mutable_graph, v)
-    end
-    for u_idx in eachindex(g.u_ids)
-        u = g.u_ids[u_idx]
-        for k in neighbor_range_u(g, u_idx)
-            v = g.v_ids[g.v_adj[k]]
-            add_edge!(mutable_graph, u, v, nothing)
-        end
-    end
-    return mutable_graph
-end
+const SAVE_PATH = parse_save()
 
 function solve_mkdb(g::FrozenBipartite, k::Int, θ::Int)
     mutable_graph = build_mutable_graph(g)
@@ -88,7 +71,8 @@ end
     println("Branch mode: $MODE")
     println("Reduction: $REDUCTION")
 
-    summary = run_graph_suite(N=N, seed=SEED, solve_fn=solve_mkdb)
+    summary = run_graph_suite(N=N, seed=SEED, solve_fn=solve_mkdb, oracle=OracleMode.brute_force,
+        algorithm="mkdb")
     mismatches = mismatched_trials(summary)
 
     if !isempty(mismatches)
@@ -98,5 +82,8 @@ end
     end
 
     print_suite_summary(summary)
+    if SAVE_PATH !== nothing
+        save_suite_json(SAVE_PATH, summary)
+    end
     @test isempty(mismatches)
 end

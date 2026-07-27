@@ -1,6 +1,8 @@
 include("graph.jl")
 include("search.jl")
 
+using EnumX
+
 const TRACE = false
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
 const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = true
@@ -13,20 +15,20 @@ const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = true
 # it's just good to have this setting enabled. I've spent at least two painful debugging sessions
 # trying to figure out why my algorithm wasn't performing only to find it WAS and was just optimizing
 # for the wrong thing (which again, doesn't actually matter!), so I'll just set this to edges for now
-@enum GraphPart Vertices Edges
-const MAXIMIZING = Edges
+@enumx GraphPart Vertices Edges
+const MAXIMIZING = GraphPart.Edges
 
 @assert !(!OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES && OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION) ||
     error("Cannot enable tight upper bounding without enabling branch pruning")
 
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
-@enum BranchMode binary pivot
+@enumx BranchMode binary pivot
 
 # If the number of entries in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
-function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int,
-    reduction::ReductionMode=all; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
+function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, k::Int, θ::Int,
+    reduction::ReductionMode.T=ReductionMode.all_reductions; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
 
     @assert θ > k "θ must be greater than k"
 
@@ -38,7 +40,7 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k:
         return SubGraph(Set(), Set())
     end
 
-    D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
+    D = use_heuristic ? initial_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
 
     println("Reduction is complete")
     return branch(
@@ -52,8 +54,8 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k:
     )
 end
 
-function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode,
-    k::Int, θ::Int, reduction::ReductionMode=all)
+function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T,
+    k::Int, θ::Int, reduction::ReductionMode.T=ReductionMode.all_reductions)
     return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction)
 end
 
@@ -61,7 +63,7 @@ end
 # times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
 # and still result in a k-MDB, although we don't necessarily know which subset of C could be added to S.
 function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
-    D::SubGraph, k::Int, θ::Int, mode::BranchMode, S_missing::Int=0, depth::Int=0)
+    D::SubGraph, k::Int, θ::Int, mode::BranchMode.T, S_missing::Int=0, depth::Int=0)
     if TRACE
         me = S_missing
         println("  "^depth, "depth=$depth  S.U=", sorted_str(S.U), " S.V=", sorted_str(S.V),
@@ -104,8 +106,8 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         # S_edges = Subgraph.edge_count(g, S)
         D_edges = Subgraph.edge_count(g, D)
 
-        if (MAXIMIZING == Vertices && length(S.U) + length(S.V) > length(D.U) + length(D.V)) ||
-            (MAXIMIZING == Edges && S_edges > D_edges)
+        if (MAXIMIZING == GraphPart.Vertices && length(S.U) + length(S.V) > length(D.U) + length(D.V)) ||
+            (MAXIMIZING == GraphPart.Edges && S_edges > D_edges)
             @assert S_missing <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
             TRACE && println("  "^depth, "-> LEAF: new best D, S_edges=", S_edges, " D_edges=$(D_edges)")
             return Subgraph.clone(S)
@@ -115,7 +117,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         return D
     end
 
-    if mode == binary
+    if mode == BranchMode.binary
         is_u, node = argmax_nodes((u, n) -> nondegree_in_subgraph(g, u, n, S), C)
 
         nondegree = is_u ? nondegree_in_subgraph_u(g, node, S) : nondegree_in_subgraph_v(g, node, S)
@@ -154,7 +156,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             Subgraph.minus!(S, C′_0)
             Subgraph.remove_node!(S, is_u, node)
         end
-    elseif mode == pivot
+    elseif mode == BranchMode.pivot
         TRACE && println("  "^depth, "[pivot] entering pivot mode, remaining_budget=$(k - S_missing)")
 
         C_0_u = [u for u in C.U if nondegree_in_subgraph(g, true, u::Int, S) == 0]
