@@ -40,3 +40,18 @@ Idea
 
 Instead of implementing tabu, could I instead have an intermediate fitness function that penalizes less if you have some missing edge
 budget left?
+
+7.27.26
+
+Observation
+
+Theta-based heuristic relies on theta, whereas k-based heuristic relies
+only on k. The only place it needs theta is in determining whether to return the solution
+or not. But because a theta-based heuristic is probably always going to be more effective,
+we don't even need to limit the solutions that the k-based heuristic returns. We can just... use it
+
+Theta is a bandaid fix to the problem of balancing a k-MDB. The bigger thing we want is just a balanced
+biclique. Although, theta is helpful. After what point do we not care about balance and instead care about maximizing
+vertex count? So maybe theta _does_ matter.
+Instead of theta, can we instead just reward balance less as the number of vertices goes up? Could this be what the
+genetic algorithm solves?
