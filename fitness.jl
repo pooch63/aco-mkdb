@@ -47,12 +47,12 @@ function softmax_sample_nodes(f, sg::SubGraph, n::Int)
     return [Node(node.is_u, node.id) for node in sampled]
 end
 
-function instance_fitness(fg::FrozenBipartite, instance::SubGraph, θ::Int)
+function instance_fitness(fg::FrozenBipartite, instance::SubGraph, θ::Union{Int, Missing})
     min_nodes, max_nodes = minmax(length(instance.U), length(instance.V))
 
     # return min_nodes + max_nodes
 
-    return (min_nodes >= θ ? max_nodes : 1) *
+    return (min_nodes >= coalesce(θ, 1) ? max_nodes : 1) *
         # Give a higher score to subgraphs with more nodes
         min_nodes ^ 2
         # Linearly penalize a disparity in the graph
@@ -154,3 +154,4 @@ function candidate_set_as_node_array(fg::FrozenBipartite, sg::SubGraph, k::Int)
         [Node(false, v) for v in fg.v_ids if !Subgraph.has_node(sg, false, v) && nondegree_in_subgraph_v(fg, v, sg) <= budget]
     ]
 end
+
