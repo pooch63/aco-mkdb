@@ -1,22 +1,21 @@
 include("search.jl")
 include("sa.jl")
+include("tabu.jl")
 
 using Random
 using StatsBase
 
-struct Instance
-    subgraph::SubGraph
-    k::Int
-end
-
 global U::Set{Int} = Set()
 global V::Set{Int} = Set()
+
+@enum RepairMode greedy tabu
 
 # If the number of entrigeneres in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
 function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float64, generations::Int;
     H::Int = 2,
     use_heuristic::Bool=true, reduction::ReductionMode=progressive,
+    repair::RepairMode = tabu, tt::Int=2, tabu_patience::Int=3,
     num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
 
     @assert θ > k "θ must be greater than k"
@@ -42,6 +41,9 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float6
         H,
         O,
         k_mutate,
+        repair,
+        tt,
+        tabu_patience,
         generations
     )
 
@@ -57,7 +59,8 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float6
     return sol
 end
 
-function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, O::Int, k_mutate::Float64, generations::Int) where {T}
+function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, O::Int, k_mutate::Float64,
+    repair::RepairMode, tt::Int, tabu_patience::Int, generations::Int) where {T}
     G = SubGraph(Set(u for u in fg.u_ids), Set(v for v in fg.v_ids))
     # Choose softmax-distributed N nodes
     nodes = softmax_sample_nodes((u, n) -> u ? degree_u(fg, n) : degree_v(fg, n), G, N)
@@ -72,8 +75,12 @@ function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, O::Int, k_mutate
 
     # Room for algorithmic improvement: Keep track of parents that mutated so we don't
     # have parents breed together twice
+
+    # Room for algorithmic improvement: Keep track of the absolute best instance we've ever seen
+    # so if diversity makes the population collapse, we can just return the best one
+
     for _ in 1:generations
-        instances = evolve(instances, fg, k, N, H, O, k_mutate)
+        instances = evolve(instances, fg, k, N, H, O, k_mutate, repair, tt, tabu_patience)
         best = argmax(instance -> instance_fitness(fg, instance.subgraph), instances)
 
         union!(U, best.subgraph.U)
@@ -86,7 +93,8 @@ function search(fg::FrozenBipartite{T}, k::Int, N::Int, H::Int, O::Int, k_mutate
     return argmax(instance -> instance_fitness(fg, instance.subgraph), instances).subgraph
 end
 
-function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, N::Int, H::Int, O::Int, k_mutate::Float64)
+function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, N::Int,
+    H::Int, O::Int, k_mutate::Float64, repair::RepairMode, tt::Int, tabu_patience::Int)
     next = Instance[]
 
     for _ in 1:N-2
@@ -104,7 +112,7 @@ function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, N:
 
         @show k
 
-        offspring = crossover(fg, male.subgraph, female.subgraph, k)
+        offspring = crossover(fg, male.subgraph, female.subgraph, k, repair, tt, tabu_patience)
         @show instance_fitness(fg, offspring)
         push!(next, Instance(offspring, k))
     end
@@ -117,7 +125,7 @@ function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, N:
 
     opt = softmax_sample(instance -> instance_fitness(fg, instance.subgraph), next, O)
     for offspring in opt
-        H_opt!(fg, offspring.subgraph, offspring.k, H)
+        H_opt!(fg, offspring.subgraph, offspring.k, H, repair, tt, tabu_patience)
     end
 
     return next
@@ -127,17 +135,13 @@ end
 # missing edges it will allow, which could range from 0 to k (or maybe even 2k), so that way
 # there are some graphs that start super conservatively and might then hit solutions that
 # more liberal graphs get stopped at
-function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int)
+function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int, repair::RepairMode, tt::Int, tabu_patience::Int)
     S = subgraph_intersection(male, female)
 
     next::SubGraph = S
 
     # If the intersection is null, try taking the crossover of the candidate set
     if Subgraph.vertex_count(S) == 0
-        # male_C = candidate_set(fg, male, k)
-        # female_C = candidate_set(fg, female, k)
-        # C = subgraph_intersection(male_C, female_C)
-
         # Room for algorithmic improvement: could we greedily build from the intersection between their candidates,
         # or from the intersection of the graphs themselves?
         candidate = Subgraph.add(male, female)
@@ -158,23 +162,29 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
     end
 
     println("Before greedily add, next=", Subgraph.vertex_count(next))
+
+    last = deepcopy(next)
     greedily_add!(fg, next, k)
+    println("Greedy score: $(instance_fitness(fg, next))")
+    next = deepcopy(last)
+    tabu_repair!(fg, next, k, tt, tabu_patience)
+    println("Tabu score: $(instance_fitness(fg, next))")
+    next = last
+
+    if repair == greedy
+        greedily_add!(fg, next, k)
+    elseif repair == tabu
+        tabu_repair!(fg, next, k, tt, tabu_patience)
+    end
+
     println("After greedily add, next=", Subgraph.vertex_count(next))
 
     return next
 end
 
-function candidate_set(fg::FrozenBipartite, sg::SubGraph, k::Int)
-    budget = k - Subgraph.missing_edges(fg, sg)
-    return SubGraph(
-        Set(u for u in fg.u_ids if !Subgraph.has_node(sg, true, u) && nondegree_in_subgraph_u(fg, u, sg) <= budget),
-        Set(v for v in fg.v_ids if !Subgraph.has_node(sg, false, v) && nondegree_in_subgraph_v(fg, v, sg) <= budget)
-    )
-end
-
 # Remove H vertices from S, softmaxed by their nondegree with C
 # ROOM FOR IMPROVEMENT: Should we do nondegree with C, nondegree with S, or nondegree with everything?
-function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, H::Int)
+function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, H::Int, repair::RepairMode, tt::Int, tabu_patience::Int)
     C = candidate_set(fg, offspring, k)
     nodes = softmax_sample_nodes((u, n) -> nondegree_in_subgraph(fg, u, n, C), offspring, min(H, Subgraph.vertex_count(offspring)))
 
@@ -182,21 +192,15 @@ function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, H::Int)
         Subgraph.remove_node!(offspring, node.is_u, node.id)
     end
 
-    greedily_add!(fg, offspring, k)
+    if repair == greedy
+        greedily_add!(fg, offspring, k)
+    elseif repair == tabu
+        tabu_repair!(fg, offspring, k, tt, tabu_patience)
+    end
 end
 
 function subgraph_intersection(sg1::SubGraph, sg2::SubGraph)
     U = intersect(sg1.U, sg2.U)
     V = intersect(sg1.V, sg2.V)
     return SubGraph(U, V)
-end
-
-# Implement heuristic that branches and bounds on only a subset of the graph,
-# then branch and bound on the vertices that won
-function search(g::BipartiteGraph, k::Int, θ::Int, n::Int, use_heuristic::Bool)
-    D = use_heuristic ? initial_heuristic(freeze(g), k, θ) : SubGraph(Set(), Set())
-
-    # Split the graph into evenly-distributed subgraphs
-
-
 end
