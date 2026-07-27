@@ -2,6 +2,12 @@ using Test
 using Random
 using StatsBase
 
+# Currently, these are trials that it's failing
+# julia tests/test_repair.jl --seed=17837553062876830286 --N=1
+# julia tests/test_repair.jl --seed=17270172853287030372 --N=1
+
+
+
 include(joinpath(@__DIR__, "suite.jl"))
 include(joinpath(@__DIR__, "..", "tabu.jl"))
 
@@ -9,8 +15,8 @@ const SEED = parse_seed()
 const N = parse_N(20)
 Random.seed!(SEED)
 
-const TT = 2
-const TABU_PATIENCE = 3
+const TT = 4
+const TABU_PATIENCE = 10
 const REPAIR_LABELS = ("greedy", "tabu")
 
 """
@@ -30,7 +36,7 @@ end
 
 function solve_tabu(g::FrozenBipartite, k::Int, θ::Int)
     sg = initial_singleton(g)
-    tabu_repair!(g, sg, k, TT, TABU_PATIENCE)
+    tabu_repair!(g, sg, k, θ, TT, TABU_PATIENCE)
     return sg
 end
 
@@ -44,8 +50,8 @@ function tabu_underperforms(summary::SuiteSummary)
         g = build_frozen(info.edges, info.nU, info.nV)
         greedy_r = summary.stats["greedy"].results[trial]
         tabu_r = summary.stats["tabu"].results[trial]
-        greedy_fit = instance_fitness(g, SubGraph(greedy_r.U, greedy_r.V))
-        tabu_fit = instance_fitness(g, SubGraph(tabu_r.U, tabu_r.V))
+        greedy_fit = instance_fitness(g, SubGraph(greedy_r.U, greedy_r.V), info.θ)
+        tabu_fit = instance_fitness(g, SubGraph(tabu_r.U, tabu_r.V), info.θ)
         if tabu_fit < greedy_fit
             push!(bad, trial)
         end
@@ -69,7 +75,7 @@ end
             g = build_frozen(info.edges, info.nU, info.nV)
             greedy_r = summary.stats["greedy"].results[trial]
             tabu_r = summary.stats["tabu"].results[trial]
-            println("  trial $trial  greedy_fit=$(instance_fitness(g, SubGraph(greedy_r.U, greedy_r.V)))  tabu_fit=$(instance_fitness(g, SubGraph(tabu_r.U, tabu_r.V)))")
+            println("  trial $trial  greedy_fit=$(instance_fitness(g, SubGraph(greedy_r.U, greedy_r.V), info.θ))  tabu_fit=$(instance_fitness(g, SubGraph(tabu_r.U, tabu_r.V), info.θ))")
             print_solver_mismatch(summary, trial; labels=REPAIR_LABELS)
         end
     end

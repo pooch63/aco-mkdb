@@ -31,10 +31,10 @@ function add_tabu_move!(tabu::TabuList, node::Node, is_add::Bool, tt::Int)
 end
 
 # Modifies the instance in place to be the best instance
-function tabu_repair!(fg::FrozenBipartite, instance::SubGraph, k::Int, tt::Int, patience::Int)
+function tabu_repair!(fg::FrozenBipartite, instance::SubGraph, k::Int, θ::Int, tt::Int, patience::Int)
     tabu = TabuList()
 
-    best_score = instance_fitness(fg, instance)
+    best_score = instance_fitness(fg, instance, θ)
     best_instance::SubGraph = deepcopy(instance)
 
     # println("Score of first best: $(best_score)")
@@ -55,7 +55,7 @@ function tabu_repair!(fg::FrozenBipartite, instance::SubGraph, k::Int, tt::Int, 
                 Subgraph.remove_node!(instance, node.is_u, node.id)
             end
 
-            score = instance_fitness(fg, instance)
+            score = instance_fitness(fg, instance, θ)
             is_tabu = move_is_tabu(tabu, node, is_add)
 
             if (!is_tabu && score > best_new_score) || score > max(best_new_score, best_score)

@@ -45,9 +45,11 @@ function softmax_sample_nodes(f, sg::SubGraph, n::Int)
     return [Node(node.is_u, node.id) for node in sampled]
 end
 
-function instance_fitness(fg::FrozenBipartite, instance::SubGraph)
-    θ = 5
+function instance_fitness(fg::FrozenBipartite, instance::SubGraph, θ::Int)
     min_nodes, max_nodes = minmax(length(instance.U), length(instance.V))
+
+    # return min_nodes + max_nodes
+
     return (min_nodes >= θ ? max_nodes : 1) *
         # Give a higher score to subgraphs with more nodes
         min_nodes ^ 2
@@ -55,7 +57,7 @@ function instance_fitness(fg::FrozenBipartite, instance::SubGraph)
         # Room for improvement: if both sides have at least θ nodes, then we don't penalize at all?
         # *(1 + 1 / (abs(length(instance.U) - length(instance.V)) + 1))
 end
-@inline instance_energy(fg::FrozenBipartite, instance::SubGraph) = -instance_fitness(fg, instance)
+@inline instance_energy(fg::FrozenBipartite, instance::SubGraph, θ::Int) = -instance_fitness(fg, instance, θ)
 
 function sa(fg::FrozenBipartite, S::SubGraph, k::Int,
     initial_T::Float64, cooling_factor::Float64,
