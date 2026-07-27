@@ -1,5 +1,8 @@
-include("graph.jl")
-include("reduction.jl")
+const __SEARCH_JL__ = true
+
+isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
+isdefined(@__MODULE__, :__REDUCTION_JL__) || include("reduction.jl")
+isdefined(@__MODULE__, :__THETA_HEURISTIC_JL__) || include("theta_heuristic.jl")
 
 using EnumX
 
@@ -64,7 +67,7 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
         θ_U = maximum(u_degrees) + k
         θ_V = 0
 
-        D = use_heuristic ? initial_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+        D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
 
         while θ_U > θ
             θ_V = max(θ, floor(Int, Subgraph.edge_count(fg, D) / θ_U))
@@ -76,49 +79,6 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
     end
 
     return fg
-end
-
-"""
-Greedy θ×· construction: grow U to θ, trimming V to stay within k missing edges.
-
-If the result fails `|U|≥θ` and `|V|≥θ` and `return_invalid` is false, return empty.
-"""
-function initial_heuristic(g::FrozenBipartite, k::Int, θ::Int; return_invalid::Bool=false)
-    sg = SubGraph(Set(), Set(g.v_ids))
-
-    search = copy(g.u_ids)
-
-    while length(sg.U) < θ && !isempty(search)
-        u = argmax(u -> degree_in_subgraph_u(g, u, sg), search)
-        new_missing = nondegree_in_subgraph(g, true, u, sg)
-        
-        Subgraph.add_node!(sg, true, u)
-        deleteat!(search, findfirst(==(u), search))
-
-        sg_missing = Subgraph.missing_edges(g, sg)
-        
-        if sg_missing > k
-            Vs = collect(sg.V)
-            nondegrees = [nondegree_in_subgraph(g, false, v, sg) for v in Vs]
-            idxs = sortperm(nondegrees, rev=true)
-
-            missing_edges_to_remove = sg_missing - k
-            num_nodes_removed = 0
-
-            while missing_edges_to_remove > 0
-                num_nodes_removed += 1
-                idx = idxs[num_nodes_removed]
-                missing_edges_to_remove -= nondegrees[idx]
-                delete!(sg.V, Vs[idx])
-            end
-        end
-    end
-
-    if !return_invalid && (length(sg.U) < θ || length(sg.V) < θ)
-        return SubGraph(Set(), Set())
-    end
-
-    return sg
 end
 
 function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_missing::Int)
@@ -218,3 +178,4 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
 
     return C′, C′_0, maximum_nondegree
 end
+

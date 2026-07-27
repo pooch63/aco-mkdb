@@ -1,4 +1,6 @@
-include("graph.jl")
+const __FITNESS_JL__ = true
+
+isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 
 struct Node
     is_u::Bool

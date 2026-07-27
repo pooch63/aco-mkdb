@@ -43,10 +43,10 @@ using ProfileCanvas
 using Random
 using EnumX
 
-include("graph.jl")
-include("opponent.jl")
-include("ga.jl")
-include("reduction.jl")
+isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
+isdefined(@__MODULE__, :__OPPONENT_JL__) || include("opponent.jl")
+isdefined(@__MODULE__, :__GA_JL__) || include("ga.jl")
+isdefined(@__MODULE__, :__REDUCTION_JL__) || include("reduction.jl")
 
 global const DEBUG = true
 
@@ -174,7 +174,7 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
         if length(fg.u_ids) < θ || length(fg.v_ids) < θ
             return SubGraph(Set(), Set())
         end
-        return initial_heuristic(fg, k, θ; return_invalid=false)
+        return theta_based_heuristic(fg, k, θ; return_invalid=false)
     else
         return find_kmdb!(g, true, mode, k, θ, reduction)
     end

@@ -1,5 +1,7 @@
-include("graph.jl")
-include("search.jl")
+const __OPPONENT_JL__ = true
+
+isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
+isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
 
 using EnumX
 
@@ -40,7 +42,7 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
         return SubGraph(Set(), Set())
     end
 
-    D = use_heuristic ? initial_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+    D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
 
     println("Reduction is complete")
     return branch(
@@ -303,3 +305,4 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
     return D
 end
+

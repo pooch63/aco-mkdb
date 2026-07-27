@@ -1,4 +1,6 @@
-include("fitness.jl")
+const __TABU_JL__ = true
+
+isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
 
 # For each dictionary, keys are the nodes that are added or removed
 struct TabuList

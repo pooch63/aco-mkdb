@@ -1,6 +1,8 @@
-include("search.jl")
-include("fitness.jl")
-include("tabu.jl")
+const __GA_JL__ = true
+
+isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
+isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
+isdefined(@__MODULE__, :__TABU_JL__) || include("tabu.jl")
 
 using EnumX
 using Random
@@ -8,8 +10,8 @@ using StatsBase
 
 const COLLECT_METRICS = true
 # Off by default so headless / benchmark runs do not pull in Makie.
-# Set GA_GRAPH=1 (or flip this const) to plot diversity after search.
-const GRAPH = true
+# Set GA_GRAPH=1 (or flip this const) to plot metrics after search.
+const GRAPH = get(ENV, "GA_GRAPH", "") == "1"
 
 if GRAPH
     include("plot_metrics.jl")
@@ -100,7 +102,7 @@ function search(fg::FrozenBipartite{T}, k::Int, θ::Int, N::Int, H::Int, O::Int,
     end
 
     # Add the heuristic as another
-    push!(instances, Instance(initial_heuristic(fg, k, θ; return_invalid=true), k))
+    push!(instances, Instance(theta_based_heuristic(fg, k, θ; return_invalid=true), k))
 
     # Room for algorithmic improvement: Keep track of parents that mutated so we don't
     # have parents breed together twice
@@ -263,3 +265,4 @@ function subgraph_intersection(sg1::SubGraph, sg2::SubGraph)
     V = intersect(sg1.V, sg2.V)
     return SubGraph(U, V)
 end
+

@@ -1,4 +1,6 @@
-include("graph.jl")
+const __REDUCTION_JL__ = true
+
+isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 
 struct DegreeNode
     is_u::Bool
