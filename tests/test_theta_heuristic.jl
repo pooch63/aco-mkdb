@@ -1,11 +1,13 @@
 using Test
 
 include(joinpath(@__DIR__, "suite.jl"))
+isdefined(@__MODULE__, :__THETA_HEURISTIC_JL__) || include(joinpath(@__DIR__, "..", "theta_heuristic.jl"))
 
 const SAVE_PATH = parse_save()
+const INCREMENTAL = "--incremental" in ARGS
 
 function solve_heuristic(g::FrozenBipartite, k::Int, θ::Int)
-    return theta_based_heuristic(g, k, θ; return_invalid=true)
+    return theta_based_heuristic(g, k, θ; incremental=INCREMENTAL, return_invalid=true)
 end
 
 # Benchmark the initial heuristic against a branch-and-bound oracle.
@@ -13,10 +15,11 @@ end
 # algorithms across identical graph seeds.
 #
 # Examples:
-#   julia tests/test_heuristic.jl --seed=1 --N=5 --save=heuristic.json
-#   julia tests/test_heuristic.jl --nU=1000:2000 --nV=1000:2000 --N=3 --save=out.json
+#   julia tests/test_theta_heuristic.jl --seed=1 --N=5 --save=heuristic.json
+#   julia tests/test_theta_heuristic.jl --nU=1000:2000 --nV=1000:2000 --N=3 --save=out.json
+#   julia tests/test_theta_heuristic.jl --incremental --seed=1 --N=5
 
-println("Heuristic benchmark")
+println("Heuristic benchmark" * (INCREMENTAL ? " (incremental)" : ""))
 
 summary = run_graph_suite(solve_fn=solve_heuristic, algorithm="heuristic")
 
