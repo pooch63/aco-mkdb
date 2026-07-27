@@ -1,5 +1,5 @@
-include(joinpath(@__DIR__, "..", "graph.jl"))
-include(joinpath(@__DIR__, "..", "opponent.jl"))  # wherever upper_bound / nondegree_in_subgraph live
+isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(@__DIR__, "..", "graph.jl"))
+isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(@__DIR__, "..", "opponent.jl"))  # wherever upper_bound / nondegree_in_subgraph live
 
 using Random
 

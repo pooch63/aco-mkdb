@@ -9,7 +9,7 @@ using StatsBase
 
 
 include(joinpath(@__DIR__, "suite.jl"))
-include(joinpath(@__DIR__, "..", "tabu.jl"))
+isdefined(@__MODULE__, :__TABU_JL__) || include(joinpath(@__DIR__, "..", "tabu.jl"))
 
 const SEED = parse_seed()
 const N = parse_N(20)
@@ -64,7 +64,8 @@ end
         "greedy" => solve_greedy,
         "tabu" => solve_tabu,
     )
-    summary = run_graph_suite(N=N, seed=SEED, solvers=solvers)
+    summary = run_graph_suite(N=N, seed=SEED, solvers=solvers, oracle=OracleMode.brute_force,
+        nU_range=3:6, nV_range=3:6, edge_prob=0.5, θ_max=nothing, k_max=4)
     underperforms = tabu_underperforms(summary)
 
     if !isempty(underperforms)

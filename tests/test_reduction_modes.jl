@@ -21,7 +21,8 @@ function compare_reduction_settings(; N=20, seed=nothing)
         label => solve_reduction_mode(mode)
         for (label, mode) in zip(REDUCTION_LABELS, REDUCTION_MODES)
     )
-    summary = run_graph_suite(N=N, seed=seed, solvers=solvers)
+    summary = run_graph_suite(N=N, seed=seed, solvers=solvers, oracle=OracleMode.brute_force,
+        nU_range=3:6, nV_range=3:6, edge_prob=0.5, θ_max=nothing, k_max=4)
 
     mismatches = Int[]
     for trial in 1:summary.N

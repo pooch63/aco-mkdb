@@ -72,7 +72,7 @@ end
     println("Reduction: $REDUCTION")
 
     summary = run_graph_suite(N=N, seed=SEED, solve_fn=solve_mkdb, oracle=OracleMode.brute_force,
-        algorithm="mkdb")
+        algorithm="mkdb", nU_range=3:6, nV_range=3:6, edge_prob=0.5, θ_max=nothing, k_max=4)
     mismatches = mismatched_trials(summary)
 
     if !isempty(mismatches)

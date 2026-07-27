@@ -3,25 +3,15 @@ using Random
 
 include(joinpath(@__DIR__, "suite.jl"))
 # ga.jl pulls fitness/tabu/search; GRAPH defaults off so Makie is not required.
-include(joinpath(@__DIR__, "..", "ga.jl"))
+isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(@__DIR__, "..", "ga.jl"))
 
-const SEED = parse_seed()
-const N = parse_N(5)
-const ORACLE = parse_oracle(OracleMode.branch_oracle)
 const SAVE_PATH = parse_save()
-const NU_RANGE = parse_int_range("nU", 100:500)
-const NV_RANGE = parse_int_range("nV", 100:500)
-const EDGE_PROB = parse_float_flag("edge-prob", 0.3)
-const THETA_MAX = parse_int_flag("theta-max", 20)
-const K_MAX = parse_int_flag("k-max", 4)
 
 # Match load.jl defaults unless overridden.
 const GA_POP = parse_int_flag("ga-N", 10)
 const GA_O = parse_int_flag("ga-O", 2)
 const GA_GENERATIONS = parse_int_flag("ga-gens", 500)
 const GA_K_MUTATE = parse_float_flag("ga-k-mutate", 0.02)
-
-Random.seed!(SEED)
 
 function solve_ga(g::FrozenBipartite, k::Int, θ::Int)
     # Reset GA globals that accumulate across generations/trials.
@@ -40,21 +30,9 @@ end
 #   julia tests/test_ga.jl --nU=1000:2000 --nV=1000:2000 --ga-gens=100 --save=ga.json
 
 println("GA benchmark")
-println("  oracle=$(ORACLE)  nU=$(NU_RANGE)  nV=$(NV_RANGE)  edge_prob=$(EDGE_PROB)  θ_max=$(THETA_MAX)  k_max=$(K_MAX)")
 println("  ga: N=$(GA_POP) O=$(GA_O) gens=$(GA_GENERATIONS) k_mutate=$(GA_K_MUTATE)")
 
-summary = run_graph_suite(
-    N=N,
-    seed=SEED,
-    solve_fn=solve_ga,
-    oracle=ORACLE,
-    algorithm="ga",
-    nU_range=NU_RANGE,
-    nV_range=NV_RANGE,
-    edge_prob=EDGE_PROB,
-    θ_max=THETA_MAX,
-    k_max=K_MAX,
-)
+summary = run_graph_suite(solve_fn=solve_ga, algorithm="ga")
 
 print_suite_summary(summary)
 
