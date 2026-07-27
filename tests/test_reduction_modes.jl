@@ -9,25 +9,7 @@ Random.seed!(SEED)
 const REDUCTION_LABELS = ("none", "lo", "hi")
 const REDUCTION_MODES = (ReductionMode.none, ReductionMode.simple, ReductionMode.progressive)
 
-function build_mutable_graph(g::FrozenBipartite)
-    mutable_graph = BipartiteGraph{Nothing}()
-    for u in g.u_ids
-        add_u!(mutable_graph, u)
-    end
-    for v in g.v_ids
-        add_v!(mutable_graph, v)
-    end
-    for u_idx in eachindex(g.u_ids)
-        u = g.u_ids[u_idx]
-        for k in neighbor_range_u(g, u_idx)
-            v = g.v_ids[g.v_adj[k]]
-            add_edge!(mutable_graph, u, v, nothing)
-        end
-    end
-    return mutable_graph
-end
-
-function solve_reduction_mode(mode::ReductionMode)
+function solve_reduction_mode(mode::ReductionMode.T)
     return function (g::FrozenBipartite, k::Int, θ::Int)
         mutable_graph = build_mutable_graph(g)
         return find_kmdb(mutable_graph, true, BranchMode.pivot, k, θ, mode)
