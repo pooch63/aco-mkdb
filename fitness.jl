@@ -5,6 +5,11 @@ struct Node
     id::Int
 end
 
+struct Instance
+    subgraph::SubGraph
+    k::Int
+end
+
 function softmax_sample(objects::Vector{T}, scores::Vector{<:Real}, n::Int) where T
     # softmax with max-subtraction for numerical stability
     w = exp.(scores .- maximum(scores))
@@ -128,4 +133,20 @@ function greedily_add!(fg::FrozenBipartite, S::SubGraph, k::Int)
 
         Subgraph.add_node!(S, is_u, node)
     end
+end
+
+function candidate_set(fg::FrozenBipartite, sg::SubGraph, k::Int)
+    budget = k - Subgraph.missing_edges(fg, sg)
+    return SubGraph(
+        Set(u for u in fg.u_ids if !Subgraph.has_node(sg, true, u) && nondegree_in_subgraph_u(fg, u, sg) <= budget),
+        Set(v for v in fg.v_ids if !Subgraph.has_node(sg, false, v) && nondegree_in_subgraph_v(fg, v, sg) <= budget)
+    )
+end
+
+function candidate_set_as_node_array(fg::FrozenBipartite, sg::SubGraph, k::Int)
+    budget = k - Subgraph.missing_edges(fg, sg)
+    return [
+        [Node(true, u) for u in fg.u_ids if !Subgraph.has_node(sg, true, u) && nondegree_in_subgraph_u(fg, u, sg) <= budget];
+        [Node(false, v) for v in fg.v_ids if !Subgraph.has_node(sg, false, v) && nondegree_in_subgraph_v(fg, v, sg) <= budget]
+    ]
 end

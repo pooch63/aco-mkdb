@@ -1,5 +1,5 @@
 include("search.jl")
-include("sa.jl")
+include("fitness.jl")
 include("tabu.jl")
 
 using Random
