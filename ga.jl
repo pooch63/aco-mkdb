@@ -2,20 +2,45 @@ include("search.jl")
 include("fitness.jl")
 include("tabu.jl")
 
+using EnumX
 using Random
 using StatsBase
+
+const COLLECT_METRICS = true
+# Off by default so headless / benchmark runs do not pull in Makie.
+# Set GA_GRAPH=1 (or flip this const) to plot diversity after search.
+const GRAPH = true
+
+if GRAPH
+    include("plot_metrics.jl")
+end
 
 global U::Set{Int} = Set()
 global V::Set{Int} = Set()
 
-@enum RepairMode greedy tabu mixed
+@enumx RepairMode greedy tabu mixed
+
+# Fraction of unique (U ∪ V) node ids across the population relative to total
+# vertex slots. E.g. for SubGraph({1,2},{1,3}) and SubGraph({2,3},{4,2}):
+#   (|{1,2,3}| + |{1,2,3,4}|) / 8 = 7/8
+function population_diversity(instances::Vector{Instance})
+    unique_u = Set{Int}()
+    unique_v = Set{Int}()
+    total = 0
+    for instance in instances
+        union!(unique_u, instance.subgraph.U)
+        union!(unique_v, instance.subgraph.V)
+        total += length(instance.subgraph.U) + length(instance.subgraph.V)
+    end
+    return total == 0 ? 0.0 : (length(unique_u) + length(unique_v)) / total
+end
 
 # If the number of entrigeneres in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
 function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float64, generations::Int;
     H::Int = 2,
-    use_heuristic::Bool=true, reduction::ReductionMode=progressive,
-    repair::RepairMode = tabu, tt::Int=2, tabu_patience::Int=3,
+    use_heuristic::Bool=true, reduction::ReductionMode.T=ReductionMode.all_reductions,
+    repair::RepairMode.T = RepairMode.tabu, tt::Int=2, tabu_patience::Int=3,
     num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
 
     @assert θ > k "θ must be greater than k"
@@ -61,10 +86,10 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float6
 end
 
 function search(fg::FrozenBipartite{T}, k::Int, θ::Int, N::Int, H::Int, O::Int, k_mutate::Float64,
-    repair::RepairMode, tt::Int, tabu_patience::Int, generations::Int) where {T}
+    repair::RepairMode.T, tt::Int, tabu_patience::Int, generations::Int) where {T}
     G = SubGraph(Set(u for u in fg.u_ids), Set(v for v in fg.v_ids))
     # Choose softmax-distributed N nodes
-    nodes = softmax_sample_nodes((u, n) -> u ? degree_u(fg, n) : degree_v(fg, n), G, N)
+    nodes = softmax_sample_nodes((u, n) -> u ? degree_u(fg, n) : degree_v(fg, n), G, N-1)
 
     instances = Instance[]
     for node in nodes
@@ -74,28 +99,46 @@ function search(fg::FrozenBipartite{T}, k::Int, θ::Int, N::Int, H::Int, O::Int,
         push!(instances, Instance(subgraph, k))
     end
 
+    # Add the heuristic as another
+    push!(instances, Instance(initial_heuristic(fg, k, θ; return_invalid=true), k))
+
     # Room for algorithmic improvement: Keep track of parents that mutated so we don't
     # have parents breed together twice
 
     # Room for algorithmic improvement: Keep track of the absolute best instance we've ever seen
     # so if diversity makes the population collapse, we can just return the best one
 
-    for _ in 1:generations
+    diversity_history = Float64[]
+    best_fitness_history = Float64[]
+
+    for gen in 1:generations
         instances = evolve(instances, fg, k, θ, N, H, O, k_mutate, repair, tt, tabu_patience)
         best = argmax(instance -> instance_fitness(fg, instance.subgraph, θ), instances)
+        best_fitness = instance_fitness(fg, best.subgraph, θ)
 
         union!(U, best.subgraph.U)
         union!(V, best.subgraph.V)
 
+        if COLLECT_METRICS
+            diversity = population_diversity(instances)
+            push!(diversity_history, diversity)
+            push!(best_fitness_history, Float64(best_fitness))
+            @show gen, diversity, best_fitness
+        end
+
         # @show best
         # @show instance_fitness(fg, best.subgraph)
+    end
+
+    if COLLECT_METRICS && GRAPH
+        plot_metrics(diversity_history, best_fitness_history)
     end
 
     return argmax(instance -> instance_fitness(fg, instance.subgraph, θ), instances).subgraph
 end
 
 function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, θ::Int, N::Int,
-    H::Int, O::Int, k_mutate::Float64, repair::RepairMode, tt::Int, tabu_patience::Int)
+    H::Int, O::Int, k_mutate::Float64, repair::RepairMode.T, tt::Int, tabu_patience::Int)
     next = Instance[]
 
     for _ in 1:N-2
@@ -136,7 +179,7 @@ end
 # missing edges it will allow, which could range from 0 to k (or maybe even 2k), so that way
 # there are some graphs that start super conservatively and might then hit solutions that
 # more liberal graphs get stopped at
-function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int, θ::Int, repair::RepairMode, tt::Int, tabu_patience::Int)
+function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int, θ::Int, repair::RepairMode.T, tt::Int, tabu_patience::Int)
     S = subgraph_intersection(male, female)
 
     next::SubGraph = S
@@ -172,11 +215,11 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
     println("Tabu score: $(instance_fitness(fg, next, θ))")
     next = last
 
-    if repair == greedy
+    if repair == RepairMode.greedy
         greedily_add!(fg, next, k)
-    elseif repair == tabu
+    elseif repair == RepairMode.tabu
         tabu_repair!(fg, next, k, θ, tt, tabu_patience)
-    elseif repair == mixed
+    elseif repair == RepairMode.mixed
         greedy_instance = deepcopy(next)
         tabu_instance = deepcopy(next)
         
@@ -200,7 +243,7 @@ end
 
 # Remove H vertices from S, softmaxed by their nondegree with C
 # ROOM FOR IMPROVEMENT: Should we do nondegree with C, nondegree with S, or nondegree with everything?
-function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, θ::Int, H::Int, repair::RepairMode, tt::Int, tabu_patience::Int)
+function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, θ::Int, H::Int, repair::RepairMode.T, tt::Int, tabu_patience::Int)
     C = candidate_set(fg, offspring, k)
     nodes = softmax_sample_nodes((u, n) -> nondegree_in_subgraph(fg, u, n, C), offspring, min(H, Subgraph.vertex_count(offspring)))
 
@@ -208,9 +251,9 @@ function H_opt!(fg::FrozenBipartite, offspring::SubGraph, k::Int, θ::Int, H::In
         Subgraph.remove_node!(offspring, node.is_u, node.id)
     end
 
-    if repair == greedy
+    if repair == RepairMode.greedy
         greedily_add!(fg, offspring, k)
-    elseif repair == tabu
+    elseif repair == RepairMode.tabu
         tabu_repair!(fg, offspring, k, θ, tt, tabu_patience)
     end
 end
