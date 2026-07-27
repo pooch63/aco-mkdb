@@ -1,6 +1,8 @@
 include("graph.jl")
 include("reduction.jl")
 
+using EnumX
+
 function arg_nodes(f, is_max::Bool, sg::SubGraph)
     best_score = is_max ? -Inf : Inf
     best_is_u = false
@@ -31,20 +33,24 @@ end
 argmax_nodes(f, sg::SubGraph) = arg_nodes(f, true, sg)
 argmin_nodes(f, sg::SubGraph) = arg_nodes(f, false, sg)
 
-@enum ReductionMode all_reductions simple progressive none
+@enumx ReductionMode all_reductions simple progressive none
 
 function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
     num_U::Union{Int, Nothing}, num_V::Union{Int, Nothing},
-    use_heuristic::Bool, reduction::ReductionMode)
+    use_heuristic::Bool, reduction::ReductionMode.T)
 
     num_U = num_U === nothing ? length(g.adjU) : num_U
     num_V = num_V === nothing ? length(g.adjV) : num_V
+
+    if reduction == ReductionMode.none
+        return freeze(g)
+    end
     
-    if reduction == simple || reduction == progressive || reduction == all_reductions
+    if reduction == ReductionMode.simple || reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
         reduce_graph!(g, k, θ, num_U, num_V)
         fg = freeze(g)
     end
-    if reduction == progressive || reduction == all_reductions
+    if reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
         reduce_graph!(g, k, θ, num_U, num_V)
         fg = freeze(g)
 
@@ -58,7 +64,7 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
         θ_U = maximum(u_degrees) + k
         θ_V = 0
 
-        D = use_heuristic ? initial_heuristic(fg, k, θ) : SubGraph(Set(), Set())
+        D = use_heuristic ? initial_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
 
         while θ_U > θ
             θ_V = max(θ, floor(Int, Subgraph.edge_count(fg, D) / θ_U))
@@ -72,7 +78,12 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
     return fg
 end
 
-function initial_heuristic(g::FrozenBipartite, k::Int, θ::Int)
+"""
+Greedy θ×· construction: grow U to θ, trimming V to stay within k missing edges.
+
+If the result fails `|U|≥θ` and `|V|≥θ` and `return_invalid` is false, return empty.
+"""
+function initial_heuristic(g::FrozenBipartite, k::Int, θ::Int; return_invalid::Bool=false)
     sg = SubGraph(Set(), Set(g.v_ids))
 
     search = copy(g.u_ids)
@@ -103,7 +114,7 @@ function initial_heuristic(g::FrozenBipartite, k::Int, θ::Int)
         end
     end
 
-    if length(sg.V) < θ
+    if !return_invalid && (length(sg.U) < θ || length(sg.V) < θ)
         return SubGraph(Set(), Set())
     end
 
