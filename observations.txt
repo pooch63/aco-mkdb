@@ -35,3 +35,8 @@ Idea
 Could I train a GNN to predict which nodes are likely to appear in a k-MDB, then just run the branch-and-bound or GA on those?
 
 Problem I'm currently facing: the genetic algorithm struggles when there are more than, like 100 nodes. It finds good solutions, but not the optimal solutions.
+
+Idea
+
+Instead of implementing tabu, could I instead have an intermediate fitness function that penalizes less if you have some missing edge
+budget left?
