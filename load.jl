@@ -41,6 +41,7 @@ How to Run from the Command Line:
 using Profile
 using ProfileCanvas
 using Random
+using EnumX
 
 include("graph.jl")
 include("opponent.jl")
@@ -52,7 +53,7 @@ global const DEBUG = true
 # Placeholder for ga()'s subgraph-split parameter until the GA is fully wired up.
 const GA_N = 10
 
-@enum Solver ga_solver branch_solver heuristic_solver
+@enumx Solver ga_solver branch_solver heuristic_solver
 
 """
     load_bipartite_graph(filepath::String) -> BipartiteGraph{Int}
@@ -98,18 +99,18 @@ function parse_reduction()
         if startswith(arg, "--reduce=")
             value = split(arg, "=", limit=2)[2]
             if value == "lo"
-                return simple
+                return ReductionMode.simple
             elseif value == "hi"
-                return all_reductions
+                return ReductionMode.all_reductions
             elseif value == "none"
-                return none
+                return ReductionMode.none
             else
                 throw(ArgumentError("Unsupported reduction setting: $value"))
             end
         end
     end
 
-    return all_reductions
+    return ReductionMode.all_reductions
 end
 
 function parse_seed()
@@ -123,21 +124,21 @@ end
 
 function parse_args()
     dataset_name = nothing
-    solver = branch_solver
-    mode = pivot
+    solver = Solver.branch_solver
+    mode = BranchMode.pivot
     profile = false
     reduction = parse_reduction()
     seed = parse_seed()
 
     for arg in ARGS
         if arg == "--ga"
-            solver = ga_solver
+            solver = Solver.ga_solver
         elseif arg == "--heuristic"
-            solver = heuristic_solver
+            solver = Solver.heuristic_solver
         elseif arg == "--pivot"
-            mode = pivot
+            mode = BranchMode.pivot
         elseif arg == "--binary"
-            mode = binary
+            mode = BranchMode.binary
         elseif arg == "--profile"
             profile = true
         elseif startswith(arg, "--reduce=") || startswith(arg, "--seed=")
@@ -160,12 +161,12 @@ end
 Run the selected solver in-place on `g`, returning the best SubGraph found.
 Branch-and-bound uses `mode`; GA and heuristic ignore it.
 """
-function solve!(g::BipartiteGraph, solver::Solver, mode::BranchMode,
-    k::Int, θ::Int, reduction::ReductionMode)
-    if solver == ga_solver
-        return ga(g, k, θ, GA_N, 2, 0.02, 500; repair=mixed)
-    elseif solver == heuristic_solver
-        fg = if reduction == none
+function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
+    k::Int, θ::Int, reduction::ReductionMode.T)
+    if solver == Solver.ga_solver
+        return ga(g, k, θ, GA_N, 2, 0.02, 500; repair=RepairMode.mixed)
+    elseif solver == Solver.heuristic_solver
+        fg = if reduction == ReductionMode.none
             freeze(g)
         else
             apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
@@ -173,14 +174,14 @@ function solve!(g::BipartiteGraph, solver::Solver, mode::BranchMode,
         if length(fg.u_ids) < θ || length(fg.v_ids) < θ
             return SubGraph(Set(), Set())
         end
-        return initial_heuristic(fg, k, θ)
+        return initial_heuristic(fg, k, θ; return_invalid=false)
     else
         return find_kmdb!(g, true, mode, k, θ, reduction)
     end
 end
 
-function solve(g::BipartiteGraph, solver::Solver, mode::BranchMode,
-    k::Int, θ::Int, reduction::ReductionMode)
+function solve(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
+    k::Int, θ::Int, reduction::ReductionMode.T)
     return solve!(deepcopy(g), solver, mode, k, θ, reduction)
 end
 
@@ -201,17 +202,17 @@ function main()
     end
 
     println("Loading graph from: $graph_path")
-    if solver == ga_solver
+    if solver == Solver.ga_solver
         # Default to a fresh seed when none was provided so the run is printable/replicable.
         seed = seed === nothing ? UInt64(time_ns()) : seed
         Random.seed!(seed)
         println("Solver: genetic algorithm")
-    elseif solver == heuristic_solver
+    elseif solver == Solver.heuristic_solver
         println("Solver: initial heuristic only")
     else
-        println("Solver: branch-and-bound ($(mode == pivot ? "pivot" : "binary"))")
+        println("Solver: branch-and-bound ($(mode == BranchMode.pivot ? "pivot" : "binary"))")
     end
-    println("Reduction: $(reduction == simple ? "simple" : reduction == none ? "none" : "progressive")")
+    println("Reduction: $(reduction == ReductionMode.simple ? "simple" : reduction == ReductionMode.none ? "none" : "progressive")")
 
     with_stacksize(2_000_000_000) do
         if profile
@@ -249,7 +250,7 @@ function main()
         end
     end
 
-    if solver == ga_solver
+    if solver == Solver.ga_solver
         println("Random seed: --seed=$seed")
     end
 end
