@@ -31,7 +31,7 @@ end
 argmax_nodes(f, sg::SubGraph) = arg_nodes(f, true, sg)
 argmin_nodes(f, sg::SubGraph) = arg_nodes(f, false, sg)
 
-@enum ReductionMode simple progressive none
+@enum ReductionMode all_reductions simple progressive none
 
 function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
     num_U::Union{Int, Nothing}, num_V::Union{Int, Nothing},
@@ -40,10 +40,11 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
     num_U = num_U === nothing ? length(g.adjU) : num_U
     num_V = num_V === nothing ? length(g.adjV) : num_V
     
-    if reduction == simple
+    if reduction == simple || reduction == progressive || reduction == all_reductions
         reduce_graph!(g, k, θ, num_U, num_V)
         fg = freeze(g)
-    elseif reduction == progressive
+    end
+    if reduction == progressive || reduction == all_reductions
         reduce_graph!(g, k, θ, num_U, num_V)
         fg = freeze(g)
 

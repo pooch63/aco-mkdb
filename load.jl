@@ -100,7 +100,7 @@ function parse_reduction()
             if value == "lo"
                 return simple
             elseif value == "hi"
-                return progressive
+                return all_reductions
             elseif value == "none"
                 return none
             else
@@ -109,7 +109,7 @@ function parse_reduction()
         end
     end
 
-    return progressive
+    return all_reductions
 end
 
 function parse_seed()
@@ -163,7 +163,7 @@ Branch-and-bound uses `mode`; GA and heuristic ignore it.
 function solve!(g::BipartiteGraph, solver::Solver, mode::BranchMode,
     k::Int, θ::Int, reduction::ReductionMode)
     if solver == ga_solver
-        return ga(g, k, θ, GA_N, 2, 0.02, 2000)
+        return ga(g, k, θ, GA_N, 2, 0.02, 500; repair=mixed)
     elseif solver == heuristic_solver
         fg = if reduction == none
             freeze(g)

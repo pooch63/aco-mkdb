@@ -20,6 +20,8 @@ function parse_reduction()
                 return simple
             elseif val == "progressive"
                 return progressive
+            elseif val == "all"
+                return all_reductions
             else
                 error("Unknown reduction mode: $val (expected none, simple, or progressive)")
             end

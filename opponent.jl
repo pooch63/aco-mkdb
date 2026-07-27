@@ -26,7 +26,7 @@ sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 # If the number of entries in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
 function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k::Int, θ::Int,
-    reduction::ReductionMode=progressive; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
+    reduction::ReductionMode=all; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
 
     @assert θ > k "θ must be greater than k"
 
@@ -53,7 +53,7 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode, k:
 end
 
 function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode,
-    k::Int, θ::Int, reduction::ReductionMode=progressive)
+    k::Int, θ::Int, reduction::ReductionMode=all)
     return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction)
 end
 
