@@ -1,5 +1,6 @@
-isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(@__DIR__, "..", "graph.jl"))
-isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(@__DIR__, "..", "opponent.jl"))  # wherever upper_bound / nondegree_in_subgraph live
+const SRC = joinpath(@__DIR__, "..", "src")
+isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
+isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))  # wherever upper_bound / nondegree_in_subgraph live
 
 using Random
 

@@ -1,8 +1,9 @@
 using Test
 
-isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(@__DIR__, "..", "graph.jl"))
-isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(@__DIR__, "..", "opponent.jl"))
-isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(@__DIR__, "..", "reduction.jl"))
+const SRC = joinpath(@__DIR__, "..", "src")
+isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
+isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))
+isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
 using .Subgraph
 
 """

@@ -1,5 +1,6 @@
-isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(@__DIR__, "..", "graph.jl"))
-isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(@__DIR__, "..", "opponent.jl"))
+const SRC = joinpath(@__DIR__, "..", "src")
+isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
+isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))
 include(joinpath(@__DIR__, "generate.jl"))
 
 using EnumX

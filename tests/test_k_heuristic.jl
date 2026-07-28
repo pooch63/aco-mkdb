@@ -1,7 +1,7 @@
 using Test
 
 include(joinpath(@__DIR__, "suite.jl"))
-isdefined(@__MODULE__, :__K_HEURISTIC_JL__) || include(joinpath(@__DIR__, "..", "k_heuristic.jl"))
+isdefined(@__MODULE__, :__K_HEURISTIC_JL__) || include(joinpath(@__DIR__, "..", "src", "k_heuristic.jl"))
 
 const SAVE_PATH = parse_save()
 

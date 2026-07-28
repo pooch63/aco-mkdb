@@ -1,7 +1,7 @@
 using Test
 
 include(joinpath(@__DIR__, "suite.jl"))
-isdefined(@__MODULE__, :__THETA_HEURISTIC_JL__) || include(joinpath(@__DIR__, "..", "theta_heuristic.jl"))
+isdefined(@__MODULE__, :__THETA_HEURISTIC_JL__) || include(joinpath(@__DIR__, "..", "src", "theta_heuristic.jl"))
 
 const SAVE_PATH = parse_save()
 const INCREMENTAL = "--incremental" in ARGS

@@ -3,7 +3,7 @@ using Random
 
 include(joinpath(@__DIR__, "suite.jl"))
 # ga.jl pulls fitness/tabu/search; GRAPH defaults off so Makie is not required.
-isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(@__DIR__, "..", "ga.jl"))
+isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(@__DIR__, "..", "src", "ga.jl"))
 
 const SAVE_PATH = parse_save()
 

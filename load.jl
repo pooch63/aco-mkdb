@@ -45,11 +45,12 @@ using ProfileCanvas
 using Random
 using EnumX
 
-isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
-isdefined(@__MODULE__, :__OPPONENT_JL__) || include("opponent.jl")
-isdefined(@__MODULE__, :__GA_JL__) || include("ga.jl")
-isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include("parallel_tabu.jl")
-isdefined(@__MODULE__, :__REDUCTION_JL__) || include("reduction.jl")
+const SRC = joinpath(@__DIR__, "src")
+isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
+isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))
+isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(SRC, "ga.jl"))
+isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
+isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
 
 global const DEBUG = true
 

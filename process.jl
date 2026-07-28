@@ -26,7 +26,7 @@ How to Run from the Command Line:
 using DataFrames
 using CSV
 
-include("edges.jl")
+include(joinpath(@__DIR__, "src", "edges.jl"))
 include("index_dataset.jl")
 
 function process_dataset(jsonl_path::String, dataset_name::String)

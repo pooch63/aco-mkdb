@@ -9,7 +9,7 @@ using StatsBase
 
 
 include(joinpath(@__DIR__, "suite.jl"))
-isdefined(@__MODULE__, :__TABU_JL__) || include(joinpath(@__DIR__, "..", "tabu.jl"))
+isdefined(@__MODULE__, :__TABU_JL__) || include(joinpath(@__DIR__, "..", "src", "tabu.jl"))
 
 const SEED = parse_seed()
 const N = parse_N(20)
