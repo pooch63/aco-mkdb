@@ -42,7 +42,8 @@ function theta_based_heuristic(g::FrozenBipartite, k::Int, θ::Int;
         end
 
         if incremental
-            score = instance_fitness(g, sg, missing)
+            # score = instance_fitness(g, sg, missing)
+            score = length(sg.U) * length(sg.V) - sg_missing
             if score > best_score
                 best_score = score
                 best_instance = deepcopy(sg)

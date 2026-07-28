@@ -11,6 +11,7 @@ workflow on it. It accepts either:
 
 Solver flags (independent of branch mode):
   --ga         use the genetic algorithm
+  --tabu       use parallel tabu search over an N-sized population
   --heuristic  use only the initial heuristic (no search)
   (default)    use branch-and-bound (find_kmdb!)
 
@@ -18,21 +19,22 @@ Branch mode flags (only used by branch-and-bound):
   --pivot    pivot branching (default)
   --binary   binary branching
 
-GA-only flags:
-  --seed=S   random seed for reproducible GA runs (default: time_ns())
+GA / tabu flags:
+  --seed=S   random seed for reproducible runs (default: time_ns())
 
 Prerequisites:
   Ensure you have Julia and the required packages installed.
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path] [--ga|--heuristic|--binary|--pivot] [--reduce=...] [--seed=...]
+    julia load.jl [dataset_name_or_path] [--ga|--tabu|--heuristic|--binary|--pivot] [--reduce=...] [--seed=...]
 
   Examples:
     julia load.jl
     julia load.jl Grocery_and_Gourmet_Food --binary
     julia load.jl Grocery_and_Gourmet_Food --ga
     julia load.jl Grocery_and_Gourmet_Food --ga --seed=12345
+    julia load.jl Grocery_and_Gourmet_Food --tabu
     julia load.jl Grocery_and_Gourmet_Food --heuristic
     julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
@@ -46,6 +48,7 @@ using EnumX
 isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 isdefined(@__MODULE__, :__OPPONENT_JL__) || include("opponent.jl")
 isdefined(@__MODULE__, :__GA_JL__) || include("ga.jl")
+isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include("parallel_tabu.jl")
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include("reduction.jl")
 
 global const DEBUG = true
@@ -53,7 +56,7 @@ global const DEBUG = true
 # Placeholder for ga()'s subgraph-split parameter until the GA is fully wired up.
 const GA_N = 10
 
-@enumx Solver ga_solver branch_solver heuristic_solver
+@enumx Solver ga_solver branch_solver heuristic_solver tabu_solver
 
 """
     load_bipartite_graph(filepath::String) -> BipartiteGraph{Int}
@@ -133,6 +136,8 @@ function parse_args()
     for arg in ARGS
         if arg == "--ga"
             solver = Solver.ga_solver
+        elseif arg == "--tabu"
+            solver = Solver.tabu_solver
         elseif arg == "--heuristic"
             solver = Solver.heuristic_solver
         elseif arg == "--pivot"
@@ -159,12 +164,15 @@ end
 
 """
 Run the selected solver in-place on `g`, returning the best SubGraph found.
-Branch-and-bound uses `mode`; GA and heuristic ignore it.
+Branch-and-bound uses `mode`; GA, tabu, and heuristic ignore it.
 """
 function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
     k::Int, θ::Int, reduction::ReductionMode.T)
     if solver == Solver.ga_solver
         return ga(g, k, θ, GA_N, 2, 0.02, 500; repair=RepairMode.mixed)
+    elseif solver == Solver.tabu_solver
+        result = parallel_tabu(g, k, θ, GA_N; reduction=reduction)
+        return result.best_fitness
     elseif solver == Solver.heuristic_solver
         fg = if reduction == ReductionMode.none
             freeze(g)
@@ -194,7 +202,7 @@ function main()
     dataset_name, solver, mode, profile, reduction, seed = parse_args()
     graph_path = resolve_graph_path(dataset_name)
 
-    k, θ = 3, 5
+    k, θ = 3, 6
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
@@ -202,11 +210,11 @@ function main()
     end
 
     println("Loading graph from: $graph_path")
-    if solver == Solver.ga_solver
+    if solver == Solver.ga_solver || solver == Solver.tabu_solver
         # Default to a fresh seed when none was provided so the run is printable/replicable.
         seed = seed === nothing ? UInt64(time_ns()) : seed
         Random.seed!(seed)
-        println("Solver: genetic algorithm")
+        println(solver == Solver.ga_solver ? "Solver: genetic algorithm" : "Solver: parallel tabu")
     elseif solver == Solver.heuristic_solver
         println("Solver: initial heuristic only")
     else
@@ -250,7 +258,7 @@ function main()
         end
     end
 
-    if solver == Solver.ga_solver
+    if solver == Solver.ga_solver || solver == Solver.tabu_solver
         println("Random seed: --seed=$seed")
     end
 end

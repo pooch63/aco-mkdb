@@ -1,9 +1,10 @@
+- Dynamic tabu search
+- Ant colony optimization
+
 1. Test the heuristic to see if a solver with the heuristic performs
 better than a solver without.
 
-2. Finish the paper's implementation with all its optimizations
-
-3. Implement tabu-search and everything else. Here's the full list
+3. Here's the full list
 :
     1. Replace pure greedy repair with tabu-based local search
     The single biggest lever. "Greedily add" gets stuck because it never accepts a temporarily worse move. Papers on this problem class (Battiti & Protasi's Reactive Local Search, and later "Breakout Local Search" by Benlic & Hao) alternate between a construction phase and a tabu-driven plateau search that allows sideways/backward moves with a memory of recently-touched nodes so it doesn't undo its own progress. This alone often outperforms a GA wrapper on the same base heuristic.
@@ -28,3 +29,5 @@ better than a solver without.
 
     8. Large Neighborhood Search / GRASP as an alternative framing
     If the GA wrapper itself feels like the bottleneck rather than the local search, it's worth trying Large Neighborhood Search (destroy a chunk of the current solution, rebuild it with a smarter constructive heuristic) or GRASP (randomized greedy construction + local search, restarted many times) — these often scale further than population-based GAs on this problem class because they don't pay the overhead of maintaining a whole population.
+
+2. Finish the paper's implementation with all its optimizations

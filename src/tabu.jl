@@ -12,21 +12,15 @@ end
 
 TabuList() = TabuList(Dict{Node, Int}(), Dict{Node, Int}())
 
-function move_is_tabu(tabu::TabuList, node::Node, is_add::Bool)
-    return is_add ? get(tabu.add, node, 0) > 0 : get(tabu.remove, node, 0) > 0
+function move_is_tabu(tabu::TabuList, node::Node, is_add::Bool, iteration::Int)
+    dict = is_add ? tabu.add : tabu.remove
+    return get(dict, node, 0) >= iteration
 end
-function add_tabu_move!(tabu::TabuList, node::Node, is_add::Bool, tt::Int)
-    if is_add && tabu.add[node] == 0
-        tabu.add[node] = tt
-    elseif !is_add && tabu.remove[node] == 0
-        tabu.remove[node] = tt
-    end
-end
-function add_tabu_move!(tabu::TabuList, node::Node, is_add::Bool, tt::Int)
+function add_tabu_move!(tabu::TabuList, node::Node, is_add::Bool, iteration::Int, tt::Int)
     target_dict = is_add ? tabu.add : tabu.remove
     
     if get(target_dict, node, 0) == 0
-        target_dict[node] = tt
+        target_dict[node] = iteration + tt
     end
     
     return tabu
@@ -42,8 +36,10 @@ function tabu_repair!(fg::FrozenBipartite, instance::SubGraph, k::Int, θ::Int, 
     # println("Score of first best: $(best_score)")
     
     patience_counter = 0
+    iteration = 0
 
     while patience_counter < patience
+        iteration += 1
         candidate = candidate_set_as_node_array(fg, instance, k)
 
         # First bool is whether we add it, second bool is whether it's u, third is the node id
@@ -58,7 +54,7 @@ function tabu_repair!(fg::FrozenBipartite, instance::SubGraph, k::Int, θ::Int, 
             end
 
             score = instance_fitness(fg, instance, θ)
-            is_tabu = move_is_tabu(tabu, node, is_add)
+            is_tabu = move_is_tabu(tabu, node, is_add, iteration)
 
             if (!is_tabu && score > best_new_score) || score > max(best_new_score, best_score)
                 best_new_score = score
@@ -67,7 +63,7 @@ function tabu_repair!(fg::FrozenBipartite, instance::SubGraph, k::Int, θ::Int, 
 
             # If this move would make the graph worse, make it tabu
             if score < best_score
-                add_tabu_move!(tabu, node, is_add, tt)
+                add_tabu_move!(tabu, node, is_add, iteration, tt)
             end
 
             if is_add
