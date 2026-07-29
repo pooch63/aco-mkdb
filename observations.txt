@@ -67,3 +67,25 @@ Could we have ACO walk through once the branch algorithm gets to a large C_0?
 Because these algorithms take far less time, we don't necessarily have to tune theta that much.
 If there are too many nodes, ACO will likely still find a great solution, so theta isn't as necessary
 to get right. It's just there for speed, really.
+
+Setting pheremones to 1 instead of 0 made ACO much more effective. My hypothesis is that
+when pheremones were set to 0, in node desireability, we had to say if the pheremone was 0,
+then just multiply by 1 for the degree. This had the effect where after a ton of iterations, nodes that
+were never explored had a pheremone of 0, which evaporation still set to 0.
+
+On grocery with an injected biclique of p=10 q=8 k=4, theta heuristic got only an 8x4, whereas
+ACO got the full 10x8
+
+Idea
+
+Can we try the theta based heuristic, or the ordering based reduction, from V instead of U and
+see which one is most performant?
+
+Ordering based reductions saves only u's 2-hop neighbors. But it doesn't do the same for V. What if
+we also removed any nodes that were more than 3 hops away from u?
+- I realized this is a dumb idea. By finding u's 2-hop neighbors, we're also essentially cutting out
+N(u)'s 2-hop neighbors, so we're already cutting N^3
+
+Idea
+
+Can we use ordering-based reduction with ACO by running it on the subgraph instances that each iteration gives.

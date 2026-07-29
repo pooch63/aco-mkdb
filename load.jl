@@ -233,7 +233,7 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
         if length(fg.u_ids) < θ || length(fg.v_ids) < θ
             return SubGraph(Set(), Set())
         end
-        return theta_based_heuristic(fg, k, θ; return_invalid=false)
+        return theta_based_heuristic(fg, k, θ; return_invalid=true)
     else
         return find_kmdb!(g, true, mode, k, θ, reduction)
     end
@@ -254,8 +254,8 @@ function main()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation = aco_options
 
-    # k, θ = 4, 8
-    k, θ = 3, 6
+    k, θ = 4, 8
+    # k, θ = 3, 5
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")

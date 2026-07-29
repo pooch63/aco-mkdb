@@ -9,12 +9,14 @@ isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include("reduction.jl")
 isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
 
+const ELITE_PHEROMONE_FACTOR = 2
+
 struct Pheromones
     U::Vector{Float64}
     V::Vector{Float64}
 end
 
-Pheromones(nU::Int, nV::Int) = Pheromones(zeros(nU), zeros(nV))
+Pheromones(nU::Int, nV::Int) = Pheromones(ones(nU), ones(nV))
 Pheromones(fg::FrozenBipartite) = Pheromones(length(fg.u_ids), length(fg.v_ids))
 
 get_pheromone(pheromones::Pheromones, node::Node) = (node.is_u ? pheromones.U : pheromones.V)[node.id]
@@ -30,7 +32,6 @@ mutable struct Ant
     last_visited::Node
 end
 
-# Need to lay more pheromone at the instances where more fitness was discovered
 function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int, θ::Int; parallelize::Bool=true)
     apply_graph_reductions!(g, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
     
@@ -84,6 +85,21 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
         evaporate_pheromones!(pheromones, evaporation)
 
+        # Softmax-select a few finished ants by instance fitness and reinforce
+        # the last node each visited (elitist deposit after evaporation).
+        eligible = [ant for ant in ants if ant.last_visited.id != -1]
+        n_elite = min(3, length(eligible))
+        if n_elite > 0
+            elites = softmax_sample(
+                ant -> instance_fitness(compact_fg, ant.explored, θ),
+                eligible,
+                n_elite,
+            )
+            for ant in elites
+                add_pheromone!(pheromones, ant.last_visited, pheromone * ELITE_PHEROMONE_FACTOR)
+            end
+        end
+
         for ant in ants
             score = instance_fitness(compact_fg, ant.explored, missing)
             if score > best_score
@@ -119,7 +135,8 @@ end
 
 function node_desirability(pheromones::Pheromones, node::DegreeNode)
     pheromone = get_pheromone(pheromones, Node(node.is_u, node.id))
-    return (pheromone == 0 ? 1 : pheromone^3) * node.deg
+    @assert pheremone > 0 "Pheremone cannot be zero. Otherwise, evaporation won't penalize underexplored nodes"
+    return pheromone^3 * node.deg
 end
 
 # Returns false if the ant has no further moves
