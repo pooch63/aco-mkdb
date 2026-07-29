@@ -66,22 +66,44 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
                 # common when D is empty (θ_V ≡ θ) or θ_U halves but still ≥ last θ_eff.
                 if θ_eff != last_θ_eff
                     reduce_graph!(g, k, θ_eff, num_U, num_V)
+                    fg = freeze(g)
                     last_θ_eff = θ_eff
                     reductions += 1
                 end
 
                 us = get_degree_order(g, true, true)
 
-                for i in eachindex(us)
+                @threads for i in eachindex(us)
                     S = SubGraph(Set(us[i]), Set())
-                    C = SubGraph()
 
+                    # N^2_+(u)
+                    _2_hop_neighbors = falses(length(g.adjU))
+                    for v in neighbors_v(g, v)
+                        for u in neighbors_u(g, u)
+                            _2_hop_neighbors[u] = true
+                        end
+                    end
 
+                    _3_hop_neighbors = falses(length(g.adjV))
+                    for u in eachindex(_2_hop_neighbors)
+                        if _2_hop_neighbors[u]
+                            for v in neighbors_u(g, u)
+                                _3_hop_neighbors[v] = true
+                            end
+                        end
+                    end 
+
+                    C = SubGraph(
+                        Set(u for u in _2_hop_neighbors if _2_hop_neighbors[u]),
+                        Set(v for v in _2_hop_neighbors if _2_hop_neighbors[v])
+                    )
+                    C = reduce_candidate_set(g, C, us[i], θ_U, θ_V, k)
+
+                    
                 end
             end
 
             println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
-            fg = freeze(g)
         end
     end
 
@@ -108,6 +130,12 @@ end
 function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T,
     k::Int, θ::Int, reduction::ReductionMode.T=ReductionMode.all_reductions)
     return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction)
+end
+
+function reduce_candidate_set(g::BipartiteGraph, C::SubGraph, u::Int, θ_U::Int, θ_V::Int, k::Int)
+    C_U = Set(n for n in C.U if common_neighbors(g, true, u, n) ≥ θ_V - k)
+    C_V = Set(n for n in C.V if degree_v(g, v) ≥ θ_U - k)
+    return SubGraph(C_U, C_V)
 end
 
 # BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
