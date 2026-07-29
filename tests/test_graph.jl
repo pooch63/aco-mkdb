@@ -185,6 +185,43 @@ end
 end
 
 # =============================================================================
+# Compact / remap for reduced graphs with sparse original ids
+# =============================================================================
+@testset "compact_frozen + remap_subgraph" begin
+    g = BipartiteGraph{Nothing}()
+    add_edge!(g, 12, 100, nothing)
+    add_edge!(g, 12, 200, nothing)
+    add_edge!(g, 14, 200, nothing)
+    add_edge!(g, 345, 4059, nothing)
+    add_edge!(g, 4059, 100, nothing)
+
+    fg = freeze(g)
+    compact, remapping = compact_frozen(fg)
+
+    @test compact.u_ids == collect(1:length(fg.u_ids))
+    @test compact.v_ids == collect(1:length(fg.v_ids))
+    @test remapping.u_original == fg.u_ids
+    @test remapping.v_original == fg.v_ids
+
+    for u in fg.u_ids
+        ui = fg.u_index[u]
+        @test neighbors_u(compact, ui) == [fg.v_index[v] for v in neighbors_u(fg, u)]
+    end
+    for v in fg.v_ids
+        vi = fg.v_index[v]
+        @test sort(neighbors_v(compact, vi)) == sort([fg.u_index[u] for u in neighbors_v(fg, v)])
+    end
+
+    u12, u345 = fg.u_index[12], fg.u_index[345]
+    v200 = fg.v_index[200]
+    sg_compact = SubGraph(Set([u12, u345]), Set([v200]))
+    sg_original = remap_subgraph(remapping, sg_compact)
+    @test sg_original.U == Set([12, 345])
+    @test sg_original.V == Set([200])
+    @test Subgraph.edge_count(compact, sg_compact) == Subgraph.edge_count(fg, sg_original)
+end
+
+# =============================================================================
 # Frozen adjacency checks
 # =============================================================================
 @testset "is_neighbor on frozen graph" begin

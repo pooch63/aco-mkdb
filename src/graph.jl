@@ -228,7 +228,47 @@ mutable struct SubGraph
     V::Set{Int}   # original v ids in this subgraph
 end
 
+SubGraph() = SubGraph(Set(), Set())
+
 subgraph_length(sg::SubGraph) = length(sg.U) + length(sg.V)
+
+# --------------------------------------------------------------------------
+# Compact a reduced FrozenBipartite so vertex ids become 1..nU / 1..nV.
+# CSR arrays are reused unchanged (they already use dense indices internally).
+# --------------------------------------------------------------------------
+
+struct GraphRemapping
+    u_original::Vector{Int}   # compact u id -> original u id
+    v_original::Vector{Int}   # compact v id -> original v id
+end
+
+"""
+    compact_frozen(fg) -> (compact_fg, remapping)
+
+Reorder a (possibly reduced) frozen graph so U ids are `1:nU` and V ids are
+`1:nV`. The returned `remapping` maps compact subgraph ids back to the
+original ids via `remap_subgraph`.
+"""
+function compact_frozen(fg::FrozenBipartite{T}) where {T}
+    nU = length(fg.u_ids)
+    nV = length(fg.v_ids)
+    remapping = GraphRemapping(copy(fg.u_ids), copy(fg.v_ids))
+    compact = FrozenBipartite{T}(
+        collect(1:nU), collect(1:nV),
+        Dict(i => i for i in 1:nU), Dict(i => i for i in 1:nV),
+        fg.u_offsets, fg.v_adj, fg.edge_data,
+        fg.v_offsets, fg.u_adj, fg.v_edge_data,
+    )
+    return compact, remapping
+end
+
+"""Map a subgraph on compact ids back to original vertex ids."""
+function remap_subgraph(r::GraphRemapping, sg::SubGraph)
+    return SubGraph(
+        Set(r.u_original[u] for u in sg.U),
+        Set(r.v_original[v] for v in sg.V),
+    )
+end
 
 # --------------------------------------------------------------------------
 # internal helper: build dense assignment arrays from a Vector{SubGraph}.

@@ -12,6 +12,7 @@ workflow on it. It accepts either:
 Solver flags (independent of branch mode):
   --ga         use the genetic algorithm
   --tabu       use parallel tabu search over an N-sized population
+  --aco        use ant colony optimization
   --heuristic  use only the initial heuristic (no search)
   (default)    use branch-and-bound (find_kmdb!)
 
@@ -22,12 +23,18 @@ Branch mode flags (only used by branch-and-bound):
 GA / tabu flags:
   --seed=S   random seed for reproducible runs (default: time_ns())
 
+ACO flags:
+  --ants=N          number of ants per iteration (default: 10)
+  --iterations=N    number of ACO iterations (default: 100)
+  --pheremone=N     pheromone deposit per step (default: 1)
+  --evaporation=X   pheromone evaporation rate in (0, 1] (default: 0.9)
+
 Prerequisites:
   Ensure you have Julia and the required packages installed.
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path] [--ga|--tabu|--heuristic|--binary|--pivot] [--reduce=...] [--seed=...]
+    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...]
 
   Examples:
     julia load.jl
@@ -35,6 +42,8 @@ How to Run from the Command Line:
     julia load.jl Grocery_and_Gourmet_Food --ga
     julia load.jl Grocery_and_Gourmet_Food --ga --seed=12345
     julia load.jl Grocery_and_Gourmet_Food --tabu
+    julia load.jl Grocery_and_Gourmet_Food --aco
+    julia load.jl Grocery_and_Gourmet_Food --aco --ants=20 --iterations=200 --evaporation=0.85
     julia load.jl Grocery_and_Gourmet_Food --heuristic
     julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
@@ -50,6 +59,7 @@ isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
 isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))
 isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(SRC, "ga.jl"))
 isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
+isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco.jl"))
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
 
 global const DEBUG = true
@@ -57,7 +67,12 @@ global const DEBUG = true
 # Placeholder for ga()'s subgraph-split parameter until the GA is fully wired up.
 const GA_N = 10
 
-@enumx Solver ga_solver branch_solver heuristic_solver tabu_solver
+const ACO_PHEREMONE = 1
+const ACO_NUM_ANTS = 10
+const ACO_NUM_ITERATIONS = 100
+const ACO_EVAPORATION = 0.9
+
+@enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver
 
 """
     load_bipartite_graph(filepath::String) -> BipartiteGraph{Int}
@@ -126,6 +141,31 @@ function parse_seed()
     return nothing
 end
 
+function parse_aco_options()
+    pheremone = ACO_PHEREMONE
+    num_ants = ACO_NUM_ANTS
+    num_iterations = ACO_NUM_ITERATIONS
+    evaporation = ACO_EVAPORATION
+
+    for arg in ARGS
+        if startswith(arg, "--ants=")
+            num_ants = parse(Int, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--iterations=")
+            num_iterations = parse(Int, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--pheremone=")
+            pheremone = parse(Int, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--evaporation=")
+            evaporation = parse(Float64, split(arg, "=", limit=2)[2])
+        end
+    end
+
+    if !(0.0 < evaporation <= 1.0)
+        throw(ArgumentError("evaporation must be in (0, 1], got $evaporation"))
+    end
+
+    return pheremone, num_ants, num_iterations, evaporation
+end
+
 function parse_args()
     dataset_name = nothing
     solver = Solver.branch_solver
@@ -133,12 +173,15 @@ function parse_args()
     profile = false
     reduction = parse_reduction()
     seed = parse_seed()
+    aco_options = parse_aco_options()
 
     for arg in ARGS
         if arg == "--ga"
             solver = Solver.ga_solver
         elseif arg == "--tabu"
             solver = Solver.tabu_solver
+        elseif arg == "--aco"
+            solver = Solver.aco_solver
         elseif arg == "--heuristic"
             solver = Solver.heuristic_solver
         elseif arg == "--pivot"
@@ -147,7 +190,9 @@ function parse_args()
             mode = BranchMode.binary
         elseif arg == "--profile"
             profile = true
-        elseif startswith(arg, "--reduce=") || startswith(arg, "--seed=")
+        elseif startswith(arg, "--reduce=") || startswith(arg, "--seed=") ||
+               startswith(arg, "--ants=") || startswith(arg, "--iterations=") ||
+               startswith(arg, "--pheremone=") || startswith(arg, "--evaporation=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -160,7 +205,7 @@ function parse_args()
         dataset_name = DEBUG ? "boxes" : nothing
     end
 
-    return dataset_name, solver, mode, profile, reduction, seed
+    return dataset_name, solver, mode, profile, reduction, seed, aco_options
 end
 
 """
@@ -168,12 +213,16 @@ Run the selected solver in-place on `g`, returning the best SubGraph found.
 Branch-and-bound uses `mode`; GA, tabu, and heuristic ignore it.
 """
 function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T)
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options)
+    pheremone, num_ants, num_iterations, evaporation = aco_options
+
     if solver == Solver.ga_solver
         return ga(g, k, θ, GA_N, 2, 0.02, 500; repair=RepairMode.mixed)
     elseif solver == Solver.tabu_solver
         result = parallel_tabu(g, k, θ, GA_N; reduction=reduction)
         return result.best_fitness
+    elseif solver == Solver.aco_solver
+        return aco(g, k, θ, pheremone, num_ants, num_iterations, evaporation; reduction=reduction)
     elseif solver == Solver.heuristic_solver
         fg = if reduction == ReductionMode.none
             freeze(g)
@@ -190,8 +239,8 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
 end
 
 function solve(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T)
-    return solve!(deepcopy(g), solver, mode, k, θ, reduction)
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options)
+    return solve!(deepcopy(g), solver, mode, k, θ, reduction, aco_options)
 end
 
 # Create a wrapper function that runs code with a custom stack size
@@ -200,8 +249,9 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction, seed = parse_args()
+    dataset_name, solver, mode, profile, reduction, seed, aco_options = parse_args()
     graph_path = resolve_graph_path(dataset_name)
+    pheremone, num_ants, num_iterations, evaporation = aco_options
 
     k, θ = 3, 6
 
@@ -211,11 +261,18 @@ function main()
     end
 
     println("Loading graph from: $graph_path")
-    if solver == Solver.ga_solver || solver == Solver.tabu_solver
+    if solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
         # Default to a fresh seed when none was provided so the run is printable/replicable.
         seed = seed === nothing ? UInt64(time_ns()) : seed
         Random.seed!(seed)
-        println(solver == Solver.ga_solver ? "Solver: genetic algorithm" : "Solver: parallel tabu")
+        if solver == Solver.ga_solver
+            println("Solver: genetic algorithm")
+        elseif solver == Solver.tabu_solver
+            println("Solver: parallel tabu")
+        else
+            println("Solver: ant colony optimization")
+            println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation")
+        end
     elseif solver == Solver.heuristic_solver
         println("Solver: initial heuristic only")
     else
@@ -228,7 +285,7 @@ function main()
             println("Profile mode enabled: warming up compilation on a small graph...")
             # Warm up: run the search once on a very small slice to compile methods
             gw = load_bipartite_graph(graph_path; max_lines = 50)
-            Dw = solve!(gw, solver, mode, k, θ, reduction)
+            Dw = solve!(gw, solver, mode, k, θ, reduction, aco_options)
 
             # Load full graph for the actual profiled run
             g = load_bipartite_graph(graph_path)
@@ -236,7 +293,7 @@ function main()
             println("Starting profiling run — this may take a while...")
             Profile.clear()
             @profile begin
-                D = solve(g, solver, mode, k, θ, reduction)
+                D = solve(g, solver, mode, k, θ, reduction, aco_options)
             end
 
             # Display profile using ProfileCanvas
@@ -248,7 +305,7 @@ function main()
             @show D
         else
             g = load_bipartite_graph(graph_path)
-            D = solve!(g, solver, mode, k, θ, reduction)
+            D = solve!(g, solver, mode, k, θ, reduction, aco_options)
 
             @show D
 
@@ -259,7 +316,7 @@ function main()
         end
     end
 
-    if solver == Solver.ga_solver || solver == Solver.tabu_solver
+    if solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
         println("Random seed: --seed=$seed")
     end
 end
