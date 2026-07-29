@@ -49,14 +49,11 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
         return freeze(g)
     end
     
-    if reduction == ReductionMode.simple || reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
-        reduce_graph!(g, k, θ, num_U, num_V)
-        fg = freeze(g)
-    end
-    if reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
-        reduce_graph!(g, k, θ, num_U, num_V)
-        fg = freeze(g)
+    reduce_graph!(g, k, θ, num_U, num_V)
+    last_θ_eff = θ
 
+    if reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
+        fg = freeze(g)
         u_degrees = Int[]
         for u in fg.u_ids
             push!(u_degrees, degree_u(fg, u))
@@ -69,16 +66,28 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
 
         D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
 
+        iterations = 0
+        reductions = 0
+
         while θ_U > θ
-            θ_V = max(θ, floor(Int, Subgraph.edge_count(fg, D) / θ_U))
+            iterations += 1
+            θ_V = max(θ, floor(Int, Subgraph.edge_count(g, D) / θ_U))
             θ_U = max(θ, floor(Int, θ_U / 2))
 
-            reduce_graph!(g, k, min(θ_U, θ_V), num_U, num_V)
-            fg = freeze(g)
+            θ_eff = min(θ_U, θ_V)
+            # Skip passes whose effective threshold matches the last reduce —
+            # common when D is empty (θ_V ≡ θ) or θ_U halves but still ≥ last θ_eff.
+            if θ_eff != last_θ_eff
+                reduce_graph!(g, k, θ_eff, num_U, num_V)
+                last_θ_eff = θ_eff
+                reductions += 1
+            end
         end
+
+        println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
     end
 
-    return fg
+    return freeze(g)
 end
 
 function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_missing::Int)

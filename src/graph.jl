@@ -98,6 +98,66 @@ function rem_edge!(g::BipartiteGraph, u::Int, v::Int)
     return true
 end
 
+# Adjacency-only removal for structural passes (e.g. graph reduction) that do
+# not need edge metadata. Skips edge_data tuple hashing; stale edge_data entries
+# are harmless because freeze() walks adjacency lists, not edge_data keys.
+function rem_edge_structural!(g::BipartiteGraph, u::Int, v::Int)
+    haskey(g.adjU, u) || return false
+    v in g.adjU[u] || return false
+    delete!(g.adjU[u], v)
+    delete!(g.adjV[v], u)
+    return true
+end
+
+function rem_u_structural!(g::BipartiteGraph, u::Int)
+    haskey(g.adjU, u) || return false
+    for v in g.adjU[u]
+        delete!(g.adjV[v], u)
+    end
+    delete!(g.adjU, u)
+    return true
+end
+
+function rem_v_structural!(g::BipartiteGraph, v::Int)
+    haskey(g.adjV, v) || return false
+    for u in g.adjV[v]
+        delete!(g.adjU[u], v)
+    end
+    delete!(g.adjV, v)
+    return true
+end
+
+function rem_node_structural!(g::BipartiteGraph, is_u::Bool, node_id::Int)
+    if is_u
+        return rem_u_structural!(g, node_id)
+    else
+        return rem_v_structural!(g, node_id)
+    end
+end
+
+function add_edge!(g::BipartiteGraph{Nothing}, u::Int, v::Int, ::Nothing)
+    add_u!(g, u)
+    add_v!(g, v)
+    push!(g.adjU[u], v)
+    push!(g.adjV[v], u)
+    return g
+end
+
+function rem_edge!(g::BipartiteGraph{Nothing}, u::Int, v::Int)
+    return rem_edge_structural!(g, u, v)
+end
+
+function rem_u!(g::BipartiteGraph{Nothing}, u::Int)
+    return rem_u_structural!(g, u)
+end
+
+function rem_v!(g::BipartiteGraph{Nothing}, v::Int)
+    return rem_v_structural!(g, v)
+end
+
+has_edge(g::BipartiteGraph{Nothing}, u::Int, v::Int) =
+    haskey(g.adjU, u) && v in g.adjU[u]
+
 # --- queries (still available on the live graph if needed) ---
 node_exists(g::BipartiteGraph, is_u::Bool, node_id::Int) = is_u ? haskey(g.adjU, node_id) : haskey(g.adjV, node_id)
 neighbors_u(g::BipartiteGraph, u::Int) = g.adjU[u]
@@ -149,8 +209,9 @@ function freeze(g::BipartiteGraph{T}) where {T}
     u_offsets = Vector{Int}(undef, nU + 1)
     v_adj = Int[]
     edata = T[]
-    sizehint!(v_adj, length(g.edge_data))
-    sizehint!(edata, length(g.edge_data))
+    nE = sum(length(nbrs) for nbrs in values(g.adjU); init=0)
+    sizehint!(v_adj, nE)
+    sizehint!(edata, nE)
 
     u_offsets[1] = 1
     for (i, u) in enumerate(u_ids)
@@ -189,6 +250,63 @@ function freeze(g::BipartiteGraph{T}) where {T}
     # u_adj ends up sorted per v because ui is iterated in increasing order.
 
     return FrozenBipartite{T}(
+        u_ids, v_ids, u_index, v_index,
+        u_offsets, v_adj, edata,
+        v_offsets, u_adj, v_edata,
+    )
+end
+
+function freeze(g::BipartiteGraph{Nothing})
+    u_ids = collect(keys(g.adjU))
+    v_ids = collect(keys(g.adjV))
+    u_index = Dict(u => i for (i, u) in enumerate(u_ids))
+    v_index = Dict(v => i for (i, v) in enumerate(v_ids))
+
+    nU = length(u_ids)
+    nV = length(v_ids)
+
+    u_offsets = Vector{Int}(undef, nU + 1)
+    v_adj = Int[]
+    edata = Nothing[]
+    nE = sum(length(nbrs) for nbrs in values(g.adjU); init=0)
+    sizehint!(v_adj, nE)
+    sizehint!(edata, nE)
+
+    u_offsets[1] = 1
+    for (i, u) in enumerate(u_ids)
+        nbrs = sort!(collect(g.adjU[u]))
+        for v in nbrs
+            push!(v_adj, v_index[v])
+            push!(edata, nothing)
+        end
+        u_offsets[i + 1] = u_offsets[i] + length(nbrs)
+    end
+
+    nE = length(v_adj)
+    v_deg = zeros(Int, nV)
+    for vi in v_adj
+        v_deg[vi] += 1
+    end
+    v_offsets = Vector{Int}(undef, nV + 1)
+    v_offsets[1] = 1
+    for i in 1:nV
+        v_offsets[i + 1] = v_offsets[i] + v_deg[i]
+    end
+
+    u_adj = Vector{Int}(undef, nE)
+    v_edata = Vector{Nothing}(undef, nE)
+    fill_pos = collect(v_offsets[1:nV])
+    for ui in 1:nU
+        for k in u_offsets[ui]:(u_offsets[ui + 1] - 1)
+            vi = v_adj[k]
+            pos = fill_pos[vi]
+            u_adj[pos] = ui
+            v_edata[pos] = edata[k]
+            fill_pos[vi] = pos + 1
+        end
+    end
+
+    return FrozenBipartite{Nothing}(
         u_ids, v_ids, u_index, v_index,
         u_offsets, v_adj, edata,
         v_offsets, u_adj, v_edata,
@@ -554,7 +672,7 @@ end
 
 
 module Subgraph
-    import ..SubGraph, ..FrozenBipartite, .._dense_assignment, ..neighbor_range_u, ..neighbor_range_v
+    import ..SubGraph, ..BipartiteGraph, ..FrozenBipartite, .._dense_assignment, ..neighbor_range_u, ..neighbor_range_v
     export add_node!, remove_node!, add!, minus, minus!, missing_edges, edge_count, nonneighbors_in_subgraph, vertex_count, clone
 
     function add_node!(sg::SubGraph, is_u::Bool, node::Int)
@@ -606,10 +724,24 @@ module Subgraph
     end
 
     """
-        subgraph_edge_count(fg, sg::SubGraph) -> Int
+        edge_count(g, sg::SubGraph) -> Int
 
-    Single-subgraph version, when you only need one count.
+    Count edges between `sg.U` and `sg.V`. Works on a mutable `BipartiteGraph`
+    (Dict adjacency) or a frozen graph; use the mutable overload during
+    reduction passes to avoid repeated `freeze` calls.
     """
+    function edge_count(g::BipartiteGraph, sg::SubGraph)
+        count = 0
+        for u in sg.U
+            neighbors = get(g.adjU, u, nothing)
+            neighbors === nothing && continue
+            for v in neighbors
+                v in sg.V && (count += 1)
+            end
+        end
+        return count
+    end
+
     function edge_count(fg::FrozenBipartite, sg::SubGraph)
         count = 0
         for u in sg.U

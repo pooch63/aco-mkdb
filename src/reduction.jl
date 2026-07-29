@@ -35,8 +35,19 @@ end
 function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U::Int, num_V::Int) where {T}
     O = get_ascending_degree_order(g)
 
-    common_neighbors_U = zeros(Int, num_U)
-    common_neighbors_V = zeros(Int, num_V)
+    # Stamp arrays: per-node counts without O(n) fill! between nodes.
+    # stamp[w] == cur marks that count[w] is live for this node.
+    stamp_U = zeros(Int, num_U)
+    stamp_V = zeros(Int, num_V)
+    count_U = zeros(Int, num_U)
+    count_V = zeros(Int, num_V)
+    cur_stamp = 0
+
+    # Reusable neighbor snapshots. Needed because rem_edge_structural! mutates
+    # adjacency Sets while we still need the original lists; buffers avoid the
+    # per-neighbor `collect` that dominated allocations.
+    neighbors_buf = Int[]
+    neighbors_2hop_bufs = Vector{Vector{Int}}()
 
     for node in O
         # It may have already been removed, in which case, just continue
@@ -44,48 +55,70 @@ function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U
             continue
         end
 
-        neighbors = get_neighbors(g, node.is_u, node.id)
+        nbrs_set = get_neighbors(g, node.is_u, node.id)
+        empty!(neighbors_buf)
+        sizehint!(neighbors_buf, length(nbrs_set))
+        for v in nbrs_set
+            push!(neighbors_buf, v)
+        end
 
-        for v in neighbors
-            neighbors_2_hop = get_neighbors(g, !node.is_u, v)
-            for w in neighbors_2_hop
-                if node.is_u
-                    common_neighbors_U[w] += 1
+        threshold = θ - k
+
+        cur_stamp += 1
+        stamp = node.is_u ? stamp_U : stamp_V
+        count = node.is_u ? count_U : count_V
+
+        n_nbrs = length(neighbors_buf)
+        while length(neighbors_2hop_bufs) < n_nbrs
+            push!(neighbors_2hop_bufs, Int[])
+        end
+        for i in 1:n_nbrs
+            buf = neighbors_2hop_bufs[i]
+            empty!(buf)
+            for w in get_neighbors(g, !node.is_u, neighbors_buf[i])
+                push!(buf, w)
+            end
+        end
+
+        for i in 1:n_nbrs
+            for w in neighbors_2hop_bufs[i]
+                if stamp[w] != cur_stamp
+                    stamp[w] = cur_stamp
+                    count[w] = 1
                 else
-                    common_neighbors_V[w] += 1
+                    count[w] += 1
                 end
             end
         end
 
-        for v in neighbors
-            neighbors_2_hop = get_neighbors(g, !node.is_u, v)
-
+        for i in 1:n_nbrs
+            v = neighbors_buf[i]
             valid_connections = 0
-            for w in neighbors_2_hop
-                cn = node.is_u ? common_neighbors_U[w] : common_neighbors_V[w]
-                if cn >= θ - k
+            for w in neighbors_2hop_bufs[i]
+                cn = stamp[w] == cur_stamp ? count[w] : 0
+                if cn >= threshold
                     valid_connections += 1
                 end
             end
 
-            if valid_connections < θ - k
+            if valid_connections < threshold
                 if node.is_u
-                    rem_edge!(g, node.id, v)
+                    rem_edge_structural!(g, node.id, v)
                 else
-                    rem_edge!(g, v, node.id)
+                    rem_edge_structural!(g, v, node.id)
                 end
             end
         end
 
         degree = get_degree(g, node.is_u, node.id)
-        if degree < θ - k
-            rem_node!(g, node.is_u, node.id)
+        if degree < threshold
+            rem_node_structural!(g, node.is_u, node.id)
             # println("Removed U=$(node.id)")
         end
 
-        for v in neighbors
-            if get_degree(g, !node.is_u, v) < θ - k
-                rem_node!(g, !node.is_u, v)
+        for v in neighbors_buf
+            if get_degree(g, !node.is_u, v) < threshold
+                rem_node_structural!(g, !node.is_u, v)
                 # println("Removed V=$(v)")
             end
         end

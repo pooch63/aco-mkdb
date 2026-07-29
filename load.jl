@@ -253,7 +253,7 @@ function main()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation = aco_options
 
-    k, θ = 3, 6
+    k, θ = 2, 5
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")

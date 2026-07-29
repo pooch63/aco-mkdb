@@ -67,6 +67,7 @@ function aco(fg::FrozenBipartite, pheromone::Int, num_ants::Int, num_iterations:
 end
 
 function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::Node)
+    next_score =
     return max(1, get_pheromone(pheromones, node) ^ 3) * degree_in_subgraph(fg, node.is_u, node.id, sg)
 end
 

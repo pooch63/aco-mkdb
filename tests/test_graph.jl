@@ -417,10 +417,12 @@ end
     fg = freeze(g)
 
     sgA = SubGraph(Set([1, 2]), Set([10, 20]))   # complete K(2,2) -> 4 edges
+    @test Subgraph.edge_count(g, sgA) == 4
     @test Subgraph.edge_count(fg, sgA) == 4
     @test Subgraph.missing_edges(fg, sgA) == length(sgA.U) * length(sgA.V) - 4  # 0
 
     sgB = SubGraph(Set([3, 4]), Set([30, 40]))   # 3 of 4 possible edges
+    @test Subgraph.edge_count(g, sgB) == 3
     @test Subgraph.edge_count(fg, sgB) == 3
     @test Subgraph.missing_edges(fg, sgB) == length(sgB.U) * length(sgB.V) - 3  # 1
 

@@ -1,0 +1,115 @@
+        - const __REDUCTION_JL__ = true
+        - 
+        - isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
+        - 
+        - struct DegreeNode
+        -     is_u::Bool
+        -     id::Int
+        -     deg::Int
+        - end
+        - 
+        - function get_ascending_degree_order(g::BipartiteGraph)
+       32     nodes = Vector{DegreeNode}()
+        0     sizehint!(nodes, length(g.adjU) + length(g.adjV))
+        - 
+        0     for u in keys(g.adjU)
+        0         deg = degree_u(g, u)
+        0         push!(nodes, DegreeNode(true, u, deg))
+        0     end
+        - 
+        0     for v in keys(g.adjV)
+        0         deg = degree_v(g, v)
+        0         push!(nodes, DegreeNode(false, v, deg))
+        0     end
+        - 
+        0     sort!(nodes, by = node -> node.deg)
+        - 
+        0     return nodes
+        - end
+        - 
+        - function reduce_graph!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U::Int, num_V::Int) where {T}
+        -     common_neighbor_reduction!(g, k, θ, num_U, num_V)
+        - end
+        - 
+        - # Note: REQUIRES node id's to start at 1, otherwise it will crash
+        - function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U::Int, num_V::Int) where {T}
+        0     O = get_ascending_degree_order(g)
+        - 
+        -     # Stamp arrays: per-node counts without O(n) fill! between nodes.
+        -     # stamp[w] == cur marks that count[w] is live for this node.
+     1840     stamp_U = zeros(Int, num_U)
+     2064     stamp_V = zeros(Int, num_V)
+     1840     count_U = zeros(Int, num_U)
+     2064     count_V = zeros(Int, num_V)
+        -     cur_stamp = 0
+        - 
+        0     for node in O
+        -         # It may have already been removed, in which case, just continue
+        0         if !node_exists(g, node.is_u, node.id)
+        -             continue
+        -         end
+        - 
+    72816         neighbors = collect(get_neighbors(g, node.is_u, node.id))
+        0         threshold = θ - k
+        - 
+        0         cur_stamp += 1
+        0         stamp = node.is_u ? stamp_U : stamp_V
+        0         count = node.is_u ? count_U : count_V
+        - 
+    72816         neighbors_2_hop_by_v = Vector{Vector{Int}}(undef, length(neighbors))
+        0         for (i, v) in enumerate(neighbors)
+  1797232             neighbors_2_hop_by_v[i] = collect(get_neighbors(g, !node.is_u, v))
+        0         end
+        - 
+        0         for nbrs_2hop in neighbors_2_hop_by_v
+        0             for w in nbrs_2hop
+        0                 if stamp[w] != cur_stamp
+        0                     stamp[w] = cur_stamp
+        0                     count[w] = 1
+        -                 else
+        0                     count[w] += 1
+        -                 end
+        0             end
+        0         end
+        - 
+        0         for (i, v) in enumerate(neighbors)
+        -             valid_connections = 0
+        0             for w in neighbors_2_hop_by_v[i]
+        0                 cn = stamp[w] == cur_stamp ? count[w] : 0
+        0                 if cn >= threshold
+        0                     valid_connections += 1
+        -                 end
+        0             end
+        - 
+        0             if valid_connections < threshold
+        0                 if node.is_u
+        0                     rem_edge_structural!(g, node.id, v)
+        -                 else
+        0                     rem_edge_structural!(g, v, node.id)
+        -                 end
+        -             end
+        0         end
+        - 
+        0         degree = get_degree(g, node.is_u, node.id)
+        0         if degree < threshold
+        0             rem_node_structural!(g, node.is_u, node.id)
+        -             # println("Removed U=$(node.id)")
+        -         end
+        - 
+        0         for v in neighbors
+        0             if get_degree(g, !node.is_u, v) < threshold
+        0                 rem_node_structural!(g, !node.is_u, v)
+        -                 # println("Removed V=$(v)")
+        -             end
+        0         end
+        0     end
+        - end
+        - 
+        - function one_non_neighbor_reduction!(g::BipartiteGraph, k::Int, θ::Int)
+        - end
+        - 
+        - function ordering_reduction!(g::BipartiteGraph, k::Int, θ::Int)
+        - end
+        - 
+        - function progressive_bounding_reduction!(g::BipartiteGraph, k::Int, θ::Int)
+        - end
