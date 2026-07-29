@@ -55,3 +55,15 @@ biclique. Although, theta is helpful. After what point do we not care about bala
 vertex count? So maybe theta _does_ matter.
 Instead of theta, can we instead just reward balance less as the number of vertices goes up? Could this be what the
 genetic algorithm solves?
+
+7.28.26
+
+ACO would solve real-world evolving graphs where we need to add extra vertices and edges
+
+7.29.26
+
+Could we have ACO walk through once the branch algorithm gets to a large C_0?
+
+Because these algorithms take far less time, we don't necessarily have to tune theta that much.
+If there are too many nodes, ACO will likely still find a great solution, so theta isn't as necessary
+to get right. It's just there for speed, really.
