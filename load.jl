@@ -223,7 +223,7 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
         result = parallel_tabu(g, k, θ, GA_N; reduction=reduction)
         return result.best_fitness
     elseif solver == Solver.aco_solver
-        return aco(g, k, θ, pheremone, num_ants, num_iterations, evaporation; reduction=reduction)
+        return aco(g, pheremone, num_ants, num_iterations, evaporation, k, θ; parallelize=false)
     elseif solver == Solver.heuristic_solver
         fg = if reduction == ReductionMode.none
             freeze(g)

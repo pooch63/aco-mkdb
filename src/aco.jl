@@ -1,10 +1,13 @@
 #= Ant colony optimization to find the maximum biclique =#
 
+using Base.Threads
+
 const __ACO_JL__ = true
 
 isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include("reduction.jl")
+isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
 
 struct Pheromones
     U::Vector{Float64}
@@ -22,28 +25,63 @@ function evaporate_pheromones!(pheromones::Pheromones, evaporation::Float64)
     pheromones.V .*= evaporation
 end
 
-struct Ant
+mutable struct Ant
     explored::SubGraph
+    last_visited::Node
 end
 
-function aco(fg::FrozenBipartite, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int; reduction::ReductionMode.T=ReductionMode.all_reductions)
+# Need to lay more pheromone at the instances where more fitness was discovered
+# Can parallelize by advancing groups of ants at once
+# Small bug: the first ant lays pheromone, which would affect the next ant. So don't add pheromone
+# til every ant is done
+function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int, θ::Int; parallelize::Bool=true)
+    apply_graph_reductions!(g, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
+    
+    fg = freeze(g)
+
     println(length(fg.u_ids), " ", length(fg.v_ids))
 
     compact_fg, remapping = compact_frozen(fg)
     pheromones = Pheromones(compact_fg)
 
-    ants = [Ant(SubGraph()) for _ in 1:num_ants]
+    ants = [Ant(SubGraph(), Node()) for _ in 1:num_ants]
     invalid_ants = Set{Int}()
 
     best_score::Int = 0
     best_subgraph::SubGraph = SubGraph()
 
+    explored_ants = [ant for ant in ants]
+
     for _ in 1:num_iterations
-        while length(invalid_ants) < num_ants
-            for (idx, ant) in enumerate(ants)
-                if idx ∉ invalid_ants && !advance_ant!(compact_fg, pheromones, pheromone, ant, k)
-                    push!(invalid_ants, idx)
+        # Track which ants are still exploring
+        active_ants = collect(1:num_ants)
+
+        while !isempty(active_ants)
+            if parallelize
+                # Divide the remaining ants evenly across available threads
+                chunk_size = max(1, cld(length(active_ants), nthreads()))
+                
+                # 1. Spawn tasks for each chunk
+                tasks = map(Iterators.partition(active_ants, chunk_size)) do chunk
+                    Threads.@spawn advance_ants!(compact_fg, pheromones, pheromone, ants, k, chunk)
                 end
+                
+                # 2. Wait for all threads to finish their step
+                results = fetch.(tasks)
+            else
+                # Process all active ants sequentially on the main thread.
+                # Wrapped in an array to match the structure of multithreaded `results`.
+                results = [advance_ants!(compact_fg, pheromones, pheromone, ants, k, active_ants)]
+            end
+            
+            # 3. Safely merge the results on the main thread
+            for (local_additions, local_invalids) in results
+                # Merge the local additions into the global pheromone tracker
+                pheromones.U .+= local_additions.U
+                pheromones.V .+= local_additions.V
+                
+                # Remove dead ants from the active pool for the next iteration
+                setdiff!(active_ants, local_invalids)
             end
         end
 
@@ -58,7 +96,7 @@ function aco(fg::FrozenBipartite, pheromone::Int, num_ants::Int, num_iterations:
         end
 
         invalid_ants = Set{Int}()
-        ants = [Ant(SubGraph()) for _ in 1:num_ants]
+        ants = [Ant(SubGraph(), Node()) for _ in 1:num_ants]
 
         GC.gc()
     end
@@ -66,17 +104,53 @@ function aco(fg::FrozenBipartite, pheromone::Int, num_ants::Int, num_iterations:
     return remap_subgraph(remapping, best_subgraph)
 end
 
+# Start and end index are inclusive
+function advance_ants!(fg::FrozenBipartite, pheromones::Pheromones, pheromone::Int, ants::Vector{Ant}, k::Int, ant_chunk)
+    # Thread-local storage to prevent data races
+    additions = Pheromones(fg)
+    local_invalid_ants = Int[]
+    
+    for idx in ant_chunk
+        # advance_ant! mutates the ant and adds to local `additions`
+        if !advance_ant!(fg, pheromones, additions, pheromone, ants[idx], k)
+            push!(local_invalid_ants, idx)
+        end
+    end
+
+    return additions, local_invalid_ants
+end
+
+# function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::Node,
+#     degree_in_sg::Int)
+#     pheromone = get_pheromone(pheromones, node)
+#     return (pheromone == 0 ? 1 : pheromone^3) * degree_in_sg
+# end
 function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::Node)
-    next_score =
     return max(1, get_pheromone(pheromones, node) ^ 3) * degree_in_subgraph(fg, node.is_u, node.id, sg)
 end
 
+# function test(fg, u, n, ant, nondegrees_U, nondegrees_V, pheromones)
+#     return node_desirability(fg, ant.explored, pheromones, Node(u, n), u ? length(ant.explored.U) - nondegrees_U[n] : length(ant.explored.V) - nondegrees_V[n])
+# end
+
 # Returns false if the ant has no further moves
-function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, pheromone::Int, ant::Ant, k::Int)
+function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, additions::Pheromones, pheromone::Int, ant::Ant, k::Int)
     # Room for algorithmic improvement: have ants instead just start off of where
     # they are instead of looking across the entire graph
-    candidates = candidate_set(fg, ant.explored, k)
+    # nodes_U, nodes_V, nondegrees_U, nondegrees_V = candidate_set_with_nondegrees(fg, ant.explored, k)
     
+    # if length(nodes_U) + length(nodes_V) == 0
+    #     return false
+    # end
+
+    # # Room for algorithmic improvement: new softmax function that just takes a list of nodes
+    # next = softmax_sample_nodes(
+    #     (u, n) -> test(fg, u, n, ant, nondegrees_U, nondegrees_V, pheromones),
+    #     SubGraph(Set(nodes_U), Set(nodes_V)),
+    #     1,
+    # )[1]
+
+    candidates = candidate_set(fg, ant.explored, k)
     if Subgraph.vertex_count(candidates) == 0
         return false
     end
@@ -87,22 +161,9 @@ function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, pheromone::In
         1,
     )[1]
     Subgraph.add_node!(ant.explored, next.is_u, next.id)
+    
+    ant.last_visited = next
 
-    add_pheromone!(pheromones, next, pheromone)
+    add_pheromone!(additions, next, pheromone)
     return true
-end
-
-function aco(g::BipartiteGraph, k::Int, θ::Int, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64;
-    use_heuristic::Bool=true, reduction::ReductionMode.T=ReductionMode.all_reductions,
-    num_U::Union{Int,Nothing}=nothing, num_V::Union{Int,Nothing}=nothing)
-
-    @assert θ > k "θ must be greater than k"
-
-    fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, reduction)
-
-    if length(fg.u_ids) < θ || length(fg.v_ids) < θ
-        return SubGraph(Set(), Set())
-    end
-
-    return aco(fg, pheromone, num_ants, num_iterations, evaporation, k)
 end
