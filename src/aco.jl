@@ -120,14 +120,13 @@ function advance_ants!(fg::FrozenBipartite, pheromones::Pheromones, pheromone::I
     return additions, local_invalid_ants
 end
 
-# function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::Node,
-#     degree_in_sg::Int)
-#     pheromone = get_pheromone(pheromones, node)
-#     return (pheromone == 0 ? 1 : pheromone^3) * degree_in_sg
-# end
-function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::Node)
-    return max(1, get_pheromone(pheromones, node) ^ 3) * degree_in_subgraph(fg, node.is_u, node.id, sg)
+function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::DegreeNode)
+    pheromone = get_pheromone(pheromones, Node(node.is_u, node.id))
+    return (pheromone == 0 ? 1 : pheromone^3) * node.deg
 end
+# function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::Node)
+#     return max(1, get_pheromone(pheromones, node) ^ 3) * degree_in_subgraph(fg, node.is_u, node.id, sg)
+# end
 
 # function test(fg, u, n, ant, nondegrees_U, nondegrees_V, pheromones)
 #     return node_desirability(fg, ant.explored, pheromones, Node(u, n), u ? length(ant.explored.U) - nondegrees_U[n] : length(ant.explored.V) - nondegrees_V[n])
@@ -137,8 +136,19 @@ end
 function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, additions::Pheromones, pheromone::Int, ant::Ant, k::Int)
     # Room for algorithmic improvement: have ants instead just start off of where
     # they are instead of looking across the entire graph
-    # nodes_U, nodes_V, nondegrees_U, nondegrees_V = candidate_set_with_nondegrees(fg, ant.explored, k)
-    
+
+    candidates = candidate_set_with_nondegrees(fg, ant.explored, k)
+
+    if length(candidates) == 0
+        return false
+    end
+
+    next_with_deg = softmax_sample(
+        node -> node_desirability(fg, ant.explored, pheromones, node),
+        candidates,
+        1,
+    )[1]
+
     # if length(nodes_U) + length(nodes_V) == 0
     #     return false
     # end
@@ -150,16 +160,19 @@ function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, additions::Ph
     #     1,
     # )[1]
 
-    candidates = candidate_set(fg, ant.explored, k)
-    if Subgraph.vertex_count(candidates) == 0
-        return false
-    end
+    # candidates = candidate_set(fg, ant.explored, k)
+    # if Subgraph.vertex_count(candidates) == 0
+    #     return false
+    # end
 
-    next = softmax_sample_nodes(
-        (u, n) -> node_desirability(fg, ant.explored, pheromones, Node(u, n)),
-        candidates,
-        1,
-    )[1]
+    # next = softmax_sample(
+    #     (u, n) -> node_desirability(fg, ant.explored, pheromones, Node(u, n)),
+    #     candidates,
+    #     1,
+    # )[1]
+
+    next = Node(next_with_deg)
+
     Subgraph.add_node!(ant.explored, next.is_u, next.id)
     
     ant.last_visited = next

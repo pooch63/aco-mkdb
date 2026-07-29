@@ -1,12 +1,17 @@
 const __REDUCTION_JL__ = true
 
 isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
+# Node lives in fitness.jl; must exist before we attach Node(::DegreeNode),
+# otherwise this creates a free function that struct Node later replaces.
+isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
 
 struct DegreeNode
     is_u::Bool
     id::Int
     deg::Int
 end
+
+Node(deg_node::DegreeNode) = Node(deg_node.is_u, deg_node.id)
 
 function get_ascending_degree_order(g::BipartiteGraph)
     nodes = Vector{DegreeNode}()
@@ -113,7 +118,7 @@ function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U
         empty!(neighbors_buf)
         append!(neighbors_buf, nbrs)
 
-        # deg < threshold ⇒ node cannot participate; skip the 2-hop walk
+        # deg < threshold ⟹ node cannot participate; skip the 2-hop walk
         if length(neighbors_buf) < threshold
             rem_node!(node.is_u, node.id)
             for x in neighbors_buf
