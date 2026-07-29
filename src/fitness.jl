@@ -1,3 +1,5 @@
+using StatsBase
+
 const __FITNESS_JL__ = true
 
 isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
@@ -6,6 +8,9 @@ struct Node
     is_u::Bool
     id::Int
 end
+
+# Null node
+Node() = Node(false, -1)
 
 struct Instance
     subgraph::SubGraph
@@ -86,6 +91,37 @@ function candidate_set(fg::FrozenBipartite, sg::SubGraph, k::Int)
         Set(u for u in fg.u_ids if !Subgraph.has_node(sg, true, u) && nondegree_in_subgraph_u(fg, u, sg) <= budget),
         Set(v for v in fg.v_ids if !Subgraph.has_node(sg, false, v) && nondegree_in_subgraph_v(fg, v, sg) <= budget)
     )
+end
+
+# When you want the nondegrees
+function candidate_set_with_nondegrees(fg::FrozenBipartite, sg::SubGraph, k::Int)
+    nodes_U = Int[]
+    nodes_V = Int[]
+    nondegrees_U = Int[]
+    nondegrees_V = Int[]
+
+    budget = k - Subgraph.missing_edges(fg, sg)
+
+    for u in fg.u_ids
+        nondegree = Subgraph.has_node(sg, true, u) ? -1 : nondegree_in_subgraph_u(fg, u, sg)
+
+        push!(nondegrees_U, nondegree)
+
+        if nondegree <= budget && nondegree != -1
+            push!(nodes_U, u)
+        end
+    end
+    for v in fg.v_ids
+        nondegree = Subgraph.has_node(sg, false, v) ? -1 : nondegree_in_subgraph_v(fg, v, sg)
+
+        push!(nondegrees_V, nondegree)
+
+        if nondegree <= budget && nondegree != -1
+            push!(nodes_V, v)
+        end
+    end
+
+    return nodes_U, nodes_V, nondegrees_U, nondegrees_V
 end
 
 function candidate_set_as_node_array(fg::FrozenBipartite, sg::SubGraph, k::Int)
