@@ -31,9 +31,6 @@ mutable struct Ant
 end
 
 # Need to lay more pheromone at the instances where more fitness was discovered
-# Can parallelize by advancing groups of ants at once
-# Small bug: the first ant lays pheromone, which would affect the next ant. So don't add pheromone
-# til every ant is done
 function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int, θ::Int; parallelize::Bool=true)
     apply_graph_reductions!(g, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
     
@@ -120,17 +117,10 @@ function advance_ants!(fg::FrozenBipartite, pheromones::Pheromones, pheromone::I
     return additions, local_invalid_ants
 end
 
-function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::DegreeNode)
+function node_desirability(pheromones::Pheromones, node::DegreeNode)
     pheromone = get_pheromone(pheromones, Node(node.is_u, node.id))
     return (pheromone == 0 ? 1 : pheromone^3) * node.deg
 end
-# function node_desirability(fg::FrozenBipartite, sg::SubGraph, pheromones::Pheromones, node::Node)
-#     return max(1, get_pheromone(pheromones, node) ^ 3) * degree_in_subgraph(fg, node.is_u, node.id, sg)
-# end
-
-# function test(fg, u, n, ant, nondegrees_U, nondegrees_V, pheromones)
-#     return node_desirability(fg, ant.explored, pheromones, Node(u, n), u ? length(ant.explored.U) - nondegrees_U[n] : length(ant.explored.V) - nondegrees_V[n])
-# end
 
 # Returns false if the ant has no further moves
 function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, additions::Pheromones, pheromone::Int, ant::Ant, k::Int)
@@ -144,32 +134,10 @@ function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, additions::Ph
     end
 
     next_with_deg = softmax_sample(
-        node -> node_desirability(fg, ant.explored, pheromones, node),
+        node -> node_desirability(pheromones, node),
         candidates,
         1,
     )[1]
-
-    # if length(nodes_U) + length(nodes_V) == 0
-    #     return false
-    # end
-
-    # # Room for algorithmic improvement: new softmax function that just takes a list of nodes
-    # next = softmax_sample_nodes(
-    #     (u, n) -> test(fg, u, n, ant, nondegrees_U, nondegrees_V, pheromones),
-    #     SubGraph(Set(nodes_U), Set(nodes_V)),
-    #     1,
-    # )[1]
-
-    # candidates = candidate_set(fg, ant.explored, k)
-    # if Subgraph.vertex_count(candidates) == 0
-    #     return false
-    # end
-
-    # next = softmax_sample(
-    #     (u, n) -> node_desirability(fg, ant.explored, pheromones, Node(u, n)),
-    #     candidates,
-    #     1,
-    # )[1]
 
     next = Node(next_with_deg)
 
