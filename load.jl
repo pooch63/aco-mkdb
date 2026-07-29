@@ -83,9 +83,9 @@ The graph is reduced and then frozen inside the search pipeline.
 """
 function load_bipartite_graph(filepath::String; max_lines::Union{Int,Nothing}=nothing)
     g = BipartiteGraph{Int}()
+    edge_count = 0
     open(filepath, "r") do io
         readline(io)  # skip header line
-        count = 0
         for line in eachline(io)
             line = strip(line)
             isempty(line) && continue
@@ -94,11 +94,12 @@ function load_bipartite_graph(filepath::String; max_lines::Union{Int,Nothing}=no
             v  = parse(Int, parts[2])
             ts = parse(Int, parts[3])
             add_edge!(g, u, v, ts)
-            count += 1
-            max_lines !== nothing && count >= max_lines && break
+            edge_count += 1
+            max_lines !== nothing && edge_count >= max_lines && break
         end
+        println("Graph edges: $(edge_count)")
     end
-    return g
+    return g, edge_count
 end
 
 function resolve_graph_path(dataset_name::Union{String,Nothing}=nothing)
@@ -253,7 +254,8 @@ function main()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation = aco_options
 
-    k, θ = 2, 5
+    # k, θ = 4, 8
+    k, θ = 3, 6
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
@@ -284,11 +286,11 @@ function main()
         if profile
             println("Profile mode enabled: warming up compilation on a small graph...")
             # Warm up: run the search once on a very small slice to compile methods
-            gw = load_bipartite_graph(graph_path; max_lines = 50)
+            gw, edges = load_bipartite_graph(graph_path; max_lines = 50)
             Dw = solve!(gw, solver, mode, k, θ, reduction, aco_options)
 
             # Load full graph for the actual profiled run
-            g = load_bipartite_graph(graph_path)
+            g, edges = load_bipartite_graph(graph_path)
 
             println("Starting profiling run — this may take a while...")
             Profile.clear()
@@ -304,7 +306,10 @@ function main()
             end
             @show D
         else
-            g = load_bipartite_graph(graph_path)
+            g, edges = load_bipartite_graph(graph_path)
+
+            println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
+            
             D = solve!(g, solver, mode, k, θ, reduction, aco_options)
 
             @show D
