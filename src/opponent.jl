@@ -34,7 +34,56 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
 
     @assert θ > k "θ must be greater than k"
 
-    fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, reduction)
+    num_U = num_U === nothing ? length(g.adjU) : num_U
+    num_V = num_V === nothing ? length(g.adjV) : num_V
+
+    # Cap apply_graph_reductions! at simple; progressive is done below so we can
+    # later interleave it with branching (which needs the mutable graph).
+    base_reduction = reduction == ReductionMode.none ? ReductionMode.none : ReductionMode.simple
+    fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, base_reduction)
+
+    if reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
+        u_degrees = Int[]
+        for u in fg.u_ids
+            push!(u_degrees, degree_u(fg, u))
+        end
+
+        if !isempty(u_degrees)
+            θ_U = maximum(u_degrees) + k
+            last_θ_eff = θ
+            D_prog = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+
+            iterations = 0
+            reductions = 0
+
+            while θ_U > θ
+                iterations += 1
+                θ_V = max(θ, floor(Int, Subgraph.edge_count(g, D_prog) / θ_U))
+                θ_U = max(θ, floor(Int, θ_U / 2))
+
+                θ_eff = min(θ_U, θ_V)
+                # Skip passes whose effective threshold matches the last reduce —
+                # common when D is empty (θ_V ≡ θ) or θ_U halves but still ≥ last θ_eff.
+                if θ_eff != last_θ_eff
+                    reduce_graph!(g, k, θ_eff, num_U, num_V)
+                    last_θ_eff = θ_eff
+                    reductions += 1
+                end
+
+                us = get_degree_order(g, true, true)
+
+                for i in eachindex(us)
+                    S = SubGraph(Set(us[i]), Set())
+                    C = SubGraph()
+
+
+                end
+            end
+
+            println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
+            fg = freeze(g)
+        end
+    end
 
     # If there's not enough nodes remaining on either side, then we
     # already know it's an invalid solution

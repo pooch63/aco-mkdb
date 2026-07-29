@@ -4,6 +4,7 @@ isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 # Node lives in fitness.jl; must exist before we attach Node(::DegreeNode),
 # otherwise this creates a free function that struct Node later replaces.
 isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
+isdefined(@__MODULE__, :__UTILS_JL__) || include("utils.jl")
 
 struct DegreeNode
     is_u::Bool
@@ -35,27 +36,8 @@ function get_degree_order(g::BipartiteGraph, desc::Bool)
 
     return nodes
 end
-function get_degree_order(g::FrozenBipartite, desc::Bool)
-    nodes = Vector{DegreeNode}()
-    sizehint!(nodes, length(g.u_ids) + length(g.v_ids))
-
-    for u in g.u_ids
-        deg = degree_u(g, u)
-        push!(nodes, DegreeNode(true, u, deg))
-    end
-
-    for v in g.v_ids
-        deg = degree_v(g, v)
-        push!(nodes, DegreeNode(false, v, deg))
-    end
-
-    if desc
-        sort!(nodes, by = node -> node.deg)
-    else
-        sort!(nodes, by = node -> -node.deg)
-    end
-
-    return nodes
+function get_degree_order(g::BipartiteGraph, is_u::Bool, desc::Bool)
+    return parallel_sort_by_keys(is_u ? g.u_ids : g.v_ids, (n) -> is_u ? degree_u(g, n) : degree_v(g, n), desc)
 end
 
 function reduce_graph!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U::Int, num_V::Int) where {T}
@@ -220,13 +202,4 @@ function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U
         aliveV[v] || continue
         g.adjV[v] = Set(adjV[v])
     end
-end
-
-function one_non_neighbor_reduction!(g::BipartiteGraph, k::Int, θ::Int)
-end
-
-function ordering_reduction!(g::BipartiteGraph, k::Int, θ::Int)
-end
-
-function progressive_bounding_reduction!(g::BipartiteGraph, k::Int, θ::Int)
 end
