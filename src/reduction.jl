@@ -136,6 +136,7 @@ function common_neighbor_reduction!(g::BipartiteGraph{T}, k::Int, θ::Int, num_U
 
         # Pass 2: validate edges. rem_edge runs only after each v's scan finishes,
         # so we never mutate the 2-hop list under iteration.
+        # Room for algorithmic improvement: could probably parallelize this
         for v in neighbors_buf
             valid_connections = 0
             nbrs2 = node.is_u ? adjV[v] : adjU[v]

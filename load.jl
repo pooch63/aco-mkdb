@@ -81,6 +81,8 @@ Reads a `user_id,item_id,timestamp` CSV (with header) and builds a mutable
 bipartite graph where U = user_id, V = item_id, and edge data = timestamp.
 The graph is reduced and then frozen inside the search pipeline.
 """
+# Room for improvement: can mmap file, or chunk them, create multiple bipartite graphs,
+# then merge them.
 function load_bipartite_graph(filepath::String; max_lines::Union{Int,Nothing}=nothing)
     g = BipartiteGraph{Int}()
     edge_count = 0
@@ -254,8 +256,8 @@ function main()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation = aco_options
 
-    k, θ = 4, 8
-    # k, θ = 3, 5
+    # k, θ = 4, 8
+    k, θ = 5, 6
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")

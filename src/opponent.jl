@@ -133,31 +133,35 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
             @threads for i in eachindex(us)
                 S = SubGraph(Set(us[i]), Set())
 
-                # N^2_+(u)
-                _2_hop_neighbors = falses(length(g.adjU))
-                for v in neighbors_v(g, us[i])
-                    for _2u in neighbors_u(g, v)
+                # N²₊(u): U-nodes at distance 2 from us[i].
+                # neighbors_u(u) → V-nbrs; neighbors_v(v) → U-nbrs.
+                # BitVectors are indexed by original ids (1..num_U / 1..num_V).
+                _2_hop_neighbors = falses(num_U)
+                for v in neighbors_u(fg, us[i])
+                    for _2u in neighbors_v(fg, v)
                         _2_hop_neighbors[_2u] = true
                     end
                 end
+                _2_hop_neighbors[us[i]] = false  # open neighborhood
 
-                _3_hop_neighbors = falses(length(g.adjV))
+                # N³₊(u): V-nodes adjacent to those 2-hop U-nodes (includes N(u)).
+                _3_hop_neighbors = falses(num_V)
                 for u in eachindex(_2_hop_neighbors)
                     if _2_hop_neighbors[u]
-                        for v in neighbors_u(g, u)
+                        for v in neighbors_u(fg, u)
                             _3_hop_neighbors[v] = true
                         end
                     end
-                end 
+                end
 
                 C = SubGraph(
                     Set(u for u in eachindex(_2_hop_neighbors) if _2_hop_neighbors[u]),
                     Set(v for v in eachindex(_3_hop_neighbors) if _3_hop_neighbors[v])
                 )
-                C = reduce_candidate_set(g, C, us[i], θ_U, θ_V, k)
+                C = reduce_candidate_set(fg, C, us[i], θ_U, θ_V, k)
 
                 branch!(S, C, fg, best, k, θ, mode)
-        end
+            end
 
         println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
         end
@@ -173,9 +177,15 @@ function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T,
     return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction)
 end
 
-function reduce_candidate_set(g::BipartiteGraph, C::SubGraph, u::Int, θ_U::Int, θ_V::Int, k::Int)
-    C_U = Set(n for n in C.U if common_neighbors(g, true, u, n) ≥ θ_V - k)
-    C_V = Set(n for n in C.V if degree_v(g, v) ≥ θ_U - k)
+function common_neighbors(fg::FrozenBipartite, is_u::Bool, a::Int, b::Int)
+    na = is_u ? neighbors_u(fg, a) : neighbors_v(fg, a)
+    nb = is_u ? neighbors_u(fg, b) : neighbors_v(fg, b)
+    return length(intersect(na, nb))
+end
+
+function reduce_candidate_set(fg::FrozenBipartite, C::SubGraph, u::Int, θ_U::Int, θ_V::Int, k::Int)
+    C_U = Set(n for n in C.U if common_neighbors(fg, true, u, n) ≥ θ_V - k)
+    C_V = Set(n for n in C.V if degree_v(fg, n) ≥ θ_U - k)
     return SubGraph(C_U, C_V)
 end
 
@@ -209,14 +219,14 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         end
         if (upper_u < θ || upper_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
             (upper_e < best_edges(best)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
-            TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, |D_u|=$(length(D.U)), |D_v|=$(length(D.V)))")
-            return D
+            TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, |D_u|=$(length(best.sg[].U)), |D_v|=$(length(best.sg[].V)))")
+            return
         end
     end
 
-    # TODO: Remove this check. Performance bottleneck and I'm pretty sure I don't need it
+    # TODO: Remove this check. I'm pretty sure I don't need it
     if S_missing > k
-        return D
+        return
     end
 
     if Subgraph.vertex_count(C) == 0
@@ -252,7 +262,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
         # BranchB(S, C ∖ {u})
         Subgraph.remove_node!(C, is_u, node)
-        branch!(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+        branch!(S, C, g, best, k, θ, mode, S_missing, depth + 1)
 
         missing_edges_budget = k - S_missing
         # missing_edges_budget = k - Subgraph.missing_edges(g, S)
@@ -265,7 +275,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             # S′ ∪ {u}
             Subgraph.add_node!(S, is_u, node)
 
-            branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+            branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
             Subgraph.minus!(S, C′_0)
             Subgraph.remove_node!(S, is_u, node)
@@ -292,7 +302,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
             TRACE && println("  "^depth, "[pivot] branch A -> recurse with selected node $(is_u ? "u" : "v")=$node")
-            branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+            branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
             # S = S′ ∖ C′_0 ∖ {u}
             Subgraph.minus!(S, C′_0)
@@ -327,7 +337,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             end
 
             TRACE && println("  "^depth, "[pivot] branch A -> recurse on reduced candidate set")
-            branch!(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+            branch!(S, C, g, best, k, θ, mode, S_missing, depth + 1)
                         
             if total_nondegree <= 1 && OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION
                 if is_u
@@ -357,7 +367,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
                 TRACE && println("  "^depth, "[pivot] branch B1 -> recurse with added node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
-                branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+                branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
                 # S = S′ ∖ C′_0 ∖ {u}
                 Subgraph.minus!(S, C′_0)
@@ -366,7 +376,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 # C = C ∖ {u}
                 Subgraph.remove_node!(C, is_u, node)
                 TRACE && println("  "^depth, "[pivot] branch B1 -> recurse after removing node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
-                branch!(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+                branch!(S, C, g, best, k, θ, mode, S_missing, depth + 1)
             
                 Subgraph.add_node!(C, is_u, node)
             else
@@ -383,7 +393,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 # L = {u} ∪ nonneighbors_C(u)
                 # u ∈ L
                 TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on primary branch with nondegree=$nondegree")
-                branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+                branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
                 Subgraph.minus!(S, C′_0)
                 Subgraph.remove_node!(S, is_u, node)
@@ -404,7 +414,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                     nondegree = nondegree_in_subgraph(g, !is_u, v, S)
 
                     TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on nonneighbor $(is_u ? "v" : "u")=$v, nondegree=$nondegree")
-                    branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+                    branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
                     Subgraph.minus!(S, C′_0)
                     Subgraph.remove_node!(S, !is_u, v)
