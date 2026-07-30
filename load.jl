@@ -297,7 +297,7 @@ function main()
             end
 
             # Always write a stable HTML path; view() alone only opens a temp file.
-            out = joinpath(@__DIR__, "profile_aco.html")
+            out = joinpath(@__DIR__, "results", "profile_aco.html")
             try
                 ProfileCanvas.html_file(out)
                 println("Wrote profile flamegraph to $out")
