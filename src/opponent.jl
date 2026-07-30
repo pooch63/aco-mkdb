@@ -20,12 +20,48 @@ const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = true
 @enumx GraphPart Vertices Edges
 const MAXIMIZING = GraphPart.Edges
 
+@assert MAXIMIZING != GraphPart.Vertices ||
+    error("Cannot maximize vertices - this is not yet implemented")
 @assert !(!OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES && OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION) ||
     error("Cannot enable tight upper bounding without enabling branch pruning")
 
 sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
 
 @enumx BranchMode binary pivot
+
+# Single source of truth for "what are we comparing leaves by"
+@inline function solution_score(S::SubGraph, S_missing::Int)
+    if MAXIMIZING == GraphPart.Vertices
+        return length(S.U) + length(S.V)
+    else # GraphPart.Edges
+        return length(S.U) * length(S.V) - S_missing
+    end
+end
+
+struct SharedBest
+    edges::Threads.Atomic{Int}   # lock-free reads for comparisons/pruning
+    lock::ReentrantLock
+    D::Base.RefValue{SubGraph}
+end
+
+function SharedBest(D0::SubGraph, D0_missing::Int)
+    SharedBest(Threads.Atomic{Int}(solution_score(D0, D0_missing)), ReentrantLock(), Ref(D0))
+end
+
+best_edges(sb::SharedBest) = sb.edges[]
+
+function try_update!(sb::SharedBest, S::SubGraph, S_missing::Int)
+    s = solution_score(S, S_missing)
+    s <= sb.edges[] && return false        # fast bail, no locking
+    lock(sb.lock) do
+        if s > sb.edges[]                  # re-check under lock
+            sb.D[] = Subgraph.clone(S)
+            sb.edges[] = s
+            return true
+        end
+        return false
+    end
+end
 
 # If the number of entries in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
@@ -42,89 +78,94 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
     base_reduction = reduction == ReductionMode.none ? ReductionMode.none : ReductionMode.simple
     fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, base_reduction)
 
+    if length(fg.u_ids) == 0 || length(fg.v_ids) == 0
+        return SubGraph()
+    end
+
+    println("Initial reduction is complete")
+
     if reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
         u_degrees = Int[]
         for u in fg.u_ids
             push!(u_degrees, degree_u(fg, u))
         end
 
-        if !isempty(u_degrees)
-            θ_U = maximum(u_degrees) + k
-            last_θ_eff = θ
-            D_prog = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+        θ_U = maximum(u_degrees) + k
+        last_θ_eff = θ
 
-            iterations = 0
-            reductions = 0
+        D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+        D_missing = Subgraph.missing_edges(fg, D)
 
-            while θ_U > θ
-                iterations += 1
-                θ_V = max(θ, floor(Int, Subgraph.edge_count(g, D_prog) / θ_U))
-                θ_U = max(θ, floor(Int, θ_U / 2))
+        best = SharedBest(D, D_missing)
 
-                θ_eff = min(θ_U, θ_V)
-                # Skip passes whose effective threshold matches the last reduce —
-                # common when D is empty (θ_V ≡ θ) or θ_U halves but still ≥ last θ_eff.
-                if θ_eff != last_θ_eff
-                    reduce_graph!(g, k, θ_eff, num_U, num_V)
-                    fg = freeze(g)
-                    last_θ_eff = θ_eff
-                    reductions += 1
-                end
+        iterations = 0
+        reductions = 0
 
-                us = get_degree_order(g, true, true)
+        while θ_U > θ
+            iterations += 1
+            θ_V = max(θ, floor(Int, best_edges(best) / θ_U))
+            θ_U = max(θ, floor(Int, θ_U / 2))
 
-                @threads for i in eachindex(us)
-                    S = SubGraph(Set(us[i]), Set())
-
-                    # N^2_+(u)
-                    _2_hop_neighbors = falses(length(g.adjU))
-                    for v in neighbors_v(g, v)
-                        for u in neighbors_u(g, u)
-                            _2_hop_neighbors[u] = true
-                        end
-                    end
-
-                    _3_hop_neighbors = falses(length(g.adjV))
-                    for u in eachindex(_2_hop_neighbors)
-                        if _2_hop_neighbors[u]
-                            for v in neighbors_u(g, u)
-                                _3_hop_neighbors[v] = true
-                            end
-                        end
-                    end 
-
-                    C = SubGraph(
-                        Set(u for u in _2_hop_neighbors if _2_hop_neighbors[u]),
-                        Set(v for v in _2_hop_neighbors if _2_hop_neighbors[v])
-                    )
-                    C = reduce_candidate_set(g, C, us[i], θ_U, θ_V, k)
-
-                    
-                end
+            θ_eff = min(θ_U, θ_V)
+            # Skip passes whose effective threshold matches the last reduce —
+            # common when D is empty (θ_V ≡ θ) or θ_U halves but still ≥ last θ_eff.
+            if θ_eff != last_θ_eff
+                reduce_graph!(g, k, θ_eff, num_U, num_V)
+                fg = freeze(g)
+                last_θ_eff = θ_eff
+                reductions += 1
             end
 
-            println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
+            # Get the degree ordering, because nodes with higher degrees are
+            # likelier to appear in the k-MDB. So we find those first, and we get a higher
+            # initial k-MDB. We can then prune more branches.
+            us = get_degree_order(fg, true, true)
+
+            # Multithreading reduces the effectiveness of upper bounding techniques
+            # We order degrees because finding those nodes first is likelier to speed the search
+            # up, but running completely sequentially turns out to be slower than parallelizing,
+            # even if it reduces the effectiveness of upper bounding
+            # Room for algorithmic improvement: @threads chunks the indices into
+            # [1, 2, 3], [4, 5, 6], etc. But u_i that are later in the list have fewer indices,
+            # so we're essentially packing all the u's that don't really remove much from the list
+            # into one thread. That one thread is therefore going to take longer than the others.
+            # If we wanted to make this faster, we could mix up the degrees, so do [1, 5, 6], [2, 3, 4].
+            @threads for i in eachindex(us)
+                S = SubGraph(Set(us[i]), Set())
+
+                # N^2_+(u)
+                _2_hop_neighbors = falses(length(g.adjU))
+                for v in neighbors_v(g, us[i])
+                    for _2u in neighbors_u(g, v)
+                        _2_hop_neighbors[_2u] = true
+                    end
+                end
+
+                _3_hop_neighbors = falses(length(g.adjV))
+                for u in eachindex(_2_hop_neighbors)
+                    if _2_hop_neighbors[u]
+                        for v in neighbors_u(g, u)
+                            _3_hop_neighbors[v] = true
+                        end
+                    end
+                end 
+
+                C = SubGraph(
+                    Set(u for u in eachindex(_2_hop_neighbors) if _2_hop_neighbors[u]),
+                    Set(v for v in eachindex(_3_hop_neighbors) if _3_hop_neighbors[v])
+                )
+                C = reduce_candidate_set(g, C, us[i], θ_U, θ_V, k)
+
+                branch!(S, C, fg, best, k, θ, mode)
+        end
+
+        println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
         end
     end
 
-    # If there's not enough nodes remaining on either side, then we
-    # already know it's an invalid solution
-    if length(fg.u_ids) < θ || length(fg.v_ids) < θ
-        return SubGraph(Set(), Set())
+    return lock(best.lock) do
+        Subgraph.clone(best.D[])
     end
-
-    D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
-
-    println("Reduction is complete")
-    return branch(
-        SubGraph(Set(), Set()),
-        SubGraph(Set(u for u in fg.u_ids), Set(v for v in fg.v_ids)),
-        fg,
-        D,
-        k,
-        θ,
-        mode,
-    )
 end
 
 function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T,
@@ -141,8 +182,8 @@ end
 # BranchB assumes that S ALWAYS has k or fewer missing edges. In other words, S is at all
 # times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
 # and still result in a k-MDB, although we don't necessarily know which subset of C could be added to S.
-function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
-    D::SubGraph, k::Int, θ::Int, mode::BranchMode.T, S_missing::Int=0, depth::Int=0)
+function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
+    best::SharedBest, k::Int, θ::Int, mode::BranchMode.T, S_missing::Int=0, depth::Int=0)
     if TRACE
         me = S_missing
         println("  "^depth, "depth=$depth  S.U=", sorted_str(S.U), " S.V=", sorted_str(S.V),
@@ -164,10 +205,10 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         if OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION
             upper_u, upper_v, upper_e = upper_bound(S, C, g, k, S_missing)
         else
-            upper_u, upper_v, upper_e = θ, θ, Subgraph.edge_count(g, D)
+            upper_u, upper_v, upper_e = θ, θ, best_edges(best)
         end
         if (upper_u < θ || upper_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
-            (upper_e < Subgraph.edge_count(g, D)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
+            (upper_e < best_edges(best)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
             TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, |D_u|=$(length(D.U)), |D_v|=$(length(D.V)))")
             return D
         end
@@ -180,20 +221,14 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
     if Subgraph.vertex_count(C) == 0
         @assert length(S.U) >= θ && length(S.V) >= θ "Should not have reached leaf node that contains invalid solution"
-
-        S_edges = length(S.U) * length(S.V) - S_missing
-        # S_edges = Subgraph.edge_count(g, S)
-        D_edges = Subgraph.edge_count(g, D)
-
-        if (MAXIMIZING == GraphPart.Vertices && length(S.U) + length(S.V) > length(D.U) + length(D.V)) ||
-            (MAXIMIZING == GraphPart.Edges && S_edges > D_edges)
-            @assert S_missing <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
-            TRACE && println("  "^depth, "-> LEAF: new best D, S_edges=", S_edges, " D_edges=$(D_edges)")
-            return Subgraph.clone(S)
+    
+        if TRACE
+            println("  "^depth, "-> LEAF: S_score=$(solution_score(S, S_missing)) D_score=$(best_edges(best))")
         end
-
-        TRACE && println("  "^depth, "-> LEAF: not better than D, S_e=$S_edges, D_e=$(Subgraph.edge_count(g, D)), D_u=", collect(D.U), " D_v=", collect(D.V))
-        return D
+    
+        @assert S_missing <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
+        try_update!(best, S, S_missing)
+        return
     end
 
     if mode == BranchMode.binary
@@ -217,7 +252,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
         # BranchB(S, C ∖ {u})
         Subgraph.remove_node!(C, is_u, node)
-        D = branch(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+        branch!(S, C, g, D, k, θ, mode, S_missing, depth + 1)
 
         missing_edges_budget = k - S_missing
         # missing_edges_budget = k - Subgraph.missing_edges(g, S)
@@ -230,7 +265,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             # S′ ∪ {u}
             Subgraph.add_node!(S, is_u, node)
 
-            D = branch(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+            branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
 
             Subgraph.minus!(S, C′_0)
             Subgraph.remove_node!(S, is_u, node)
@@ -257,7 +292,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
             TRACE && println("  "^depth, "[pivot] branch A -> recurse with selected node $(is_u ? "u" : "v")=$node")
-            D = branch(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+            branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
 
             # S = S′ ∖ C′_0 ∖ {u}
             Subgraph.minus!(S, C′_0)
@@ -292,7 +327,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             end
 
             TRACE && println("  "^depth, "[pivot] branch A -> recurse on reduced candidate set")
-            D = branch(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+            branch!(S, C, g, D, k, θ, mode, S_missing, depth + 1)
                         
             if total_nondegree <= 1 && OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION
                 if is_u
@@ -322,7 +357,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
                 TRACE && println("  "^depth, "[pivot] branch B1 -> recurse with added node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
-                D = branch(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+                branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
 
                 # S = S′ ∖ C′_0 ∖ {u}
                 Subgraph.minus!(S, C′_0)
@@ -331,7 +366,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 # C = C ∖ {u}
                 Subgraph.remove_node!(C, is_u, node)
                 TRACE && println("  "^depth, "[pivot] branch B1 -> recurse after removing node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
-                D = branch(S, C, g, D, k, θ, mode, S_missing, depth + 1)
+                branch!(S, C, g, D, k, θ, mode, S_missing, depth + 1)
             
                 Subgraph.add_node!(C, is_u, node)
             else
@@ -348,7 +383,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 # L = {u} ∪ nonneighbors_C(u)
                 # u ∈ L
                 TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on primary branch with nondegree=$nondegree")
-                D = branch(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+                branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
 
                 Subgraph.minus!(S, C′_0)
                 Subgraph.remove_node!(S, is_u, node)
@@ -369,7 +404,7 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                     nondegree = nondegree_in_subgraph(g, !is_u, v, S)
 
                     TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on nonneighbor $(is_u ? "v" : "u")=$v, nondegree=$nondegree")
-                    D = branch(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
+                    branch!(S, C′, g, D, k, θ, mode, S_missing + nondegree, depth + 1)
 
                     Subgraph.minus!(S, C′_0)
                     Subgraph.remove_node!(S, !is_u, v)
@@ -379,7 +414,5 @@ function branch(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             end
         end
     end
-
-    return D
 end
 

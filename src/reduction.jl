@@ -14,29 +14,7 @@ end
 
 Node(deg_node::DegreeNode) = Node(deg_node.is_u, deg_node.id)
 
-function get_degree_order(g::BipartiteGraph, desc::Bool)
-    nodes = Vector{DegreeNode}()
-    sizehint!(nodes, length(g.adjU) + length(g.adjV))
-
-    for u in keys(g.adjU)
-        deg = degree_u(g, u)
-        push!(nodes, DegreeNode(true, u, deg))
-    end
-
-    for v in keys(g.adjV)
-        deg = degree_v(g, v)
-        push!(nodes, DegreeNode(false, v, deg))
-    end
-
-    if desc
-        sort!(nodes, by = node -> node.deg)
-    else
-        sort!(nodes, by = node -> -node.deg)
-    end
-
-    return nodes
-end
-function get_degree_order(g::BipartiteGraph, is_u::Bool, desc::Bool)
+function get_degree_order(g::FrozenBipartite, is_u::Bool, desc::Bool)
     return parallel_sort_by_keys(is_u ? g.u_ids : g.v_ids, (n) -> is_u ? degree_u(g, n) : degree_v(g, n), desc)
 end
 
