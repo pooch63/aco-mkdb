@@ -141,10 +141,13 @@ end
 function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int, S_missing::Int)
     # C′ = {v ∈ C ∖ {u} | nondegree_{ S ∪ {u} }(v) ≤ k - Ē(S)}
 
+    ensure_membership!(S, g)
+    ensure_membership!(C, g)
+
     new_S_missing = S_missing + nondegree_in_subgraph(g, is_u, node, S)
 
-    Subgraph.remove_node!(C, is_u, node)
-    Subgraph.add_node!(S, is_u, node)
+    Subgraph.remove_node!(C, g, is_u, node)
+    Subgraph.add_node!(S, g, is_u, node)
 
     maximum_nondegree = k - new_S_missing
 
@@ -161,8 +164,9 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
     end
 
     C′ = SubGraph(C′_u, C′_v)
-    Subgraph.remove_node!(S, is_u, node::Int)
-    Subgraph.add_node!(C, is_u, node::Int)
+    bind_membership!(C′, g)
+    Subgraph.remove_node!(S, g, is_u, node::Int)
+    Subgraph.add_node!(C, g, is_u, node::Int)
 
     # T = S ∪ {u} ∪ C′
     nondegree_in_T(node_is_u, v) = nondegree_in_subgraph(g, node_is_u, v, S) + nondegree_in_subgraph(g, node_is_u, v, C′) + (node_is_u == !is_u && is_neighbor(g, node_is_u, v, node) ? 0 : 1)
@@ -176,8 +180,9 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
     )
 
     C′_0 = SubGraph(C′_0_u, C′_0_v)
+    bind_membership!(C′_0, g)
 
-    Subgraph.minus!(C′, C′_0)
+    Subgraph.minus!(C′, g, C′_0)
 
     if TRACE
         println("    [update] branched-on=$node  maximum_nondegree=$maximum_nondegree",

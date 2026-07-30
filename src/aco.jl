@@ -172,7 +172,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::Pheromones, additions::Ph
 
     next = Node(next_with_deg)
 
-    Subgraph.add_node!(ant.explored, next.is_u, next.id)
+    Subgraph.add_node!(ant.explored, fg, next.is_u, next.id)
     
     ant.last_visited = next
 

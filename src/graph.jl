@@ -23,9 +23,10 @@ const __GRAPH_JL__ = true
 #     when you need results for every subgraph.
 #   - POINT  (degree_u, degree_v, neighbors_u, neighbors_v, and their
 #     `_in_subgraph` variants): O(deg(vertex)) queries about a single vertex,
-#     optionally restricted to a single SubGraph via direct Set membership
-#     tests. Use this when you only need one vertex's answer and building the
-#     whole-graph dense assignment arrays would be overkill.
+#     optionally restricted to a single SubGraph. Prefer bind_membership!
+#     so restriction is a dense bit test on CSR indices; otherwise falls back
+#     to Set membership. For whole-graph candidate scans, prefer the inverted
+#     degrees_into_subgraph_*! helpers (walk sg's cut, not all of E).
 # =============================================================================
 
 # --------------------------------------------------------------------------
@@ -337,18 +338,107 @@ end
 
 
 # --------------------------------------------------------------------------
-# SubGraph: what you actually specify. Just the U/V vertex ids you want
-# grouped together. No dense-index bookkeeping required from you.
+# SubGraph: U/V vertex ids, plus optional dense membership BitVectors.
+#
+# Masks are indexed by FrozenBipartite dense indices (same as CSR adj).
+# Call bind_membership!(sg, fg) once, then mutate via the fg-aware
+# Subgraph.add_node! / remove_node! / add! / minus! overloads so bits stay
+# in sync. Mask-less mutations invalidate the masks; the next
+# ensure_membership! rebuilds them from the Sets.
 # --------------------------------------------------------------------------
 
 mutable struct SubGraph
-    U::Set{Int}   # original u ids in this subgraph
-    V::Set{Int}   # original v ids in this subgraph
+    U::Set{Int}                          # original u ids in this subgraph
+    V::Set{Int}                          # original v ids in this subgraph
+    u_in::Union{Nothing, BitVector}      # dense membership, or nothing
+    v_in::Union{Nothing, BitVector}
 end
 
-SubGraph() = SubGraph(Set(), Set())
+function SubGraph(U::AbstractSet, V::AbstractSet)
+    return SubGraph(Set{Int}(u for u in U), Set{Int}(v for v in V), nothing, nothing)
+end
+SubGraph() = SubGraph(Set{Int}(), Set{Int}(), nothing, nothing)
 
 subgraph_length(sg::SubGraph) = length(sg.U) + length(sg.V)
+
+"""
+    bind_membership!(sg, fg)
+
+Allocate / refresh dense membership masks for `sg` against `fg`. Subsequent
+degree/nondegree queries use contiguous bit tests on CSR neighbor indices.
+"""
+function bind_membership!(sg::SubGraph, fg::FrozenBipartite)
+    u_in = falses(length(fg.u_ids))
+    v_in = falses(length(fg.v_ids))
+    @inbounds for u in sg.U
+        ui = get(fg.u_index, u, nothing)
+        ui !== nothing && (u_in[ui] = true)
+    end
+    @inbounds for v in sg.V
+        vi = get(fg.v_index, v, nothing)
+        vi !== nothing && (v_in[vi] = true)
+    end
+    sg.u_in = u_in
+    sg.v_in = v_in
+    return sg
+end
+
+@inline function invalidate_membership!(sg::SubGraph)
+    sg.u_in = nothing
+    sg.v_in = nothing
+    return sg
+end
+
+"""Ensure masks exist and match `fg`'s dimensions; no-op if already bound."""
+function ensure_membership!(sg::SubGraph, fg::FrozenBipartite)
+    if sg.u_in === nothing || sg.v_in === nothing ||
+       length(sg.u_in) != length(fg.u_ids) || length(sg.v_in) != length(fg.v_ids)
+        bind_membership!(sg, fg)
+    end
+    return sg
+end
+
+@inline function _membership_bound(sg::SubGraph, fg::FrozenBipartite)
+    return sg.u_in !== nothing && sg.v_in !== nothing &&
+           length(sg.u_in) == length(fg.u_ids) && length(sg.v_in) == length(fg.v_ids)
+end
+
+"""
+    degrees_into_subgraph_u!(hits, fg, sg)
+
+`hits[ui] = |N(u) ∩ sg.V|` for every dense u-index. Walks adjacency of nodes
+in `sg.V` (inverted), so cost tracks the cut of `sg` rather than full `|E|`.
+"""
+function degrees_into_subgraph_u!(hits::Vector{Int}, fg::FrozenBipartite, sg::SubGraph)
+    length(hits) == length(fg.u_ids) || throw(DimensionMismatch("hits length must equal nU"))
+    fill!(hits, 0)
+    @inbounds for v in sg.V
+        vi = get(fg.v_index, v, nothing)
+        vi === nothing && continue
+        for k in neighbor_range_v(fg, vi)
+            hits[fg.u_adj[k]] += 1
+        end
+    end
+    return hits
+end
+
+"""
+    degrees_into_subgraph_v!(hits, fg, sg)
+
+`hits[vi] = |N(v) ∩ sg.U|` for every dense v-index.
+"""
+function degrees_into_subgraph_v!(hits::Vector{Int}, fg::FrozenBipartite, sg::SubGraph)
+    length(hits) == length(fg.v_ids) || throw(DimensionMismatch("hits length must equal nV"))
+    fill!(hits, 0)
+    @inbounds for u in sg.U
+        ui = get(fg.u_index, u, nothing)
+        ui === nothing && continue
+        for k in neighbor_range_u(fg, ui)
+            hits[fg.v_adj[k]] += 1
+        end
+    end
+    return hits
+end
 
 # --------------------------------------------------------------------------
 # Compact a reduced FrozenBipartite so vertex ids become 1..nU / 1..nV.
@@ -513,14 +603,32 @@ end
     is_neighbor(fg, is_u, node_id, other_id) -> Bool
 
 Return whether `other_id` is adjacent to `node_id` in the frozen graph, where
-`is_u` tells which side `node_id` lives on. This is the direct lookup used by
-`opponent.jl` during branch updates.
+`is_u` tells which side `node_id` lives on. Scans the CSR neighbor range for
+the dense index of `other_id` (allocation-free).
+
+Note: forward CSR lists are sorted by original neighbor id; reverse lists are
+sorted by dense u-index. A single binary-search key does not work for both, so
+we use a linear dense-index scan.
 """
 function is_neighbor(fg::FrozenBipartite, is_u::Bool, node_id::Int, other_id::Int)
     if is_u
-        return other_id in neighbors_u(fg, node_id)
+        ui = get(fg.u_index, node_id, nothing)
+        ui === nothing && return false
+        vi = get(fg.v_index, other_id, nothing)
+        vi === nothing && return false
+        @inbounds for k in neighbor_range_u(fg, ui)
+            fg.v_adj[k] == vi && return true
+        end
+        return false
     else
-        return other_id in neighbors_v(fg, node_id)
+        vi = get(fg.v_index, node_id, nothing)
+        vi === nothing && return false
+        ui = get(fg.u_index, other_id, nothing)
+        ui === nothing && return false
+        @inbounds for k in neighbor_range_v(fg, vi)
+            fg.u_adj[k] == ui && return true
+        end
+        return false
     end
 end
 
@@ -610,17 +718,36 @@ end
 
 # ---- degree / nondegree restricted to a SubGraph ----
 
+@inline function _degree_u_against_mask(fg::FrozenBipartite, ui::Int, v_in::BitVector)
+    count = 0
+    @inbounds for k in neighbor_range_u(fg, ui)
+        v_in[fg.v_adj[k]] && (count += 1)
+    end
+    return count
+end
+
+@inline function _degree_v_against_mask(fg::FrozenBipartite, vi::Int, u_in::BitVector)
+    count = 0
+    @inbounds for k in neighbor_range_v(fg, vi)
+        u_in[fg.u_adj[k]] && (count += 1)
+    end
+    return count
+end
+
 """
     degree_in_subgraph_u(fg, u_id, sg::SubGraph) -> Int
 
 Number of `u_id`'s neighbors that fall inside `sg.V`. `u_id` may or may not
-itself be a member of `sg.U`.
+itself be a member of `sg.U`. Uses dense bit masks when bound.
 """
 function degree_in_subgraph_u(fg::FrozenBipartite, u_id::Int, sg::SubGraph)
     ui = get(fg.u_index, u_id, nothing)
     ui === nothing && return 0
+    if sg.v_in !== nothing && length(sg.v_in) == length(fg.v_ids)
+        return _degree_u_against_mask(fg, ui, sg.v_in)
+    end
     count = 0
-    for k in neighbor_range_u(fg, ui)
+    @inbounds for k in neighbor_range_u(fg, ui)
         fg.v_ids[fg.v_adj[k]] in sg.V && (count += 1)
     end
     return count
@@ -634,8 +761,11 @@ Number of `v_id`'s neighbors that fall inside `sg.U`.
 function degree_in_subgraph_v(fg::FrozenBipartite, v_id::Int, sg::SubGraph)
     vi = get(fg.v_index, v_id, nothing)
     vi === nothing && return 0
+    if sg.u_in !== nothing && length(sg.u_in) == length(fg.u_ids)
+        return _degree_v_against_mask(fg, vi, sg.u_in)
+    end
     count = 0
-    for k in neighbor_range_v(fg, vi)
+    @inbounds for k in neighbor_range_v(fg, vi)
         fg.u_ids[fg.u_adj[k]] in sg.U && (count += 1)
     end
     return count
@@ -673,7 +803,20 @@ end
 
 module Subgraph
     import ..SubGraph, ..BipartiteGraph, ..FrozenBipartite, .._dense_assignment, ..neighbor_range_u, ..neighbor_range_v
+    import ..bind_membership!, ..ensure_membership!, ..invalidate_membership!, .._membership_bound
     export add_node!, remove_node!, add!, minus, minus!, missing_edges, edge_count, nonneighbors_in_subgraph, vertex_count, clone
+    export bind_membership!, ensure_membership!, invalidate_membership!
+
+    @inline function _mark!(sg::SubGraph, fg::FrozenBipartite, is_u::Bool, node::Int, val::Bool)
+        if is_u
+            ui = get(fg.u_index, node, nothing)
+            ui !== nothing && (sg.u_in[ui] = val)
+        else
+            vi = get(fg.v_index, node, nothing)
+            vi !== nothing && (sg.v_in[vi] = val)
+        end
+        return nothing
+    end
 
     function add_node!(sg::SubGraph, is_u::Bool, node::Int)
         if is_u
@@ -681,13 +824,42 @@ module Subgraph
         else
             push!(sg.V, node)
         end
+        # Cannot update dense masks without fg — drop them so the next
+        # ensure_membership! rebuilds from the Sets.
+        invalidate_membership!(sg)
         return sg
     end
+
+    function add_node!(sg::SubGraph, fg::FrozenBipartite, is_u::Bool, node::Int)
+        if is_u
+            push!(sg.U, node)
+        else
+            push!(sg.V, node)
+        end
+        if _membership_bound(sg, fg)
+            _mark!(sg, fg, is_u, node, true)
+        end
+        return sg
+    end
+
     function remove_node!(sg::SubGraph, is_u::Bool, node::Int)
         if is_u
             delete!(sg.U, node)
         else
             delete!(sg.V, node)
+        end
+        invalidate_membership!(sg)
+        return sg
+    end
+
+    function remove_node!(sg::SubGraph, fg::FrozenBipartite, is_u::Bool, node::Int)
+        if is_u
+            delete!(sg.U, node)
+        else
+            delete!(sg.V, node)
+        end
+        if _membership_bound(sg, fg)
+            _mark!(sg, fg, is_u, node, false)
         end
         return sg
     end
@@ -697,25 +869,60 @@ module Subgraph
     end
 
     function add(S::SubGraph, to_add::SubGraph)
-        return SubGraph(
-            union(S.U, to_add.U),
-            union(S.V, to_add.V)
-        )
+        return SubGraph(union(S.U, to_add.U), union(S.V, to_add.V))
     end
+
     function add!(S::SubGraph, to_add::SubGraph)
         union!(S.U, to_add.U)
         union!(S.V, to_add.V)
+        invalidate_membership!(S)
         return S
     end
-    function minus(sg1::SubGraph, sg2::SubGraph)
-        return SubGraph(
-            setdiff(sg1.U, sg2.U),
-            setdiff(sg1.V, sg2.V)
-        )
+
+    function add!(S::SubGraph, fg::FrozenBipartite, to_add::SubGraph)
+        union!(S.U, to_add.U)
+        union!(S.V, to_add.V)
+        if _membership_bound(S, fg)
+            @inbounds for u in to_add.U
+                ui = get(fg.u_index, u, nothing)
+                ui !== nothing && (S.u_in[ui] = true)
+            end
+            @inbounds for v in to_add.V
+                vi = get(fg.v_index, v, nothing)
+                vi !== nothing && (S.v_in[vi] = true)
+            end
+        end
+        return S
     end
+
+    function minus(sg1::SubGraph, sg2::SubGraph)
+        return SubGraph(setdiff(sg1.U, sg2.U), setdiff(sg1.V, sg2.V))
+    end
+
     function minus!(sg1::SubGraph, sg2::SubGraph)
-        sg1.U = setdiff(sg1.U, sg2.U)
-        sg1.V = setdiff(sg1.V, sg2.V)
+        setdiff!(sg1.U, sg2.U)
+        setdiff!(sg1.V, sg2.V)
+        invalidate_membership!(sg1)
+        return sg1
+    end
+
+    function minus!(sg1::SubGraph, fg::FrozenBipartite, sg2::SubGraph)
+        if _membership_bound(sg1, fg)
+            @inbounds for u in sg2.U
+                if u in sg1.U
+                    ui = get(fg.u_index, u, nothing)
+                    ui !== nothing && (sg1.u_in[ui] = false)
+                end
+            end
+            @inbounds for v in sg2.V
+                if v in sg1.V
+                    vi = get(fg.v_index, v, nothing)
+                    vi !== nothing && (sg1.v_in[vi] = false)
+                end
+            end
+        end
+        setdiff!(sg1.U, sg2.U)
+        setdiff!(sg1.V, sg2.V)
         return sg1
     end
 
@@ -744,6 +951,16 @@ module Subgraph
 
     function edge_count(fg::FrozenBipartite, sg::SubGraph)
         count = 0
+        if sg.v_in !== nothing && length(sg.v_in) == length(fg.v_ids)
+            @inbounds for u in sg.U
+                ui = get(fg.u_index, u, nothing)
+                ui === nothing && continue
+                for k in neighbor_range_u(fg, ui)
+                    sg.v_in[fg.v_adj[k]] && (count += 1)
+                end
+            end
+            return count
+        end
         for u in sg.U
             ui = get(fg.u_index, u, nothing)
             ui === nothing && continue
@@ -753,19 +970,9 @@ module Subgraph
         end
         return count
     end
-    #     u_subgraph, v_subgraph = _dense_assignment(fg, [sg])
-    #     count = 0
-    #     for ui in eachindex(fg.u_ids)
-    #         u_subgraph[ui] == 1 || continue
-    #         for k in neighbor_range_u(fg, ui)
-    #             v_subgraph[fg.v_adj[k]] == 1 && (count += 1)
-    #         end
-    #     end
-    #     return count
-    # end
 
     """
-        nonneighbors_in_subgraph(fg, is_u, node_id, sg::SubGraph) -> Vector{Int}
+        nonneighbors_in_subgraph(fg, is_u, node_id, sg::SubGraph) -> Set{Int}
 
     Nodes on the *other* side of `sg` that `node_id` does NOT share an edge
     with. If `is_u`, this returns the subset of `sg.V` not adjacent to
@@ -802,6 +1009,11 @@ module Subgraph
     end
 
     function clone(sg::SubGraph)
-        return SubGraph(copy(sg.U), copy(sg.V))
+        return SubGraph(
+            copy(sg.U),
+            copy(sg.V),
+            sg.u_in === nothing ? nothing : copy(sg.u_in),
+            sg.v_in === nothing ? nothing : copy(sg.v_in),
+        )
     end
 end

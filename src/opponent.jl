@@ -159,6 +159,8 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
                     Set(v for v in eachindex(_3_hop_neighbors) if _3_hop_neighbors[v])
                 )
                 C = reduce_candidate_set(fg, C, us[i], θ_U, θ_V, k)
+                bind_membership!(S, fg)
+                bind_membership!(C, fg)
 
                 branch!(S, C, fg, best, k, θ, mode)
             end
@@ -194,6 +196,8 @@ end
 # and still result in a k-MDB, although we don't necessarily know which subset of C could be added to S.
 function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     best::SharedBest, k::Int, θ::Int, mode::BranchMode.T, S_missing::Int=0, depth::Int=0)
+    ensure_membership!(S, g)
+    ensure_membership!(C, g)
     if TRACE
         me = S_missing
         println("  "^depth, "depth=$depth  S.U=", sorted_str(S.U), " S.V=", sorted_str(S.V),
@@ -261,7 +265,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         # If the order of branches turns out to matter, will have to flip this back
 
         # BranchB(S, C ∖ {u})
-        Subgraph.remove_node!(C, is_u, node)
+        Subgraph.remove_node!(C, g, is_u, node)
         branch!(S, C, g, best, k, θ, mode, S_missing, depth + 1)
 
         missing_edges_budget = k - S_missing
@@ -271,14 +275,14 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         # if nondegree <= maximum_nondegree
         if nondegree <= missing_edges_budget
             # S′ = S ∪ C′_0
-            Subgraph.add!(S, C′_0)
+            Subgraph.add!(S, g, C′_0)
             # S′ ∪ {u}
-            Subgraph.add_node!(S, is_u, node)
+            Subgraph.add_node!(S, g, is_u, node)
 
             branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
-            Subgraph.minus!(S, C′_0)
-            Subgraph.remove_node!(S, is_u, node)
+            Subgraph.minus!(S, g, C′_0)
+            Subgraph.remove_node!(S, g, is_u, node)
         end
     elseif mode == BranchMode.pivot
         TRACE && println("  "^depth, "[pivot] entering pivot mode, remaining_budget=$(k - S_missing)")
@@ -287,6 +291,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         C_0_v = [v for v in C.V if nondegree_in_subgraph(g, false, v::Int, S) == 0]
 
         C_0 = SubGraph(Set(C_0_u), Set(C_0_v))
+        bind_membership!(C_0, g)
         TRACE && println("  "^depth, "[pivot] C_0 size=$(length(C_0_u) + length(C_0_v))  C_0.U=", sorted_str(C_0.U), " C_0.V=", sorted_str(C_0.V))
 
         if length(C_0_u) + length(C_0_v) == 0 || Subgraph.vertex_count(Subgraph.minus(C, C_0)) > k - S_missing
@@ -295,9 +300,9 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
 
             # S′ = S ∪ C′_0
-            Subgraph.add!(S, C′_0)
+            Subgraph.add!(S, g, C′_0)
             # S′ ∪ {u}
-            Subgraph.add_node!(S, is_u, node)
+            Subgraph.add_node!(S, g, is_u, node)
 
             nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
@@ -305,13 +310,13 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
             # S = S′ ∖ C′_0 ∖ {u}
-            Subgraph.minus!(S, C′_0)
-            Subgraph.remove_node!(S, is_u, node)
+            Subgraph.minus!(S, g, C′_0)
+            Subgraph.remove_node!(S, g, is_u, node)
 
             total_nondegree = nondegree + nondegree_in_subgraph(g, is_u, node, C)
 
             # C′ = C ∖ {u}
-            Subgraph.remove_node!(C, is_u, node)
+            Subgraph.remove_node!(C, g, is_u, node)
 
             # One non-neighbor reduction
             if total_nondegree <= 1 && OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION
@@ -320,7 +325,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 if is_u
                     for u in C.U
                         if nondegree_in_subgraph(g, true, u, S) ≥ 1
-                            Subgraph.remove_node!(C, true, u)
+                            Subgraph.remove_node!(C, g, true, u)
                             push!(removed_nodes, u)
                             println("one-nonneighbor reduction!")
                         end
@@ -328,7 +333,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 else
                     for v in C.V
                         if nondegree_in_subgraph(g, false, v, S) ≥ 1
-                            Subgraph.remove_node!(C, false, v)
+                            Subgraph.remove_node!(C, g, false, v)
                             push!(removed_nodes, v)
                             println("one-nonneighbor reduction!")
                         end
@@ -341,14 +346,18 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                         
             if total_nondegree <= 1 && OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION
                 if is_u
-                    union!(C.U, removed_nodes)
+                    for u in removed_nodes
+                        Subgraph.add_node!(C, g, true, u)
+                    end
                 else
-                    union!(C.V, removed_nodes)
+                    for v in removed_nodes
+                        Subgraph.add_node!(C, g, false, v)
+                    end
                 end
             end
 
             # C = C′ ∪ {u}
-            Subgraph.add_node!(C, is_u, node)
+            Subgraph.add_node!(C, g, is_u, node)
         else
             is_u, node = argmin_nodes((u, n) -> nondegree_in_subgraph(g, u, n, C), C_0)
 
@@ -361,8 +370,8 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
 
                 # S′ = S ∪ C′_0 ∪ {u}
-                Subgraph.add!(S, C′_0)
-                Subgraph.add_node!(S, is_u, node)
+                Subgraph.add!(S, g, C′_0)
+                Subgraph.add_node!(S, g, is_u, node)
 
                 nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
@@ -370,22 +379,22 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
                 # S = S′ ∖ C′_0 ∖ {u}
-                Subgraph.minus!(S, C′_0)
-                Subgraph.remove_node!(S, is_u, node)
+                Subgraph.minus!(S, g, C′_0)
+                Subgraph.remove_node!(S, g, is_u, node)
 
                 # C = C ∖ {u}
-                Subgraph.remove_node!(C, is_u, node)
+                Subgraph.remove_node!(C, g, is_u, node)
                 TRACE && println("  "^depth, "[pivot] branch B1 -> recurse after removing node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
                 branch!(S, C, g, best, k, θ, mode, S_missing, depth + 1)
             
-                Subgraph.add_node!(C, is_u, node)
+                Subgraph.add_node!(C, g, is_u, node)
             else
                 TRACE && println("  "^depth, "[pivot] branch B2: using the zero-nondegree candidate set")
                 C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
 
                 # S′ = S ∪ C′_0 ∪ {u}
-                Subgraph.add!(S, C′_0)
-                Subgraph.add_node!(S, is_u, node)
+                Subgraph.add!(S, g, C′_0)
+                Subgraph.add_node!(S, g, is_u, node)
 
                 nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
@@ -395,10 +404,10 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on primary branch with nondegree=$nondegree")
                 branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
-                Subgraph.minus!(S, C′_0)
-                Subgraph.remove_node!(S, is_u, node)
+                Subgraph.minus!(S, g, C′_0)
+                Subgraph.remove_node!(S, g, is_u, node)
 
-                Subgraph.remove_node!(C, is_u, node)
+                Subgraph.remove_node!(C, g, is_u, node)
 
                 # v = {u} ∪ nonneighbors_C(u)
                 nonneighbors = Subgraph.nonneighbors_in_subgraph(g, is_u, node, C)
@@ -408,18 +417,18 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
                     # S′ = S ∪ C′_0 ∪ {u}
 
-                    Subgraph.add!(S, C′_0)
-                    Subgraph.add_node!(S, !is_u, v)
+                    Subgraph.add!(S, g, C′_0)
+                    Subgraph.add_node!(S, g, !is_u, v)
 
                     nondegree = nondegree_in_subgraph(g, !is_u, v, S)
 
                     TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on nonneighbor $(is_u ? "v" : "u")=$v, nondegree=$nondegree")
                     branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
-                    Subgraph.minus!(S, C′_0)
-                    Subgraph.remove_node!(S, !is_u, v)
+                    Subgraph.minus!(S, g, C′_0)
+                    Subgraph.remove_node!(S, g, !is_u, v)
 
-                    Subgraph.remove_node!(C, !is_u, v)
+                    Subgraph.remove_node!(C, g, !is_u, v)
                 end
             end
         end

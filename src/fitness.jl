@@ -72,6 +72,7 @@ end
 function greedily_add!(fg::FrozenBipartite, S::SubGraph, k::Int)
     # Room for algorithm improvement: could we randomly choose a maximum missing
     # edges variable that could be greater or less than k?
+    ensure_membership!(S, fg)
     while Subgraph.missing_edges(fg, S) < k
         C = candidate_set(fg, S, k)
 
@@ -81,36 +82,71 @@ function greedily_add!(fg::FrozenBipartite, S::SubGraph, k::Int)
 
         is_u, node = argmax_nodes((u, n) -> degree_in_subgraph(fg, u, n, S), C)
 
-        Subgraph.add_node!(S, is_u, node)
+        Subgraph.add_node!(S, fg, is_u, node)
     end
 end
 
 function candidate_set(fg::FrozenBipartite, sg::SubGraph, k::Int)
     budget = k - Subgraph.missing_edges(fg, sg)
-    return SubGraph(
-        Set(u for u in fg.u_ids if !Subgraph.has_node(sg, true, u) && nondegree_in_subgraph_u(fg, u, sg) <= budget),
-        Set(v for v in fg.v_ids if !Subgraph.has_node(sg, false, v) && nondegree_in_subgraph_v(fg, v, sg) <= budget)
-    )
+    nU = length(fg.u_ids)
+    nV = length(fg.v_ids)
+    hits_u = zeros(Int, nU)
+    hits_v = zeros(Int, nV)
+    degrees_into_subgraph_u!(hits_u, fg, sg)
+    degrees_into_subgraph_v!(hits_v, fg, sg)
+
+    nV_sg = length(sg.V)
+    nU_sg = length(sg.U)
+    U = Set{Int}()
+    V = Set{Int}()
+    @inbounds for ui in 1:nU
+        u = fg.u_ids[ui]
+        Subgraph.has_node(sg, true, u) && continue
+        (nV_sg - hits_u[ui]) <= budget && push!(U, u)
+    end
+    @inbounds for vi in 1:nV
+        v = fg.v_ids[vi]
+        Subgraph.has_node(sg, false, v) && continue
+        (nU_sg - hits_v[vi]) <= budget && push!(V, v)
+    end
+    return SubGraph(U, V)
 end
 
 # When you want the nondegrees
 function candidate_set_with_nondegrees(fg::FrozenBipartite, sg::SubGraph, k::Int)
-    nodes = DegreeNode[]
-
     budget = k - Subgraph.missing_edges(fg, sg)
+    nU = length(fg.u_ids)
+    nV = length(fg.v_ids)
+    hits_u = zeros(Int, nU)
+    hits_v = zeros(Int, nV)
+    degrees_into_subgraph_u!(hits_u, fg, sg)
+    degrees_into_subgraph_v!(hits_v, fg, sg)
 
-    for u in fg.u_ids
-        nondegree = Subgraph.has_node(sg, true, u) ? budget + 1 : nondegree_in_subgraph_u(fg, u, sg)
+    nV_sg = length(sg.V)
+    nU_sg = length(sg.U)
+    nodes = DegreeNode[]
+    sizehint!(nodes, (nU + nV) - Subgraph.vertex_count(sg))
 
+    @inbounds for ui in 1:nU
+        u = fg.u_ids[ui]
+        if Subgraph.has_node(sg, true, u)
+            continue
+        end
+        deg = hits_u[ui]
+        nondegree = nV_sg - deg
         if nondegree <= budget
-            push!(nodes, DegreeNode(true, u, length(sg.V) - nondegree))
+            push!(nodes, DegreeNode(true, u, deg))
         end
     end
-    for v in fg.v_ids
-        nondegree = Subgraph.has_node(sg, false, v) ? budget + 1 : nondegree_in_subgraph_v(fg, v, sg)
-
+    @inbounds for vi in 1:nV
+        v = fg.v_ids[vi]
+        if Subgraph.has_node(sg, false, v)
+            continue
+        end
+        deg = hits_v[vi]
+        nondegree = nU_sg - deg
         if nondegree <= budget
-            push!(nodes, DegreeNode(false, v, length(sg.U) - nondegree))
+            push!(nodes, DegreeNode(false, v, deg))
         end
     end
 
@@ -119,9 +155,28 @@ end
 
 function candidate_set_as_node_array(fg::FrozenBipartite, sg::SubGraph, k::Int)
     budget = k - Subgraph.missing_edges(fg, sg)
-    return [
-        [Node(true, u) for u in fg.u_ids if !Subgraph.has_node(sg, true, u) && nondegree_in_subgraph_u(fg, u, sg) <= budget];
-        [Node(false, v) for v in fg.v_ids if !Subgraph.has_node(sg, false, v) && nondegree_in_subgraph_v(fg, v, sg) <= budget]
-    ]
+    nU = length(fg.u_ids)
+    nV = length(fg.v_ids)
+    hits_u = zeros(Int, nU)
+    hits_v = zeros(Int, nV)
+    degrees_into_subgraph_u!(hits_u, fg, sg)
+    degrees_into_subgraph_v!(hits_v, fg, sg)
+
+    nV_sg = length(sg.V)
+    nU_sg = length(sg.U)
+    nodes = Node[]
+    sizehint!(nodes, (nU + nV) - Subgraph.vertex_count(sg))
+
+    @inbounds for ui in 1:nU
+        u = fg.u_ids[ui]
+        Subgraph.has_node(sg, true, u) && continue
+        (nV_sg - hits_u[ui]) <= budget && push!(nodes, Node(true, u))
+    end
+    @inbounds for vi in 1:nV
+        v = fg.v_ids[vi]
+        Subgraph.has_node(sg, false, v) && continue
+        (nU_sg - hits_v[vi]) <= budget && push!(nodes, Node(false, v))
+    end
+    return nodes
 end
 
