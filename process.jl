@@ -2,67 +2,110 @@
 =================================================================================
 Dataset Processing Pipeline
 =================================================================================
-This script runs the full preprocessing pipeline for a temporal graph dataset.
-It expects a path to a JSONL file and a dataset name, then:
+Dispatches to a per-provider adapter (see providers/) that knows how to
+download and convert that source's raw format into the shared edge CSV, then
+indexes IDs via index_dataset.jl.
 
-  1. Converts the JSONL records into a raw edge CSV at data/<dataset_name>/interactions.csv
-  2. Maps user/item IDs to one-based integers and saves the indexed graph at
-     data/<dataset_name>/indexed_interactions.csv
-  3. Writes the reverse mappings and metadata into data/<dataset_name>/mappings/
+Output layout (nested names supported):
+  data/<provider>/<dataset>/
+    raw/                      # downloaded archives / extracted files
+    interactions.csv          # user_id,item_id,timestamp (source IDs)
+    indexed_interactions.csv  # integer-indexed graph
+    mappings/                 # reverse maps + metadata
 
-Prerequisites:
-  Ensure you have Julia and the required packages installed:
-    julia> using Pkg; Pkg.add(["JSON3", "DataFrames", "CSV"])
+How to Run:
+  julia process.jl <provider>/<dataset> --download
+  julia process.jl <provider>/<dataset> --source=/path/to/raw.file
+  julia process.jl <provider> <dataset> --download
 
-How to Run from the Command Line:
-  Format:
-    julia process.jl <path_to_input_jsonl> <dataset_name>
+Examples:
+  julia process.jl amazon/Appliances --download
+  julia process.jl amazon Appliances --download
+  julia process.jl amazon/boxes --source=data/subscription-boxes.jsonl
+  julia process.jl tcga/TCGA-BRCA --download
+  julia process.jl tcga/BRCA --download
 
-  Example:
-    julia process.jl data/Grocery_and_Gourmet_Food.jsonl grocery
+To add a new source, create providers/<name>.jl implementing download + convert,
+then include it from providers/registry.jl.
 =================================================================================
 =#
 
-using DataFrames
-using CSV
+include(joinpath(@__DIR__, "providers", "registry.jl"))
 
-include(joinpath(@__DIR__, "src", "edges.jl"))
-include("index_dataset.jl")
+function parse_process_args(args)
+    download = false
+    source = nothing
+    positionals = String[]
 
-function process_dataset(jsonl_path::String, dataset_name::String)
-    if !isfile(jsonl_path)
-        error("Input file '$jsonl_path' does not exist.")
+    for arg in args
+        if arg == "--download"
+            download = true
+        elseif startswith(arg, "--source=")
+            source = split(arg, "=", limit=2)[2]
+        elseif arg == "--help" || arg == "-h"
+            return nothing
+        elseif startswith(arg, "--")
+            throw(ArgumentError("Unknown flag: $arg"))
+        else
+            push!(positionals, arg)
+        end
     end
 
-    dataset_dir = joinpath("data", dataset_name)
-    mkpath(dataset_dir)
+    provider = nothing
+    dataset = nothing
 
-    raw_csv_path = joinpath(dataset_dir, "interactions.csv")
-    indexed_csv_path = joinpath(dataset_dir, "indexed_interactions.csv")
-    mapping_dir = joinpath(dataset_dir, "mappings")
+    if length(positionals) == 1
+        parts = split(replace(positionals[1], '\\' => '/'), '/'; keepempty=false)
+        if length(parts) < 2
+            throw(ArgumentError(
+                "Pass a nested key 'provider/dataset' or two args: <provider> <dataset>"))
+        end
+        provider, dataset = split_provider_dataset(positionals[1])
+    elseif length(positionals) == 2
+        provider, dataset = positionals[1], positionals[2]
+    else
+        throw(ArgumentError("Expected <provider>/<dataset> or <provider> <dataset>"))
+    end
 
-    println("Converting JSONL to CSV...")
-    convert_jsonl_to_csv(jsonl_path, raw_csv_path)
+    if !download && source === nothing
+        throw(ArgumentError("Provide --download or --source=<path>"))
+    end
 
-    println("Indexing dataset...")
-    index_dataset(raw_csv_path, indexed_csv_path, mapping_dir)
+    return (; provider, dataset, download, source)
+end
 
-    println("Pipeline complete.")
-    println("Raw edges: $raw_csv_path")
-    println("Indexed graph: $indexed_csv_path")
-    println("Mappings: $mapping_dir")
+function print_usage()
+    println(stderr, "Usage:")
+    println(stderr, "  julia process.jl <provider>/<dataset> --download")
+    println(stderr, "  julia process.jl <provider>/<dataset> --source=/path/to/raw")
+    println(stderr, "  julia process.jl <provider> <dataset> --download")
+    println(stderr, "")
+    println(stderr, "Registered providers: $(join(list_providers(), ", "))")
+    println(stderr, "")
+    println(stderr, "Examples:")
+    println(stderr, "  julia process.jl amazon/Appliances --download")
+    println(stderr, "  julia process.jl amazon boxes --source=data/subscription-boxes.jsonl")
+    println(stderr, "  julia process.jl tcga/TCGA-BRCA --download")
 end
 
 function main()
-    if length(ARGS) < 2
-        println(stderr, "Error: Missing arguments.")
-        println(stderr, "Usage: julia process.jl <path_to_input_jsonl> <dataset_name>")
-        exit(1)
+    try
+        parsed = parse_process_args(ARGS)
+        if parsed === nothing
+            print_usage()
+            exit(0)
+        end
+        process_with_provider(parsed.provider, parsed.dataset;
+            download=parsed.download, source=parsed.source)
+    catch e
+        if e isa ArgumentError
+            println(stderr, "Error: ", e.msg)
+            print_usage()
+            exit(1)
+        else
+            rethrow()
+        end
     end
-
-    jsonl_path = ARGS[1]
-    dataset_name = ARGS[2]
-    process_dataset(jsonl_path, dataset_name)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

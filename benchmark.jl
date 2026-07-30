@@ -314,3 +314,59 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
 
     return (; graph_stats, pivot_stats, aco_stats)
 end
+
+"""
+Convert benchmark named-tuples into plain Dict/Vector/Number/String/nothing
+trees suitable for JSON3.write (drops live SubGraph / FrozenBipartite objects).
+"""
+function benchmark_results_to_dict(results; k::Int=0)
+    function sol_summary(fg, sol)
+        sol === nothing && return nothing
+        return Dict(
+            "nU" => length(sol.U),
+            "nV" => length(sol.V),
+            "edges" => Subgraph.edge_count(fg, sol),
+            "missing" => Subgraph.missing_edges(fg, sol),
+            "k" => k,
+        )
+    end
+
+    out = Dict{String,Any}()
+
+    gs = results.graph_stats
+    out["graph"] = Dict(
+        "mutable_bytes" => gs.mutable_bytes,
+        "frozen_bytes" => gs.frozen_bytes,
+        "reduced_nU" => length(gs.fg.u_ids),
+        "reduced_nV" => length(gs.fg.v_ids),
+    )
+
+    if results.pivot_stats !== nothing
+        ps = results.pivot_stats
+        out["pivot"] = Dict(
+            "wall_time_s" => ps.time,
+            "allocated_bytes" => ps.allocated,
+            "rss_delta_bytes" => ps.rss_delta,
+            "optimal_edges" => ps.opt_edges,
+            "solution" => sol_summary(ps.fg_eval, ps.sol),
+        )
+    end
+
+    if results.aco_stats !== nothing
+        as = results.aco_stats
+        out["aco"] = Dict(
+            "wall_time_s" => as.time,
+            "allocated_bytes" => as.allocated,
+            "rss_delta_bytes" => as.rss_delta,
+            "ants" => as.ants,
+            "iterations_budget" => as.iterations_budget,
+            "iterations_to_optimal" => as.first_hit_iteration,
+            "final_edges" => as.final_edges,
+            "optimal_edges" => as.opt_edges,
+            "nU" => length(as.sol.U),
+            "nV" => length(as.sol.V),
+        )
+    end
+
+    return out
+end

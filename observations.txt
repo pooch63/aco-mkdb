@@ -94,4 +94,9 @@ Ideas to still add
 
 TO GET THE GRAPH FOR ONLY NEW EDGES, WE CAN JUST SIGNIFICANTLY BOOST PHEROMONE ON THOSE EDGESS
 AND VERTICES
-Significantly increasing 
+Significantly increasing
+
+ANOTHER THING WE COULD DO:
+
+Maximum WEIGHT k-defective bicliques
+    Could both adapt the current maximum algorithm and also use ACO to demonstrate its effectiveness

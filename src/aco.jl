@@ -42,7 +42,7 @@ If it returns `false`, ACO stops early. `force_gc` controls the per-iteration
 `GC.gc()` (disable when measuring peak memory).
 """
 function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int, θ::Int;
-    parallelize::Bool=true, force_gc::Bool=true, iteration_callback=nothing)
+    parallelize::Bool=true, force_gc::Bool=false, iteration_callback=nothing)
     apply_graph_reductions!(g, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
     
     fg = freeze(g)

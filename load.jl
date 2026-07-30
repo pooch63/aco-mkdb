@@ -6,7 +6,8 @@ This script loads a saved indexed graph from disk and runs the graph analysis
 workflow on it. It accepts either:
 
   1. No argument, in which case it loads data/indexed_interactions.csv
-  2. A dataset name, in which case it looks for data/<dataset_name>/indexed_interactions.csv
+  2. A dataset key (flat or nested), e.g. boxes or amazon/boxes →
+     data/<dataset_key>/indexed_interactions.csv
   3. An explicit file path to a CSV graph file
 
 Solver flags (independent of branch mode):
@@ -43,15 +44,15 @@ How to Run from the Command Line:
 
   Examples:
     julia load.jl
-    julia load.jl Grocery_and_Gourmet_Food --binary
-    julia load.jl Grocery_and_Gourmet_Food --ga
-    julia load.jl Grocery_and_Gourmet_Food --ga --seed=12345
-    julia load.jl Grocery_and_Gourmet_Food --tabu
-    julia load.jl Grocery_and_Gourmet_Food --aco
-    julia load.jl Grocery_and_Gourmet_Food --aco --ants=20 --iterations=200 --evaporation=0.85
-    julia load.jl Grocery_and_Gourmet_Food --heuristic
-    julia load.jl Grocery_and_Gourmet_Food --benchmark=aco,pivot
-    julia load.jl Grocery_and_Gourmet_Food --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
+    julia load.jl amazon/boxes --binary
+    julia load.jl amazon/grocery --ga
+    julia load.jl amazon/grocery --ga --seed=12345
+    julia load.jl amazon/grocery --tabu
+    julia load.jl amazon/grocery --aco
+    julia load.jl amazon/grocery --aco --ants=20 --iterations=200 --evaporation=0.85
+    julia load.jl amazon/grocery --heuristic
+    julia load.jl amazon/boxes --benchmark=aco,pivot
+    julia load.jl amazon/boxes --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
     julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
 =#
@@ -62,7 +63,9 @@ using Random
 using EnumX
 
 const SRC = joinpath(@__DIR__, "src")
+isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(SRC, "paths.jl"))
 isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
+isdefined(@__MODULE__, :__IO_JL__) || include(joinpath(SRC, "io.jl"))
 isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))
 isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(SRC, "ga.jl"))
 isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
@@ -81,48 +84,6 @@ const ACO_NUM_ITERATIONS = 100
 const ACO_EVAPORATION = 0.9
 
 @enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver
-
-"""
-    load_bipartite_graph(filepath::String) -> BipartiteGraph{Int}
-
-Reads a `user_id,item_id,timestamp` CSV (with header) and builds a mutable
-bipartite graph where U = user_id, V = item_id, and edge data = timestamp.
-The graph is reduced and then frozen inside the search pipeline.
-"""
-# Room for improvement: can mmap file, or chunk them, create multiple bipartite graphs,
-# then merge them.
-function load_bipartite_graph(filepath::String; max_lines::Union{Int,Nothing}=nothing)
-    g = BipartiteGraph{Int}()
-    edge_count = 0
-    open(filepath, "r") do io
-        readline(io)  # skip header line
-        for line in eachline(io)
-            line = strip(line)
-            isempty(line) && continue
-            parts = split(line, ",")
-            u  = parse(Int, parts[1])
-            v  = parse(Int, parts[2])
-            ts = parse(Int, parts[3])
-            add_edge!(g, u, v, ts)
-            edge_count += 1
-            max_lines !== nothing && edge_count >= max_lines && break
-        end
-        println("Graph edges: $(edge_count)")
-    end
-    return g, edge_count
-end
-
-function resolve_graph_path(dataset_name::Union{String,Nothing}=nothing)
-    if dataset_name === nothing || isempty(dataset_name)
-        return "data/indexed_interactions.csv"
-    end
-
-    if isfile(dataset_name)
-        return dataset_name
-    end
-
-    return joinpath("data", dataset_name, "indexed_interactions.csv")
-end
 
 function parse_reduction()
     for arg in ARGS
@@ -278,7 +239,10 @@ function main()
     pheremone, num_ants, num_iterations, evaporation = aco_options
 
     # k, θ = 4, 8
-    k, θ = 6, 7
+
+    # Room for algorithmic improvement: So same problem where k being overshot leads to the ants not finding it
+    # I suppose we could have incrementally larger k, but is there a better solution?
+    k, θ = 3, 6
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
@@ -332,11 +296,19 @@ function main()
                 D = solve(g, solver, mode, k, θ, reduction, aco_options)
             end
 
-            # Display profile using ProfileCanvas
+            # Always write a stable HTML path; view() alone only opens a temp file.
+            out = joinpath(@__DIR__, "profile_aco.html")
             try
-                ProfileCanvas.canvas()
+                ProfileCanvas.html_file(out)
+                println("Wrote profile flamegraph to $out")
+                try
+                    run(`xdg-open $out`; wait=false)
+                catch
+                end
             catch e
-                @warn "ProfileCanvas failed to display:" exception=(e, catch_backtrace())
+                @warn "ProfileCanvas.html_file failed:" exception=(e, catch_backtrace())
+                println("\n── Profile.print (flat, top frames) ──")
+                Profile.print(; C=false, maxdepth=25)
             end
             @show D
         else

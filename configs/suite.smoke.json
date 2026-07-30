@@ -1,0 +1,18 @@
+{
+  "benchmark": "aco",
+  "k": 2,
+  "theta": 3,
+  "timeout_seconds": 60,
+  "reduction": "hi",
+  "seed": 1,
+  "output": "results/suite_smoke.json",
+  "aco": {
+    "ants": 10,
+    "iterations": 2,
+    "pheremone": 1,
+    "evaporation": 0.9
+  },
+  "datasets": [
+    "amazon/boxes_test"
+  ]
+}

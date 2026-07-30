@@ -8,10 +8,11 @@ all edges between them except k missing edges.
 
 Usage:
   julia inject.jl grocery --p=8 --q=7 --k=3
+  julia inject.jl amazon/boxes --p=8 --q=7 --k=3
   julia inject.jl --file=data/grocery/indexed_interactions.csv --p=8 --q=7 --k=3
 
 Arguments:
-  dataset_name    Name of the dataset directory under data/ (e.g. grocery)
+  dataset_name    Dataset key under data/ (flat or nested, e.g. grocery or amazon/boxes)
 
 Flags:
   --file=PATH    Optional explicit CSV file path to modify instead of using a dataset name
@@ -25,6 +26,8 @@ The script appends new rows to the CSV file and preserves the original header.
 =#
 
 using Random
+
+isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(@__DIR__, "src", "paths.jl"))
 
 function parse_flag(arg::String)
     if startswith(arg, "--") && occursin('=', arg)
@@ -56,9 +59,9 @@ function parse_args()
     input_file = get(args, "file", nothing)
     if input_file === nothing
         if dataset_name === nothing
-            input_file = "data/grocery/indexed_interactions.csv"
+            input_file = resolve_graph_path("grocery")
         else
-            input_file = joinpath("data", dataset_name, "indexed_interactions.csv")
+            input_file = resolve_graph_path(dataset_name)
         end
     end
 
@@ -71,7 +74,7 @@ function parse_args()
     if p === nothing || q === nothing || k === nothing
         println(stderr, "Error: Missing required flags. --p, --q, and --k are required.")
         println(stderr, "Usage: julia inject.jl [dataset_name] --p=N --q=M --k=K [--seed=S] [--attempts=N]")
-        println(stderr, "Example: julia inject.jl grocery --p=8 --q=7 --k=3")
+        println(stderr, "Example: julia inject.jl amazon/boxes --p=8 --q=7 --k=3")
         exit(1)
     end
 
