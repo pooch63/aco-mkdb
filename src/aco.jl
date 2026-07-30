@@ -32,7 +32,17 @@ mutable struct Ant
     last_visited::Node
 end
 
-function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int, θ::Int; parallelize::Bool=true)
+"""
+    aco(g, pheromone, num_ants, num_iterations, evaporation, k, θ;
+        parallelize=true, force_gc=true, iteration_callback=nothing)
+
+`iteration_callback` is called after each completed colony iteration as
+`iteration_callback(iter, best_subgraph_compact, compact_fg, remapping)`.
+If it returns `false`, ACO stops early. `force_gc` controls the per-iteration
+`GC.gc()` (disable when measuring peak memory).
+"""
+function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int, θ::Int;
+    parallelize::Bool=true, force_gc::Bool=true, iteration_callback=nothing)
     apply_graph_reductions!(g, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
     
     fg = freeze(g)
@@ -50,7 +60,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
     explored_ants = [ant for ant in ants]
 
-    for _ in 1:num_iterations
+    for iter in 1:num_iterations
         # Track which ants are still exploring
         active_ants = collect(1:num_ants)
 
@@ -111,7 +121,11 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         invalid_ants = Set{Int}()
         ants = [Ant(SubGraph(), Node()) for _ in 1:num_ants]
 
-        GC.gc()
+        force_gc && GC.gc()
+
+        if iteration_callback !== nothing
+            iteration_callback(iter, best_subgraph, compact_fg, remapping) || break
+        end
     end
 
     return remap_subgraph(remapping, best_subgraph)
@@ -135,7 +149,7 @@ end
 
 function node_desirability(pheromones::Pheromones, node::DegreeNode)
     pheromone = get_pheromone(pheromones, Node(node.is_u, node.id))
-    @assert pheremone > 0 "Pheremone cannot be zero. Otherwise, evaporation won't penalize underexplored nodes"
+    @assert pheromone > 0 "Pheremone cannot be zero. Otherwise, evaporation won't penalize underexplored nodes"
     return pheromone^3 * node.deg
 end
 

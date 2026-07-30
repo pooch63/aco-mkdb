@@ -89,3 +89,9 @@ N(u)'s 2-hop neighbors, so we're already cutting N^3
 Idea
 
 Can we use ordering-based reduction with ACO by running it on the subgraph instances that each iteration gives.
+
+Ideas to still add
+
+TO GET THE GRAPH FOR ONLY NEW EDGES, WE CAN JUST SIGNIFICANTLY BOOST PHEROMONE ON THOSE EDGESS
+AND VERTICES
+Significantly increasing 

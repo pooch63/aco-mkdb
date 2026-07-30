@@ -20,6 +20,11 @@ Branch mode flags (only used by branch-and-bound):
   --pivot    pivot branching (default)
   --binary   binary branching
 
+Benchmarking:
+  --benchmark=aco,pivot   measure graph / pivot / ACO memory & time (see benchmark.jl)
+  --benchmark=pivot       pivot + graph memory only
+  --benchmark=aco         ACO + graph memory only (no iterations-to-optimal without pivot)
+
 GA / tabu flags:
   --seed=S   random seed for reproducible runs (default: time_ns())
 
@@ -34,7 +39,7 @@ Prerequisites:
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...]
+    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--benchmark=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...]
 
   Examples:
     julia load.jl
@@ -45,6 +50,8 @@ How to Run from the Command Line:
     julia load.jl Grocery_and_Gourmet_Food --aco
     julia load.jl Grocery_and_Gourmet_Food --aco --ants=20 --iterations=200 --evaporation=0.85
     julia load.jl Grocery_and_Gourmet_Food --heuristic
+    julia load.jl Grocery_and_Gourmet_Food --benchmark=aco,pivot
+    julia load.jl Grocery_and_Gourmet_Food --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
     julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
 =#
@@ -61,6 +68,7 @@ isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(SRC, "ga.jl"))
 isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
 isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco.jl"))
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
+isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(@__DIR__, "benchmark.jl"))
 
 global const DEBUG = true
 
@@ -169,6 +177,17 @@ function parse_aco_options()
     return pheremone, num_ants, num_iterations, evaporation
 end
 
+function parse_benchmark()
+    for arg in ARGS
+        if startswith(arg, "--benchmark=")
+            return parse_benchmark_targets(split(arg, "=", limit=2)[2])
+        elseif arg == "--benchmark"
+            throw(ArgumentError("--benchmark requires a value, e.g. --benchmark=aco,pivot"))
+        end
+    end
+    return nothing
+end
+
 function parse_args()
     dataset_name = nothing
     solver = Solver.branch_solver
@@ -177,6 +196,7 @@ function parse_args()
     reduction = parse_reduction()
     seed = parse_seed()
     aco_options = parse_aco_options()
+    benchmark = parse_benchmark()
 
     for arg in ARGS
         if arg == "--ga"
@@ -195,7 +215,8 @@ function parse_args()
             profile = true
         elseif startswith(arg, "--reduce=") || startswith(arg, "--seed=") ||
                startswith(arg, "--ants=") || startswith(arg, "--iterations=") ||
-               startswith(arg, "--pheremone=") || startswith(arg, "--evaporation=")
+               startswith(arg, "--pheremone=") || startswith(arg, "--evaporation=") ||
+               startswith(arg, "--benchmark=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -208,7 +229,7 @@ function parse_args()
         dataset_name = DEBUG ? "boxes" : nothing
     end
 
-    return dataset_name, solver, mode, profile, reduction, seed, aco_options
+    return dataset_name, solver, mode, profile, reduction, seed, aco_options, benchmark
 end
 
 """
@@ -252,12 +273,12 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction, seed, aco_options = parse_args()
+    dataset_name, solver, mode, profile, reduction, seed, aco_options, benchmark = parse_args()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation = aco_options
 
     # k, θ = 4, 8
-    k, θ = 5, 6
+    k, θ = 6, 7
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
@@ -265,7 +286,14 @@ function main()
     end
 
     println("Loading graph from: $graph_path")
-    if solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
+    if benchmark !== nothing
+        println("Mode: benchmark ($(join(sort!(collect(String(t) for t in benchmark)), ",")))")
+        if :aco in benchmark
+            seed = seed === nothing ? UInt64(time_ns()) : seed
+            Random.seed!(seed)
+            println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation")
+        end
+    elseif solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
         # Default to a fresh seed when none was provided so the run is printable/replicable.
         seed = seed === nothing ? UInt64(time_ns()) : seed
         Random.seed!(seed)
@@ -285,7 +313,11 @@ function main()
     println("Reduction: $(reduction == ReductionMode.simple ? "simple" : reduction == ReductionMode.none ? "none" : "progressive")")
 
     with_stacksize(2_000_000_000) do
-        if profile
+        if benchmark !== nothing
+            g, edges = load_bipartite_graph(graph_path)
+            println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
+            run_benchmarks!(g, edges, benchmark, k, θ, reduction, aco_options)
+        elseif profile
             println("Profile mode enabled: warming up compilation on a small graph...")
             # Warm up: run the search once on a very small slice to compile methods
             gw, edges = load_bipartite_graph(graph_path; max_lines = 50)
@@ -323,7 +355,9 @@ function main()
         end
     end
 
-    if solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
+    if benchmark !== nothing && :aco in benchmark
+        println("Random seed: --seed=$seed")
+    elseif solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
         println("Random seed: --seed=$seed")
     end
 end
