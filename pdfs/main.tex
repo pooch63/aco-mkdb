@@ -38,11 +38,13 @@
 
 Cui et al. (2025) and Wang et al. (2025) proposed a branch-and-bound algorithm with several novel optimizations. They both propose heuristic approaches to identifying maximum $k$-MDB structures. However, these approaches are intended as a cheap approximation to tighten the upper bound that their pruning optimizations rely on. Thus, these heuristics often fail to find large $k$-MDB on a graph.
 
-The proposed branch algorithms run in exponential time. While benchmark tests often run on graphs of millions of edges, practical applications might need to run on graphs of billions of edges. For instance, Cui et al.'s proposed branch-and-pivot (BnP) algorithm took up to 2 hours and 25 minutes on a graph with 20,592,962 edges. A more accurate heuristic that runs in linear time of $n$ and $m$ on a graph with $n$ nodes and $m$ edges is required.
+The proposed branch algorithms run in exponential time. While benchmark tests often run on graphs of millions of edges, practical applications might need to run on graphs of billions of edges. For instance, Cui et al.'s proposed branch-and-pivot (BnP) algorithm took up to 2 hours and 25 minutes on a graph with 20,592,962 edges. A heuristic that runs in linear time of $n$ and $m$ on a graph with $n$ nodes and $m$ edges, and is more accurate than the previously proposed algorithms, is required.
 
 Additionally, the proposed heuristics' accuracy is heavily dependent on $k$. We observe that on a graph whose maximum solution has $k_a$ missing edges, previous heuristics fail to find it more often when $k > k_a$.
 
-We propose a novel adaptation of Ant Colony Optimization that .
+Finally, the proposed heuristics' accuracy is heavily dependent on $\theta$ as a parameter. $\theta$ is intended to be a 
+
+We propose a novel adaptation of Ant Colony Optimization that runs in linear time of $n$ and $m$, is parallelizable, and whose accuracy is significantly higher than the previous proposed heuristics, rivals optimal algorithms, and whose runtime is significantly less dependent on $\theta$ and $k$.
 
 \section{Definitions}
 Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
@@ -58,8 +60,8 @@ Pseudocode:
 
 # Have to update this to ablate the adding pheromone to the best solutions
 # Will then have to include the instance fitness and everything I tried there
-# Also have to try different desireability functions
-# Could I genetically evolve the desireability function itself?
+# Also have to try different desirability functions
+# Could I genetically evolve the desirability function itself?
 \begin{algorithm}[H]
 \caption{SCO}
 \begin{minipage}{\textwidth}
@@ -77,7 +79,7 @@ Pseudocode:
             \State $P_C \gets P$
             
             \ForPar{$S_i \in S$}
-                \State $next \gets \text{softmax}_{u \in G \setminus S}($\Call{desireability}{$u$, $S_i$, $P_C$}$)$
+                \State $next \gets \text{softmax}_{u \in G \setminus S}($\Call{desirability}{$u$, $S_i$, $P_C$}$)$
                 \State add $next$ to $S_i$
                 \State $P_C(u) \gets P_C(u) + p$
             \EndForPar
@@ -94,7 +96,7 @@ Pseudocode:
         \State \Return $T$
     \EndFunction
 
-    \Function{Desireability}{$u$, $S$, $P$}
+    \Function{Desirability}{$u$, $S$, $P$}
         \State \Return $P(u)^3 \times d_S(u)$
     \EndFunction
 \end{algorithmic}
@@ -165,7 +167,11 @@ We also included a genetic algorithm to benchmark against ACO:
         \While{$|\bar{E}(C)| > k$}
             \State $C \gets C \setminus \{\text{argmax}_{u \in C}\bar{d}_C(u)\}$
         \EndWhile
-    \EndIf
+
+        \State \Call{Repair}{C}
+
+        \State \Return C
+    \EndFunction
 
     \Function{InstanceFitness}{$S = (U_S, V_S)$}
         \State $m \gets 1$
@@ -175,6 +181,74 @@ We also included a genetic algorithm to benchmark against ACO:
         \State \Return $m \times \min(|U_S|, |V_S|)^2$
     \EndFunction
 
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Tabu Repair}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+    \Function{TabuRepair}{$G$, $S$, $tt$, $p$}
+        \State $p_A \gets 0$
+
+        \ForAll{$u \in G$}
+            \State $T(u, \text{add}) = 0$
+            \State $T(u, \text{remove}) = 0$
+        \EndFor
+
+        \State $F_B \gets \Call{InstanceFitness}{S}$
+        \State $S_B \gets S$
+
+        \While{$p_A \leq p$}
+            \State $T_C \gets T$
+            \State $F_C \gets \Call{InstanceFitness}{S}$
+            \State $F_O, S_O \gets -\infty, S$
+
+            \State $E \gets \{(u, \text{add}) \in G \setminus S\} \cup \{(u, \text{remove}) \in S\}$
+            
+            \For{$(u, add) \in E \mathrel{\text{s.t.}} T_C(u, add) = 0$}
+                \If{$add$}
+                    \State $S_N \gets S \cup \{u\}$
+                \Else
+                    \State $S_N \gets S \setminus \{u\}$
+                \EndIf
+
+                \State $F_N \gets \Call{InstanceFitness}{S_N}$
+
+                \If{$F_N < F_C$}
+                    \State $T_C(u, add) \gets tt$
+                \EndIf
+
+                \If{$F_N > F_O$}
+                    \State $F_O, S_O \gets F_N, S_N$
+                \EndIf
+            \EndFor
+
+            \If{$F_O > F_B$}
+                \State $F_B \gets F_O$
+                \State $S_B \gets S_O$
+            \EndIf
+
+            \For{$(u, add) \in E \mathrel{\text{s.t.}} T_C(u, add) > 0$}
+                \If{$add$}
+                    \State $S_N \gets S \cup \{u\}$
+                \Else
+                    \State $S_N \gets S \setminus \{u\}$
+                \EndIf
+
+                \State $F_N \gets \Call{InstanceFitness}{S_N}$
+
+                \If{$F_N > F_B$}
+                    $F_B, S_B \gets F_N, S_N$
+                \EndIf
+            \EndFor
+
+            \State $T \gets T_C$
+        \EndWhile
+
+        \State \Return $S_B$
+    \EndFunction
 \end{algorithmic}
 \end{minipage}
 \end{algorithm}
