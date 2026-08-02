@@ -1,0 +1,219 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{SCO Approach to k-MDB}
+\author{Kiyaan Pillai}
+\date{July 2026}
+
+\usepackage{algorithm}
+\usepackage{algpseudocodex}
+\usepackage{float}
+
+\algdef{SE}[FORALL]{ForPar}{EndForPar}[1]{\textbf{parallel}\ \algorithmicforall\ #1\ \algorithmicdo}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\section{Definitions}
+
+Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
+
+Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
+
+Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
+
+\section{Methods}
+
+We propose Slime Colony Optimization (SCO), an adaptation of ACO fitted to biclique graphs. Pheromones allow agents to converge on optimal solutions, and subspecies of slimes allow for multiple near-optimal solutions.
+
+Pseudocode:
+
+\begin{algorithm}[H]
+\caption{SCO}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+
+    \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
+    
+    \Function{SCO}{$G$, $N_a$, $N_g$, $E$}
+        \ForAll{$u \in G$}
+            \State $P(u) \gets 1$
+        \EndFor
+
+        \State $a \gets 0$
+
+
+        \While{$a < N_g$}
+            \State $a \gets a + 1$
+
+            \State $A \gets$ $N_a$ empty subgraphs
+
+            \algrenewtext{ForAll}{\textbf{parallel for each} #1 \algorithmicdo}
+            \ForAll{$ant \in A$}
+                \State six seven
+            \EndFor
+        \EndWhile
+
+        \ForAll{$u \in G$}
+            \State $P(u) \gets P(u) \times E$
+        \EndFor
+
+        \State \Return $T$
+    \EndFunction
+
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+NEXT: Figure out what datasets I want to compare against, implement subspecies, and then write the pseudocode
+
+\end{document}
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{SCO Approach to k-MDB}
+\author{Kiyaan Pillai}
+\date{July 2026}
+
+\usepackage{algorithm}
+\usepackage{algpseudocodex}
+\usepackage{float}
+
+\algdef{SE}[FORALL]{ForPar}{EndForPar}[1]{\textbf{parallel}\ \algorithmicforall\ #1\ \algorithmicdo}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\section{Definitions}
+
+Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
+
+Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
+
+Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
+
+\section{Methods}
+
+We propose Slime Colony Optimization (SCO), an adaptation of ACO fitted to biclique graphs. Pheromones allow agents to converge on optimal solutions, and subspecies of slimes allow for multiple near-optimal solutions.
+
+Pseudocode:
+
+\begin{algorithm}[H]
+\caption{SCO}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+
+    \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
+    
+    \Function{SCO}{$G$, $N_a$, $N_g$, $E$}
+        \ForAll{$u \in G$}
+            \State $P(u) \gets 1$
+        \EndFor
+
+        \State $a \gets 0$
+
+
+        \While{$a < N_g$}
+            \State $a \gets a + 1$
+
+            \State $A \gets$ $N_a$ empty subgraphs
+
+            \algrenewtext{ForAll}{\textbf{parallel for each} #1 \algorithmicdo}
+            \ForAll{$ant \in A$}
+                \State six seven
+            \EndFor
+        \EndWhile
+
+        \ForAll{$u \in G$}
+            \State $P(u) \gets P(u) \times E$
+        \EndFor
+
+        \State \Return $T$
+    \EndFunction
+
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+NEXT: Figure out what datasets I want to compare against, implement subspecies, and then write the pseudocode
+
+\end{document}
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{SCO Approach to k-MDB}
+\author{Kiyaan Pillai}
+\date{July 2026}
+
+\usepackage{algorithm}
+\usepackage{algpseudocodex}
+\usepackage{float}
+
+\algdef{SE}[FORALL]{ForPar}{EndForPar}[1]{\textbf{parallel}\ \algorithmicforall\ #1\ \algorithmicdo}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\section{Definitions}
+
+Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
+
+Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
+
+Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
+
+\section{Methods}
+
+We propose Slime Colony Optimization (SCO), an adaptation of ACO fitted to biclique graphs. Pheromones allow agents to converge on optimal solutions, and subspecies of slimes allow for multiple near-optimal solutions.
+
+Pseudocode:
+
+\begin{algorithm}[H]
+\caption{SCO}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+
+    \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
+    
+    \Function{SCO}{$G$, $N_a$, $N_g$, $E$}
+        \ForAll{$u \in G$}
+            \State $P(u) \gets 1$
+        \EndFor
+
+        \State $a \gets 0$
+
+
+        \While{$a < N_g$}
+            \State $a \gets a + 1$
+
+            \State $A \gets$ $N_a$ empty subgraphs
+
+            \algrenewtext{ForAll}{\textbf{parallel for each} #1 \algorithmicdo}
+            \ForAll{$ant \in A$}
+                \State six seven
+            \EndFor
+        \EndWhile
+
+        \ForAll{$u \in G$}
+            \State $P(u) \gets P(u) \times E$
+        \EndFor
+
+        \State \Return $T$
+    \EndFunction
+
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+NEXT: Figure out what datasets I want to compare against, implement subspecies, and then write the pseudocode
+
+\end{document}
