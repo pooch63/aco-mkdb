@@ -100,3 +100,8 @@ ANOTHER THING WE COULD DO:
 
 Maximum WEIGHT k-defective bicliques
     Could both adapt the current maximum algorithm and also use ACO to demonstrate its effectiveness
+
+8.2.26
+
+crazy idea: Cui et al. says that Chen et al. proposed a coloring-based upper bound. you can't color a bipartite graph -- you'd just color U one color and V another. But if you run the algorithm for a little, clearly see some nodes that can't be with other nodes, and then color -- could you have a massive upper bound, or adapt it to more efficient k-defective clique problems?
+

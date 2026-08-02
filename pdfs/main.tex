@@ -1,24 +1,50 @@
 \documentclass{article}
 \usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocodex}
+\usepackage{float}
+\usepackage{etoolbox}
 
 \title{SCO Approach to k-MDB}
 \author{Kiyaan Pillai}
 \date{July 2026}
 
-\usepackage{algorithm}
-\usepackage{algpseudocodex}
-\usepackage{float}
+% --- Custom "parallel for each" block, wired into algpseudocodex's
+%     internal indent/highlight hooks (bare \algdef breaks the package's
+%     block tracking and throws \endcsname errors) ---
+\makeatletter
+\algdef{SE}[FORPAR]{ForPar}{EndForPar}[1]%
+  {\algpx@startIndent\algpx@startCodeCommand\textbf{parallel for each}\ #1\ \algorithmicdo}%
+  {\algpx@endIndent\algpx@startCodeCommand\algorithmicend\ \textbf{parallel for each}}%
 
-\algdef{SE}[FORALL]{ForPar}{EndForPar}[1]{\textbf{parallel}\ \algorithmicforall\ #1\ \algorithmicdo}
+\ifbool{algpx@noEnd}{%
+  \algtext*{EndForPar}%
+  \apptocmd{\EndForPar}{\algpx@endIndent}{}{}%
+}{}%
+
+\pretocmd{\ForPar}{\algpx@endCodeCommand}{}{}
+\ifbool{algpx@noEnd}{%
+  \pretocmd{\EndForPar}{\algpx@endCodeCommand[1]}{}{}%
+}{%
+  \pretocmd{\EndForPar}{\algpx@endCodeCommand[0]}{}{}%
+}%
+\makeatother
 
 \begin{document}
-
 \maketitle
 
 \section{Introduction}
 
-\section{Definitions}
+Cui et al. (2025) and Wang et al. (2025) proposed a branch-and-bound algorithm with several novel optimizations. They both propose heuristic approaches to identifying maximum $k$-MDB structures. However, these approaches are intended as a cheap approximation to tighten the upper bound that their pruning optimizations rely on. Thus, these heuristics often fail to find large $k$-MDB on a graph.
 
+The proposed branch algorithms run in exponential time. While benchmark tests often run on graphs of millions of edges, practical applications might need to run on graphs of billions of edges. For instance, Cui et al.'s proposed branch-and-pivot (BnP) algorithm took up to 2 hours and 25 minutes on a graph with 20,592,962 edges. A more accurate heuristic that runs in linear time of $n$ and $m$ on a graph with $n$ nodes and $m$ edges is required.
+
+Additionally, the proposed heuristics' accuracy is heavily dependent on $k$. We observe that on a graph whose maximum solution has $k_a$ missing edges, previous heuristics fail to find it more often when $k > k_a$.
+
+We propose a novel adaptation of Ant Colony Optimization that .
+
+\section{Definitions}
 Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
 
 Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
@@ -26,188 +52,127 @@ Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, 
 Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
 
 \section{Methods}
-
 We propose Slime Colony Optimization (SCO), an adaptation of ACO fitted to biclique graphs. Pheromones allow agents to converge on optimal solutions, and subspecies of slimes allow for multiple near-optimal solutions.
 
 Pseudocode:
 
+# Have to update this to ablate the adding pheromone to the best solutions
+# Will then have to include the instance fitness and everything I tried there
+# Also have to try different desireability functions
+# Could I genetically evolve the desireability function itself?
 \begin{algorithm}[H]
 \caption{SCO}
 \begin{minipage}{\textwidth}
 \begin{algorithmic}
-
     \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
-    
-    \Function{SCO}{$G$, $N_a$, $N_g$, $E$}
+
+    \Function{SCO}{$G$, $N_e$, $N_g$, $E$, $p$}
         \ForAll{$u \in G$}
             \State $P(u) \gets 1$
         \EndFor
-
-        \State $a \gets 0$
-
-
-        \While{$a < N_g$}
-            \State $a \gets a + 1$
-
+        \State $e \gets 0$
+        \While{$e < N_e$}
+            \State $e \gets e + 1$
             \State $A \gets$ $N_a$ empty subgraphs
+            \State $P_C \gets P$
+            
+            \ForPar{$S_i \in S$}
+                \State $next \gets \text{softmax}_{u \in G \setminus S}($\Call{desireability}{$u$, $S_i$, $P_C$}$)$
+                \State add $next$ to $S_i$
+                \State $P_C(u) \gets P_C(u) + p$
+            \EndForPar
 
-            \algrenewtext{ForAll}{\textbf{parallel for each} #1 \algorithmicdo}
-            \ForAll{$ant \in A$}
-                \State six seven
+            \State $P \gets P_C$
+
+            \ForAll{$u \in G$}
+                \State $P(u) \gets P(u) \times E$
             \EndFor
         \EndWhile
-
         \ForAll{$u \in G$}
             \State $P(u) \gets P(u) \times E$
         \EndFor
-
         \State \Return $T$
     \EndFunction
 
+    \Function{Desireability}{$u$, $S$, $P$}
+        \State \Return $P(u)^3 \times d_S(u)$
+    \EndFunction
 \end{algorithmic}
 \end{minipage}
 \end{algorithm}
 
-NEXT: Figure out what datasets I want to compare against, implement subspecies, and then write the pseudocode
-
-\end{document}
-\documentclass{article}
-\usepackage{graphicx} % Required for inserting images
-
-\title{SCO Approach to k-MDB}
-\author{Kiyaan Pillai}
-\date{July 2026}
-
-\usepackage{algorithm}
-\usepackage{algpseudocodex}
-\usepackage{float}
-
-\algdef{SE}[FORALL]{ForPar}{EndForPar}[1]{\textbf{parallel}\ \algorithmicforall\ #1\ \algorithmicdo}
-
-\begin{document}
-
-\maketitle
-
-\section{Introduction}
-
-\section{Definitions}
-
-Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
-
-Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
-
-Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
-
-\section{Methods}
-
-We propose Slime Colony Optimization (SCO), an adaptation of ACO fitted to biclique graphs. Pheromones allow agents to converge on optimal solutions, and subspecies of slimes allow for multiple near-optimal solutions.
-
-Pseudocode:
+We also included a genetic algorithm to benchmark against ACO:
 
 \begin{algorithm}[H]
-\caption{SCO}
+\caption{Genetic Algorithm}
 \begin{minipage}{\textwidth}
 \begin{algorithmic}
 
     \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
-    
-    \Function{SCO}{$G$, $N_a$, $N_g$, $E$}
-        \ForAll{$u \in G$}
-            \State $P(u) \gets 1$
-        \EndFor
 
-        \State $a \gets 0$
+    \Function{GeneticAlgorithm}{$G$, $N_G$, $N_e$, $m_k$}
+        \State $P \gets$ $N_i$ distinct subgraphs $\{\text{softmax}_{u \in G}(d(u))\}$
+        \State $K \gets k$
 
+        \State $e \gets 0$
+        \State $P_n \gets P$
+        \State $K_N \gets K$
 
-        \While{$a < N_g$}
-            \State $a \gets a + 1$
+        \While{$e < N_e$}
+            \ForPar{$i \in [1, |P|]$}
+                \State $m, f \gets 2$ distinct $\text{argsoftmax}_{P_C \in P \setminus P_i}(\Call{InstanceFitness}{P_C})$
 
-            \State $A \gets$ $N_a$ empty subgraphs
+                \State $k_O \gets \Call{CrossoverK}{K_m, K_f}$
 
-            \algrenewtext{ForAll}{\textbf{parallel for each} #1 \algorithmicdo}
-            \ForAll{$ant \in A$}
-                \State six seven
-            \EndFor
+                \State $(P_n)_i \gets \Call{CrossoverS}{P_m, P_f, k_O}$
+                \State $(K_N)_i \gets k_O$
+            \EndForPar
         \EndWhile
-
-        \ForAll{$u \in G$}
-            \State $P(u) \gets P(u) \times E$
-        \EndFor
-
-        \State \Return $T$
     \EndFunction
 
-\end{algorithmic}
-\end{minipage}
-\end{algorithm}
+    \Function{CrossoverK}{$K_m$, $K_f$}
+        \If{$\text{uniform}(0, 1) \leq 0.5$}
+            \State $k_O \gets K_m$
+        \Else
+            \State $k_O \gets K_f$
+        \EndIf
 
-NEXT: Figure out what datasets I want to compare against, implement subspecies, and then write the pseudocode
+        \If{$\text{uniform}(0, 1) \leq m_k$}
+            \If{$\text{uniform}(0, 1) \leq 0.5$}
+                \State $k_O \gets \max(0, K_O - 1)$
+            \Else
+                \State $k_O \gets \min(k, K_O + 1)$
+            \EndIf
+        \EndIf
 
-\end{document}
-\documentclass{article}
-\usepackage{graphicx} % Required for inserting images
+        \State \Return $k_O$
+    \EndFunction
 
-\title{SCO Approach to k-MDB}
-\author{Kiyaan Pillai}
-\date{July 2026}
+    \Function{CrossoverS}{$S_m$, $S_f$, $k_O$}
+        \State $C \gets S_m \cap S_f$
 
-\usepackage{algorithm}
-\usepackage{algpseudocodex}
-\usepackage{float}
+        \If{$|C| = 0$}
+            \State $U \gets S_m \cup S_f$
+            \State $C \gets \{\}$
 
-\algdef{SE}[FORALL]{ForPar}{EndForPar}[1]{\textbf{parallel}\ \algorithmicforall\ #1\ \algorithmicdo}
+            \While{$|\bar{E(C)}| < k$ and $|U| > 0$}
+                \State $u \gets \text{argmax}_{v \in C}d_c(v)$
+                \State $C \gets C \cup \{u\}$
+                \State $U \gets U \setminus \{u\}$
+            \EndWhile
+        \EndIf
 
-\begin{document}
-
-\maketitle
-
-\section{Introduction}
-
-\section{Definitions}
-
-Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
-
-Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
-
-Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
-
-\section{Methods}
-
-We propose Slime Colony Optimization (SCO), an adaptation of ACO fitted to biclique graphs. Pheromones allow agents to converge on optimal solutions, and subspecies of slimes allow for multiple near-optimal solutions.
-
-Pseudocode:
-
-\begin{algorithm}[H]
-\caption{SCO}
-\begin{minipage}{\textwidth}
-\begin{algorithmic}
-
-    \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
-    
-    \Function{SCO}{$G$, $N_a$, $N_g$, $E$}
-        \ForAll{$u \in G$}
-            \State $P(u) \gets 1$
-        \EndFor
-
-        \State $a \gets 0$
-
-
-        \While{$a < N_g$}
-            \State $a \gets a + 1$
-
-            \State $A \gets$ $N_a$ empty subgraphs
-
-            \algrenewtext{ForAll}{\textbf{parallel for each} #1 \algorithmicdo}
-            \ForAll{$ant \in A$}
-                \State six seven
-            \EndFor
+        \While{$|\bar{E}(C)| > k$}
+            \State $C \gets C \setminus \{\text{argmax}_{u \in C}\bar{d}_C(u)\}$
         \EndWhile
+    \EndIf
 
-        \ForAll{$u \in G$}
-            \State $P(u) \gets P(u) \times E$
-        \EndFor
-
-        \State \Return $T$
+    \Function{InstanceFitness}{$S = (U_S, V_S)$}
+        \State $m \gets 1$
+        \If{$\min(|U_S|, |V_S|) \geq \theta$}
+            \State $m \gets \max{|U_S, V_S|}$
+        \EndIf
+        \State \Return $m \times \min(|U_S|, |V_S|)^2$
     \EndFunction
 
 \end{algorithmic}
