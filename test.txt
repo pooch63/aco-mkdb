@@ -1,0 +1,5 @@
+julia tests/test_aco.jl --seed=1 --N=100 --no-optimum --save=results/aco.json ; julia tests/test_theta_heuristic.jl --seed=1 --N=100 --no-optimum --save=results/theta_heuristic.json
+
+[aco] trial 32 / 100  nU=289 nV=140 |E|=12238 k=0 θ=14  seed=7673549122972480866
+
+julia tests/test_aco.jl --seed=7673549122972480866 --N=1 --no-optimum --nU=100:500 --nV=100:500

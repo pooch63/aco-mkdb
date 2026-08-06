@@ -242,7 +242,7 @@ function main()
 
     # Room for algorithmic improvement: So same problem where k being overshot leads to the ants not finding it
     # I suppose we could have incrementally larger k, but is there a better solution?
-    k, θ = 3, 6
+    k, θ = 2, 4
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")

@@ -105,3 +105,18 @@ Maximum WEIGHT k-defective bicliques
 
 crazy idea: Cui et al. says that Chen et al. proposed a coloring-based upper bound. you can't color a bipartite graph -- you'd just color U one color and V another. But if you run the algorithm for a little, clearly see some nodes that can't be with other nodes, and then color -- could you have a massive upper bound, or adapt it to more efficient k-defective clique problems?
 
+PHENOMENAL IDEA:
+HAVE REPAIR ON THE BEST SOLUTIONS, AND THEN ONLY AFTER REPAIR, YOU USE THE SIZE TO DETERMINE WHICH GET THE PHEROMONE
+
+PHENOMENAL IDEA:
+AFTER EACH ITERATION, DELETE NODES THAT JUST ARE SO UNDEREXPLORED LIKE THERE'S NO WAY IN HELL THEY'LL EVER BE EXPLORED
+HAVE SOME THRESHOLD, LIKE AFTER PHEROMONE IS < ..., DELETE
+The threshold should also be dependent on the number of ants, because with more ants, the threshold should be looser. The intuition is,
+with more ants, any node would be likelier to have been explored, including bad nodes. So the threshold should be raised.
+
+FUCKING FANTASTIC IDEA:
+After ACO, take the top z% of nodes by pheromone, or nodes that pass a certain pheromone threshold, then run BnP on THEM to get the
+optimal solution. ACO essentially becomes a fantastic graph reduction algorithm
+
+Look at Hooi et al. (2016 or 2017) in the original Cui et al. to show that bicliques can actually
+reflect fraud.

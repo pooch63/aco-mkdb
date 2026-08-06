@@ -1,3 +1,5 @@
+using Base.Threads
+
 const __GA_JL__ = true
 
 isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
@@ -88,10 +90,10 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float6
 end
 
 function search(fg::FrozenBipartite{T}, k::Int, θ::Int, N::Int, H::Int, O::Int, k_mutate::Float64,
-    repair::RepairMode.T, tt::Int, tabu_patience::Int, generations::Int) where {T}
+    use_heuristic::Bool, repair::RepairMode.T, tt::Int, tabu_patience::Int, generations::Int) where {T}
     G = SubGraph(Set(u for u in fg.u_ids), Set(v for v in fg.v_ids))
     # Choose softmax-distributed N nodes
-    nodes = softmax_sample_nodes((u, n) -> u ? degree_u(fg, n) : degree_v(fg, n), G, N-1)
+    nodes = softmax_sample_nodes((u, n) -> u ? degree_u(fg, n) : degree_v(fg, n), G, use_heuristic ? N-1 : N)
 
     instances = Instance[]
     for node in nodes
@@ -102,7 +104,7 @@ function search(fg::FrozenBipartite{T}, k::Int, θ::Int, N::Int, H::Int, O::Int,
     end
 
     # Add the heuristic as another
-    push!(instances, Instance(theta_based_heuristic(fg, k, θ; return_invalid=true), k))
+    use_heuristic && push!(instances, Instance(theta_based_heuristic(fg, k, θ; return_invalid=true), k))
 
     # Room for algorithmic improvement: Keep track of parents that mutated so we don't
     # have parents breed together twice
@@ -143,7 +145,7 @@ function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, θ
     H::Int, O::Int, k_mutate::Float64, repair::RepairMode.T, tt::Int, tabu_patience::Int)
     next = Instance[]
 
-    for _ in 1:N-2
+    @threads for _ in 1:N-2
         male, female = softmax_sample(instance -> instance_fitness(fg, instance.subgraph, θ), instances, 2)
         
         k = rand(1, 2) == 1 ? male.k : female.k
@@ -224,16 +226,21 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
     elseif repair == RepairMode.mixed
         greedy_instance = deepcopy(next)
         tabu_instance = deepcopy(next)
+        mixed_instance = deepcopy(next)
         
         greedily_add!(fg, greedy_instance, k)
         tabu_repair!(fg, tabu_instance, k, θ, tt, tabu_patience)
 
+        greedily_add!(fg, mixed__instance, k)
+        tabu_repair!(fg, mixed_instance, k, θ, tt, tabu_patience)
+
         greedy_score = instance_fitness(fg, greedy_instance, θ)
         tabu_score = instance_fitness(fg, tabu_instance, θ)
+        mixed_score = instance_fitness(fg, mixed_instance, θ)
 
-        if greedy_score > tabu_score
+        if greedy_score > tabu_score && greedy_score > mixed_score
             next = greedy_instance
-        else
+        elseif tabu_score > greedy_score && tabu_score > mixed_score
             next = tabu_instance
         end
     end

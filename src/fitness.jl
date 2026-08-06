@@ -17,13 +17,35 @@ struct Instance
     k::Int
 end
 
-function softmax_sample(objects::Vector{T}, scores::Vector{<:Real}, n::Int) where T
+function softmax_sample(objects::Vector{T}, scores::Vector{S}, n::Int) where {T, S<:Real}
     # softmax with max-subtraction for numerical stability
     w = exp.(scores .- maximum(scores))
     w ./= sum(w)
+
+    # If there are a few objects whose scores are orders of magnitude higher than the rest,
+    # then everything else might go to 0. In that instance, return out the objects that are over 0,
+    # then softmax on the remaining objects for a total of n - sum(obj .> 0)
+    if count(>(0), w) < n
+        zero_objects = T[]
+        zero_scores = S[]
+        for (index, score) in enumerate(scores)
+            if w[index] == 0.0
+                push!(zero_objects, objects[index])
+                push!(zero_scores, score)
+            end
+        end
+        positives = [object for (index, object) in enumerate(objects) if w[index] > 0.0]
+
+        @assert length(positives) > 0 "The exp of all scores was 0"
+
+        append!(positives, softmax_sample(zero_objects, zero_scores, n - length(positives)))
+        return positives
+    end
+
+
     return sample(objects, Weights(w), n; replace=false)
 end
-function softmax_sample(f, objects::Vector{T}, n::Int) where T
+function softmax_sample(f::Function, objects::Vector{T}, n::Int) where T
     return softmax_sample(objects, [f(object) for object in objects], n)
 end
 

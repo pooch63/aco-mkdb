@@ -187,7 +187,8 @@ struct TrialInfo
     nV::Int
     n_edges::Int
     k::Int
-    θ::Int
+    θ::Int          # θ passed to solvers / oracle (may be jittered below θ_plant)
+    θ_plant::Int    # θ of the planted k-MDB in the generated graph
     opt_edges::Union{Int,Nothing}
     opt_U::Set{Int}
     opt_V::Set{Int}
@@ -298,6 +299,11 @@ CLI / suite defaults used when `run_graph_suite` kwargs are omitted.
 
 Override any of these by passing the keyword explicitly, or via FLAGS:
   --N=  --seed=  --oracle=  --no-optimum  --nU=  --nV=  --edge-prob=  --theta-max=  --k-max=
+  --jitter=
+
+`--jitter=J` draws the θ passed to solvers/oracle uniformly from
+`max(1, θ_plant - J):θ_plant`, where `θ_plant` is the planted k-MDB size.
+Never exceeds `θ_plant`. Default 0 (pass `θ_plant` unchanged; no extra RNG draw).
 """
 function suite_cli_defaults()
     return (
@@ -309,6 +315,7 @@ function suite_cli_defaults()
         edge_prob = parse_float_flag("edge-prob", 0.3),
         θ_max = parse_int_flag("theta-max", 20),
         k_max = parse_int_flag("k-max", 4),
+        jitter = parse_int_flag("jitter", 0),
     )
 end
 
@@ -327,7 +334,8 @@ CLI flags with suite defaults (see `suite_cli_defaults`).
   - `none` — skip the oracle (`--no-optimum`); only log solver results
 
 Extra kwargs are forwarded to `random_graph` (e.g. `nU_range`, `nV_range`,
-`edge_prob`, `θ_max`, `k_max`).
+`edge_prob`, `θ_max`, `k_max`). Pass `jitter` (or `--jitter=`) to randomize
+the θ handed to solvers below the planted value (see `suite_cli_defaults`).
 
 Each trial gets its own integer `graph_seed`. Reproduce one graph with:
 `julia <test>.jl --seed=<graph_seed> --N=1`
@@ -337,11 +345,14 @@ function run_graph_suite(; N::Union{Int,Nothing}=nothing, seed=nothing,
     solve_fn::Union{Function,Nothing}=nothing,
     solvers::Union{AbstractDict,Nothing}=nothing,
     oracle::Union{OracleMode.T,Nothing}=nothing,
-    algorithm::AbstractString="", graph_kwargs...)
+    algorithm::AbstractString="",
+    jitter::Union{Int,Nothing}=nothing, graph_kwargs...)
     defaults = suite_cli_defaults()
     N = N === nothing ? defaults.N : N
     seed = seed === nothing ? defaults.seed : seed
     oracle = oracle === nothing ? defaults.oracle : oracle
+    jitter = jitter === nothing ? defaults.jitter : jitter
+    jitter >= 0 || error("--jitter must be ≥ 0 (got $jitter)")
 
     # Fill graph generation kwargs from CLI defaults when not overridden.
     graph = Dict{Symbol,Any}(
@@ -377,7 +388,7 @@ function run_graph_suite(; N::Union{Int,Nothing}=nothing, seed=nothing,
     end
 
     find_opt = oracle != OracleMode.none
-    println("  oracle=$(oracle)  nU=$(graph[:nU_range])  nV=$(graph[:nV_range])  edge_prob=$(graph[:edge_prob])  θ_max=$(graph[:θ_max])  k_max=$(graph[:k_max])")
+    println("  oracle=$(oracle)  nU=$(graph[:nU_range])  nV=$(graph[:nV_range])  edge_prob=$(graph[:edge_prob])  θ_max=$(graph[:θ_max])  k_max=$(graph[:k_max])  jitter=$jitter")
 
     # Draw every graph_seed up front so oracle/solver RNG use cannot desync
     # sequences across algorithms that share --seed and --N.
@@ -389,7 +400,19 @@ function run_graph_suite(; N::Union{Int,Nothing}=nothing, seed=nothing,
     for trial in 1:N
         graph_seed = graph_seeds[trial]
         Random.seed!(graph_seed)
-        edges, nU, nV, k, θ = random_graph(; graph...)
+        edges, nU, nV, k, θ_plant = random_graph(; graph...)
+        # Query θ ≤ planted θ; default jitter=0 skips rand to preserve seed sequences.
+        θ = if jitter == 0
+            θ_plant
+        else
+            rand(max(1, θ_plant - jitter):θ_plant)
+        end
+
+        # Log before oracle/solver so a crash still prints the reproduce seed.
+        prefix = isempty(algo_label) ? "" : "[$algo_label] "
+        θ_note = θ == θ_plant ? "θ=$θ" : "θ=$θ (planted $θ_plant)"
+        println("$(prefix)trial $trial / $N  nU=$nU nV=$nV |E|=$(length(edges)) k=$k $θ_note  seed=$graph_seed")
+        flush(stdout)
 
         g = build_frozen(edges, nU, nV)
         if find_opt
@@ -401,7 +424,7 @@ function run_graph_suite(; N::Union{Int,Nothing}=nothing, seed=nothing,
         end
         # Skip storing huge edge lists; graph_seed is enough to reproduce.
         stored_edges = length(edges) <= 200 ? sort!(collect(edges)) : Tuple{Int,Int}[]
-        trials[trial] = TrialInfo(trial, nU, nV, length(edges), k, θ, opt_edges,
+        trials[trial] = TrialInfo(trial, nU, nV, length(edges), k, θ, θ_plant, opt_edges,
             opt_U, opt_V, stored_edges, graph_seed)
 
         for (label, solver) in solvers
@@ -522,7 +545,8 @@ function print_trial_detail(summary::SuiteSummary, trial::Int; labels=nothing, h
     println("---------- trial $trial ----------")
     println("Reproduce suite:  julia $(PROGRAM_FILE) --seed=$(summary.seed)")
     println("Reproduce graph:  julia $(PROGRAM_FILE) --seed=$(info.graph_seed) --N=1")
-    println("Graph: nU=$(info.nU)  nV=$(info.nV)  |E|=$(info.n_edges)  k=$(info.k)  θ=$(info.θ)")
+    θ_str = info.θ == info.θ_plant ? "θ=$(info.θ)" : "θ=$(info.θ) (planted $(info.θ_plant))"
+    println("Graph: nU=$(info.nU)  nV=$(info.nV)  |E|=$(info.n_edges)  k=$(info.k)  $θ_str")
     if !isempty(info.edges)
         println("Edges: $(info.edges)")
     end
@@ -607,6 +631,7 @@ function trial_to_json_dict(info::TrialInfo, results::Dict{String,TrialResult})
         "n_edges" => info.n_edges,
         "k" => info.k,
         "theta" => info.θ,
+        "theta_plant" => info.θ_plant,
         "opt_edges" => info.opt_edges,
         "opt_U" => sort!(collect(info.opt_U)),
         "opt_V" => sort!(collect(info.opt_V)),

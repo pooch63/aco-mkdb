@@ -18,6 +18,7 @@ end
 #   julia tests/test_theta_heuristic.jl --seed=1 --N=5 --save=heuristic.json
 #   julia tests/test_theta_heuristic.jl --nU=1000:2000 --nV=1000:2000 --N=3 --save=out.json
 #   julia tests/test_theta_heuristic.jl --incremental --seed=1 --N=5
+#   julia tests/test_theta_heuristic.jl --jitter=2 --seed=1 --N=5 --no-optimum
 
 println("Heuristic benchmark" * (INCREMENTAL ? " (incremental)" : ""))
 

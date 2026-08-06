@@ -1,0 +1,5 @@
+{
+    "scripts": {
+        "benchmark": "julia tests/test_aco.jl --seed=67 --N=100 --no-optimum --save=results/aco.json ; julia tests/test_theta_heuristic.jl --seed=67 --N=100 --no-optimum --save=results/theta_heuristic.json ; julia tests/compare.jl results/aco.json results/theta_heuristic.json"
+    }
+}

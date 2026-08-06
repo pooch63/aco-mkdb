@@ -64,6 +64,7 @@ end
 #   julia -t auto tests/test_aco.jl --nU=1000:2000 --nV=1000:2000 --ants=20 --iterations=50 --save=out.json
 #   julia -t auto tests/test_aco.jl --time --seed=1 --N=3
 #   julia tests/test_aco.jl --time --parallelize=none --seed=1 --N=3
+#   julia -t auto tests/test_aco.jl --jitter=2 --seed=1 --N=5 --no-optimum
 
 println("ACO benchmark" * (PARALLELIZE ? " (parallel)" : " (sequential)"))
 println("  aco: ants=$(ACO_ANTS) iterations=$(ACO_ITERATIONS) pheromone=$(ACO_PHEROMONE) evaporation=$(ACO_EVAPORATION)")
