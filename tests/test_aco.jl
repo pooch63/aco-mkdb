@@ -10,8 +10,8 @@ const TIME_MODE = "--time" in ARGS
 # Match load.jl defaults unless overridden.
 const ACO_PHEROMONE = parse_int_flag("pheremone", 1)
 const ACO_ANTS = parse_int_flag("ants", 10)
-const ACO_ITERATIONS = parse_int_flag("iterations", 100)
-const ACO_EVAPORATION = parse_float_flag("evaporation", 0.9)
+const ACO_ITERATIONS = parse_int_flag("iterations", 10)
+const ACO_EVAPORATION = parse_float_flag("evaporation", 0.95)
 const ACO_SUBSPECIES = parse_int_flag("subspecies", 1)
 const ACO_PREFER_SMALLER_SIDE = parse_bool_flag("prefer-smaller-side", true)
 const ACO_ELITE_SEED = parse_bool_flag("elite-seed", true)
