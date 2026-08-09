@@ -17,6 +17,10 @@ const TRACE = false
 const ELITE_PHEROMONE_FACTOR = 2
 const SHARED_PHEROMONE_FACTOR = 0.25
 
+# MAX-MIN Ant System (MMAS) bounds on each species pheromone map only.
+# Shared pheromone is left unbounded. Linear selection / single-ant deposit
+# are intentionally not part of this change.
+
 isdefined(@__MODULE__, :sorted_str) || (sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}")
 
 """Map an original-id subgraph into compact dense ids; report ids dropped by reduction (by Claude)."""
@@ -81,6 +85,23 @@ function evaporate_pheromones!(pheromones::Pheromones, evaporation::Float64)
     pheromones.V .*= evaporation
 end
 
+function default_species_pheromone_bounds(deposit::Real, n_nodes::Int, evaporation::Float64, best_node_count::Int)
+    n_nodes >= 1 || throw(ArgumentError("n_nodes must be >= 1, got $n_nodes"))
+    0.0 < evaporation <= 1.0 || throw(ArgumentError("evaporation must be in (0, 1], got $evaporation"))
+    deposit > 0 || throw(ArgumentError("deposit must be > 0, got $deposit"))
+    quality = max(1.0, log(max(best_node_count, 1)))
+    τ_max = 10 * Float64(deposit) * quality / max(1 - evaporation, eps(Float64))
+    τ_min = τ_max / (2 * n_nodes)
+    return τ_min, τ_max
+end
+
+function clamp_pheromones!(pheromones::Pheromones, τ_min::Float64, τ_max::Float64)
+    τ_min <= τ_max || throw(ArgumentError("pheromone_min ($τ_min) must be <= pheromone_max ($τ_max)"))
+    clamp!(pheromones.U, τ_min, τ_max)
+    clamp!(pheromones.V, τ_min, τ_max)
+    return pheromones
+end
+
 struct ColonyPheromones
     shared::Pheromones
     species::Vector{Pheromones}
@@ -99,6 +120,41 @@ function evaporate_pheromones!(colony::ColonyPheromones, evaporation::Float64)
     for species_pheromones in colony.species
         evaporate_pheromones!(species_pheromones, evaporation)
     end
+end
+
+function clamp_species_pheromones!(colony::ColonyPheromones, τ_min::Float64, τ_max::Float64)
+    for species_pheromones in colony.species
+        clamp_pheromones!(species_pheromones, τ_min, τ_max)
+    end
+    return colony
+end
+
+"""Clamp species `s` with its own `[τ_mins[s], τ_maxs[s]]`. Shared is untouched."""
+function clamp_species_pheromones!(colony::ColonyPheromones,
+    τ_mins::AbstractVector{Float64}, τ_maxs::AbstractVector{Float64})
+    length(τ_mins) == length(colony.species) ||
+        throw(ArgumentError("τ_mins length $(length(τ_mins)) != num species $(length(colony.species))"))
+    length(τ_maxs) == length(colony.species) ||
+        throw(ArgumentError("τ_maxs length $(length(τ_maxs)) != num species $(length(colony.species))"))
+    for s in eachindex(colony.species)
+        clamp_pheromones!(colony.species[s], τ_mins[s], τ_maxs[s])
+    end
+    return colony
+end
+
+"""Recompute per-species MMAS bounds from each subspecies' best vertex count."""
+function update_species_pheromone_bounds!(τ_mins::Vector{Float64}, τ_maxs::Vector{Float64},
+    deposit::Real, n_nodes::Int, evaporation::Float64, best_subgraphs::Vector{SubGraph};
+    pheromone_min::Union{Float64,Nothing}=nothing, pheromone_max::Union{Float64,Nothing}=nothing)
+    for s in eachindex(best_subgraphs)
+        best_n = max(2, Subgraph.vertex_count(best_subgraphs[s]))
+        τ_lo, τ_hi = default_species_pheromone_bounds(deposit, n_nodes, evaporation, best_n)
+        τ_mins[s] = pheromone_min === nothing ? τ_lo : pheromone_min
+        τ_maxs[s] = pheromone_max === nothing ? τ_hi : pheromone_max
+        τ_mins[s] <= τ_maxs[s] ||
+            throw(ArgumentError("pheromone_min ($(τ_mins[s])) must be <= pheromone_max ($(τ_maxs[s])) for species $s"))
+    end
+    return τ_mins, τ_maxs
 end
 
 function merge_pheromones!(colony::ColonyPheromones, additions::ColonyPheromones)
@@ -250,6 +306,8 @@ end
 function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::Int, evaporation::Float64, k::Int, θ::Int, num_subspecies::Int;
     parallelize::Bool=true, force_gc::Bool=false, iteration_callback=nothing,
     prune_every::Int=PRUNE_EVERY, pheromone_threshold::Union{Float64,Nothing}=nothing,
+    pheromone_min::Union{Float64,Nothing}=nothing,
+    pheromone_max::Union{Float64,Nothing}=nothing,
     tt::Int=2, tabu_patience::Int=3,
     prefer_smaller_side::Bool=true,
     elite_seed::Bool=true,
@@ -275,6 +333,36 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     compact_fg, remapping = compact_frozen(fg)
     pheromones = ColonyPheromones(compact_fg, num_subspecies)
 
+    best_scores = fill(0, num_subspecies)
+    best_subgraphs = [SubGraph() for _ in 1:num_subspecies]
+    best_score::Int = 0
+    best_subgraph::SubGraph = SubGraph()
+
+    # Seed MMAS τ_max from the θ-heuristic solution size so the ceiling starts
+    # higher than the empty-best default (best_n=2).
+    heuristic_sg = theta_based_heuristic(compact_fg, k, θ; return_invalid=true)
+    if Subgraph.vertex_count(heuristic_sg) > 0
+        heuristic_score = instance_fitness(compact_fg, heuristic_sg, θ)
+        best_subgraph = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
+        best_score = heuristic_score
+        for s in 1:num_subspecies
+            best_subgraphs[s] = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
+            best_scores[s] = heuristic_score
+        end
+        println("ACO θ-heuristic seed: |U|=$(length(heuristic_sg.U)) |V|=$(length(heuristic_sg.V)) " *
+                "score=$heuristic_score vertices=$(Subgraph.vertex_count(heuristic_sg))")
+    end
+
+    n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
+    τ_mins = Vector{Float64}(undef, num_subspecies)
+    τ_maxs = Vector{Float64}(undef, num_subspecies)
+    update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
+        pheromone_min=pheromone_min, pheromone_max=pheromone_max)
+    clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
+    println("ACO MMAS species bounds (init): " *
+            join(["s$s=[$(round(τ_mins[s]; digits=6)),$(round(τ_maxs[s]; digits=6))]"
+                  for s in 1:num_subspecies], " "))
+    # println("ACO MMAS species bounds: τ_min=$(round(τ_min; digits=6)) τ_max=$(round(τ_max; digits=6))")
     # Compact-space watch target (optional). Dropped nodes mean reduction already
     # removed part of the known optimum — ACO can never recover those.
     target_compact::Union{Nothing,SubGraph} = nothing
@@ -291,11 +379,6 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
     ants = [Ant(SubGraph(), Node(), mod1(i, num_subspecies)) for i in 1:num_ants]
     invalid_ants = Set{Int}()
-
-    best_scores = fill(0, num_subspecies)
-    best_subgraphs = [SubGraph() for _ in 1:num_subspecies]
-    best_score::Int = 0
-    best_subgraph::SubGraph = SubGraph()
 
     explored_ants = [ant for ant in ants]
 
@@ -347,6 +430,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
             for (local_additions, local_invalids) in results
                 # Merge the local additions into the global pheromone tracker
                 merge_pheromones!(pheromones, local_additions)
+                # Cap species trails during construction so mid-iter selection stays bounded.
+                clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
                 
                 # Remove dead ants from the active pool for the next iteration
                 setdiff!(active_ants, local_invalids)
@@ -417,6 +502,12 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
             end
         end
 
+        # Refresh MMAS bounds from each subspecies' best, then floor/cap trails.
+        n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
+        update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
+            pheromone_min=pheromone_min, pheromone_max=pheromone_max)
+        clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
+
         if TRACE && target_compact !== nothing
             ou, ov = target_overlap(best_subgraph, target_compact)
             println("  iter=$iter end: best_score=$best_score " *
@@ -453,6 +544,11 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     target_compact, _, _ = compactify_subgraph(remapping, trace_target)
                 end
             end
+            # Graph size may have changed; keep species bounds consistent.
+            n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
+            update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
+                pheromone_min=pheromone_min, pheromone_max=pheromone_max)
+            clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
         end
 
         invalid_ants = Set{Int}()
@@ -509,7 +605,7 @@ function node_desirability(pheromones::ColonyPheromones, fg::FrozenBipartite,
     η = node.deg + deg_G / (1 + exp(-Subgraph.vertex_count(sg)))
     # η = node.deg + deg_G / (1 + Subgraph.vertex_count(sg))
     # return τ^3 * η^2
-    return τ^2 * η
+    return τ^2 * η^3
 end
 
 # Returns false if the ant has no further moves
