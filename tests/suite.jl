@@ -10,13 +10,23 @@ using Random
 # `none` skips the reference optimum (--no-optimum).
 @enumx OracleMode brute_force branch_oracle none
 
+"""
+Parse `--seed=`. If the flag appears more than once (e.g. leftover suite
+`--seed=1` plus a reproduce `--seed=<graph_seed>`), the **last** wins and a
+warning is printed — matching usual CLI override behavior.
+"""
 function parse_seed()
+    seeds = UInt64[]
     for arg in ARGS
         if startswith(arg, "--seed=")
-            return parse(UInt64, split(arg, "=", limit=2)[2])
+            push!(seeds, parse(UInt64, split(arg, "=", limit=2)[2]))
         end
     end
-    return UInt64(time_ns())
+    isempty(seeds) && return UInt64(time_ns())
+    if length(seeds) > 1
+        @warn "Multiple --seed= flags; using the last" ignored=seeds[1:end-1] seed=seeds[end]
+    end
+    return seeds[end]
 end
 
 function parse_N(default::Int=20)
@@ -271,6 +281,7 @@ function log_solution_mismatch(; prefix::AbstractString="", trial::Int=0,
     ref_V::AbstractSet{<:Integer}, ratio::Float64=NaN)
     println("$(prefix)Wrong answer on trial $trial  ($status)  seed=$graph_seed")
     println("  Reproduce graph: --seed=$graph_seed --N=1")
+    println("  (pass only that --seed; do not also keep the suite --seed)")
     if ref_edges !== nothing
         ratio_str = isfinite(ratio) ? "  ratio=$ratio" : ""
         println("  $ref_label: edges=$ref_edges  |U|=$(length(ref_U)) |V|=$(length(ref_V))$ratio_str")
@@ -397,6 +408,9 @@ the θ handed to solvers below the planted value (see `suite_cli_defaults`).
 Each trial gets its own integer `graph_seed`. Reproduce one graph with:
 `julia <test>.jl --seed=<graph_seed> --N=1`
 (when `N == 1`, `--seed` is used directly as that graph's seed).
+Do not also pass the suite seed (e.g. `--seed=1 --seed=<graph_seed>`); if both
+appear, the last `--seed=` wins. For bit-identical ACO answers use
+`--parallelize=none` (threaded ACO shares the global RNG across tasks).
 """
 function run_graph_suite(; N::Union{Int,Nothing}=nothing, seed=nothing,
     solve_fn::Union{Function,Nothing}=nothing,
