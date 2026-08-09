@@ -478,6 +478,88 @@ function remap_subgraph(r::GraphRemapping, sg::SubGraph)
     )
 end
 
+"""
+    induce_frozen(fg, keep_U, keep_V) -> FrozenBipartite
+
+Build a new frozen bipartite graph containing only the vertices whose *dense*
+indices appear in `keep_U` / `keep_V` (in that order). New vertex ids are
+`1:length(keep_U)` and `1:length(keep_V)`.
+
+An edge `(u, v)` is kept iff both endpoints are kept; neighbor indices in the
+CSR are remapped to the new dense numbering. Prefer passing `keep_U` /
+`keep_V` in increasing old-index order (as `eachindex` filters do).
+"""
+function induce_frozen(fg::FrozenBipartite{T}, keep_U::AbstractVector{Int},
+    keep_V::AbstractVector{Int}) where {T}
+    nU = length(keep_U)
+    nV = length(keep_V)
+    nU == 0 && throw(ArgumentError("keep_U must be non-empty"))
+    nV == 0 && throw(ArgumentError("keep_V must be non-empty"))
+
+    # old dense index → new dense index (0 = dropped)
+    u_new = zeros(Int, length(fg.u_ids))
+    v_new = zeros(Int, length(fg.v_ids))
+    @inbounds for (ni, oi) in enumerate(keep_U)
+        u_new[oi] = ni
+    end
+    @inbounds for (ni, oi) in enumerate(keep_V)
+        v_new[oi] = ni
+    end
+
+    u_ids = collect(1:nU)
+    v_ids = collect(1:nV)
+    u_index = Dict{Int,Int}(i => i for i in 1:nU)
+    v_index = Dict{Int,Int}(i => i for i in 1:nV)
+
+    u_offsets = Vector{Int}(undef, nU + 1)
+    v_adj = Int[]
+    edata = T[]
+    sizehint!(v_adj, length(fg.v_adj))
+    sizehint!(edata, length(fg.edge_data))
+
+    u_offsets[1] = 1
+    @inbounds for (ni, oi) in enumerate(keep_U)
+        for k in neighbor_range_u(fg, oi)
+            new_vi = v_new[fg.v_adj[k]]
+            if new_vi != 0
+                push!(v_adj, new_vi)
+                push!(edata, fg.edge_data[k])
+            end
+        end
+        u_offsets[ni + 1] = length(v_adj) + 1
+    end
+
+    nE = length(v_adj)
+    v_deg = zeros(Int, nV)
+    @inbounds for vi in v_adj
+        v_deg[vi] += 1
+    end
+    v_offsets = Vector{Int}(undef, nV + 1)
+    v_offsets[1] = 1
+    @inbounds for i in 1:nV
+        v_offsets[i + 1] = v_offsets[i] + v_deg[i]
+    end
+
+    u_adj = Vector{Int}(undef, nE)
+    v_edata = Vector{T}(undef, nE)
+    fill_pos = copy(v_offsets[1:nV])
+    @inbounds for ui in 1:nU
+        for k in u_offsets[ui]:(u_offsets[ui + 1] - 1)
+            vi = v_adj[k]
+            pos = fill_pos[vi]
+            u_adj[pos] = ui
+            v_edata[pos] = edata[k]
+            fill_pos[vi] = pos + 1
+        end
+    end
+
+    return FrozenBipartite{T}(
+        u_ids, v_ids, u_index, v_index,
+        u_offsets, v_adj, edata,
+        v_offsets, u_adj, v_edata,
+    )
+end
+
 # --------------------------------------------------------------------------
 # internal helper: build dense assignment arrays from a Vector{SubGraph}.
 # 0 means "not assigned to any of these subgraphs". Not exported/public --
