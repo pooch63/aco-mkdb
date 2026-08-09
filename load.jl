@@ -34,13 +34,18 @@ ACO flags:
   --iterations=N    number of ACO iterations (default: 100)
   --pheremone=N     pheromone deposit per step (default: 1)
   --evaporation=X   pheromone evaporation rate in (0, 1] (default: 0.9)
+  --subspecies=N    number of ant subspecies (default: 1)
+  --prefer-smaller-side=true|false   bias adds onto the smaller side while min < θ (default: true)
+  --elite-seed=true|false            seed some ants from best − nodes (default: true)
+  --elite-seed-ants=N                ants seeded from elite each iteration (default: 3)
+  --elite-seed-remove=N              nodes stripped from elite seed (default: 2)
 
 Prerequisites:
   Ensure you have Julia and the required packages installed.
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--benchmark=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...]
+    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--benchmark=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...]
 
   Examples:
     julia load.jl
@@ -79,9 +84,10 @@ global const DEBUG = true
 const GA_N = 10
 
 const ACO_PHEREMONE = 1
-const ACO_NUM_ANTS = 10
+const ACO_NUM_ANTS = 30
 const ACO_NUM_ITERATIONS = 100
-const ACO_EVAPORATION = 0.9
+const ACO_EVAPORATION = 0.85
+const ACO_NUM_SUBSPECIES = 1
 
 @enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver
 
@@ -113,11 +119,31 @@ function parse_seed()
     return nothing
 end
 
+function parse_bool_eq(flag::String, default::Bool)
+    prefix = "--$flag="
+    for arg in ARGS
+        if startswith(arg, prefix)
+            val = lowercase(split(arg, "=", limit=2)[2])
+            if val in ("true", "1", "yes", "on")
+                return true
+            elseif val in ("false", "0", "no", "off")
+                return false
+            else
+                throw(ArgumentError("Bad boolean for --$flag: $val (expected true/false)"))
+            end
+        end
+    end
+    return default
+end
+
 function parse_aco_options()
     pheremone = ACO_PHEREMONE
     num_ants = ACO_NUM_ANTS
     num_iterations = ACO_NUM_ITERATIONS
     evaporation = ACO_EVAPORATION
+    num_subspecies = ACO_NUM_SUBSPECIES
+    elite_seed_ants = 3
+    elite_seed_remove = 2
 
     for arg in ARGS
         if startswith(arg, "--ants=")
@@ -128,14 +154,34 @@ function parse_aco_options()
             pheremone = parse(Int, split(arg, "=", limit=2)[2])
         elseif startswith(arg, "--evaporation=")
             evaporation = parse(Float64, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--subspecies=")
+            num_subspecies = parse(Int, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--elite-seed-ants=")
+            elite_seed_ants = parse(Int, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--elite-seed-remove=")
+            elite_seed_remove = parse(Int, split(arg, "=", limit=2)[2])
         end
     end
+
+    prefer_smaller_side = parse_bool_eq("prefer-smaller-side", true)
+    elite_seed = parse_bool_eq("elite-seed", true)
 
     if !(0.0 < evaporation <= 1.0)
         throw(ArgumentError("evaporation must be in (0, 1], got $evaporation"))
     end
+    if num_subspecies < 1
+        throw(ArgumentError("subspecies must be >= 1, got $num_subspecies"))
+    end
+    if elite_seed_ants < 0
+        throw(ArgumentError("elite-seed-ants must be >= 0, got $elite_seed_ants"))
+    end
+    if elite_seed_remove < 0
+        throw(ArgumentError("elite-seed-remove must be >= 0, got $elite_seed_remove"))
+    end
 
-    return pheremone, num_ants, num_iterations, evaporation
+    # NamedTuple: first five fields stay positionally destructurable.
+    return (; pheremone, num_ants, num_iterations, evaporation, num_subspecies,
+        prefer_smaller_side, elite_seed, elite_seed_ants, elite_seed_remove)
 end
 
 function parse_benchmark()
@@ -177,7 +223,9 @@ function parse_args()
         elseif startswith(arg, "--reduce=") || startswith(arg, "--seed=") ||
                startswith(arg, "--ants=") || startswith(arg, "--iterations=") ||
                startswith(arg, "--pheremone=") || startswith(arg, "--evaporation=") ||
-               startswith(arg, "--benchmark=")
+               startswith(arg, "--subspecies=") || startswith(arg, "--benchmark=") ||
+               startswith(arg, "--prefer-smaller-side=") || startswith(arg, "--elite-seed=") ||
+               startswith(arg, "--elite-seed-ants=") || startswith(arg, "--elite-seed-remove=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -194,12 +242,13 @@ function parse_args()
 end
 
 """
-Run the selected solver in-place on `g`, returning the best SubGraph found.
+Run the selected solver in-place on `g`, returning the best SubGraph found
+(or a `Vector{SubGraph}` for ACO / branch-and-bound multi-solution modes).
 Branch-and-bound uses `mode`; GA, tabu, and heuristic ignore it.
 """
 function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T, aco_options)
-    pheremone, num_ants, num_iterations, evaporation = aco_options
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1)
+    pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
 
     if solver == Solver.ga_solver
         return ga(g, k, θ, GA_N, 2, 0.02, 500; repair=RepairMode.mixed)
@@ -207,7 +256,12 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
         result = parallel_tabu(g, k, θ, GA_N; reduction=reduction)
         return result.best_fitness
     elseif solver == Solver.aco_solver
-        return aco(g, pheremone, num_ants, num_iterations, evaporation, k, θ; parallelize=false)
+        return aco(g, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
+            parallelize=false,
+            prefer_smaller_side=aco_options.prefer_smaller_side,
+            elite_seed=aco_options.elite_seed,
+            elite_seed_ants=aco_options.elite_seed_ants,
+            elite_seed_remove=aco_options.elite_seed_remove)
     elseif solver == Solver.heuristic_solver
         fg = if reduction == ReductionMode.none
             freeze(g)
@@ -219,13 +273,13 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
         end
         return theta_based_heuristic(fg, k, θ; return_invalid=true)
     else
-        return find_kmdb!(g, true, mode, k, θ, reduction)
+        return find_kmdb!(g, true, mode, k, θ, reduction; num_solutions=num_solutions)
     end
 end
 
 function solve(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T, aco_options)
-    return solve!(deepcopy(g), solver, mode, k, θ, reduction, aco_options)
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1)
+    return solve!(deepcopy(g), solver, mode, k, θ, reduction, aco_options; num_solutions=num_solutions)
 end
 
 # Create a wrapper function that runs code with a custom stack size
@@ -236,7 +290,7 @@ end
 function main()
     dataset_name, solver, mode, profile, reduction, seed, aco_options, benchmark = parse_args()
     graph_path = resolve_graph_path(dataset_name)
-    pheremone, num_ants, num_iterations, evaporation = aco_options
+    pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
 
     # k, θ = 4, 8
 
@@ -255,7 +309,7 @@ function main()
         if :aco in benchmark
             seed = seed === nothing ? UInt64(time_ns()) : seed
             Random.seed!(seed)
-            println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation")
+            println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
         end
     elseif solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
         # Default to a fresh seed when none was provided so the run is printable/replicable.
@@ -267,7 +321,7 @@ function main()
             println("Solver: parallel tabu")
         else
             println("Solver: ant colony optimization")
-            println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation")
+            println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
         end
     elseif solver == Solver.heuristic_solver
         println("Solver: initial heuristic only")
@@ -318,12 +372,21 @@ function main()
             
             D = solve!(g, solver, mode, k, θ, reduction, aco_options)
 
-            @show D
+            if D isa AbstractVector
+                fg = freeze(g)
+                for (s, d) in enumerate(D)
+                    println("Solution $s:")
+                    @show d
+                    println(Subgraph.missing_edges(fg, d))
+                end
+            else
+                @show D
 
-            # D = sa(freeze(g), D, k, 0.99, 0.95, 20, 300)
+                # D = sa(freeze(g), D, k, 0.99, 0.95, 20, 300)
 
-            # @show D
-            println(Subgraph.missing_edges(freeze(g), D))
+                # @show D
+                println(Subgraph.missing_edges(freeze(g), D))
+            end
         end
     end
 
