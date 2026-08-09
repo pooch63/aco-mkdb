@@ -17,6 +17,15 @@ isdefined(@__MODULE__, :__TABU_JL__) || include("tabu.jl")
 # Best used with parallelize=false — ACO forces that when TRACE is on.
 const TRACE = false
 
+# Ablation switches for paper experiments (baseline ACO vs optimized ACO).
+# Softmax-select a few finished ants by fitness and deposit elite pheromone on them.
+const USE_ELITE_PHEROMONE = true
+# Tabu repair on elite ants before deposit, and on new global bests.
+const USE_TABU = true
+# MAX-MIN Ant System: clamp each species trail to [τ_min, τ_max].
+# When false, species pheromone is unbounded ([0, +∞)).
+const USE_MMAS = true
+
 const ELITE_PHEROMONE_FACTOR = 2
 const SHARED_PHEROMONE_FACTOR = 0.25
 
@@ -106,12 +115,19 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
     τ_mins = Vector{Float64}(undef, num_subspecies)
     τ_maxs = Vector{Float64}(undef, num_subspecies)
-    update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
-        pheromone_min=pheromone_min, pheromone_max=pheromone_max)
-    clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
-    println("ACO MMAS species bounds (init): " *
-            join(["s$s=[$(round(τ_mins[s]; digits=6)),$(round(τ_maxs[s]; digits=6))]"
-                  for s in 1:num_subspecies], " "))
+    if USE_MMAS
+        update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
+            pheromone_min=pheromone_min, pheromone_max=pheromone_max)
+        clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
+        println("ACO MMAS species bounds (init): " *
+                join(["s$s=[$(round(τ_mins[s]; digits=6)),$(round(τ_maxs[s]; digits=6))]"
+                      for s in 1:num_subspecies], " "))
+    else
+        fill!(τ_mins, 0.0)
+        fill!(τ_maxs, Inf)
+        println("ACO MMAS disabled: species pheromone unbounded [0, +∞)")
+    end
+    println("ACO ablations: elite_pheromone=$USE_ELITE_PHEROMONE tabu=$USE_TABU mmas=$USE_MMAS")
     # println("ACO MMAS species bounds: τ_min=$(round(τ_min; digits=6)) τ_max=$(round(τ_max; digits=6))")
     # Compact-space watch target (optional). Dropped nodes mean reduction already
     # removed part of the known optimum — ACO can never recover those.
@@ -181,7 +197,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 # Merge the local additions into the global pheromone tracker
                 merge_pheromones!(pheromones, local_additions)
                 # Cap species trails during construction so mid-iter selection stays bounded.
-                clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
+                USE_MMAS && clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
                 
                 # Remove dead ants from the active pool for the next iteration
                 setdiff!(active_ants, local_invalids)
@@ -190,41 +206,47 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
         evaporate_pheromones!(pheromones, evaporation)
 
-        # Softmax-select a few finished ants by instance fitness, tabu-repair
-        # them, then reinforce every node in the repaired subgraph.
-        for s in 1:num_subspecies
-            eligible = [ant for ant in ants if ant.last_visited.id != -1 && ant.species == s]
-            n_elite = min(3, length(eligible))
-            n_elite == 0 && continue
+        # Softmax-select a few finished ants by instance fitness; optionally
+        # tabu-repair them and/or reinforce every node in the (repaired) subgraph.
+        if USE_ELITE_PHEROMONE || USE_TABU
+            for s in 1:num_subspecies
+                eligible = [ant for ant in ants if ant.last_visited.id != -1 && ant.species == s]
+                n_elite = min(3, length(eligible))
+                n_elite == 0 && continue
 
-            elites = softmax_sample(
-                ant -> instance_fitness(compact_fg, ant.explored, θ),
-                eligible,
-                n_elite,
-            )
-            for ant in elites
-                TRACE && println("  elite species=$s pre-repair score=$(instance_fitness(compact_fg, ant.explored, θ)) " *
-                                 "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))")
-                tabu_repair!(compact_fg, ant.explored, k, θ, tt, tabu_patience)
-                if TRACE
-                    post_score = instance_fitness(compact_fg, ant.explored, θ)
-                    msg = "  elite species=$s post-repair score=$post_score " *
-                          "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))"
-                    if target_compact !== nothing
-                        ou, ov = target_overlap(ant.explored, target_compact)
-                        msg *= "  target_hit=$ou/$(length(target_compact.U)),$ov/$(length(target_compact.V))"
+                elites = softmax_sample(
+                    ant -> instance_fitness(compact_fg, ant.explored, θ),
+                    eligible,
+                    n_elite,
+                )
+                for ant in elites
+                    TRACE && println("  elite species=$s pre-repair score=$(instance_fitness(compact_fg, ant.explored, θ)) " *
+                                     "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))")
+                    if USE_TABU
+                        tabu_repair!(compact_fg, ant.explored, k, θ, tt, tabu_patience)
+                        if TRACE
+                            post_score = instance_fitness(compact_fg, ant.explored, θ)
+                            msg = "  elite species=$s post-repair score=$post_score " *
+                                  "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))"
+                            if target_compact !== nothing
+                                ou, ov = target_overlap(ant.explored, target_compact)
+                                msg *= "  target_hit=$ou/$(length(target_compact.U)),$ov/$(length(target_compact.V))"
+                            end
+                            println(msg)
+                        end
                     end
-                    println(msg)
-                end
-                for u in ant.explored.U
-                    node = Node(true, u)
-                    add_pheromone!(pheromones.species[s], node, pheromone * ELITE_PHEROMONE_FACTOR)
-                    add_pheromone!(pheromones.shared, node, pheromone * ELITE_PHEROMONE_FACTOR * SHARED_PHEROMONE_FACTOR)
-                end
-                for v in ant.explored.V
-                    node = Node(false, v)
-                    add_pheromone!(pheromones.species[s], node, pheromone * ELITE_PHEROMONE_FACTOR)
-                    add_pheromone!(pheromones.shared, node, pheromone * ELITE_PHEROMONE_FACTOR * SHARED_PHEROMONE_FACTOR)
+                    if USE_ELITE_PHEROMONE
+                        for u in ant.explored.U
+                            node = Node(true, u)
+                            add_pheromone!(pheromones.species[s], node, pheromone * ELITE_PHEROMONE_FACTOR)
+                            add_pheromone!(pheromones.shared, node, pheromone * ELITE_PHEROMONE_FACTOR * SHARED_PHEROMONE_FACTOR)
+                        end
+                        for v in ant.explored.V
+                            node = Node(false, v)
+                            add_pheromone!(pheromones.species[s], node, pheromone * ELITE_PHEROMONE_FACTOR)
+                            add_pheromone!(pheromones.shared, node, pheromone * ELITE_PHEROMONE_FACTOR * SHARED_PHEROMONE_FACTOR)
+                        end
+                    end
                 end
             end
         end
@@ -238,12 +260,16 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 best_subgraphs[s] = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
             end
             if score > best_score
-                tabu = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
-                tabu_repair!(compact_fg, tabu, k, θ, tt, tabu_patience)
-                tabu_score = instance_fitness(compact_fg, tabu, θ)
-
-                best_score = max(score, tabu_score)
-                best_subgraph = score > tabu_score ? SubGraph(copy(ant.explored.U), copy(ant.explored.V)) : tabu
+                if USE_TABU
+                    tabu = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                    tabu_repair!(compact_fg, tabu, k, θ, tt, tabu_patience)
+                    tabu_score = instance_fitness(compact_fg, tabu, θ)
+                    best_score = max(score, tabu_score)
+                    best_subgraph = score > tabu_score ? SubGraph(copy(ant.explored.U), copy(ant.explored.V)) : tabu
+                else
+                    best_score = score
+                    best_subgraph = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                end
                 if TRACE
                     msg = "  NEW BEST score=$best_score U=$(sorted_str(best_subgraph.U)) V=$(sorted_str(best_subgraph.V))"
                     if target_compact !== nothing
@@ -256,10 +282,12 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         end
 
         # Refresh MMAS bounds from each subspecies' best, then floor/cap trails.
-        n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
-        update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
-            pheromone_min=pheromone_min, pheromone_max=pheromone_max)
-        clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
+        if USE_MMAS
+            n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
+            update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
+                pheromone_min=pheromone_min, pheromone_max=pheromone_max)
+            clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
+        end
 
         if TRACE && target_compact !== nothing
             ou, ov = target_overlap(best_subgraph, target_compact)

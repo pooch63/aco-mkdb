@@ -112,7 +112,7 @@ PHENOMENAL IDEA:
 AFTER EACH ITERATION, DELETE NODES THAT JUST ARE SO UNDEREXPLORED LIKE THERE'S NO WAY IN HELL THEY'LL EVER BE EXPLORED
 HAVE SOME THRESHOLD, LIKE AFTER PHEROMONE IS < ..., DELETE
 The threshold should also be dependent on the number of ants, because with more ants, the threshold should be looser. The intuition is,
-with more ants, any node would be likelier to have been explored, including bad nodes. So the threshold should be raised.
+with more ants, any node would be likelier to have been explored, including bad nodes. So the threshold should be lowered, as in, more aggressive pruning to match the number of ants.
 
 FUCKING FANTASTIC IDEA:
 After ACO, take the top z% of nodes by pheromone, or nodes that pass a certain pheromone threshold, then run BnP on THEM to get the
@@ -120,3 +120,22 @@ optimal solution. ACO essentially becomes a fantastic graph reduction algorithm
 
 Look at Hooi et al. (2016 or 2017) in the original Cui et al. to show that bicliques can actually
 reflect fraud.
+
+Run branch and bound on the ACO-generated to get a final solution
+
+GREAT IDEA
+
+Have ants deposit pheromone on values of k to start with on initial nodes so even if you overshoot k,
+it can still get the right answer.
+
+GREAT IDEA
+
+Run Branch and Pivot ON THE PHEROMONES ... so it prioritizes nodes that are more pheromoned
+
+Try not softmaxing... but doing it linearly
+
+
+FUCKING FANTASTIC IDEA
+
+WHAT IF WE DON'T SCORE JUST BASED OFF OF DEGREE, BUT BY 2-HOP DEGREE, TO PRIORITIZE THE NODES
+THAT WILL GIVE US MORE NODES?

@@ -2,7 +2,7 @@ using Test
 using Base.Threads
 
 include(joinpath(@__DIR__, "suite.jl"))
-isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(@__DIR__, "..", "src", "aco.jl"))
+isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(@__DIR__, "..", "src", "aco", "algorithm.jl"))
 
 const SAVE_PATH = parse_save()
 const TIME_MODE = "--time" in ARGS

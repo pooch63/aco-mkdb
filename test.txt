@@ -1,5 +1,8 @@
-julia -t auto tests/test_aco.jl --parallelize --seed=1 --N=100 --no-optimum --save=results/aco.json ; julia tests/test_theta_heuristic.jl --seed=1 --N=100 --no-optimum --save=results/theta_heuristic.json
+julia -t auto tests/test_aco.jl --parallelize --seed=10 --N=100 --no-optimum --save=results/aco.json ; julia tests/test_theta_heuristic.jl --seed=10 --N=100 --no-optimum --save=results/theta_heuristic.json ; julia tests/compare.jl results/aco.json results/theta_heuristic.json
 
-julia tests/test_aco.jl --seed=7673549122972480866 --N=1 --no-optimum --nU=100:500 --nV=100:500
+julia tests/test_aco.jl --seed=7851471528163949534  --N=1 --no-optimum --nU=100:500 --nV=100:500
 
-julia -t auto tests/test_aco.jl --parallelize --seed=1 --N=1 --no-optimum --seed=7851471528163949534 --iterations=5 > results/aco.txt
+julia -t auto tests/test_aco.jl --parallelize --N=1 --no-optimum --seed=9975429087560212759 --iterations=5 > results/aco.txt
+
+julia -t auto tests/test_aco.jl --parallelize --N=1 --no-optimum --seed=4694188377250462284 --iterations=5 > results/aco.txt
+julia -t auto tests/test_theta_heuristic.jl --N=1 --no-optimum --seed=4694188377250462284 --iterations=5 > results/th.txt

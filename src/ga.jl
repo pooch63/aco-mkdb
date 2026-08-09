@@ -71,6 +71,7 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float6
         H,
         O,
         k_mutate,
+        use_heuristic,
         repair,
         tt,
         tabu_patience,
@@ -231,7 +232,7 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
         greedily_add!(fg, greedy_instance, k)
         tabu_repair!(fg, tabu_instance, k, θ, tt, tabu_patience)
 
-        greedily_add!(fg, mixed__instance, k)
+        greedily_add!(fg, mixed_instance, k)
         tabu_repair!(fg, mixed_instance, k, θ, tt, tabu_patience)
 
         greedy_score = instance_fitness(fg, greedy_instance, θ)
@@ -242,6 +243,8 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
             next = greedy_instance
         elseif tabu_score > greedy_score && tabu_score > mixed_score
             next = tabu_instance
+        else
+            next = mixed_instance
         end
     end
 

@@ -367,7 +367,6 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                         if nondegree_in_subgraph(g, true, u, S) ≥ 1
                             Subgraph.remove_node!(C, g, true, u)
                             push!(removed_nodes, u)
-                            println("one-nonneighbor reduction!")
                         end
                     end
                 else
@@ -375,7 +374,6 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                         if nondegree_in_subgraph(g, false, v, S) ≥ 1
                             Subgraph.remove_node!(C, g, false, v)
                             push!(removed_nodes, v)
-                            println("one-nonneighbor reduction!")
                         end
                     end
                 end

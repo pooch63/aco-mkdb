@@ -6,16 +6,24 @@ Invoked from load.jl via:
   julia load.jl <dataset> --benchmark=aco,pivot
   julia load.jl <dataset> --benchmark=pivot
   julia load.jl <dataset> --benchmark=aco
+  julia load.jl <dataset> --benchmark=heuristic
+  julia load.jl <dataset> --benchmark=ga
+  julia load.jl <dataset> --benchmark=aco,pivot,heuristic,ga
+  julia load.jl <dataset> --benchmark=aco,ga --save=run.json
 
 Reports:
   - memory of the loaded (and frozen) graph structure
-  - wall time + allocated bytes + peak-RSS delta for pivot and/or ACO
+  - wall time + allocated bytes + peak-RSS delta for pivot / ACO / heuristic / GA
   - when pivot is also run: iterations / ants / time until ACO first matches
     the pivot optimum (by edge count + θ-feasibility), then early-stops
+  - optional JSON dump via --save=<name> → results/<name> (or an explicit path)
 =================================================================================
 =#
 
 const __BENCHMARK_JL__ = true
+
+# Default directory for `--save=` filenames with no directory component.
+const BENCHMARK_RESULTS_DIR = joinpath(@__DIR__, "results")
 
 """
 Human-readable byte count (binary units).
@@ -92,7 +100,7 @@ function describe_solution(fg::FrozenBipartite, sol::SubGraph, k::Int)
 end
 
 """
-Parse `--benchmark=aco,pivot` into a Set of symbols (`:aco`, `:pivot`).
+Parse `--benchmark=aco,pivot,heuristic,ga` into a Set of symbols.
 """
 function parse_benchmark_targets(raw::AbstractString)
     targets = Set{Symbol}()
@@ -103,12 +111,50 @@ function parse_benchmark_targets(raw::AbstractString)
             push!(targets, :aco)
         elseif name == "pivot"
             push!(targets, :pivot)
+        elseif name == "heuristic"
+            push!(targets, :heuristic)
+        elseif name == "ga"
+            push!(targets, :ga)
         else
-            throw(ArgumentError("Unknown benchmark target '$name' (expected aco and/or pivot)"))
+            throw(ArgumentError("Unknown benchmark target '$name' (expected aco, pivot, heuristic, and/or ga)"))
         end
     end
-    isempty(targets) && throw(ArgumentError("--benchmark= needs at least one of: aco, pivot"))
+    isempty(targets) && throw(ArgumentError("--benchmark= needs at least one of: aco, pivot, heuristic, ga"))
     return targets
+end
+
+"""
+Return `--save=<path>` if present, otherwise `nothing`.
+"""
+function parse_benchmark_save()
+    for arg in ARGS
+        if startswith(arg, "--save=")
+            path = strip(split(arg, "=", limit=2)[2])
+            isempty(path) && throw(ArgumentError("--save= requires a file name or path"))
+            return path
+        elseif arg == "--save"
+            throw(ArgumentError("--save requires a value, e.g. --save=run.json"))
+        end
+    end
+    return nothing
+end
+
+"""
+Resolve a `--save=` argument to an absolute path.
+
+Bare filenames go under `results/`; paths with a directory component are kept
+(relative to the process cwd, or absolute as given). A missing `.json` suffix
+is appended.
+"""
+function resolve_benchmark_save_path(raw::AbstractString)
+    path = String(raw)
+    if !endswith(lowercase(path), ".json")
+        path *= ".json"
+    end
+    if dirname(path) == "" || dirname(path) == "."
+        path = joinpath(BENCHMARK_RESULTS_DIR, basename(path))
+    end
+    return abspath(path)
 end
 
 """
@@ -116,7 +162,7 @@ Warm up compilation on a tiny synthetic graph so measured runs exclude JIT cost
 without paying for a full solve on the real instance.
 """
 function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_options;
-    targets::Set{Symbol})
+    targets::Set{Symbol}, ga_options=(; N=10, O=2, k_mutate=0.02, generations=500))
     pheremone, num_ants, _, evaporation, num_subspecies = aco_options
 
     g = BipartiteGraph{Int}()
@@ -138,6 +184,23 @@ function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_opt
     if :aco in targets
         aco(deepcopy(g), pheremone, min(num_ants, 2), 1, evaporation, k_w, θ_w, num_subspecies;
             parallelize=false, force_gc=false)
+    end
+    if :heuristic in targets
+        g_h = deepcopy(g)
+        fg_h = if reduction == ReductionMode.none
+            freeze(g_h)
+        else
+            apply_graph_reductions!(g_h, k_w, θ_w, nothing, nothing, true, reduction)
+        end
+        if length(fg_h.u_ids) >= θ_w && length(fg_h.v_ids) >= θ_w
+            theta_based_heuristic(fg_h, k_w, θ_w; return_invalid=true)
+        end
+    end
+    if :ga in targets
+        global U = Set{Int}()
+        global V = Set{Int}()
+        ga(deepcopy(g), k_w, θ_w, min(ga_options.N, 4), ga_options.O, ga_options.k_mutate, 2;
+            reduction=reduction, repair=RepairMode.mixed)
     end
     GC.gc()
     return nothing
@@ -185,6 +248,93 @@ function benchmark_pivot!(g::BipartiteGraph, k::Int, θ::Int, reduction::Reducti
     )
     return (; sol, opt_edges, fg_eval, time = m.time, allocated = m.allocated,
         rss_delta = m.rss_delta)
+end
+
+"""
+Run the θ-based construction heuristic (`theta_based_heuristic`).
+"""
+function benchmark_heuristic!(g::BipartiteGraph, k::Int, θ::Int, reduction::ReductionMode.T;
+    opt_edges::Union{Nothing,Int}=nothing)
+    println()
+    println("Running θ-heuristic…")
+    g_run = deepcopy(g)
+    m = measure_call() do
+        fg = if reduction == ReductionMode.none
+            freeze(g_run)
+        else
+            apply_graph_reductions!(g_run, k, θ, nothing, nothing, true, reduction)
+        end
+        if length(fg.u_ids) < θ || length(fg.v_ids) < θ
+            return (fg, SubGraph(Set(), Set()))
+        end
+        return (fg, theta_based_heuristic(fg, k, θ; return_invalid=true))
+    end
+    fg_eval, sol = m.value
+    final_edges = Subgraph.edge_count(fg_eval, sol)
+    matched = opt_edges !== nothing && is_optimal_solution(fg_eval, sol, k, θ, opt_edges)
+
+    print_metric_block("θ-heuristic";
+        wall_time_s = m.time,
+        allocated_bytes = m.allocated,
+        rss_delta_bytes = m.rss_delta,
+        rss_peak_bytes = m.rss_peak,
+        solution = describe_solution(fg_eval, sol, k),
+        final_edges = final_edges,
+        optimal_edges = opt_edges,
+        matched_optimal = matched,
+    )
+
+    return (; sol, fg_eval, time = m.time, allocated = m.allocated, rss_delta = m.rss_delta,
+        final_edges, opt_edges, matched_optimal = matched)
+end
+
+"""
+Run the genetic algorithm (`ga`), matching load.jl defaults unless `ga_options` overrides.
+"""
+function benchmark_ga!(g::BipartiteGraph, k::Int, θ::Int, reduction::ReductionMode.T,
+    ga_options; opt_edges::Union{Nothing,Int}=nothing)
+    N = ga_options.N
+    O = ga_options.O
+    k_mutate = ga_options.k_mutate
+    generations = ga_options.generations
+
+    println()
+    println("Running GA (N=$N O=$O generations=$generations k_mutate=$k_mutate repair=mixed)…")
+
+    # Reset GA globals that accumulate across generations/runs.
+    global U = Set{Int}()
+    global V = Set{Int}()
+
+    g_run = deepcopy(g)
+    m = measure_call() do
+        ga(g_run, k, θ, N, O, k_mutate, generations; reduction=reduction, repair=RepairMode.mixed)
+    end
+    sol = m.value
+
+    g_eval = deepcopy(g)
+    fg_eval = if reduction == ReductionMode.none
+        freeze(g_eval)
+    else
+        apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
+    end
+    final_edges = Subgraph.edge_count(fg_eval, sol)
+    matched = opt_edges !== nothing && is_optimal_solution(fg_eval, sol, k, θ, opt_edges)
+
+    print_metric_block("GA";
+        wall_time_s = m.time,
+        allocated_bytes = m.allocated,
+        rss_delta_bytes = m.rss_delta,
+        rss_peak_bytes = m.rss_peak,
+        population_N = N,
+        generations = generations,
+        solution = describe_solution(fg_eval, sol, k),
+        final_edges = final_edges,
+        optimal_edges = opt_edges,
+        matched_optimal = matched,
+    )
+
+    return (; sol, fg_eval, time = m.time, allocated = m.allocated, rss_delta = m.rss_delta,
+        N, generations, final_edges, opt_edges, matched_optimal = matched)
 end
 
 """
@@ -277,7 +427,8 @@ end
 Entry point used by load.jl when `--benchmark=...` is set.
 """
 function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol},
-    k::Int, θ::Int, reduction::ReductionMode.T, aco_options)
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options;
+    ga_options=(; N=10, O=2, k_mutate=0.02, generations=500))
     println()
     println("==================== BENCHMARK ====================")
     println("targets=$(join(sort!(collect(String(t) for t in targets)), ","))  k=$k  θ=$θ")
@@ -285,7 +436,7 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
 
     println()
     println("Warming up (excluded from timings)…")
-    warmup_benchmarks!(k, θ, reduction, aco_options; targets=targets)
+    warmup_benchmarks!(k, θ, reduction, aco_options; targets=targets, ga_options=ga_options)
 
     graph_stats = benchmark_graph_memory(g, edge_count, k, θ, reduction)
 
@@ -294,9 +445,20 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
         pivot_stats = benchmark_pivot!(g, k, θ, reduction)
     end
 
+    opt_edges = pivot_stats === nothing ? nothing : pivot_stats.opt_edges
+
+    heuristic_stats = nothing
+    if :heuristic in targets
+        heuristic_stats = benchmark_heuristic!(g, k, θ, reduction; opt_edges=opt_edges)
+    end
+
+    ga_stats = nothing
+    if :ga in targets
+        ga_stats = benchmark_ga!(g, k, θ, reduction, ga_options; opt_edges=opt_edges)
+    end
+
     aco_stats = nothing
     if :aco in targets
-        opt_edges = pivot_stats === nothing ? nothing : pivot_stats.opt_edges
         aco_stats = benchmark_aco!(g, k, θ, aco_options;
             opt_edges=opt_edges, early_stop=true)
     end
@@ -311,6 +473,20 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
         println("  pivot RSS Δ          : $(format_bytes(pivot_stats.rss_delta))")
         println("  pivot optimum edges  : $(pivot_stats.opt_edges)")
     end
+    if heuristic_stats !== nothing
+        println("  heuristic time       : $(round(heuristic_stats.time; digits=4))s")
+        println("  heuristic allocated  : $(format_bytes(heuristic_stats.allocated))")
+        println("  heuristic RSS Δ      : $(format_bytes(heuristic_stats.rss_delta))")
+        println("  heuristic edges      : $(heuristic_stats.final_edges)" *
+                (heuristic_stats.opt_edges === nothing ? "" : " / $(heuristic_stats.opt_edges) optimal"))
+    end
+    if ga_stats !== nothing
+        println("  GA time              : $(round(ga_stats.time; digits=4))s")
+        println("  GA allocated         : $(format_bytes(ga_stats.allocated))")
+        println("  GA RSS Δ             : $(format_bytes(ga_stats.rss_delta))")
+        println("  GA edges             : $(ga_stats.final_edges)" *
+                (ga_stats.opt_edges === nothing ? "" : " / $(ga_stats.opt_edges) optimal"))
+    end
     if aco_stats !== nothing
         println("  ACO time             : $(round(aco_stats.time; digits=4))s")
         println("  ACO allocated        : $(format_bytes(aco_stats.allocated))")
@@ -322,14 +498,50 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
     end
     println("===================================================")
 
-    return (; graph_stats, pivot_stats, aco_stats)
+    return (; graph_stats, pivot_stats, heuristic_stats, ga_stats, aco_stats)
+end
+
+# Minimal JSON writer (avoids requiring JSON3 in load.jl).
+function _bench_json_escape(s::AbstractString)
+    buf = IOBuffer()
+    for c in s
+        if c == '"'
+            print(buf, "\\\"")
+        elseif c == '\\'
+            print(buf, "\\\\")
+        elseif c == '\n'
+            print(buf, "\\n")
+        elseif c == '\r'
+            print(buf, "\\r")
+        elseif c == '\t'
+            print(buf, "\\t")
+        else
+            print(buf, c)
+        end
+    end
+    return String(take!(buf))
+end
+
+_bench_json_val(x::Bool) = x ? "true" : "false"
+_bench_json_val(x::Integer) = string(x)
+_bench_json_val(x::AbstractFloat) = isfinite(x) ? string(x) : "null"
+_bench_json_val(::Nothing) = "null"
+_bench_json_val(x::AbstractString) = "\"" * _bench_json_escape(x) * "\""
+_bench_json_val(x::Symbol) = _bench_json_val(string(x))
+function _bench_json_val(xs::AbstractVector)
+    return "[" * join((_bench_json_val(x) for x in xs), ",") * "]"
+end
+function _bench_json_val(d::AbstractDict)
+    return "{" * join(("\"$(_bench_json_escape(string(k)))\":$(_bench_json_val(v))" for (k, v) in d), ",") * "}"
 end
 
 """
 Convert benchmark named-tuples into plain Dict/Vector/Number/String/nothing
-trees suitable for JSON3.write (drops live SubGraph / FrozenBipartite objects).
+trees suitable for JSON (drops live SubGraph / FrozenBipartite objects).
 """
-function benchmark_results_to_dict(results; k::Int=0)
+function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
+    dataset::AbstractString="", targets=nothing, seed=nothing,
+    reduction=nothing, edge_count::Union{Nothing,Int}=nothing)
     function sol_summary(fg, sol)
         sol === nothing && return nothing
         return Dict(
@@ -341,7 +553,15 @@ function benchmark_results_to_dict(results; k::Int=0)
         )
     end
 
-    out = Dict{String,Any}()
+    out = Dict{String,Any}(
+        "dataset" => String(dataset),
+        "k" => k,
+        "theta" => θ,
+        "targets" => targets === nothing ? String[] : sort!(collect(String(t) for t in targets)),
+        "seed" => seed === nothing ? nothing : string(seed),
+        "reduction" => reduction === nothing ? nothing : string(reduction),
+        "edge_count" => edge_count,
+    )
 
     gs = results.graph_stats
     out["graph"] = Dict(
@@ -362,6 +582,34 @@ function benchmark_results_to_dict(results; k::Int=0)
         )
     end
 
+    if results.heuristic_stats !== nothing
+        hs = results.heuristic_stats
+        out["heuristic"] = Dict(
+            "wall_time_s" => hs.time,
+            "allocated_bytes" => hs.allocated,
+            "rss_delta_bytes" => hs.rss_delta,
+            "final_edges" => hs.final_edges,
+            "optimal_edges" => hs.opt_edges,
+            "matched_optimal" => hs.matched_optimal,
+            "solution" => sol_summary(hs.fg_eval, hs.sol),
+        )
+    end
+
+    if results.ga_stats !== nothing
+        gs_ga = results.ga_stats
+        out["ga"] = Dict(
+            "wall_time_s" => gs_ga.time,
+            "allocated_bytes" => gs_ga.allocated,
+            "rss_delta_bytes" => gs_ga.rss_delta,
+            "population_N" => gs_ga.N,
+            "generations" => gs_ga.generations,
+            "final_edges" => gs_ga.final_edges,
+            "optimal_edges" => gs_ga.opt_edges,
+            "matched_optimal" => gs_ga.matched_optimal,
+            "solution" => sol_summary(gs_ga.fg_eval, gs_ga.sol),
+        )
+    end
+
     if results.aco_stats !== nothing
         as = results.aco_stats
         out["aco"] = Dict(
@@ -379,4 +627,17 @@ function benchmark_results_to_dict(results; k::Int=0)
     end
 
     return out
+end
+
+"""
+Write benchmark results JSON to `path` (creates parent directories as needed).
+"""
+function save_benchmark_json(path::AbstractString, payload::AbstractDict)
+    mkpath(dirname(path))
+    open(path, "w") do io
+        print(io, _bench_json_val(payload))
+        println(io)
+    end
+    println("Wrote benchmark results → $path")
+    return path
 end

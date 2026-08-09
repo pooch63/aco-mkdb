@@ -25,6 +25,10 @@ Benchmarking:
   --benchmark=aco,pivot   measure graph / pivot / ACO memory & time (see benchmark.jl)
   --benchmark=pivot       pivot + graph memory only
   --benchmark=aco         ACO + graph memory only (no iterations-to-optimal without pivot)
+  --benchmark=heuristic   θ-heuristic + graph memory only
+  --benchmark=ga          genetic algorithm + graph memory only
+  --benchmark=aco,pivot,heuristic,ga   any comma-separated mix of the above
+  --save=NAME.json        write benchmark JSON under results/ (or an explicit path)
 
 GA / tabu flags:
   --seed=S   random seed for reproducible runs (default: time_ns())
@@ -45,7 +49,7 @@ Prerequisites:
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--benchmark=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...]
+    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--benchmark=...] [--save=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...]
 
   Examples:
     julia load.jl
@@ -58,6 +62,7 @@ How to Run from the Command Line:
     julia load.jl amazon/grocery --heuristic
     julia load.jl amazon/boxes --benchmark=aco,pivot
     julia load.jl amazon/boxes --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
+    julia load.jl amazon/boxes --benchmark=heuristic,ga,aco --save=boxes_compare.json
     julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
 =#
@@ -74,7 +79,7 @@ isdefined(@__MODULE__, :__IO_JL__) || include(joinpath(SRC, "io.jl"))
 isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))
 isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(SRC, "ga.jl"))
 isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
-isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco.jl"))
+isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco", "algorithm.jl"))
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
 isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(@__DIR__, "benchmark.jl"))
 
@@ -84,9 +89,9 @@ global const DEBUG = true
 const GA_N = 10
 
 const ACO_PHEREMONE = 1
-const ACO_NUM_ANTS = 30
-const ACO_NUM_ITERATIONS = 100
-const ACO_EVAPORATION = 0.85
+const ACO_NUM_ANTS = 100
+const ACO_NUM_ITERATIONS = 20
+const ACO_EVAPORATION = 0.95
 const ACO_NUM_SUBSPECIES = 1
 
 @enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver
@@ -204,6 +209,7 @@ function parse_args()
     seed = parse_seed()
     aco_options = parse_aco_options()
     benchmark = parse_benchmark()
+    save_path = parse_benchmark_save()
 
     for arg in ARGS
         if arg == "--ga"
@@ -224,6 +230,7 @@ function parse_args()
                startswith(arg, "--ants=") || startswith(arg, "--iterations=") ||
                startswith(arg, "--pheremone=") || startswith(arg, "--evaporation=") ||
                startswith(arg, "--subspecies=") || startswith(arg, "--benchmark=") ||
+               startswith(arg, "--save=") ||
                startswith(arg, "--prefer-smaller-side=") || startswith(arg, "--elite-seed=") ||
                startswith(arg, "--elite-seed-ants=") || startswith(arg, "--elite-seed-remove=")
             continue
@@ -238,7 +245,7 @@ function parse_args()
         dataset_name = DEBUG ? "boxes" : nothing
     end
 
-    return dataset_name, solver, mode, profile, reduction, seed, aco_options, benchmark
+    return dataset_name, solver, mode, profile, reduction, seed, aco_options, benchmark, save_path
 end
 
 """
@@ -288,28 +295,42 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction, seed, aco_options, benchmark = parse_args()
+    dataset_name, solver, mode, profile, reduction, seed, aco_options, benchmark, save_path =
+        parse_args()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
-
-    # k, θ = 4, 8
+    ga_options = (; N=GA_N, O=2, k_mutate=0.02, generations=500)
 
     # Room for algorithmic improvement: So same problem where k being overshot leads to the ants not finding it
     # I suppose we could have incrementally larger k, but is there a better solution?
-    k, θ = 2, 4
+    k, θ = 3, 6
+    # k, θ = 2, 5
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
         exit(1)
     end
 
+    if save_path !== nothing && benchmark === nothing
+        throw(ArgumentError("--save= is only valid with --benchmark=..."))
+    end
+
     println("Loading graph from: $graph_path")
     if benchmark !== nothing
         println("Mode: benchmark ($(join(sort!(collect(String(t) for t in benchmark)), ",")))")
-        if :aco in benchmark
+        needs_seed = :aco in benchmark || :ga in benchmark
+        if needs_seed
             seed = seed === nothing ? UInt64(time_ns()) : seed
             Random.seed!(seed)
+        end
+        if :aco in benchmark
             println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
+        end
+        if :ga in benchmark
+            println("GA: N=$(ga_options.N) O=$(ga_options.O) generations=$(ga_options.generations) k_mutate=$(ga_options.k_mutate)")
+        end
+        if save_path !== nothing
+            println("Save: $(resolve_benchmark_save_path(save_path))")
         end
     elseif solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
         # Default to a fresh seed when none was provided so the run is printable/replicable.
@@ -334,7 +355,14 @@ function main()
         if benchmark !== nothing
             g, edges = load_bipartite_graph(graph_path)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
-            run_benchmarks!(g, edges, benchmark, k, θ, reduction, aco_options)
+            results = run_benchmarks!(g, edges, benchmark, k, θ, reduction, aco_options;
+                ga_options=ga_options)
+            if save_path !== nothing
+                payload = benchmark_results_to_dict(results;
+                    k=k, θ=θ, dataset=String(dataset_name), targets=benchmark,
+                    seed=seed, reduction=reduction, edge_count=edges)
+                save_benchmark_json(resolve_benchmark_save_path(save_path), payload)
+            end
         elseif profile
             println("Profile mode enabled: warming up compilation on a small graph...")
             # Warm up: run the search once on a very small slice to compile methods
@@ -376,7 +404,7 @@ function main()
                 fg = freeze(g)
                 for (s, d) in enumerate(D)
                     println("Solution $s:")
-                    @show d
+                    @show (d.U, d.V)
                     println(Subgraph.missing_edges(fg, d))
                 end
             else
@@ -390,7 +418,7 @@ function main()
         end
     end
 
-    if benchmark !== nothing && :aco in benchmark
+    if benchmark !== nothing && (:aco in benchmark || :ga in benchmark)
         println("Random seed: --seed=$seed")
     elseif solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
         println("Random seed: --seed=$seed")
