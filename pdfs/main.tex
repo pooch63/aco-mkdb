@@ -13,6 +13,7 @@
 % --- Custom "parallel for each" block, wired into algpseudocodex's
 %     internal indent/highlight hooks (bare \algdef breaks the package's
 %     block tracking and throws \endcsname errors) ---
+% (Written by Claude)
 \makeatletter
 \algdef{SE}[FORPAR]{ForPar}{EndForPar}[1]%
   {\algpx@startIndent\algpx@startCodeCommand\textbf{parallel for each}\ #1\ \algorithmicdo}%
@@ -79,7 +80,7 @@ Pseudocode:
             \State $P_C \gets P$
             
             \ForPar{$S_i \in S$}
-                \State $next \gets \text{softmax}_{u \in G \setminus S}($\Call{desirability}{$u$, $S_i$, $P_C$}$)$
+                \State $next \gets \text{softmax}_{u \in G \setminus S}(\Call{desirability}{u, S_i, P_C})$
                 \State add $next$ to $S_i$
                 \State $P_C(u) \gets P_C(u) + p$
             \EndForPar
@@ -201,11 +202,13 @@ We also included a genetic algorithm to benchmark against ACO:
         \State $S_B \gets S$
 
         \While{$p_A \leq p$}
+            \State $C \gets \{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$
+        
             \State $T_C \gets T$
             \State $F_C \gets \Call{InstanceFitness}{S}$
             \State $F_O, S_O \gets -\infty, S$
 
-            \State $E \gets \{(u, \text{add}) \in G \setminus S\} \cup \{(u, \text{remove}) \in S\}$
+            \State $E \gets \{(u, \text{add}) \in C\} \cup \{(u, \text{remove}) \in S\}$
             
             \For{$(u, add) \in E \mathrel{\text{s.t.}} T_C(u, add) = 0$}
                 \If{$add$}
