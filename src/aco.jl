@@ -2,7 +2,7 @@
 
 using Base.Threads
 
-const __ACO_JL__ = false
+const __ACO_JL__ = true
 
 isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
@@ -508,7 +508,8 @@ function node_desirability(pheromones::ColonyPheromones, fg::FrozenBipartite,
     deg_G = node.is_u ? degree_u(fg, node.id) : degree_v(fg, node.id)
     η = node.deg + deg_G / (1 + exp(-Subgraph.vertex_count(sg)))
     # η = node.deg + deg_G / (1 + Subgraph.vertex_count(sg))
-    return τ^3 * η^2
+    # return τ^3 * η^2
+    return τ^2 * η
 end
 
 # Returns false if the ant has no further moves
