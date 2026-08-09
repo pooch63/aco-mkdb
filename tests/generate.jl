@@ -17,6 +17,8 @@ function random_graph(; nU_range=3:6, nV_range=3:6, edge_prob=0.5,
     k = rand(0:min(nU * nV, k_max, θ - 1))
 
     # Plant a θ×θ k-defective biclique so a feasible solution always exists.
+    # Keep arrays (not Sets) here so iteration order — and thus which k pairs
+    # are missing after shuffle! — stays reproducible across seeds.
     plant_U = randperm(nU)[1:θ]
     plant_V = randperm(nV)[1:θ]
     plant_pairs = [(u, v) for u in plant_U for v in plant_V]
@@ -32,5 +34,5 @@ function random_graph(; nU_range=3:6, nV_range=3:6, edge_prob=0.5,
         end
     end
 
-    return edges, nU, nV, k, θ
+    return edges, nU, nV, k, θ, Set{Int}(plant_U), Set{Int}(plant_V)
 end

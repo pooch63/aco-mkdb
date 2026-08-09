@@ -34,8 +34,6 @@ println("  ga: N=$(GA_POP) O=$(GA_O) gens=$(GA_GENERATIONS) k_mutate=$(GA_K_MUTA
 
 summary = run_graph_suite(solve_fn=solve_ga, algorithm="ga")
 
-print_suite_summary(summary)
-
 if SAVE_PATH !== nothing
     save_suite_json(SAVE_PATH, summary)
 end
@@ -46,3 +44,5 @@ end
     @test s.optimal <= s.valid
     @test length(s.results) == summary.N
 end
+
+print_suite_summary(summary)

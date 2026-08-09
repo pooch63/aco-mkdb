@@ -12,6 +12,11 @@ const ACO_PHEROMONE = parse_int_flag("pheremone", 1)
 const ACO_ANTS = parse_int_flag("ants", 10)
 const ACO_ITERATIONS = parse_int_flag("iterations", 100)
 const ACO_EVAPORATION = parse_float_flag("evaporation", 0.9)
+const ACO_SUBSPECIES = parse_int_flag("subspecies", 1)
+const ACO_PREFER_SMALLER_SIDE = parse_bool_flag("prefer-smaller-side", true)
+const ACO_ELITE_SEED = parse_bool_flag("elite-seed", true)
+const ACO_ELITE_SEED_ANTS = parse_int_flag("elite-seed-ants", 3)
+const ACO_ELITE_SEED_REMOVE = parse_int_flag("elite-seed-remove", 2)
 
 function parse_parallelize(default::Bool=true)
     for arg in ARGS
@@ -34,19 +39,30 @@ const PARALLELIZE = parse_parallelize(true)
 # Accumulated wall time across trials when --time is set.
 const TIMINGS = Float64[]
 
+function pick_best_aco(g::FrozenBipartite, sols::Vector{SubGraph})
+    return argmax(s -> instance_fitness(g, s, missing), sols)
+end
+
 function solve_aco(g::FrozenBipartite, k::Int, θ::Int)
     mutable_graph = build_mutable_graph(g)
+    kwargs = (
+        parallelize=PARALLELIZE,
+        prefer_smaller_side=ACO_PREFER_SMALLER_SIDE,
+        elite_seed=ACO_ELITE_SEED,
+        elite_seed_ants=ACO_ELITE_SEED_ANTS,
+        elite_seed_remove=ACO_ELITE_SEED_REMOVE,
+    )
     if TIME_MODE
         t = @elapsed begin
-            sol = aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ;
-                parallelize=PARALLELIZE)
+            sols = aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
+                kwargs...)
         end
         push!(TIMINGS, t)
         println("  aco time: $(round(t; digits=3))s  (parallelize=$(PARALLELIZE), threads=$(nthreads()))")
-        return sol
+        return pick_best_aco(g, sols)
     else
-        return aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ;
-            parallelize=PARALLELIZE)
+        return pick_best_aco(g, aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
+            kwargs...))
     end
 end
 
@@ -67,13 +83,12 @@ end
 #   julia -t auto tests/test_aco.jl --jitter=2 --seed=1 --N=5 --no-optimum
 
 println("ACO benchmark" * (PARALLELIZE ? " (parallel)" : " (sequential)"))
-println("  aco: ants=$(ACO_ANTS) iterations=$(ACO_ITERATIONS) pheromone=$(ACO_PHEROMONE) evaporation=$(ACO_EVAPORATION)")
+println("  aco: ants=$(ACO_ANTS) iterations=$(ACO_ITERATIONS) pheromone=$(ACO_PHEROMONE) evaporation=$(ACO_EVAPORATION) subspecies=$(ACO_SUBSPECIES)")
+println("  prefer_smaller_side=$(ACO_PREFER_SMALLER_SIDE)  elite_seed=$(ACO_ELITE_SEED) (ants=$(ACO_ELITE_SEED_ANTS), remove=$(ACO_ELITE_SEED_REMOVE))")
 println("  parallelize=$(PARALLELIZE)  threads=$(nthreads())")
 TIME_MODE && println("  timing enabled (--time)")
 
 summary = run_graph_suite(solve_fn=solve_aco, algorithm="aco")
-
-print_suite_summary(summary)
 
 if TIME_MODE && !isempty(TIMINGS)
     println()
@@ -96,3 +111,5 @@ end
     @test s.optimal <= s.valid
     @test length(s.results) == summary.N
 end
+
+print_suite_summary(summary)

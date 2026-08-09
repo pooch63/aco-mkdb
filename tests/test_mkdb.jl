@@ -39,7 +39,8 @@ const SAVE_PATH = parse_save()
 
 function solve_mkdb(g::FrozenBipartite, k::Int, θ::Int)
     mutable_graph = build_mutable_graph(g)
-    return find_kmdb!(mutable_graph, true, MODE, k, θ, REDUCTION)
+    sols = find_kmdb!(mutable_graph, true, MODE, k, θ, REDUCTION)
+    return isempty(sols) ? SubGraph() : first(sols)
 end
 
 """

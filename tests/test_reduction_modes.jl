@@ -9,7 +9,8 @@ const REDUCTION_MODES = (ReductionMode.none, ReductionMode.simple, ReductionMode
 function solve_reduction_mode(mode::ReductionMode.T)
     return function (g::FrozenBipartite, k::Int, θ::Int)
         mutable_graph = build_mutable_graph(g)
-        return find_kmdb(mutable_graph, true, BranchMode.pivot, k, θ, mode)
+        sols = find_kmdb(mutable_graph, true, BranchMode.pivot, k, θ, mode)
+        return isempty(sols) ? SubGraph() : first(sols)
     end
 end
 
@@ -83,7 +84,7 @@ function benchmark_reduction(; N::Int, seed, graph_kwargs...)
 
     for trial in 1:N
         graph_seed = graph_seeds[trial]
-        edges, nU, nV, k, θ = random_graph_from_seed(graph_seed; graph...)
+        edges, nU, nV, k, θ, _, _ = random_graph_from_seed(graph_seed; graph...)
         fg = build_frozen(edges, nU, nV)
         nE = length(edges)
 

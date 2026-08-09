@@ -21,8 +21,6 @@ println("k-heuristic benchmark")
 
 summary = run_graph_suite(solve_fn=solve_k_heuristic, algorithm="k_heuristic")
 
-print_suite_summary(summary)
-
 if SAVE_PATH !== nothing
     save_suite_json(SAVE_PATH, summary)
 end
@@ -33,3 +31,5 @@ end
     @test s.optimal <= s.valid
     @test length(s.results) == summary.N
 end
+
+print_suite_summary(summary)

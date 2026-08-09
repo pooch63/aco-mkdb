@@ -230,6 +230,7 @@ function load_suite_config(path::AbstractString)
         "iterations" => 100,
         "pheremone" => 1,
         "evaporation" => 0.9,
+        "subspecies" => 1,
     )
     if haskey(root, "aco")
         aco_base = merge(aco_base, json_to_dict(root["aco"]))
@@ -262,7 +263,13 @@ function aco_options_from(cfg::Dict{String,Any})
     num_ants = Int(get(aco, "ants", 10))
     num_iterations = Int(get(aco, "iterations", 100))
     evaporation = Float64(get(aco, "evaporation", 0.9))
-    return (pheremone, num_ants, num_iterations, evaporation)
+    num_subspecies = Int(get(aco, "subspecies", 1))
+    prefer_smaller_side = Bool(get(aco, "prefer_smaller_side", true))
+    elite_seed = Bool(get(aco, "elite_seed", true))
+    elite_seed_ants = Int(get(aco, "elite_seed_ants", 3))
+    elite_seed_remove = Int(get(aco, "elite_seed_remove", 2))
+    return (; pheremone, num_ants, num_iterations, evaporation, num_subspecies,
+        prefer_smaller_side, elite_seed, elite_seed_ants, elite_seed_remove)
 end
 
 # ---- serialization ----------------------------------------------------------

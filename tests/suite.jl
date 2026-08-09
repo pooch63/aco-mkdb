@@ -103,6 +103,23 @@ function parse_int_flag(flag::String, default::Int)
     return default
 end
 
+function parse_bool_flag(flag::String, default::Bool)
+    prefix = "--$flag="
+    for arg in ARGS
+        if startswith(arg, prefix)
+            val = lowercase(split(arg, "=", limit=2)[2])
+            if val in ("true", "1", "yes", "on")
+                return true
+            elseif val in ("false", "0", "no", "off")
+                return false
+            else
+                error("Bad boolean for --$flag: $val (expected true/false)")
+            end
+        end
+    end
+    return default
+end
+
 function brute_force_mdb(g::FrozenBipartite, k::Int, θ::Int)
     Ulist = collect(g.u_ids)
     Vlist = collect(g.v_ids)
@@ -159,7 +176,8 @@ Exact optimum via branch-and-bound with maximum settings (pivot + all_reductions
 """
 function branch_oracle_mdb(g::FrozenBipartite, k::Int, θ::Int)
     mutable_graph = build_mutable_graph(g)
-    sol = find_kmdb!(mutable_graph, true, BranchMode.pivot, k, θ, ReductionMode.all_reductions)
+    sols = find_kmdb!(mutable_graph, true, BranchMode.pivot, k, θ, ReductionMode.all_reductions)
+    sol = isempty(sols) ? SubGraph() : first(sols)
     return sol, Subgraph.edge_count(g, sol)
 end
 
@@ -180,6 +198,9 @@ Shared graph / instance info for one suite trial.
 
 `opt_edges` is `nothing` (and `opt_U` / `opt_V` empty) when the suite ran with
 `--no-optimum` (oracle `none`).
+
+`plant_U` / `plant_V` are the planted θ_plant×θ_plant k-MDB vertex sets from
+`random_graph` (always present).
 """
 struct TrialInfo
     trial::Int
@@ -192,6 +213,8 @@ struct TrialInfo
     opt_edges::Union{Int,Nothing}
     opt_U::Set{Int}
     opt_V::Set{Int}
+    plant_U::Set{Int}
+    plant_V::Set{Int}
     edges::Vector{Tuple{Int,Int}}
     graph_seed::UInt64
 end
@@ -238,26 +261,61 @@ end
 
 has_optimum(summary::SuiteSummary) = summary.oracle != OracleMode.none
 
+"""
+Print the reference solution (oracle if present, else planted) and the solver's return.
+"""
+function log_solution_mismatch(; prefix::AbstractString="", trial::Int=0,
+    graph_seed::UInt64=UInt64(0), status::AbstractString="",
+    sol_edges::Int, sol_missing::Int, sol_U::AbstractSet{<:Integer}, sol_V::AbstractSet{<:Integer},
+    ref_label::AbstractString, ref_edges::Union{Int,Nothing}, ref_U::AbstractSet{<:Integer},
+    ref_V::AbstractSet{<:Integer}, ratio::Float64=NaN)
+    println("$(prefix)Wrong answer on trial $trial  ($status)  seed=$graph_seed")
+    println("  Reproduce graph: --seed=$graph_seed --N=1")
+    if ref_edges !== nothing
+        ratio_str = isfinite(ratio) ? "  ratio=$ratio" : ""
+        println("  $ref_label: edges=$ref_edges  |U|=$(length(ref_U)) |V|=$(length(ref_V))$ratio_str")
+    else
+        println("  $ref_label: |U|=$(length(ref_U)) |V|=$(length(ref_V))")
+    end
+    println("    U=$(sort!(collect(ref_U)))")
+    println("    V=$(sort!(collect(ref_V)))")
+    println("  Algorithm returned: edges=$sol_edges  missing=$sol_missing  |U|=$(length(sol_U)) |V|=$(length(sol_V))")
+    println("    U=$(sort!(collect(sol_U)))")
+    println("    V=$(sort!(collect(sol_V)))")
+end
+
 function record_trial!(stats::SolverStats, g::FrozenBipartite, sol::SubGraph, k::Int, θ::Int,
     opt_edges::Union{Int,Nothing}; seed=nothing, graph_seed::UInt64=UInt64(0), trial::Int=0,
-    label::AbstractString="", log_result::Bool=false)
+    label::AbstractString="", log_result::Bool=false,
+    opt_U::AbstractSet{<:Integer}=Set{Int}(), opt_V::AbstractSet{<:Integer}=Set{Int}(),
+    plant_U::AbstractSet{<:Integer}=Set{Int}(), plant_V::AbstractSet{<:Integer}=Set{Int}())
     solution_edges = Subgraph.edge_count(g, sol)
     missing_edges = Subgraph.missing_edges(g, sol)
     # Either the subgraph is big enough, or there was no optimal solution
     sufficient = (length(sol.U) ≥ θ && length(sol.V) ≥ θ) ||
         (opt_edges !== nothing && solution_edges == opt_edges == 0)
+    prefix = isempty(label) ? "" : "[$label] "
+    has_opt = opt_edges !== nothing
+    ref_label = has_opt ? "Oracle optimum" : "Planted solution"
+    ref_U = has_opt ? opt_U : plant_U
+    ref_V = has_opt ? opt_V : plant_V
+    plant_edges = length(plant_U) * length(plant_V) - k  # planted has exactly k missing pairs
+    ref_edges = has_opt ? opt_edges : plant_edges
+
+    if missing_edges > k
+        # Keep the returned size (edges / |U| / |V|) even though the trial is invalid.
+        push!(stats.results, TrialResult(solution_edges, -Inf, missing_edges, false, copy(sol.U), copy(sol.V)))
+        if log_result
+            println("$(prefix)trial $trial  edges=$solution_edges  missing=$missing_edges  INVALID (k exceeded)  |U|=$(length(sol.U)) |V|=$(length(sol.V))  seed=$graph_seed")
+        end
+        log_solution_mismatch(; prefix, trial, graph_seed, status="INVALID (k exceeded)",
+            sol_edges=solution_edges, sol_missing=missing_edges, sol_U=sol.U, sol_V=sol.V,
+            ref_label, ref_edges, ref_U, ref_V, ratio=-Inf)
+        return
+    end
 
     if sufficient
         stats.valid += 1
-    end
-
-    if missing_edges > k
-        push!(stats.results, TrialResult(0, -Inf, missing_edges, sufficient, copy(sol.U), copy(sol.V)))
-        if log_result
-            prefix = isempty(label) ? "" : "[$label] "
-            println("$(prefix)trial $trial  edges=0  missing=$missing_edges  INVALID (k exceeded)  seed=$graph_seed")
-        end
-        return
     end
 
     if opt_edges !== nothing && solution_edges >= opt_edges && sufficient
@@ -272,17 +330,16 @@ function record_trial!(stats::SolverStats, g::FrozenBipartite, sol::SubGraph, k:
     end
     push!(stats.results, TrialResult(solution_edges, ratio, missing_edges, sufficient, copy(sol.U), copy(sol.V)))
 
+    wrong = !sufficient || (has_opt && isfinite(ratio) && ratio < 1.0)
     if log_result
-        prefix = isempty(label) ? "" : "[$label] "
         status = sufficient ? "valid" : "INVALID (θ not met)"
         println("$(prefix)trial $trial  edges=$solution_edges  missing=$missing_edges  ($status)  |U|=$(length(sol.U)) |V|=$(length(sol.V))  seed=$graph_seed")
-    elseif opt_edges !== nothing && ratio < 0.5
-        prefix = isempty(label) ? "" : "[$label] "
-        println("$(prefix)Poor solution on trial $trial")
-        println("Graph seed: --seed=$graph_seed --N=1")
-        println("solution edges = $solution_edges")
-        println("optimal edges   = $opt_edges")
-        println("ratio           = $ratio")
+    end
+    if wrong
+        status = sufficient ? "suboptimal" : "INVALID (θ not met)"
+        log_solution_mismatch(; prefix, trial, graph_seed, status,
+            sol_edges=solution_edges, sol_missing=missing_edges, sol_U=sol.U, sol_V=sol.V,
+            ref_label, ref_edges, ref_U, ref_V, ratio)
     end
 end
 
@@ -400,7 +457,7 @@ function run_graph_suite(; N::Union{Int,Nothing}=nothing, seed=nothing,
     for trial in 1:N
         graph_seed = graph_seeds[trial]
         Random.seed!(graph_seed)
-        edges, nU, nV, k, θ_plant = random_graph(; graph...)
+        edges, nU, nV, k, θ_plant, plant_U, plant_V = random_graph(; graph...)
         # Query θ ≤ planted θ; default jitter=0 skips rand to preserve seed sequences.
         θ = if jitter == 0
             θ_plant
@@ -425,14 +482,15 @@ function run_graph_suite(; N::Union{Int,Nothing}=nothing, seed=nothing,
         # Skip storing huge edge lists; graph_seed is enough to reproduce.
         stored_edges = length(edges) <= 200 ? sort!(collect(edges)) : Tuple{Int,Int}[]
         trials[trial] = TrialInfo(trial, nU, nV, length(edges), k, θ, θ_plant, opt_edges,
-            opt_U, opt_V, stored_edges, graph_seed)
+            opt_U, opt_V, plant_U, plant_V, stored_edges, graph_seed)
 
         for (label, solver) in solvers
             sol = solver(g, k, θ)
             display_label = label == "default" ? "" : label
             record_trial!(stats[label], g, sol, k, θ, opt_edges;
                 seed=seed, graph_seed=graph_seed, trial=trial, label=display_label,
-                log_result=!find_opt)
+                log_result=!find_opt, opt_U=opt_U, opt_V=opt_V,
+                plant_U=plant_U, plant_V=plant_V)
         end
     end
 
@@ -452,6 +510,14 @@ function _print_solver_block(label::AbstractString, N::Int, s::SolverStats; with
     end
 end
 
+function _print_solver_block(summary::SuiteSummary, label::AbstractString; with_optimum::Bool=true)
+    s = summary.stats[label]
+    _print_solver_block(label, summary.N, s; with_optimum=with_optimum)
+    if !with_optimum
+        print_planted_hit_menu(summary, label; indent="  ")
+    end
+end
+
 """
 Return the sole `SolverStats` when the suite ran one solver.
 """
@@ -462,7 +528,8 @@ function only_stats(summary::SuiteSummary)
 end
 
 function trial_is_nonoptimal(result::TrialResult)
-    return !result.valid || (isfinite(result.ratio) && result.ratio < 1.0)
+    # ratio == -Inf marks k-exceeded invalids (see record_trial!).
+    return !result.valid || result.ratio == -Inf || (isfinite(result.ratio) && result.ratio < 1.0)
 end
 
 function oracle_label(oracle::OracleMode.T)
@@ -475,22 +542,70 @@ function oracle_label(oracle::OracleMode.T)
     end
 end
 
+planted_edge_count(info::TrialInfo) = length(info.plant_U) * length(info.plant_V) - info.k
+
 """
-Log each non-optimal trial with seed, graph, oracle optimum, and per-solver solutions.
-Skipped when the suite ran without an oracle.
+True when the solver returned a θ/k-valid solution with at least as many edges
+as the planted k-MDB (the injected biclique).
+"""
+function trial_matched_planted(info::TrialInfo, result::TrialResult)
+    return result.valid && result.ratio != -Inf && result.edges >= planted_edge_count(info)
+end
+
+"""
+Print planted-hit totals and a largest-θ-first menu (for `--no-optimum` runs).
+"""
+function print_planted_hit_menu(summary::SuiteSummary, label::AbstractString;
+    indent::AbstractString="")
+    s = summary.stats[label]
+    hits = 0
+    # θ_plant => (hits, total)
+    by_θ = Dict{Int,Tuple{Int,Int}}()
+    for trial in 1:summary.N
+        info = summary.trials[trial]
+        r = s.results[trial]
+        matched = trial_matched_planted(info, r)
+        matched && (hits += 1)
+        h, t = get(by_θ, info.θ_plant, (0, 0))
+        by_θ[info.θ_plant] = (h + Int(matched), t + 1)
+    end
+
+    N = summary.N
+    println("$(indent)Planted matches      : $hits / $N")
+    println("$(indent)Planted match rate   : $(round(100 * hits / N; digits=1))%")
+    println()
+    println("$(indent)Planted hits by θ (largest first):")
+    for θ in sort!(collect(keys(by_θ)); rev=true)
+        h, t = by_θ[θ]
+        bar = "█"^h * "·"^(t - h)
+        println("$(indent)  θ=$(lpad(θ, 2))  $(lpad(h, 3))/$t  $bar")
+    end
+end
+
+"""
+Log each non-optimal / invalid trial with seed, graph, reference solution, and
+per-solver returns. With an oracle, uses opt_U/opt_V; otherwise uses the planted
+k-MDB and flags invalid (θ/k) trials.
 """
 function print_nonoptimal_trial_seeds(summary::SuiteSummary; labels=nothing)
-    has_optimum(summary) || return
     ordered = labels === nothing ? collect(keys(summary.stats)) : collect(labels)
     any_bad = false
+    with_opt = has_optimum(summary)
 
     for trial in 1:summary.N
-        bad_labels = String[label for label in ordered
-                            if trial_is_nonoptimal(summary.stats[label].results[trial])]
+        bad_labels = if with_opt
+            String[label for label in ordered
+                   if trial_is_nonoptimal(summary.stats[label].results[trial])]
+        else
+            # Without an oracle, only invalid returns are "wrong".
+            String[label for label in ordered
+                   if !summary.stats[label].results[trial].valid ||
+                      summary.stats[label].results[trial].ratio == -Inf]
+        end
         isempty(bad_labels) && continue
 
         if !any_bad
-            println("Non-optimal trials:")
+            println(with_opt ? "Non-optimal trials:" : "Invalid trials:")
             any_bad = true
         end
 
@@ -500,6 +615,8 @@ end
 
 function print_suite_summary(summary::SuiteSummary; labels=nothing)
     with_opt = has_optimum(summary)
+    ordered = labels === nothing ? collect(keys(summary.stats)) : collect(labels)
+
     println()
     println("==================== RESULTS ====================")
     println("Trials               : $(summary.N)")
@@ -509,7 +626,6 @@ function print_suite_summary(summary::SuiteSummary; labels=nothing)
         println("Algorithm            : $(summary.algorithm)")
     end
 
-    ordered = labels === nothing ? collect(keys(summary.stats)) : collect(labels)
     if length(ordered) == 1
         s = summary.stats[ordered[1]]
         println("Valid solutions      : $(s.valid) / $(summary.N)")
@@ -520,6 +636,7 @@ function print_suite_summary(summary::SuiteSummary; labels=nothing)
             println("Worst ratio          : $(s.worst_ratio)")
         else
             println("Average edges        : $(s.total_edges / summary.N)")
+            print_planted_hit_menu(summary, ordered[1])
         end
     else
         if with_opt
@@ -529,11 +646,9 @@ function print_suite_summary(summary::SuiteSummary; labels=nothing)
             end
         end
         for label in ordered
-            _print_solver_block(label, summary.N, summary.stats[label]; with_optimum=with_opt)
+            _print_solver_block(summary, label; with_optimum=with_opt)
         end
     end
-
-    print_nonoptimal_trial_seeds(summary; labels=ordered)
     println("=================================================")
 end
 
@@ -553,17 +668,25 @@ function print_trial_detail(summary::SuiteSummary, trial::Int; labels=nothing, h
     if has_optimum(info)
         println("$(oracle_label(summary.oracle)) optimum: edges=$(info.opt_edges) missing=$(length(info.opt_U) * length(info.opt_V) - info.opt_edges) U=$(sort!(collect(info.opt_U)))  V=$(sort!(collect(info.opt_V)))")
     else
+        plant_edges = length(info.plant_U) * length(info.plant_V) - info.k
         println("Optimum: (not computed)")
+        println("Planted: edges=$plant_edges  |U|=$(length(info.plant_U)) |V|=$(length(info.plant_V))  U=$(sort!(collect(info.plant_U)))  V=$(sort!(collect(info.plant_V)))")
     end
     println()
 
     for label in ordered
         r = summary.stats[label].results[trial]
-        status = r.valid ? "valid" : "INVALID (θ not met)"
+        status = if r.ratio == -Inf || r.missing > info.k
+            "INVALID (k exceeded)"
+        elseif r.valid
+            "valid"
+        else
+            "INVALID (θ not met)"
+        end
         mark = highlight !== nothing && label in highlight ? " *" : ""
         ratio_str = isfinite(r.ratio) ? string(r.ratio) : "n/a"
         println("  $label$mark")
-        println("    edges=$(r.edges)  missing=$(r.missing)  ratio=$ratio_str  ($status)")
+        println("    edges=$(r.edges)  missing=$(r.missing)  ratio=$ratio_str  ($status)  |U|=$(length(r.U)) |V|=$(length(r.V))")
         println("    U=$(sort!(collect(r.U)))")
         println("    V=$(sort!(collect(r.V)))")
     end
@@ -635,6 +758,8 @@ function trial_to_json_dict(info::TrialInfo, results::Dict{String,TrialResult})
         "opt_edges" => info.opt_edges,
         "opt_U" => sort!(collect(info.opt_U)),
         "opt_V" => sort!(collect(info.opt_V)),
+        "plant_U" => sort!(collect(info.plant_U)),
+        "plant_V" => sort!(collect(info.plant_V)),
         "solutions" => solutions,
     )
 end

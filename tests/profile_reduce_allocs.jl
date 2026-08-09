@@ -26,7 +26,7 @@ function main()
     θ_max = defaults.θ_max
     k_max = defaults.k_max
 
-    edges, nU, nV, k, θ = random_graph_from_seed(seed;
+    edges, nU, nV, k, θ, _, _ = random_graph_from_seed(seed;
         nU_range=nU_range, nV_range=nV_range, edge_prob=edge_prob,
         θ_max=θ_max, k_max=k_max)
     fg = build_frozen(edges, nU, nV)
