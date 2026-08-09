@@ -38,36 +38,79 @@ sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}"
     end
 end
 
-struct SharedBest
-    edges::Threads.Atomic{Int}   # lock-free reads for comparisons/pruning
+"""
+Thread-safe top-`n` solution pool for parallel branch-and-bound.
+
+`prune_floor` is the Nth-best score once the pool is full (else `typemin(Int)`),
+so threads can prune with a lock-free atomic read without discarding candidates
+that still belong in the top-N. Progressive reduction uses `top_score` (#1).
+"""
+struct SharedTopN
+    n::Int
     lock::ReentrantLock
-    D::Base.RefValue{SubGraph}
+    scores::Vector{Int}          # descending
+    sols::Vector{SubGraph}       # parallel to scores
+    prune_floor::Threads.Atomic{Int}
 end
 
-function SharedBest(D0::SubGraph, D0_missing::Int)
-    SharedBest(Threads.Atomic{Int}(solution_score(D0, D0_missing)), ReentrantLock(), Ref(D0))
+function _set_prune_floor!(sb::SharedTopN)
+    sb.prune_floor[] = length(sb.scores) >= sb.n ? sb.scores[end] : typemin(Int)
 end
 
-best_edges(sb::SharedBest) = sb.edges[]
+function SharedTopN(D0::SubGraph, D0_missing::Int, n::Int)
+    n >= 1 || throw(ArgumentError("num_solutions must be >= 1, got $n"))
+    s0 = solution_score(D0, D0_missing)
+    sb = SharedTopN(n, ReentrantLock(), Int[s0], SubGraph[Subgraph.clone(D0)], Threads.Atomic{Int}(typemin(Int)))
+    _set_prune_floor!(sb)
+    return sb
+end
 
-function try_update!(sb::SharedBest, S::SubGraph, S_missing::Int)
+# Lock-free prune threshold (Nth score when full).
+best_edges(sb::SharedTopN) = sb.prune_floor[]
+
+# Best (#1) score; used for progressive θ scheduling.
+top_score(sb::SharedTopN) = isempty(sb.scores) ? 0 : sb.scores[1]
+
+function _same_solution(a::SubGraph, b::SubGraph)
+    return a.U == b.U && a.V == b.V
+end
+
+function try_update!(sb::SharedTopN, S::SubGraph, S_missing::Int)
     s = solution_score(S, S_missing)
-    s <= sb.edges[] && return false        # fast bail, no locking
+    s <= sb.prune_floor[] && return false        # fast bail, no locking
     lock(sb.lock) do
-        if s > sb.edges[]                  # re-check under lock
-            sb.D[] = Subgraph.clone(S)
-            sb.edges[] = s
-            return true
+        for existing in sb.sols
+            _same_solution(existing, S) && return false
         end
-        return false
+        if length(sb.scores) >= sb.n && s <= sb.scores[end]
+            return false
+        end
+        idx = searchsortedfirst(sb.scores, s; rev=true)
+        insert!(sb.scores, idx, s)
+        insert!(sb.sols, idx, Subgraph.clone(S))
+        while length(sb.scores) > sb.n
+            pop!(sb.scores)
+            pop!(sb.sols)
+        end
+        _set_prune_floor!(sb)
+        return true
+    end
+end
+
+function snapshot_solutions(sb::SharedTopN)
+    lock(sb.lock) do
+        return [Subgraph.clone(sg) for sg in sb.sols]
     end
 end
 
 # If the number of entries in g.adjU is not equal to the number of nodes or same for V,
-# e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side
+# e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side.
+# Returns the top `num_solutions` subgraphs by `solution_score`, best first.
 function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, k::Int, θ::Int,
-    reduction::ReductionMode.T=ReductionMode.all_reductions; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing)
+    reduction::ReductionMode.T=ReductionMode.all_reductions; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing,
+    num_solutions::Int=1)
 
+    num_solutions >= 1 || throw(ArgumentError("num_solutions must be >= 1, got $num_solutions"))
     @assert θ > k "θ must be greater than k"
 
     num_U = num_U === nothing ? length(g.adjU) : num_U
@@ -79,10 +122,14 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
     fg = apply_graph_reductions!(g, k, θ, num_U, num_V, use_heuristic, base_reduction)
 
     if length(fg.u_ids) == 0 || length(fg.v_ids) == 0
-        return SubGraph()
+        return SubGraph[]
     end
 
     println("Initial reduction is complete")
+
+    D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+    D_missing = Subgraph.missing_edges(fg, D)
+    best = SharedTopN(D, D_missing, num_solutions)
 
     if reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
         u_degrees = Int[]
@@ -93,17 +140,12 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
         θ_U = maximum(u_degrees) + k
         last_θ_eff = θ
 
-        D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
-        D_missing = Subgraph.missing_edges(fg, D)
-
-        best = SharedBest(D, D_missing)
-
         iterations = 0
         reductions = 0
 
         while θ_U > θ
             iterations += 1
-            θ_V = max(θ, floor(Int, best_edges(best) / θ_U))
+            θ_V = max(θ, floor(Int, top_score(best) / θ_U))
             θ_U = max(θ, floor(Int, θ_U / 2))
 
             θ_eff = min(θ_U, θ_V)
@@ -169,14 +211,12 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
         end
     end
 
-    return lock(best.lock) do
-        Subgraph.clone(best.D[])
-    end
+    return snapshot_solutions(best)
 end
 
 function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T=ReductionMode.all_reductions)
-    return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction)
+    k::Int, θ::Int, reduction::ReductionMode.T=ReductionMode.all_reductions; num_solutions::Int=1)
+    return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction; num_solutions=num_solutions)
 end
 
 function common_neighbors(fg::FrozenBipartite, is_u::Bool, a::Int, b::Int)
@@ -195,7 +235,7 @@ end
 # times a valid k-MDB. C is the set of all nodes that we still have to search, where each node could be added to S
 # and still result in a k-MDB, although we don't necessarily know which subset of C could be added to S.
 function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
-    best::SharedBest, k::Int, θ::Int, mode::BranchMode.T, S_missing::Int=0, depth::Int=0)
+    best::SharedTopN, k::Int, θ::Int, mode::BranchMode.T, S_missing::Int=0, depth::Int=0)
     ensure_membership!(S, g)
     ensure_membership!(C, g)
     if TRACE
@@ -223,7 +263,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         end
         if (upper_u < θ || upper_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
             (upper_e < best_edges(best)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
-            TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, |D_u|=$(length(best.sg[].U)), |D_v|=$(length(best.sg[].V)))")
+            TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, top_score=$(top_score(best)), prune_floor=$(best_edges(best)))")
             return
         end
     end
