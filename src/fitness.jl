@@ -77,7 +77,8 @@ end
 function instance_fitness(fg::FrozenBipartite, instance::SubGraph, θ::Union{Int, Missing})
     min_nodes, max_nodes = minmax(length(instance.U), length(instance.V))
 
-    # return min_nodes + max_nodes
+    # Makes ACO _terrible_
+    # return min_nodes * max_nodes
 
     return (min_nodes >= coalesce(θ, 1) ? max_nodes : 1) *
         # Give a higher score to subgraphs with more nodes
@@ -87,7 +88,6 @@ function instance_fitness(fg::FrozenBipartite, instance::SubGraph, θ::Union{Int
         # *(1 + 1 / (abs(length(instance.U) - length(instance.V)) + 1))
 end
 @inline instance_energy(fg::FrozenBipartite, instance::SubGraph, θ::Int) = -instance_fitness(fg, instance, θ)
-
 
 # Room for efficiency improvement: we can just compute C once and then order it by descending degree in S
 # Then just add nodes from C with a moving pointer until we've hit k
