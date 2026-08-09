@@ -117,7 +117,7 @@ without paying for a full solve on the real instance.
 """
 function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_options;
     targets::Set{Symbol})
-    pheremone, num_ants, _, evaporation = aco_options
+    pheremone, num_ants, _, evaporation, num_subspecies = aco_options
 
     g = BipartiteGraph{Int}()
     # Small dense biclique plus a few dangling edges — enough to touch reductions,
@@ -136,7 +136,7 @@ function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_opt
         find_kmdb!(deepcopy(g), true, BranchMode.pivot, k_w, θ_w, reduction)
     end
     if :aco in targets
-        aco(deepcopy(g), pheremone, min(num_ants, 2), 1, evaporation, k_w, θ_w;
+        aco(deepcopy(g), pheremone, min(num_ants, 2), 1, evaporation, k_w, θ_w, num_subspecies;
             parallelize=false, force_gc=false)
     end
     GC.gc()
@@ -169,7 +169,8 @@ function benchmark_pivot!(g::BipartiteGraph, k::Int, θ::Int, reduction::Reducti
     m = measure_call() do
         find_kmdb!(g_run, true, BranchMode.pivot, k, θ, reduction)
     end
-    sol = m.value
+    sols = m.value
+    sol = isempty(sols) ? SubGraph() : first(sols)
     # Edge counts against the post-reduction graph used by search / ACO.
     g_eval = deepcopy(g)
     fg_eval = apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
@@ -192,18 +193,26 @@ that matches the optimum and early-stop.
 """
 function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     opt_edges::Union{Nothing,Int}=nothing, early_stop::Bool=true)
-    pheremone, num_ants, num_iterations, evaporation = aco_options
+    pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
+    prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
+    elite_seed = get(aco_options, :elite_seed, true)
+    elite_seed_ants = get(aco_options, :elite_seed_ants, 3)
+    elite_seed_remove = get(aco_options, :elite_seed_remove, 2)
 
     first_hit = Ref{Union{Nothing,Int}}(nothing)
 
     println()
-    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation)…")
+    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies prefer_smaller_side=$prefer_smaller_side elite_seed=$elite_seed)…")
 
     g_run = deepcopy(g)
     m = measure_call() do
-        aco(g_run, pheremone, num_ants, num_iterations, evaporation, k, θ;
+        aco(g_run, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
             parallelize=false,
             force_gc=false,  # keep peak memory meaningful for the paper
+            prefer_smaller_side=prefer_smaller_side,
+            elite_seed=elite_seed,
+            elite_seed_ants=elite_seed_ants,
+            elite_seed_remove=elite_seed_remove,
             iteration_callback = (iter, best_compact, compact_fg, _remapping) -> begin
                 if opt_edges === nothing || first_hit[] !== nothing
                     return true
@@ -221,12 +230,13 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             end)
     end
 
-    sol = m.value
+    sols = m.value
+    g_eval = deepcopy(g)
+    fg_eval = apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
+    sol = argmax(s -> Subgraph.edge_count(fg_eval, s), sols)
     found = first_hit[] !== nothing
 
     # Report solution quality on a reduced graph matching ACO's reductions.
-    g_eval = deepcopy(g)
-    fg_eval = apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
     final_edges = Subgraph.edge_count(fg_eval, sol)
 
     print_metric_block("ACO";
