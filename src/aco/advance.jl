@@ -185,7 +185,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     exp_subgraph_vertex_count = 1 / (1 + exp(Subgraph.vertex_count(ant.explored)))
 
     score = node -> begin
-        d = node_desirability(pheromones, fg, node, ant.species, ant.explored, exp_subgraph_vertex_count)
+        d = node_desirability(pheromones, fg, node, ant.species, exp_subgraph_vertex_count)
         if prefer_u !== nothing && node.is_u == prefer_u
             d *= PREFER_SMALLER_SIDE_MULTIPLIER
         end

@@ -1,19 +1,19 @@
-julia -t 8 load.jl amazon/boxes --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/boxes.txt
-julia -t 8 load.jl amazon/music --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/music.txt
-julia -t 8 load.jl amazon/appliances --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/appliances.txt
-julia -t 8 load.jl amazon/grocery --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/grocery.txt
-julia -t 8 load.jl wikipedia/eswiki --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/eswiki.txt
-julia -t 8 load.jl wikipedia/jawiki --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/jawiki.txt
-julia -t 8 load.jl tnet/matter --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/matter.txt
-julia -t 8 load.jl tnet/livejournal-links --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/livejournal.txt
-julia -t 8 load.jl tnet/catster --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/catster.txt
+julia -t 8 load.jl amazon/boxes --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/boxes.txt
+julia -t 8 load.jl amazon/music --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/music.txt
+julia -t 8 load.jl amazon/appliances --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/appliances.txt
+julia -t 8 load.jl amazon/grocery --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/grocery.txt
+julia -t 8 load.jl wikipedia/eswiki --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/eswiki.txt
+julia -t 8 load.jl wikipedia/jawiki --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/jawiki.txt
+julia -t 8 load.jl tnet/matter --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/matter.txt
+julia -t 8 load.jl tnet/livejournal-links --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/livejournal.txt
+julia -t 8 load.jl tnet/catster --prefer-smaller-side=false --inject --u=5 --v=5 --k=2 --theta=5 --benchmark=aco,heuristic > k2t5i/catster.txt
 
-julia -t 8 load.jl amazon/boxes --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/boxes.txt
-julia -t 8 load.jl amazon/music --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/music.txt
-julia -t 8 load.jl amazon/appliances --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/appliances.txt
-julia -t 8 load.jl amazon/grocery --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/grocery.txt
-julia -t 8 load.jl wikipedia/eswiki --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/eswiki.txt
-julia -t 8 load.jl wikipedia/jawiki --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/jawiki.txt
-julia -t 8 load.jl tnet/matter --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/matter.txt
-julia -t 8 load.jl tnet/livejournal-links --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/livejournal.txt
-julia -t 8 load.jl tnet/catster --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/catster.txt
+julia -t 8 load.jl amazon/boxes --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/boxes.txt
+julia -t 8 load.jl amazon/music --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/music.txt
+julia -t 8 load.jl amazon/appliances --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/appliances.txt
+julia -t 8 load.jl amazon/grocery --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/grocery.txt
+julia -t 8 load.jl wikipedia/eswiki --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/eswiki.txt
+julia -t 8 load.jl wikipedia/jawiki --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/jawiki.txt
+julia -t 8 load.jl tnet/matter --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/matter.txt
+julia -t 8 load.jl tnet/livejournal-links --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/livejournal.txt
+julia -t 8 load.jl tnet/catster --prefer-smaller-side=false --inject --u=6 --v=6 --k=5 --theta=6 --benchmark=aco,heuristic > k5t6i/catster.txt

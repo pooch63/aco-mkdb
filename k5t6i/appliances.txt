@@ -1,0 +1,26 @@
+Loading graph from: data/amazon/appliances/indexed_interactions.csv
+Parameters: k=5 θ=6
+Inject: u=6 v=6 k=5 (in-memory; CSV unchanged)
+Mode: benchmark (aco,heuristic)
+ACO: ants=50 iterations=3 pheromone=1 evaporation=0.95 subspecies=1
+Reduction: progressive
+Graph edges: 2128605
+Injected biclique: u=6 v=6 k=5 (existing=0 inserted=31 missing=5)
+  planted U: [334345, 365484, 531205, 1052482, 1090904, 1388833]
+  planted V: [22677, 48822, 69373, 72444, 79469, 83062]
+  reserved missing: [(365484, 83062), (1052482, 69373), (1090904, 79469), (1388833, 22677), (1388833, 83062)]
+nU=1755732, nV=104237, |E|=2128636
+
+==================== BENCHMARK ====================
+targets=aco,heuristic  k=5  θ=6
+reduction=all_reductions  (applied once; solvers use none)
+
+Warming up (excluded from timings)…
+Progressive reductions took 2 iterations (0 new reduces)
+Prefer smaller side: false
+Size of reduced graphs9 9
+ACO seed_nodes: original U={} V={72609} → compact U={} V={}
+  seed nodes dropped by reduction: U=Int64[] V=[72609]
+ACO θ-heuristic seed: |U|=3 |V|=9 score=81 vertices=12
+ACO MMAS disabled: species pheromone unbounded [0, +∞)
+ACO ablations: elite_pheromone=false tabu=false mmas=false

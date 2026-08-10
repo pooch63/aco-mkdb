@@ -24,7 +24,7 @@ const USE_ELITE_PHEROMONE = false
 const USE_TABU = false
 # MAX-MIN Ant System: clamp shared + each species trail to [τ_min, τ_max].
 # When false, pheromone is unbounded ([0, +∞)).
-const USE_MMAS = true
+const USE_MMAS = false
 
 const ELITE_PHEROMONE_FACTOR = 2
 const SHARED_PHEROMONE_FACTOR = 0.25
@@ -75,7 +75,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     trace_target::Union{Nothing,SubGraph}=nothing,
     # Original-id nodes to plant into every ant at the start of each construction.
     # Experimental default for the known pair under test; pass `nothing` to disable.
-    seed_nodes::Union{Nothing,SubGraph}=SubGraph(Set(), Set([72609])))
+    seed_nodes::Union{Nothing,SubGraph}=SubGraph(Set(), Set()))
     num_subspecies >= 1 || throw(ArgumentError("num_subspecies must be >= 1, got $num_subspecies"))
     elite_seed_ants >= 0 || throw(ArgumentError("elite_seed_ants must be >= 0, got $elite_seed_ants"))
     elite_seed_remove >= 0 || throw(ArgumentError("elite_seed_remove must be >= 0, got $elite_seed_remove"))
@@ -89,6 +89,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
     fg = freeze(g)
 
+    println("Prefer smaller side: $prefer_smaller_side")
     println("Size of reduced graphs", length(fg.u_ids), " ", length(fg.v_ids))
 
     compact_fg, remapping = compact_frozen(fg)
