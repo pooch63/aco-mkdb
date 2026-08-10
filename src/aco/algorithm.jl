@@ -11,7 +11,7 @@ isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 isdefined(@__MODULE__, :__FITNESS_JL__) || include("fitness.jl")
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include("reduction.jl")
 isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
-isdefined(@__MODULE__, :__TABU_JL__) || include("tabu.jl")
+isdefined(@__MODULE__, :__TABU_JL__) || include(joinpath("..", "tabu.jl"))
 
 # Flip to true to dump per-step construction / pruning decisions (like opponent.jl).
 # Best used with parallelize=false — ACO forces that when TRACE is on.
@@ -19,19 +19,18 @@ const TRACE = false
 
 # Ablation switches for paper experiments (baseline ACO vs optimized ACO).
 # Softmax-select a few finished ants by fitness and deposit elite pheromone on them.
-const USE_ELITE_PHEROMONE = true
+const USE_ELITE_PHEROMONE = false
 # Tabu repair on elite ants before deposit, and on new global bests.
-const USE_TABU = true
-# MAX-MIN Ant System: clamp each species trail to [τ_min, τ_max].
-# When false, species pheromone is unbounded ([0, +∞)).
+const USE_TABU = false
+# MAX-MIN Ant System: clamp shared + each species trail to [τ_min, τ_max].
+# When false, pheromone is unbounded ([0, +∞)).
 const USE_MMAS = true
 
 const ELITE_PHEROMONE_FACTOR = 2
 const SHARED_PHEROMONE_FACTOR = 0.25
 
-# MAX-MIN Ant System (MMAS) bounds on each species pheromone map only.
-# Shared pheromone is left unbounded. Linear selection / single-ant deposit
-# are intentionally not part of this change.
+# MAX-MIN Ant System (MMAS) bounds on shared and species pheromone maps.
+# Linear selection / single-ant deposit are intentionally not part of this change.
 
 isdefined(@__MODULE__, :sorted_str) || (sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}")
 
@@ -68,12 +67,15 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     pheromone_min::Union{Float64,Nothing}=nothing,
     pheromone_max::Union{Float64,Nothing}=nothing,
     tt::Int=2, tabu_patience::Int=3,
-    prefer_smaller_side::Bool=true,
+    prefer_smaller_side::Bool=false,
     elite_seed::Bool=true,
     elite_seed_ants::Int=3,
     elite_seed_remove::Int=2,
     reduction::ReductionMode.T=ReductionMode.all_reductions,
-    trace_target::Union{Nothing,SubGraph}=nothing)
+    trace_target::Union{Nothing,SubGraph}=nothing,
+    # Original-id nodes to plant into every ant at the start of each construction.
+    # Experimental default for the known pair under test; pass `nothing` to disable.
+    seed_nodes::Union{Nothing,SubGraph}=SubGraph(Set(), Set([72609])))
     num_subspecies >= 1 || throw(ArgumentError("num_subspecies must be >= 1, got $num_subspecies"))
     elite_seed_ants >= 0 || throw(ArgumentError("elite_seed_ants must be >= 0, got $elite_seed_ants"))
     elite_seed_remove >= 0 || throw(ArgumentError("elite_seed_remove must be >= 0, got $elite_seed_remove"))
@@ -88,15 +90,28 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     fg = freeze(g)
 
     println("Size of reduced graphs", length(fg.u_ids), " ", length(fg.v_ids))
-    println(2955 in fg.u_ids, 42570 in fg.v_ids)
 
     compact_fg, remapping = compact_frozen(fg)
     pheromones = ColonyPheromones(compact_fg, num_subspecies)
 
+    # Map original-id seed nodes into compact space (dropped ⇒ already removed by reduction).
+    seed_compact::Union{Nothing,SubGraph} = nothing
+    if seed_nodes !== nothing && Subgraph.vertex_count(seed_nodes) > 0
+        seed_compact, dropped_U, dropped_V = compactify_subgraph(remapping, seed_nodes)
+        println("ACO seed_nodes: original U=$(sorted_str(seed_nodes.U)) V=$(sorted_str(seed_nodes.V)) → " *
+                "compact U=$(sorted_str(seed_compact.U)) V=$(sorted_str(seed_compact.V))")
+        if !isempty(dropped_U) || !isempty(dropped_V)
+            println("  seed nodes dropped by reduction: U=$dropped_U V=$dropped_V")
+        end
+        if Subgraph.vertex_count(seed_compact) == 0
+            seed_compact = nothing
+        end
+    end
+
     best_scores = fill(0, num_subspecies)
     best_subgraphs = [SubGraph() for _ in 1:num_subspecies]
     # Iteration / wall time at which each subspecies / global best was last improved.
-    # 0 / 0.0 = θ-heuristic seed (or empty) before the ACO loop.
+    # 0 / 0.0 = θ-heuristic / forced-seed incumbent before the ACO loop.
     best_iterations = fill(0, num_subspecies)
     best_times = fill(0.0, num_subspecies)
     best_score::Int = 0
@@ -109,18 +124,43 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     heuristic_sg = theta_based_heuristic(compact_fg, k, θ; return_invalid=true)
     if Subgraph.vertex_count(heuristic_sg) > 0
         heuristic_score = instance_fitness(compact_fg, heuristic_sg, θ)
-        best_subgraph = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
-        best_score = heuristic_score
+        # With forced seed_nodes, only keep the heuristic as incumbent if it
+        # already contains every required node — otherwise it would be returned
+        # as "best" without the seed (found_at_iter=0).
+        if seed_compact === nothing || subgraph_has_seed(heuristic_sg, seed_compact)
+            best_subgraph = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
+            best_score = heuristic_score
+            best_iteration = 0
+            best_time = 0.0
+            for s in 1:num_subspecies
+                best_subgraphs[s] = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
+                best_scores[s] = heuristic_score
+                best_iterations[s] = 0
+                best_times[s] = 0.0
+            end
+            println("ACO θ-heuristic seed: |U|=$(length(heuristic_sg.U)) |V|=$(length(heuristic_sg.V)) " *
+                    "score=$heuristic_score vertices=$(Subgraph.vertex_count(heuristic_sg))")
+        else
+            println("ACO θ-heuristic seed ignored for incumbent (|U|=$(length(heuristic_sg.U)) " *
+                    "|V|=$(length(heuristic_sg.V)) score=$heuristic_score): missing forced seed_nodes")
+        end
+    end
+
+    # Forced-inclusion incumbent: every reported best must contain seed_compact.
+    if seed_compact !== nothing && !subgraph_has_seed(best_subgraph, seed_compact)
+        seed_score = instance_fitness(compact_fg, seed_compact, θ)
+        best_subgraph = SubGraph(copy(seed_compact.U), copy(seed_compact.V))
+        best_score = seed_score
         best_iteration = 0
         best_time = 0.0
         for s in 1:num_subspecies
-            best_subgraphs[s] = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
-            best_scores[s] = heuristic_score
+            best_subgraphs[s] = SubGraph(copy(seed_compact.U), copy(seed_compact.V))
+            best_scores[s] = seed_score
             best_iterations[s] = 0
             best_times[s] = 0.0
         end
-        println("ACO θ-heuristic seed: |U|=$(length(heuristic_sg.U)) |V|=$(length(heuristic_sg.V)) " *
-                "score=$heuristic_score vertices=$(Subgraph.vertex_count(heuristic_sg))")
+        println("ACO forced-seed incumbent: U=$(sorted_str(best_subgraph.U)) " *
+                "V=$(sorted_str(best_subgraph.V)) score=$seed_score")
     end
 
     n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
@@ -155,6 +195,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     end
 
     ants = new_ants(compact_fg, num_ants, num_subspecies)
+    seed_compact !== nothing && seed_ants_with_subgraph!(ants, compact_fg, k, seed_compact)
     invalid_ants = Set{Int}()
 
     explored_ants = [ant for ant in ants]
@@ -166,7 +207,9 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         TRACE && println("==== ACO iter $iter/$num_iterations  best_score=$best_score " *
                          "|U|=$(length(best_subgraph.U)) |V|=$(length(best_subgraph.V)) ====")
 
-        if elite_seed
+        # Elite partial-restart overwrites forced seed_nodes; skip it while
+        # forced inclusion is active so every ant keeps the required vertices.
+        if elite_seed && seed_compact === nothing
             seed_ants_from_elites!(ants, best_subgraphs, best_subgraph, best_scores,
                 elite_seed_ants, elite_seed_remove, compact_fg, k)
             if TRACE
@@ -181,6 +224,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     println(msg)
                 end
             end
+        elseif elite_seed && seed_compact !== nothing && iter == 1
+            println("ACO elite_seed disabled while seed_nodes forced-inclusion is active")
         end
 
         # Track which ants are still exploring
@@ -238,6 +283,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                                      "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))")
                     if USE_TABU
                         tabu_repair!(compact_fg, ant.explored, k, θ, tt, tabu_patience)
+                        seed_compact !== nothing && merge_seed!(ant.explored, seed_compact)
                         if TRACE
                             post_score = instance_fitness(compact_fg, ant.explored, θ)
                             msg = "  elite species=$s post-repair score=$post_score " *
@@ -266,6 +312,11 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         end
 
         for ant in ants
+            # Ants only add vertices, so a forced seed at construction start stays
+            # in explored; still skip any ant that lost it (e.g. future repair).
+            if seed_compact !== nothing && !subgraph_has_seed(ant.explored, seed_compact)
+                continue
+            end
             score = instance_fitness(compact_fg, ant.explored, θ)
             s = ant.species
             if score > best_scores[s]
@@ -279,9 +330,17 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 if USE_TABU
                     tabu = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
                     tabu_repair!(compact_fg, tabu, k, θ, tt, tabu_patience)
+                    if seed_compact !== nothing
+                        merge_seed!(tabu, seed_compact)
+                    end
                     tabu_score = instance_fitness(compact_fg, tabu, θ)
-                    best_score = max(score, tabu_score)
-                    best_subgraph = score > tabu_score ? SubGraph(copy(ant.explored.U), copy(ant.explored.V)) : tabu
+                    if tabu_score >= score && (seed_compact === nothing || subgraph_has_seed(tabu, seed_compact))
+                        best_score = tabu_score
+                        best_subgraph = tabu
+                    else
+                        best_score = score
+                        best_subgraph = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                    end
                 else
                     best_score = score
                     best_subgraph = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
@@ -317,6 +376,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
         invalid_ants = Set{Int}()
         ants = new_ants(compact_fg, num_ants, num_subspecies)
+        seed_compact !== nothing && seed_ants_with_subgraph!(ants, compact_fg, k, seed_compact)
 
         force_gc && GC.gc()
 
@@ -327,6 +387,14 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     end
 
     remapped = [remap_subgraph(remapping, best_subgraphs[s]) for s in 1:num_subspecies]
+    if seed_nodes !== nothing && seed_compact !== nothing
+        for s in 1:num_subspecies
+            subgraph_has_seed(best_subgraphs[s], seed_compact) ||
+                error("ACO forced seed missing from subspecies $s best after search")
+        end
+        subgraph_has_seed(best_subgraph, seed_compact) ||
+            error("ACO forced seed missing from global best after search")
+    end
     for s in 1:num_subspecies
         sg = remapped[s]
         println("ACO subspecies $s best: |U|=$(length(sg.U)) |V|=$(length(sg.V)) " *

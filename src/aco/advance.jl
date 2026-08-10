@@ -27,6 +27,40 @@ function new_ants(fg::FrozenBipartite, num_ants::Int, num_subspecies::Int)
 end
 
 """
+Seed every ant with a (compact-id) subgraph: set `explored`, recompute `missing`,
+and rebuild the candidate set. No-op if `seed` is empty.
+"""
+function seed_ants_with_subgraph!(ants::Vector{Ant}, fg::FrozenBipartite, k::Int,
+    seed::SubGraph)
+    Subgraph.vertex_count(seed) == 0 && return ants
+    for ant in ants
+        sg = SubGraph(copy(seed.U), copy(seed.V))
+        last = if !isempty(sg.U)
+            Node(true, first(sg.U))
+        elseif !isempty(sg.V)
+            Node(false, first(sg.V))
+        else
+            Node()
+        end
+        ant.explored = sg
+        ant.last_visited = last
+        ant.missing = Subgraph.missing_edges(fg, sg)
+        ant.candidates = candidate_set_with_nondegrees(fg, sg, k)
+    end
+    return ants
+end
+
+subgraph_has_seed(sg::SubGraph, seed::SubGraph) =
+    issubset(seed.U, sg.U) && issubset(seed.V, sg.V)
+
+"""Union `seed` into `sg` (mutates)."""
+function merge_seed!(sg::SubGraph, seed::SubGraph)
+    union!(sg.U, seed.U)
+    union!(sg.V, seed.V)
+    return sg
+end
+
+"""
 Drop `added` and any vertex whose nondegree into the updated S exceeds `budget`.
 Opposite-side `deg` values are incremented when adjacent to `added`.
 `nU_sg` / `nV_sg` are |S.U| / |S.V| *after* the add. Mutates `candidates` in place.
@@ -88,7 +122,7 @@ function advance_ants!(fg::FrozenBipartite, pheromones::ColonyPheromones, pherom
 end
 
 """
-Desirability: τ · η²
+Desirability: τ · η
 
 η = d_S + d_G * exp(|S|)
 """
@@ -135,36 +169,30 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
         return false
     end
 
-    sample_pool = candidates
-    if prefer_smaller_side
-        before_len = length(candidates)
-        sample_pool = prefer_smaller_side_candidates(candidates, ant.explored, θ)
-        if TRACE && length(sample_pool) < before_len
-            filtered_target = 0
-            if trace_target !== nothing
-                for c in candidates
-                    in_target = (c.is_u && (c.id in trace_target.U)) ||
-                                (!c.is_u && (c.id in trace_target.V))
-                    in_target || continue
-                    kept = any(cand -> cand.is_u == c.is_u && cand.id == c.id, sample_pool)
-                    kept || (filtered_target += 1)
-                end
-            end
-            println("  "^depth, "  prefer_smaller_side: |C| $(before_len)→$(length(sample_pool))",
-                    filtered_target > 0 ? "  !!! dropped $filtered_target target candidates" : "")
-        end
+    # Soft bias: when exactly one side of S already has ≥θ, boost candidates on
+    # the under-θ (smaller) side instead of hard-filtering the other side out.
+    prefer_u = prefer_smaller_side ? prefer_smaller_side_prefer_u(ant.explored, θ) : nothing
+    if TRACE && prefer_u !== nothing
+        println("  "^depth, "  prefer_smaller_side: boost ",
+                prefer_u ? "U" : "V", " ×", PREFER_SMALLER_SIDE_MULTIPLIER,
+                "  (|U|=$(length(ant.explored.U)) |V|=$(length(ant.explored.V)) θ=$θ)")
     end
 
     if TRACE
-        println("  "^depth, "  candidates=", _trace_degree_nodes(sample_pool))
+        println("  "^depth, "  candidates=", _trace_degree_nodes(candidates))
     end
 
     exp_subgraph_vertex_count = 1 / (1 + exp(Subgraph.vertex_count(ant.explored)))
 
-    next_with_deg = linear_sample_one(
-        node -> node_desirability(pheromones, fg, node, ant.species, exp_subgraph_vertex_count),
-        sample_pool,
-    )
+    score = node -> begin
+        d = node_desirability(pheromones, fg, node, ant.species, ant.explored, exp_subgraph_vertex_count)
+        if prefer_u !== nothing && node.is_u == prefer_u
+            d *= PREFER_SMALLER_SIDE_MULTIPLIER
+        end
+        d
+    end
+
+    next_with_deg = linear_sample_one(score, candidates)
 
     next = Node(next_with_deg)
 
@@ -176,10 +204,10 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
         nmax = next_with_deg
         n_at_max = 0
 
-        desir = node_desirability(pheromones, fg, next_with_deg, ant.species, exp_subgraph_vertex_count)
+        desir = score(next_with_deg)
 
-        for c in sample_pool
-            d = node_desirability(pheromones, fg, c, ant.species, exp_subgraph_vertex_count)
+        for c in candidates
+            d = score(c)
             if d < dmin
                 dmin = d
                 nmin = c
@@ -198,7 +226,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
                 "  max=$(round(dmax; digits=4))",
                 " (", nmax.is_u ? "u" : "v", nmax.id, ",deg=$(nmax.deg))",
                 "  max/min=$(round(ratio; digits=4))",
-                "  n_at_max=$n_at_max/$(length(sample_pool))")
+                "  n_at_max=$n_at_max/$(length(candidates))")
         in_target = trace_target !== nothing &&
             ((next.is_u && (next.id in trace_target.U)) ||
              (!next.is_u && (next.id in trace_target.V)))
@@ -229,13 +257,17 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     return true
 end
 
-function prefer_smaller_side_candidates(candidates::Vector{DegreeNode}, sg::SubGraph, θ::Int)
-    nU, nV = length(sg.U), length(sg.V)
-    (min(nU, nV) >= θ || nU == nV) && return candidates
+# Desirability multiplier applied to candidates on the under-θ side.
+const PREFER_SMALLER_SIDE_MULTIPLIER = 2.0
 
-    prefer_u = nU < nV
-    filtered = DegreeNode[c for c in candidates if c.is_u == prefer_u]
-    return isempty(filtered) ? candidates : filtered
+"""
+When exactly one side of `sg` has ≥θ nodes, return whether to prefer U
+(`true`) or V (`false`). Otherwise return `nothing` (no side bias).
+"""
+function prefer_smaller_side_prefer_u(sg::SubGraph, θ::Int)::Union{Nothing,Bool}
+    nU, nV = length(sg.U), length(sg.V)
+    ((nU >= θ) == (nV >= θ)) && return nothing
+    return nU < nV
 end
 
 function seed_ants_from_elites!(ants::Vector{Ant}, best_subgraphs::Vector{SubGraph},
