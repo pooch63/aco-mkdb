@@ -21,7 +21,7 @@ function default_species_pheromone_bounds(deposit::Real, n_nodes::Int, evaporati
     deposit > 0 || throw(ArgumentError("deposit must be > 0, got $deposit"))
     quality = max(1.0, log(max(best_node_count, 1)))
     τ_max = 10 * Float64(deposit) * quality / max(1 - evaporation, eps(Float64))
-    τ_min = τ_max / (2 * n_nodes)
+    τ_min = τ_max / (2 * log(n_nodes + 1))
     return τ_min, τ_max
 end
 
@@ -53,6 +53,7 @@ function evaporate_pheromones!(colony::ColonyPheromones, evaporation::Float64)
 end
 
 function clamp_species_pheromones!(colony::ColonyPheromones, τ_min::Float64, τ_max::Float64)
+    clamp_pheromones!(colony.shared, τ_min, τ_max)
     for species_pheromones in colony.species
         clamp_pheromones!(species_pheromones, τ_min, τ_max)
     end
@@ -65,6 +66,8 @@ function clamp_species_pheromones!(colony::ColonyPheromones,
         throw(ArgumentError("τ_mins length $(length(τ_mins)) != num species $(length(colony.species))"))
     length(τ_maxs) == length(colony.species) ||
         throw(ArgumentError("τ_maxs length $(length(τ_maxs)) != num species $(length(colony.species))"))
+    # Shared trail uses the envelope of per-species MMAS bounds.
+    clamp_pheromones!(colony.shared, minimum(τ_mins), maximum(τ_maxs))
     for s in eachindex(colony.species)
         clamp_pheromones!(colony.species[s], τ_mins[s], τ_maxs[s])
     end

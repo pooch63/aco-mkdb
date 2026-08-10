@@ -97,7 +97,7 @@ function node_desirability(pheromones::ColonyPheromones, fg::FrozenBipartite,
     τ = max(effective_pheromone(pheromones, Node(node.is_u, node.id), species), eps(Float64))
     deg_G = node.is_u ? degree_u(fg, node.id) : degree_v(fg, node.id)
     η = node.deg + deg_G * exp_sg_vertex_count
-    return τ^3 * η^2
+    return τ * η
 end
 
 # Returns false if the ant has no further moves
@@ -161,7 +161,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
 
     exp_subgraph_vertex_count = 1 / (1 + exp(Subgraph.vertex_count(ant.explored)))
 
-    next_with_deg = softmax_sample_one(
+    next_with_deg = linear_sample_one(
         node -> node_desirability(pheromones, fg, node, ant.species, exp_subgraph_vertex_count),
         sample_pool,
     )
@@ -179,7 +179,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
         desir = node_desirability(pheromones, fg, next_with_deg, ant.species, exp_subgraph_vertex_count)
 
         for c in sample_pool
-            d = node_desirability(pheromones, fg, c, ant.species, ant.explored)
+            d = node_desirability(pheromones, fg, c, ant.species, exp_subgraph_vertex_count)
             if d < dmin
                 dmin = d
                 nmin = c

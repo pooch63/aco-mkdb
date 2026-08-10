@@ -79,6 +79,34 @@ function softmax_sample_one(f::Function, objects::Vector{T}) where T
     return objects[n]
 end
 
+"""Linear (roulette) sample: P(i) ∝ max(f(i), 0)."""
+function linear_sample_one(f::Function, objects::Vector{T}) where T
+    n = length(objects)
+    n == 0 && error("linear_sample_one called on empty candidate set")
+    n == 1 && return objects[1]
+
+    weights = Vector{Float64}(undef, n)
+    total = 0.0
+    @inbounds for i in 1:n
+        w = max(Float64(f(objects[i])), 0.0)
+        weights[i] = w
+        total += w
+    end
+
+    # All non-positive → uniform fallback
+    if total <= 0.0
+        return objects[rand(1:n)]
+    end
+
+    r = rand() * total
+    cum = 0.0
+    @inbounds for i in 1:n
+        cum += weights[i]
+        cum >= r && return objects[i]
+    end
+    return objects[n]
+end
+
 function softmax_sample_nodes(f, sg::SubGraph, n::Int)
     nodes = Vector{Node}()
     sizehint!(nodes, length(sg.U) + length(sg.V))
