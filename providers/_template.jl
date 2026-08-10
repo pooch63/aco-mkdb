@@ -10,7 +10,7 @@ Example registration:
   end
 
   function my_convert!(raw_path, interactions_csv)
-      # Write user_id,item_id,timestamp CSV to interactions_csv
+      # Write u,v[,...] CSV to interactions_csv
       return nothing
   end
 

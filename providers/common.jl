@@ -3,7 +3,7 @@
 Graph data provider adapters
 =================================================================================
 Each provider knows how to download (optional) and convert raw data into the
-common `user_id,item_id,timestamp` interactions CSV. Indexing is shared.
+common `u,v[,...]` interactions CSV. Indexing is shared.
 =#
 
 const __PROVIDERS_JL__ = true

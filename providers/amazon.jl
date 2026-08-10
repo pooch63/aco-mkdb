@@ -15,7 +15,7 @@ const __PROVIDER_AMAZON_JL__ = true
 
 isdefined(@__MODULE__, :__PROVIDERS_JL__) || include(joinpath(@__DIR__, "common.jl"))
 
-# Amazon JSONL → interactions CSV (user_id, asin→item_id, timestamp)
+# Amazon JSONL → interactions CSV (user_id→u, asin→v)
 if !isdefined(@__MODULE__, :convert_jsonl_to_csv)
     include(joinpath(@__DIR__, "..", "src", "edges.jl"))
 end
