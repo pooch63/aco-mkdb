@@ -6,6 +6,8 @@
 \usepackage{float}
 \usepackage{etoolbox}
 \usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{booktabs}
 
 \title{SCO Approach to k-MDB}
 \author{Kiyaan Pillai}
@@ -280,4 +282,36 @@ Where $D^*$ is the $k$-MDB of the graph.
 
 The paper proposes several novel optimization techniques as well. These techniques are beyond the scope of this paper but were implemented during testing. These optimizations include several graph reduction techniques that remove nodes provably not part of a $k$-MDB. 
 
+\section{Results}
+
+We use several graphs from \url{konect.cc}, a registry of bipartite graphs.
+
+\begin{table}[htbp]
+  \centering
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|E(D^*)|$ (ACO) & Time & $|E(D^*)|$ (Cui) & Time \\
+    \midrule
+    Catster & 60 & 442 & 6 & 0.0119 & 7 & 0.0000 \\
+    BD3 & Grafo1.txt & 50 & 270 & 7 & 0.0083 & 8 & 0.0000 \\
+    % Add the rest of your data rows here...
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns
+  
+  \begin{tabular}{l *{12}{r}} % 1 left-aligned column + 12 right-aligned columns
+    \toprule
+    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$ & \multicolumn{4}{c}{ACO} & \multicolumn{2}{c}{Cui} \\
+    \cmidrule(lr){8-11} \cmidrule(lr){12-13}
+    & & & & & & & $|E(D^*)|$ & Time & ITB & TTB & $|E(D^*)|$ & Time \\
+    \midrule
+    BD0 & 10 & 60 & 442 & 5 & 30 & 220 & 6 & 0.0119 & 120 & 0.004 & 7 & 0.0000 \\
+    BD3 & 10 & 50 & 270 & 5 & 25 & 135 & 7 & 0.0083 & 95  & 0.002 & 8 & 0.0000 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 \end{document}
