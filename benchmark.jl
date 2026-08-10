@@ -12,10 +12,14 @@ Invoked from load.jl via:
   julia load.jl <dataset> --benchmark=aco,ga --save=run.json
 
 Reports:
+  - shared graph-reduction wall time (reductions run once; solvers get
+    ReductionMode.none on the already-reduced graph)
   - memory of the loaded (and frozen) graph structure
   - wall time + allocated bytes + peak-RSS delta for pivot / ACO / heuristic / GA
-  - when pivot is also run: iterations / ants / time until ACO first matches
-    the pivot optimum (by edge count + θ-feasibility), then early-stops
+  - ACO: total wall time and time-to-best (elapsed until the reported best
+    subspecies solution was last improved)
+  - when pivot is also run: iterations until ACO first matches the pivot
+    optimum (by edge count + θ-feasibility), then early-stops
   - optional JSON dump via --save=<name> → results/<name> (or an explicit path)
 =================================================================================
 =#
@@ -183,7 +187,7 @@ function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_opt
     end
     if :aco in targets
         aco(deepcopy(g), pheremone, min(num_ants, 2), 1, evaporation, k_w, θ_w, num_subspecies;
-            parallelize=false, force_gc=false)
+            parallelize=false, force_gc=false, reduction=reduction)
     end
     if :heuristic in targets
         g_h = deepcopy(g)
@@ -340,9 +344,13 @@ end
 """
 Run ACO. When `opt_edges` is provided (from pivot), track the first iteration
 that matches the optimum and early-stop.
+
+Pass `reduction=ReductionMode.none` when `g` is already reduced so ACO does not
+re-run graph reductions inside the timed call.
 """
 function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
-    opt_edges::Union{Nothing,Int}=nothing, early_stop::Bool=true)
+    opt_edges::Union{Nothing,Int}=nothing, early_stop::Bool=true,
+    reduction::ReductionMode.T=ReductionMode.all_reductions)
     pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
     prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
     elite_seed = get(aco_options, :elite_seed, true)
@@ -363,7 +371,8 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             elite_seed=elite_seed,
             elite_seed_ants=elite_seed_ants,
             elite_seed_remove=elite_seed_remove,
-            iteration_callback = (iter, best_compact, compact_fg, _remapping) -> begin
+            reduction=reduction,
+            iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
                 if opt_edges === nothing || first_hit[] !== nothing
                     return true
                 end
@@ -380,10 +389,13 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             end)
     end
 
-    sols = m.value
+    sols, best_iterations, best_times = m.value
     g_eval = deepcopy(g)
-    fg_eval = apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
-    sol = argmax(s -> Subgraph.edge_count(fg_eval, s), sols)
+    fg_eval = apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
+    best_idx = argmax(i -> Subgraph.edge_count(fg_eval, sols[i]), eachindex(sols))
+    sol = sols[best_idx]
+    iterations_to_best = best_iterations[best_idx]
+    time_to_best = best_times[best_idx]
     found = first_hit[] !== nothing
 
     # Report solution quality on a reduced graph matching ACO's reductions.
@@ -391,14 +403,16 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
 
     print_metric_block("ACO";
         wall_time_s = m.time,
+        time_to_best_s = time_to_best,
         allocated_bytes = m.allocated,
         rss_delta_bytes = m.rss_delta,
         rss_peak_bytes = m.rss_peak,
         ants = num_ants,
         iterations_budget = num_iterations,
+        iterations_to_best = iterations_to_best,
         iterations_to_optimal = found ? first_hit[] : nothing,
-        time_to_optimal_note = found ?
-            "early-stopped at iteration $(first_hit[]) (wall time above includes time-to-hit)" :
+        matched_optimal_note = found ?
+            "matched optimum at iteration $(first_hit[])" :
             (opt_edges === nothing ? "no pivot optimum provided" : "optimum not reached within budget"),
         solution = describe_solution(fg_eval, sol, k),
         final_edges = final_edges,
@@ -411,20 +425,31 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
         println()
         println("  ACO first matched pivot optimum at iteration $(first_hit[]) " *
                 "with $num_ants ants ($(format_bytes(m.allocated)) allocated, " *
-                "$(round(m.time; digits=4))s wall).")
+                "$(round(time_to_best; digits=4))s to best, " *
+                "$(round(m.time; digits=4))s total wall).")
     elseif opt_edges !== nothing
         println()
         println("  ACO did not match pivot optimum ($opt_edges edges) within " *
                 "$num_iterations iterations × $num_ants ants.")
     end
 
-    return (; sol, time = m.time, allocated = m.allocated, rss_delta = m.rss_delta,
-        first_hit_iteration = first_hit[], ants = num_ants,
-        iterations_budget = num_iterations, final_edges, opt_edges)
+    println()
+    println("  ACO final solution found at iteration $iterations_to_best " *
+            "($(round(time_to_best; digits=4))s; budget $num_iterations, " *
+            "total wall $(round(m.time; digits=4))s).")
+
+    return (; sol, time = m.time, time_to_best = time_to_best,
+        allocated = m.allocated, rss_delta = m.rss_delta,
+        first_hit_iteration = first_hit[], iterations_to_best = iterations_to_best,
+        ants = num_ants, iterations_budget = num_iterations, final_edges, opt_edges)
 end
 
 """
 Entry point used by load.jl when `--benchmark=...` is set.
+
+Graph reductions run once up front (timed separately). Solvers then receive the
+already-reduced mutable graph with `ReductionMode.none` so their wall times
+exclude reduction cost.
 """
 function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol},
     k::Int, θ::Int, reduction::ReductionMode.T, aco_options;
@@ -432,39 +457,70 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
     println()
     println("==================== BENCHMARK ====================")
     println("targets=$(join(sort!(collect(String(t) for t in targets)), ","))  k=$k  θ=$θ")
-    println("reduction=$reduction")
+    println("reduction=$reduction  (applied once; solvers use none)")
 
     println()
     println("Warming up (excluded from timings)…")
     warmup_benchmarks!(k, θ, reduction, aco_options; targets=targets, ga_options=ga_options)
 
-    graph_stats = benchmark_graph_memory(g, edge_count, k, θ, reduction)
+    mutable_bytes = Base.summarysize(g)
+    g_reduced = deepcopy(g)
+    println()
+    println("Reducing graph once (shared across solvers)…")
+    m_red = measure_call() do
+        apply_graph_reductions!(g_reduced, k, θ, nothing, nothing, true, reduction)
+    end
+    fg = m_red.value
+    frozen_bytes = Base.summarysize(fg)
+    print_metric_block("Graph reduction";
+        wall_time_s = m_red.time,
+        allocated_bytes = m_red.allocated,
+        rss_delta_bytes = m_red.rss_delta,
+        reduced_nU = length(fg.u_ids),
+        reduced_nV = length(fg.v_ids),
+    )
+    print_metric_block("Graph structure";
+        nU = length(g.adjU),
+        nV = length(g.adjV),
+        edges = edge_count,
+        mutable_graph_bytes = mutable_bytes,
+        frozen_after_reduction_bytes = frozen_bytes,
+        reduced_nU = length(fg.u_ids),
+        reduced_nV = length(fg.v_ids),
+    )
+    graph_stats = (; mutable_bytes, frozen_bytes, fg,
+        reduction_time = m_red.time, reduction_allocated = m_red.allocated,
+        reduction_rss_delta = m_red.rss_delta)
+
+    # Solvers search the already-reduced graph; skip re-reduction in each call.
+    solver_reduction = ReductionMode.none
 
     pivot_stats = nothing
     if :pivot in targets
-        pivot_stats = benchmark_pivot!(g, k, θ, reduction)
+        pivot_stats = benchmark_pivot!(g_reduced, k, θ, solver_reduction)
     end
 
     opt_edges = pivot_stats === nothing ? nothing : pivot_stats.opt_edges
 
     heuristic_stats = nothing
     if :heuristic in targets
-        heuristic_stats = benchmark_heuristic!(g, k, θ, reduction; opt_edges=opt_edges)
+        heuristic_stats = benchmark_heuristic!(g_reduced, k, θ, solver_reduction; opt_edges=opt_edges)
     end
 
     ga_stats = nothing
     if :ga in targets
-        ga_stats = benchmark_ga!(g, k, θ, reduction, ga_options; opt_edges=opt_edges)
+        ga_stats = benchmark_ga!(g_reduced, k, θ, solver_reduction, ga_options; opt_edges=opt_edges)
     end
 
     aco_stats = nothing
     if :aco in targets
-        aco_stats = benchmark_aco!(g, k, θ, aco_options;
-            opt_edges=opt_edges, early_stop=true)
+        aco_stats = benchmark_aco!(g_reduced, k, θ, aco_options;
+            opt_edges=opt_edges, early_stop=true, reduction=solver_reduction)
     end
 
     println()
     println("==================== SUMMARY ======================")
+    println("  reduction time       : $(round(graph_stats.reduction_time; digits=4))s")
     println("  graph mutable memory : $(format_bytes(graph_stats.mutable_bytes))")
     println("  graph frozen memory  : $(format_bytes(graph_stats.frozen_bytes))")
     if pivot_stats !== nothing
@@ -489,9 +545,11 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
     end
     if aco_stats !== nothing
         println("  ACO time             : $(round(aco_stats.time; digits=4))s")
+        println("  ACO time → best      : $(round(aco_stats.time_to_best; digits=4))s")
         println("  ACO allocated        : $(format_bytes(aco_stats.allocated))")
         println("  ACO RSS Δ           : $(format_bytes(aco_stats.rss_delta))")
         println("  ACO ants             : $(aco_stats.ants)")
+        println("  ACO iters → best     : $(aco_stats.iterations_to_best)")
         println("  ACO iters → optimal  : $(aco_stats.first_hit_iteration === nothing ? "not found" : aco_stats.first_hit_iteration)")
         println("  ACO final edges      : $(aco_stats.final_edges)" *
                 (aco_stats.opt_edges === nothing ? "" : " / $(aco_stats.opt_edges) optimal"))
@@ -569,6 +627,9 @@ function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
         "frozen_bytes" => gs.frozen_bytes,
         "reduced_nU" => length(gs.fg.u_ids),
         "reduced_nV" => length(gs.fg.v_ids),
+        "reduction_time_s" => get(gs, :reduction_time, nothing),
+        "reduction_allocated_bytes" => get(gs, :reduction_allocated, nothing),
+        "reduction_rss_delta_bytes" => get(gs, :reduction_rss_delta, nothing),
     )
 
     if results.pivot_stats !== nothing
@@ -614,10 +675,12 @@ function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
         as = results.aco_stats
         out["aco"] = Dict(
             "wall_time_s" => as.time,
+            "time_to_best_s" => as.time_to_best,
             "allocated_bytes" => as.allocated,
             "rss_delta_bytes" => as.rss_delta,
             "ants" => as.ants,
             "iterations_budget" => as.iterations_budget,
+            "iterations_to_best" => as.iterations_to_best,
             "iterations_to_optimal" => as.first_hit_iteration,
             "final_edges" => as.final_edges,
             "optimal_edges" => as.opt_edges,

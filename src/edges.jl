@@ -2,9 +2,9 @@
 =================================================================================
 JSONL to CSV Converter Script
 =================================================================================
-This script reads a JSONL file containing product review data and exports a 
-processed CSV file containing only three columns: user_id, item_id, and timestamp.
-The 'asin' field from the source JSONL is renamed to 'item_id' in the output.
+This script reads a JSONL file containing product review data and exports a
+processed CSV file with columns: u, v.
+The 'asin' field from the source JSONL is written as 'v' in the output.
 
 Prerequisites:
   Ensure you have Julia and the required packages installed. You can install them
@@ -35,9 +35,8 @@ function convert_jsonl_to_csv(input_path::String, output_path::String)
     println("Input source:  $input_path")
     println("Output target: $output_path")
 
-    user_ids = String[]
-    item_ids = String[]
-    timestamps = Int64[]
+    us = String[]
+    vs = String[]
 
     try
         open(input_path, "r") do file
@@ -48,10 +47,9 @@ function convert_jsonl_to_csv(input_path::String, output_path::String)
                 if !isempty(cleaned_line)
                     row = JSON3.read(cleaned_line)
 
-                    if haskey(row, :user_id) && haskey(row, :asin) && haskey(row, :timestamp)
-                        push!(user_ids, string(row[:user_id]))
-                        push!(item_ids, string(row[:asin]))
-                        push!(timestamps, Int64(row[:timestamp]))
+                    if haskey(row, :user_id) && haskey(row, :asin)
+                        push!(us, string(row[:user_id]))
+                        push!(vs, string(row[:asin]))
                     else
                         println(stderr, "Warning: Skipping malformed row at line $line_count")
                     end
@@ -63,11 +61,7 @@ function convert_jsonl_to_csv(input_path::String, output_path::String)
     end
 
     println("Assembling dataset...")
-    df = DataFrame(
-        user_id = user_ids,
-        item_id = item_ids,
-        timestamp = timestamps
-    )
+    df = DataFrame(u = us, v = vs)
 
     try
         CSV.write(output_path, df)

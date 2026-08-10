@@ -9,8 +9,8 @@ indexes IDs via index_dataset.jl.
 Output layout (nested names supported):
   data/<provider>/<dataset>/
     raw/                      # downloaded archives / extracted files
-    interactions.csv          # user_id,item_id,timestamp (source IDs)
-    indexed_interactions.csv  # integer-indexed graph
+    interactions.csv          # u,v[,...] (source IDs)
+    indexed_interactions.csv  # integer-indexed u,v graph
     mappings/                 # reverse maps + metadata
 
 How to Run:

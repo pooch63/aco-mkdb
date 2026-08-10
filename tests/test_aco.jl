@@ -54,15 +54,16 @@ function solve_aco(g::FrozenBipartite, k::Int, θ::Int)
     )
     if TIME_MODE
         t = @elapsed begin
-            sols = aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
+            sols, _iterations, _times = aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
                 kwargs...)
         end
         push!(TIMINGS, t)
         println("  aco time: $(round(t; digits=3))s  (parallelize=$(PARALLELIZE), threads=$(nthreads()))")
         return pick_best_aco(g, sols)
     else
-        return pick_best_aco(g, aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
-            kwargs...))
+        sols, _iterations, _times = aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
+            kwargs...)
+        return pick_best_aco(g, sols)
     end
 end
 

@@ -49,6 +49,36 @@ function softmax_sample(f::Function, objects::Vector{T}, n::Int) where T
     return softmax_sample(objects, [f(object) for object in objects], n)
 end
 
+"""Softmax sample a single object (roulette). Same distribution as `softmax_sample(f, objects, 1)[1]`."""
+function softmax_sample_one(f::Function, objects::Vector{T}) where T
+    n = length(objects)
+    n == 0 && error("softmax_sample_one called on empty candidate set")
+    n == 1 && return objects[1]
+
+    scores = Vector{Float64}(undef, n)
+    m = -Inf
+    @inbounds for i in 1:n
+        s = Float64(f(objects[i]))
+        scores[i] = s
+        s > m && (m = s)
+    end
+
+    total = 0.0
+    @inbounds for i in 1:n
+        w = exp(scores[i] - m)
+        scores[i] = w
+        total += w
+    end
+
+    r = rand() * total
+    cum = 0.0
+    @inbounds for i in 1:n
+        cum += scores[i]
+        cum >= r && return objects[i]
+    end
+    return objects[n]
+end
+
 function softmax_sample_nodes(f, sg::SubGraph, n::Int)
     nodes = Vector{Node}()
     sizehint!(nodes, length(sg.U) + length(sg.V))

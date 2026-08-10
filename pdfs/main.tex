@@ -5,6 +5,7 @@
 \usepackage{algpseudocodex}
 \usepackage{float}
 \usepackage{etoolbox}
+\usepackage{amssymb}
 
 \title{SCO Approach to k-MDB}
 \author{Kiyaan Pillai}
@@ -37,74 +38,102 @@
 
 \section{Introduction}
 
-Cui et al. (2025) and Wang et al. (2025) proposed a branch-and-bound algorithm with several novel optimizations. They both propose heuristic approaches to identifying maximum $k$-MDB structures. However, these approaches are intended as a cheap approximation to tighten the upper bound that their pruning optimizations rely on. Thus, these heuristics often fail to find large $k$-MDB on a graph.
+A bipartite graph is a common graph structure where one set of vertices is connected solely to another. Bipartite graphs can model user-product behavior, person-place interaction, and more. A biclique is a set of vertices on a bipartite graph such that each vertex on one side is connected to each vertex on the other.  The maximum edge biclique problem aims to identify the biclique with the most edges on a bipartite graph.  The problem has applications in online recommendation systems, fraud detection, and community detection [Cui et al.].
 
-The proposed branch algorithms run in exponential time. While benchmark tests often run on graphs of millions of edges, practical applications might need to run on graphs of billions of edges. For instance, Cui et al.'s proposed branch-and-pivot (BnP) algorithm took up to 2 hours and 25 minutes on a graph with 20,592,962 edges. A heuristic that runs in linear time of $n$ and $m$ on a graph with $n$ nodes and $m$ edges, and is more accurate than the previously proposed algorithms, is required.
+Real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique, can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emergent field.
 
-Additionally, the proposed heuristics' accuracy is heavily dependent on $k$. We observe that on a graph whose maximum solution has $k_a$ missing edges, previous heuristics fail to find it more often when $k > k_a$.
+The $k$-MDB problem is NP-hard, meaning any guaranteed algorithm must run in exponential time. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
 
-Finally, the proposed heuristics' accuracy is heavily dependent on $\theta$ as a parameter. $\theta$ is intended to be a 
+Ant-colony optimization was first proposed to solve difficult combinatorial optimization problems, specifically the Traveling Salesman Problem. Several improvements have been proposed to the algorithm since its inception, most notably the Min-Max Ant System (MMAS). We adapt MMAS to the $k$-MDB problem as a heuristic approach to identifying $k$-MDB. We observe it performs significantly faster than brute-force algorithms while still returning comparably large $k$-defective bicliques.
 
-We propose a novel adaptation of Ant Colony Optimization that runs in linear time of $n$ and $m$, is parallelizable, and whose accuracy is significantly higher than the previous proposed heuristics, rivals optimal algorithms, and whose runtime is significantly less dependent on $\theta$ and $k$.
+\section{Background}
 
-\section{Definitions}
+\subsection{Definitions}
+
 Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
 
 Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
 
 Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
 
+The algorithms proposed in this paper seek to find the maximum $k$-MDB where both sides have at least $\theta$ vertices. This is because, on real-world graphs, $k$-defective bicliques can be formed with many edges and disproportionate vertex counts, where one side has very few vertices and one side has many [Cui et al.]. Without the $\theta$ term, the utility of the algorithm is limited.
+
+\subsection{Computational Complexity}
+
+Finding the maximum $k$-MDB on a bipartite graph is an NP-hard optimization problem The problem reduces to the well-known NP-hard maximum clique problem, which seeks to find the maximum set of vertices on a graph connected to every other vertex [Cui et al.].
+
 \section{Methods}
-We propose Slime Colony Optimization (SCO), an adaptation of ACO fitted to biclique graphs. Pheromones allow agents to converge on optimal solutions, and subspecies of slimes allow for multiple near-optimal solutions.
 
-Pseudocode:
+Ant-colony optimization traditionally has a set of ants that traverse a graph, leaving pheromone that attracts other ants to follow their path. As the ants explore the solution space, they all converge on one particular path as the quantity pheromones on that path becomes increasingly larger.
 
-# Have to update this to ablate the adding pheromone to the best solutions
-# Will then have to include the instance fitness and everything I tried there
-# Also have to try different desirability functions
-# Could I genetically evolve the desirability function itself?
+We adapt the Ant-Colony optimization algorithm to the $k$-MDB problem. A population of ants iteratively adds vertices from $G$ to a subgraph $S$, preferring nodes with higher $d_S$ and higher pheromone $\tau$.
+
 \begin{algorithm}[H]
-\caption{SCO}
+\caption{ACO}
 \begin{minipage}{\textwidth}
 \begin{algorithmic}
     \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
 
-    \Function{SCO}{$G$, $N_e$, $N_g$, $E$, $p$}
+    \Function{ACO}{$G$, $N_e$, $N_g$, $E$, $T$}
         \ForAll{$u \in G$}
-            \State $P(u) \gets 1$
+            \State $\tau(u) \gets 1$
         \EndFor
         \State $e \gets 0$
         \While{$e < N_e$}
             \State $e \gets e + 1$
             \State $A \gets$ $N_a$ empty subgraphs
-            \State $P_C \gets P$
+            \State $\tau_C \gets \tau$
             
             \ForPar{$S_i \in S$}
-                \State $next \gets \text{softmax}_{u \in G \setminus S}(\Call{desirability}{u, S_i, P_C})$
+                \State $next \gets \text{softmax}$ nodes in $\Call{Candidate}{S_i}$ based on  $\Call{desirability}{u, S_i, \tau_C}$
                 \State add $next$ to $S_i$
-                \State $P_C(u) \gets P_C(u) + p$
+                \State $\tau_C(u) \gets \tau_C(u) + T$
             \EndForPar
 
-            \State $P \gets P_C$
+            \State $\tau \gets \tau_C$
 
             \ForAll{$u \in G$}
-                \State $P(u) \gets P(u) \times E$
+                \State $\tau(u) \gets \tau(u) \times E$
             \EndFor
         \EndWhile
-        \ForAll{$u \in G$}
-            \State $P(u) \gets P(u) \times E$
-        \EndFor
+        
         \State \Return $T$
     \EndFunction
 
-    \Function{Desirability}{$u$, $S$, $P$}
-        \State \Return $P(u)^3 \times d_S(u)$
+    \Function{Candidate}{$S$}
+        \State \Return $\{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$
+    \EndFunction
+    
+    \Function{Desirability}{$u, S, \tau$}
+        \State $\eta \gets d_S(u) + d_G(u) \times \sigma(|U_S| + |V_S|)$
+        \State \Return $\tau(u) \times \eta^3$
     \EndFunction
 \end{algorithmic}
 \end{minipage}
 \end{algorithm}
 
-We also included a genetic algorithm to benchmark against ACO:
+We also propose several additions to this algorithm that empirically improve performance. We introduce an elitist-style selection process that deposits pheromones on the best solutions, as proposed by [Schiff]. To increase ant diversity, we softmax the solutions ranked by their fitness. We define the fitness function below.
+
+\begin{algorithm}[H]
+\caption{Instance Fitness}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+    \Function{InstanceFitness}{$S = (U_S, V_S)$}
+        \State $m \gets 1$
+        \If{$\min(|U_S|, |V_S|) \geq \theta$}
+            \State $m \gets \max{|U_S, V_S|}$
+        \EndIf
+        \State \Return $m \times \min(|U_S|, |V_S|)^2$
+    \EndFunction
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+Additionally, to encourage bicliques with at least $\theta$ vertices on both sides, we limit ants to exploring vertices on the side with fewer in their current subgraph if at least one side does not have $\theta$ vertices.
+
+Finally, we implement the Min-Max ACO system.
+
+We also compare the opponent algorithm to a genetic algorithm. [Shah, 2020] proposes a genetic algorithm to identify the maximum clique on a generalized graph. We adapt this algorithm to biclique graphs and keep the logic the same. The algorithm initializes populations with single nodes and utilizes genetic algorithms to evolve instances. Two subgraphs are crossed over as outlined below, and then both a greedy and tabu repair algorithm are applied. The greedy algorithm simply adds nodes with the highest degree among $S$ to $S$ until the number of missing edges is too large. The tabu algorithm utilizes the fitness function to explore graphs that initially appear worse but can eventually lead to superior graphs. After utilizing both repair methods on independent copies of $S$, whichever instance has the highest fitness is used as the offspring.
 
 \begin{algorithm}[H]
 \caption{Genetic Algorithm}
@@ -119,39 +148,17 @@ We also included a genetic algorithm to benchmark against ACO:
 
         \State $e \gets 0$
         \State $P_n \gets P$
-        \State $K_N \gets K$
 
         \While{$e < N_e$}
             \ForPar{$i \in [1, |P|]$}
                 \State $m, f \gets 2$ distinct $\text{argsoftmax}_{P_C \in P \setminus P_i}(\Call{InstanceFitness}{P_C})$
 
-                \State $k_O \gets \Call{CrossoverK}{K_m, K_f}$
-
-                \State $(P_n)_i \gets \Call{CrossoverS}{P_m, P_f, k_O}$
-                \State $(K_N)_i \gets k_O$
+                \State $(P_n)_i \gets \Call{CrossoverS}{P_m, P_f}$
             \EndForPar
         \EndWhile
     \EndFunction
 
-    \Function{CrossoverK}{$K_m$, $K_f$}
-        \If{$\text{uniform}(0, 1) \leq 0.5$}
-            \State $k_O \gets K_m$
-        \Else
-            \State $k_O \gets K_f$
-        \EndIf
-
-        \If{$\text{uniform}(0, 1) \leq m_k$}
-            \If{$\text{uniform}(0, 1) \leq 0.5$}
-                \State $k_O \gets \max(0, K_O - 1)$
-            \Else
-                \State $k_O \gets \min(k, K_O + 1)$
-            \EndIf
-        \EndIf
-
-        \State \Return $k_O$
-    \EndFunction
-
-    \Function{CrossoverS}{$S_m$, $S_f$, $k_O$}
+    \Function{CrossoverS}{$S_m$, $S_f$}
         \State $C \gets S_m \cap S_f$
 
         \If{$|C| = 0$}
@@ -174,88 +181,103 @@ We also included a genetic algorithm to benchmark against ACO:
         \State \Return C
     \EndFunction
 
-    \Function{InstanceFitness}{$S = (U_S, V_S)$}
-        \State $m \gets 1$
-        \If{$\min(|U_S|, |V_S|) \geq \theta$}
-            \State $m \gets \max{|U_S, V_S|}$
-        \EndIf
-        \State \Return $m \times \min(|U_S|, |V_S|)^2$
-    \EndFunction
-
 \end{algorithmic}
 \end{minipage}
 \end{algorithm}
 
 \begin{algorithm}[H]
-\caption{Tabu Repair}
+\caption{Repair}
 \begin{minipage}{\textwidth}
 \begin{algorithmic}
-    \Function{TabuRepair}{$G$, $S$, $tt$, $p$}
-        \State $p_A \gets 0$
+    \Function{Repair}{$G$, $S$}
+        \State $S_T \gets$ tabu repair of $S$
+        \State $S_G \gets$ $S$
+        \While{$|\bar{E}(S_G)| < k$}
+            \State $C \gets \{u \in G \setminus S_G \mid k \geq |\bar{E}(S_G \cup \{u\})|\}$
 
-        \ForAll{$u \in G$}
-            \State $T(u, \text{add}) = 0$
-            \State $T(u, \text{remove}) = 0$
-        \EndFor
-
-        \State $F_B \gets \Call{InstanceFitness}{S}$
-        \State $S_B \gets S$
-
-        \While{$p_A \leq p$}
-            \State $C \gets \{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$
-        
-            \State $T_C \gets T$
-            \State $F_C \gets \Call{InstanceFitness}{S}$
-            \State $F_O, S_O \gets -\infty, S$
-
-            \State $E \gets \{(u, \text{add}) \in C\} \cup \{(u, \text{remove}) \in S\}$
-            
-            \For{$(u, add) \in E \mathrel{\text{s.t.}} T_C(u, add) = 0$}
-                \If{$add$}
-                    \State $S_N \gets S \cup \{u\}$
-                \Else
-                    \State $S_N \gets S \setminus \{u\}$
-                \EndIf
-
-                \State $F_N \gets \Call{InstanceFitness}{S_N}$
-
-                \If{$F_N < F_C$}
-                    \State $T_C(u, add) \gets tt$
-                \EndIf
-
-                \If{$F_N > F_O$}
-                    \State $F_O, S_O \gets F_N, S_N$
-                \EndIf
-            \EndFor
-
-            \If{$F_O > F_B$}
-                \State $F_B \gets F_O$
-                \State $S_B \gets S_O$
+            \If{$|C|=0$}
+                \State break
             \EndIf
-
-            \For{$(u, add) \in E \mathrel{\text{s.t.}} T_C(u, add) > 0$}
-                \If{$add$}
-                    \State $S_N \gets S \cup \{u\}$
-                \Else
-                    \State $S_N \gets S \setminus \{u\}$
-                \EndIf
-
-                \State $F_N \gets \Call{InstanceFitness}{S_N}$
-
-                \If{$F_N > F_B$}
-                    $F_B, S_B \gets F_N, S_N$
-                \EndIf
-            \EndFor
-
-            \State $T \gets T_C$
+            
+            \State append $\text{argmax}_{u \in G \setminus S_G}{d_{S_G}u}$
         \EndWhile
 
-        \State \Return $S_B$
+        \State \Return $\text{argmax}_{\{S \in S_T, S_G\}}{\Call{InstanceFitness}{S}}$
     \EndFunction
 \end{algorithmic}
 \end{minipage}
 \end{algorithm}
 
-NEXT: Figure out what datasets I want to compare against, implement subspecies, and then write the pseudocode
+Finally, we implement the approach proposed by [Cui et al.]. [Cui et al.] observe that many $k$-MDB have one side with exactly $\theta$ vertices and propose a heuristic that removes nodes from one side while adding nodes to another until there are $\theta$ nodes on that side. We summarize their algorithm below.
+
+\
+\begin{algorithm}[H]
+\caption{Cui Heuristic}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+
+    \Ensure a $k$-defective biclique of $G$
+
+    \Function{CuiHeuristic}{$G$}
+        \State $U\gets \{\}$
+        \State $V \gets V_G$
+
+        \While{$|U| < \theta$}
+            \State append $u \in U_G \setminus U$ with largest $d_V$ to $U$
+            \While{$|\bar{E}(U \cup V)| > k$}
+                \State remove $v \in V$ with largest $\bar{d}_U$ from $V$
+            \EndWhile
+        \EndWhile
+
+        \State \Return $U \cup V$
+    \EndFunction
+    
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+They then propose the following branch-and-pivot brute force algorithm that takes advantage of this initial heuristic upper bound.
+
+\begin{algorithm}
+\caption{Branch and Pivot}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+\State $D^* \gets \Call{CuiHeuristic}{G}$
+\Function{BranchP}{$S = (U_S, V_S), C = (U_C, V_C)$}
+        \If{$C = \varnothing$}
+            \If{$|E(S)| > |E(D^*)|$ and $|U_S| \geq \theta$ and $|V_S| \geq \theta$}
+                \State $D^* \gets S$
+                \State \Return
+            \EndIf
+        \EndIf
+
+        \State $C_0 \gets \{v \in C \mid \bar{d}_S(v) = 0\}$
+        \If{$C_0 = \varnothing$ or $|C \setminus C_0| \geq k - |\bar{E}(S)|$}
+            \State $u \gets \text{argmax}_{v \in C}{\bar{d}_S}$
+            \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, u}$
+            \State \Call{BranchP}{$S^\prime \cup \{u\}, C^\prime$}
+            \State \Call{BranchP}{$S, C \setminus \{u\}$}
+        \Else
+            \State $u \gets \text{argmin}_{v \in C_0}\bar{d}_C$
+            \If{$\bar{d}_C(u) > k - |\bar{E}(S)| > 0$}
+                \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, u}$
+                \State \Call{BranchP}{$S^\prime \cup \{u\}, C^\prime$}
+                \State \Call{BranchP}{$S, C \setminus \{u\}$}
+            \Else
+                \For{$v \in \{u\} \cup N_C(u)$}
+                    \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, v}$
+                    \State \Call{BranchP}{$S^\prime \cup \{v\}, C^\prime$}
+                    \State $C \gets C \setminus \{v\}$
+                \EndFor
+            \EndIf
+        \EndIf
+    \EndFunction
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+Where $D^*$ is the $k$-MDB of the graph.
+
+The paper proposes several novel optimization techniques as well. These techniques are beyond the scope of this paper but were implemented during testing. These optimizations include several graph reduction techniques that remove nodes provably not part of a $k$-MDB. 
 
 \end{document}

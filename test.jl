@@ -113,10 +113,12 @@ function setup_worker!(p::Integer)
             as = benchmark_aco!(g, k, θ, aco_options; opt_edges=opt_edges, early_stop=true)
             return (
                 time = as.time,
+                time_to_best = as.time_to_best,
                 allocated = as.allocated,
                 rss_delta = as.rss_delta,
                 ants = as.ants,
                 iterations_budget = as.iterations_budget,
+                iterations_to_best = as.iterations_to_best,
                 first_hit_iteration = as.first_hit_iteration,
                 final_edges = as.final_edges,
                 opt_edges = as.opt_edges,
@@ -295,10 +297,12 @@ function serialize_aco_stats(as)
     as === nothing && return nothing
     return Dict{String,Any}(
         "wall_time_s" => as.time,
+        "time_to_best_s" => as.time_to_best,
         "allocated_bytes" => as.allocated,
         "rss_delta_bytes" => as.rss_delta,
         "ants" => as.ants,
         "iterations_budget" => as.iterations_budget,
+        "iterations_to_best" => as.iterations_to_best,
         "iterations_to_optimal" => as.first_hit_iteration,
         "final_edges" => as.final_edges,
         "optimal_edges" => as.opt_edges,

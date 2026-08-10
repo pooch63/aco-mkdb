@@ -1,14 +1,14 @@
 #=
 =================================================================================
-CSV ID Indexer and Timestamp Zero-Baser Script
+CSV ID Indexer Script
 =================================================================================
-This script takes the 3-column CSV output from the previous script (user_id, item_id,
-timestamp) and converts it into a continuous, zero-based integer index format.
+This script takes a CSV with columns `u,v[,...]` and converts the endpoint IDs
+into a continuous, 1-based integer index format.
 
 It outputs:
-  1. A processed CSV file with columns: user_id, item_id, timestamp (all integers).
+  1. A processed CSV file with columns: u, v (integer indices).
   2. A folder containing 'user_mapping.csv' and 'item_mapping.csv'.
-  3. A 'metadata.txt' file capturing the minimum timestamp offset.
+  3. A 'metadata.txt' file with unique-user / unique-item counts.
 
 Prerequisites:
   Ensure you have Julia and the required packages installed:
@@ -34,27 +34,23 @@ function index_dataset(input_path::String, output_csv_path::String, mapping_dir:
     println("Loading dataset...")
     df = CSV.read(input_path, DataFrame)
 
-    required_cols = ["user_id", "item_id", "timestamp"]
+    required_cols = ["u", "v"]
     if !all(col -> col in names(df), required_cols)
-        error("Input CSV must contain 'user_id', 'item_id', and 'timestamp' columns.")
+        error("Input CSV must contain 'u' and 'v' columns.")
     end
 
     println("Processing user mappings...")
-    unique_users = unique(df.user_id)
+    unique_users = unique(df.u)
     user_to_idx = Dict(user => i for (i, user) in enumerate(unique_users))
 
     println("Processing item mappings...")
-    unique_items = unique(df.item_id)
+    unique_items = unique(df.v)
     item_to_idx = Dict(item => i for (i, item) in enumerate(unique_items))
-
-    println("Calculating timestamp baseline...")
-    min_timestamp = minimum(df.timestamp)
 
     println("Transforming dataset...")
     transformed_df = DataFrame(
-        user_id = [user_to_idx[u] for u in df.user_id],
-        item_id = [item_to_idx[i] for i in df.item_id],
-        timestamp = df.timestamp .- min_timestamp
+        u = [user_to_idx[u] for u in df.u],
+        v = [item_to_idx[i] for i in df.v],
     )
 
     if !isdir(mapping_dir)
@@ -75,7 +71,6 @@ function index_dataset(input_path::String, output_csv_path::String, mapping_dir:
     open(joinpath(mapping_dir, "metadata.txt"), "w") do f
         write(f, "Dataset Transformation Metadata\n")
         write(f, "=================================\n")
-        write(f, "Timestamp Offset (min_timestamp subtracted): $min_timestamp\n")
         write(f, "Total Unique Users: $(length(unique_users))\n")
         write(f, "Total Unique Items: $(length(unique_items))\n")
     end

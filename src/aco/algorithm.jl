@@ -72,6 +72,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     elite_seed::Bool=true,
     elite_seed_ants::Int=3,
     elite_seed_remove::Int=2,
+    reduction::ReductionMode.T=ReductionMode.all_reductions,
     trace_target::Union{Nothing,SubGraph}=nothing)
     num_subspecies >= 1 || throw(ArgumentError("num_subspecies must be >= 1, got $num_subspecies"))
     elite_seed_ants >= 0 || throw(ArgumentError("elite_seed_ants must be >= 0, got $elite_seed_ants"))
@@ -82,8 +83,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         parallelize = false
     end
 
-    apply_graph_reductions!(g, k, θ, nothing, nothing, true, ReductionMode.all_reductions)
-    
+    apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+
     fg = freeze(g)
 
     println("Size of reduced graphs", length(fg.u_ids), " ", length(fg.v_ids))
@@ -94,8 +95,14 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
     best_scores = fill(0, num_subspecies)
     best_subgraphs = [SubGraph() for _ in 1:num_subspecies]
+    # Iteration / wall time at which each subspecies / global best was last improved.
+    # 0 / 0.0 = θ-heuristic seed (or empty) before the ACO loop.
+    best_iterations = fill(0, num_subspecies)
+    best_times = fill(0.0, num_subspecies)
     best_score::Int = 0
     best_subgraph::SubGraph = SubGraph()
+    best_iteration::Int = 0
+    best_time::Float64 = 0.0
 
     # Seed MMAS τ_max from the θ-heuristic solution size so the ceiling starts
     # higher than the empty-best default (best_n=2).
@@ -104,9 +111,13 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         heuristic_score = instance_fitness(compact_fg, heuristic_sg, θ)
         best_subgraph = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
         best_score = heuristic_score
+        best_iteration = 0
+        best_time = 0.0
         for s in 1:num_subspecies
             best_subgraphs[s] = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
             best_scores[s] = heuristic_score
+            best_iterations[s] = 0
+            best_times[s] = 0.0
         end
         println("ACO θ-heuristic seed: |U|=$(length(heuristic_sg.U)) |V|=$(length(heuristic_sg.V)) " *
                 "score=$heuristic_score vertices=$(Subgraph.vertex_count(heuristic_sg))")
@@ -147,6 +158,9 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     invalid_ants = Set{Int}()
 
     explored_ants = [ant for ant in ants]
+
+    # Wall-clock origin for time-to-best (excludes reduction / heuristic seed setup).
+    t0 = time_ns()
 
     for iter in 1:num_iterations
         TRACE && println("==== ACO iter $iter/$num_iterations  best_score=$best_score " *
@@ -258,6 +272,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 best_scores[s] = score
                 # Copy so later colony mutations / seeds never alias the stored best.
                 best_subgraphs[s] = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                best_iterations[s] = iter
+                best_times[s] = (time_ns() - t0) / 1e9
             end
             if score > best_score
                 if USE_TABU
@@ -270,8 +286,12 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     best_score = score
                     best_subgraph = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
                 end
+                best_iteration = iter
+                best_time = (time_ns() - t0) / 1e9
                 if TRACE
-                    msg = "  NEW BEST score=$best_score U=$(sorted_str(best_subgraph.U)) V=$(sorted_str(best_subgraph.V))"
+                    msg = "  NEW BEST score=$best_score iter=$best_iteration " *
+                          "t=$(round(best_time; digits=4))s " *
+                          "U=$(sorted_str(best_subgraph.U)) V=$(sorted_str(best_subgraph.V))"
                     if target_compact !== nothing
                         ou, ov = target_overlap(best_subgraph, target_compact)
                         msg *= "  target_hit=$ou/$(length(target_compact.U)),$ov/$(length(target_compact.V))"
@@ -301,19 +321,24 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         force_gc && GC.gc()
 
         if iteration_callback !== nothing
-            iteration_callback(iter, best_subgraph, compact_fg, remapping) || break
+            elapsed_s = (time_ns() - t0) / 1e9
+            iteration_callback(iter, best_subgraph, compact_fg, remapping, elapsed_s) || break
         end
     end
 
     remapped = [remap_subgraph(remapping, best_subgraphs[s]) for s in 1:num_subspecies]
     for s in 1:num_subspecies
         sg = remapped[s]
-        println("ACO subspecies $s best: |U|=$(length(sg.U)) |V|=$(length(sg.V)) score=$(best_scores[s])")
+        println("ACO subspecies $s best: |U|=$(length(sg.U)) |V|=$(length(sg.V)) " *
+                "score=$(best_scores[s]) found_at_iter=$(best_iterations[s]) " *
+                "found_at_t=$(round(best_times[s]; digits=4))s")
         if TRACE && trace_target !== nothing
             ou = length(intersect(sg.U, trace_target.U))
             ov = length(intersect(sg.V, trace_target.V))
             println("  target_hit (original ids)=$ou/$(length(trace_target.U)),$ov/$(length(trace_target.V))")
         end
     end
-    return remapped
+    println("ACO global best found at iteration $best_iteration " *
+            "(t=$(round(best_time; digits=4))s, score=$best_score)")
+    return remapped, best_iterations, best_times
 end

@@ -94,7 +94,7 @@ function parse_args()
     return input_file, p, q, k, seed, attempts
 end
 
-function collect_ids_and_timestamp(file_path::String)
+function collect_ids(file_path::String)
     if !isfile(file_path)
         println(stderr, "Error: File not found: $file_path")
         exit(1)
@@ -102,7 +102,6 @@ function collect_ids_and_timestamp(file_path::String)
 
     user_set = Set{Int}()
     item_set = Set{Int}()
-    max_timestamp = Int(typemin(Int))
 
     open(file_path, "r") do io
         header = readline(io)
@@ -110,17 +109,13 @@ function collect_ids_and_timestamp(file_path::String)
             line = strip(line)
             isempty(line) && continue
             parts = split(line, ',')
-            if length(parts) < 3
+            if length(parts) < 2
                 continue
             end
             u = parse(Int, parts[1])
             v = parse(Int, parts[2])
-            ts = parse(Int, parts[3])
             push!(user_set, u)
             push!(item_set, v)
-            if ts > max_timestamp
-                max_timestamp = ts
-            end
         end
     end
 
@@ -129,7 +124,7 @@ function collect_ids_and_timestamp(file_path::String)
         exit(1)
     end
 
-    return collect(user_set), collect(item_set), max_timestamp
+    return collect(user_set), collect(item_set)
 end
 
 function sample_unique(rng::AbstractRNG, values::Vector{Int}, count::Int)
@@ -153,7 +148,7 @@ function build_existing_pairs(file_path::String, users::Vector{Int}, items::Vect
             line = strip(line)
             isempty(line) && continue
             parts = split(line, ',')
-            if length(parts) < 3
+            if length(parts) < 2
                 continue
             end
             u = parse(Int, parts[1])
@@ -201,14 +196,14 @@ function choose_biclique(rng::AbstractRNG, users::Vector{Int}, items::Vector{Int
     exit(1)
 end
 
-function append_edges(file_path::String, edges::Vector{Tuple{Int,Int}}, timestamp::Int)
+function append_edges(file_path::String, edges::Vector{Tuple{Int,Int}})
     if isempty(edges)
         return 0
     end
 
     open(file_path, "a") do io
         for (u, v) in edges
-            println(io, "$(u),$(v),$(timestamp)")
+            println(io, "$(u),$(v)")
         end
     end
     return length(edges)
@@ -223,14 +218,13 @@ function main()
     println("Random seed: $(seed === nothing ? "none" : string(seed))")
     println("Max selection attempts: $attempts")
 
-    users, items, max_timestamp = collect_ids_and_timestamp(input_file)
+    users, items = collect_ids(input_file)
     println("Found $(length(users)) unique users and $(length(items)) unique items.")
-    println("Current max timestamp: $max_timestamp")
 
     chosen_users, chosen_items, existing_pairs, missing_edges, to_insert = choose_biclique(rng, users, items, p, q, k, input_file, attempts)
 
     total_pairs = p * q
-    inserted_count = append_edges(input_file, to_insert, max_timestamp + 1)
+    inserted_count = append_edges(input_file, to_insert)
 
     println("Selected users: $(sort(chosen_users))")
     println("Selected items: $(sort(chosen_items))")
@@ -238,7 +232,6 @@ function main()
     println("Missing edges reserved: $(length(missing_edges))")
     println("New edges appended: $inserted_count")
     println("Final biclique edge count will be: $(total_pairs - k)")
-    println("Injected edges were appended with timestamp $(max_timestamp + 1).")
     println("Done.")
 end
 

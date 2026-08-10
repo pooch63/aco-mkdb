@@ -89,8 +89,8 @@ global const DEBUG = true
 const GA_N = 10
 
 const ACO_PHEREMONE = 1
-const ACO_NUM_ANTS = 100
-const ACO_NUM_ITERATIONS = 20
+const ACO_NUM_ANTS = 50
+const ACO_NUM_ITERATIONS = 3
 const ACO_EVAPORATION = 0.95
 const ACO_NUM_SUBSPECIES = 1
 
@@ -263,12 +263,13 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
         result = parallel_tabu(g, k, θ, GA_N; reduction=reduction)
         return result.best_fitness
     elseif solver == Solver.aco_solver
-        return aco(g, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
+        remapped, _iterations, _times = aco(g, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
             parallelize=false,
             prefer_smaller_side=aco_options.prefer_smaller_side,
             elite_seed=aco_options.elite_seed,
             elite_seed_ants=aco_options.elite_seed_ants,
             elite_seed_remove=aco_options.elite_seed_remove)
+        return remapped
     elseif solver == Solver.heuristic_solver
         fg = if reduction == ReductionMode.none
             freeze(g)
@@ -303,8 +304,8 @@ function main()
 
     # Room for algorithmic improvement: So same problem where k being overshot leads to the ants not finding it
     # I suppose we could have incrementally larger k, but is there a better solution?
-    k, θ = 3, 6
-    # k, θ = 2, 5
+    # k, θ = 3, 6
+    k, θ = 2, 5
 
     if !isfile(graph_path)
         println(stderr, "Error: Could not find a saved graph at '$graph_path'.")
