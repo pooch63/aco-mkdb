@@ -34,10 +34,10 @@ export function serializeJson(
 }
 
 export function serializeCsv(edges: Map<string, number>): string {
-  const lines = ["user_id,item_id,timestamp"];
-  for (const [key, ts] of edges) {
+  const lines = ["u,v"];
+  for (const [key] of edges) {
     const [u, v] = key.split(",");
-    lines.push(`${u},${v},${ts}`);
+    lines.push(`${u},${v}`);
   }
   return lines.join("\n");
 }

@@ -1,6 +1,9 @@
 export type Point = { x: number; y: number };
 
-export type EditMode = "move" | "addnode" | "addedge" | "delete";
+export type EditMode = "move" | "addnode" | "addedge" | "delete" | "explain";
+
+/** Highlight set while hovering a node in explain mode. */
+export type ExplainHighlight = "neighbors" | "nonneighbors";
 
 export type GraphBag = {
   U: Map<number, Point>;

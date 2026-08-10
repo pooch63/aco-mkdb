@@ -45,6 +45,18 @@ export function Toolbar({
           />
           missing edge in S
         </div>
+        <div className="item">
+          <span className="swatch" style={{ background: "var(--explain)" }} />
+          explain highlight
+        </div>
+        <div className="item">
+          <span className="swatch" style={{ background: "var(--s-color)" }} />S
+          (partial)
+        </div>
+        <div className="item">
+          <span className="swatch" style={{ background: "var(--c-color)" }} />C
+          (candidates)
+        </div>
       </div>
     </div>
   );

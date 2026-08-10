@@ -1,27 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0d0f13;
-  --panel: #14171e;
-  --panel-2: #191d26;
-  --border: #262b36;
-  --text: #e7e9ee;
-  --muted: #838c9c;
-  --u-color: #4fc3e0;
-  --u-dim: #2a5866;
-  --v-color: #e3b23c;
-  --v-dim: #5c4a1f;
-  --edge: #3a4150;
-  --removed: #ef5b6f;
-  --solution: #6fe08a;
-  --solution-missing: #ff8a4c;
-  --accent: #8a7bff;
+  --bg: #f3f4f7;
+  --panel: #ffffff;
+  --panel-2: #f8f9fb;
+  --border: #dde1e8;
+  --text: #1a1d24;
+  --muted: #6b7380;
+  --u-color: #2aa8c7;
+  --u-dim: #c5e6ef;
+  --v-color: #d4a017;
+  --v-dim: #f0e0a8;
+  --edge: #b8bfca;
+  --removed: #e0455a;
+  --solution: #2db85a;
+  --solution-missing: #e07030;
+  --explain: #5b52e0;
+  --s-color: #2db85a;
+  --s-missing: #e07030;
+  --c-color: #3d8bfd;
+  --accent: #5b52e0;
   --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas,
     monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial,
     sans-serif;
   --background: var(--bg);
   --foreground: var(--text);
+  color-scheme: light;
 }
 
 @theme inline {
@@ -64,7 +69,7 @@ header {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  background: linear-gradient(180deg, #12151b, #0d0f13);
+  background: linear-gradient(180deg, #ffffff, #f3f4f7);
 }
 
 header h1 {
@@ -81,7 +86,7 @@ header .dot {
   background: var(--accent);
   display: inline-block;
   margin-right: 8px;
-  box-shadow: 0 0 8px var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 header .sub {
@@ -143,7 +148,7 @@ header .sub {
 
 .row input[type="number"] {
   width: 64px;
-  background: #0d0f13;
+  background: #ffffff;
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 5px;
@@ -163,7 +168,7 @@ header .sub {
 }
 
 button {
-  background: #1d222c;
+  background: #ffffff;
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 6px;
@@ -177,8 +182,8 @@ button {
 }
 
 button:hover:not(:disabled) {
-  background: #262d3a;
-  border-color: #3a4254;
+  background: #eef0f4;
+  border-color: #c8ced8;
 }
 
 button:disabled {
@@ -189,7 +194,7 @@ button:disabled {
 button.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0d0f13;
+  color: #ffffff;
   font-weight: 600;
 }
 
@@ -200,21 +205,21 @@ button.wide {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0d0f13;
+  color: #ffffff;
   font-weight: 600;
 }
 
 button.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
 }
 
 button.danger {
-  border-color: #5a2a34;
-  color: #ff9aa8;
+  border-color: #f0b4bc;
+  color: #c6283d;
 }
 
 button.danger:hover:not(:disabled) {
-  background: #331a20;
+  background: #fdecef;
 }
 
 .hint {
@@ -238,7 +243,7 @@ button.danger:hover:not(:disabled) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 20% 0%, #12151d 0%, var(--bg) 55%);
+  background: radial-gradient(circle at 20% 0%, #ffffff 0%, var(--bg) 55%);
 }
 
 .toolbar {
@@ -316,7 +321,7 @@ svg {
 }
 
 .log div {
-  border-bottom: 1px dotted #23283333;
+  border-bottom: 1px dotted #c8ced866;
   padding: 2px 0;
 }
 
@@ -346,7 +351,7 @@ input[type="file"] {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #262b36;
+  background: #c8ced8;
   border-radius: 5px;
 }
 

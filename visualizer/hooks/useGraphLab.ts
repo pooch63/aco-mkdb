@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDemoGraph, edgeKey, snapshotOf } from "@/lib/graph";
 import {
+  addCostToS,
+  candidatesOfS,
+  clonePartialS,
+  emptyPartialS,
+  missingInS,
+  partialSHas,
+  partialSSize,
+} from "@/lib/explain";
+import {
   download,
   parseCsvGraph,
   parseJsonGraph,
@@ -14,6 +23,7 @@ import { runReduction } from "@/lib/reduction";
 import { runSearch } from "@/lib/search";
 import type {
   EditMode,
+  ExplainHighlight,
   GraphJson,
   LogEntry,
   NodeRef,
@@ -28,6 +38,8 @@ const MODE_HINTS: Record<EditMode, string> = {
   addedge:
     "Click a U node then a V node (or vice-versa) to toggle an edge between them.",
   delete: "Click a node to delete it, or click an edge to delete just that edge.",
+  explain:
+    "Hover + 1/2/Space: neighbors vs non-neighbors. Hold Shift and click to toggle nodes in S. Use Fade non-candidates to dim nodes outside S∪C.",
 };
 
 const HISTORY_CAP = 25;
@@ -42,6 +54,11 @@ export function useGraphLab() {
 
   const [mode, setModeState] = useState<EditMode>("move");
   const [selected, setSelected] = useState<NodeRef | null>(null);
+  const [explainHover, setExplainHover] = useState<NodeRef | null>(null);
+  const [explainHighlight, setExplainHighlight] =
+    useState<ExplainHighlight | null>(null);
+  const [explainS, setExplainS] = useState(emptyPartialS);
+  const [fadeNonCandidates, setFadeNonCandidates] = useState(false);
   const [reducedPreview, setReducedPreview] = useState<ReductionPreview | null>(
     null,
   );
@@ -83,12 +100,6 @@ export function useGraphLab() {
       return next;
     });
   }, [nextUId, nextVId, U, V, edges]);
-
-  const clearOverlays = useCallback(() => {
-    setReducedPreview(null);
-    setSolution(null);
-    setSearchWarn(null);
-  }, []);
 
   const applyRelayout = useCallback(
     (
@@ -141,10 +152,102 @@ export function useGraphLab() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  const clearOverlays = useCallback(() => {
+    setReducedPreview(null);
+    setSolution(null);
+    setSearchWarn(null);
+    setExplainS(emptyPartialS());
+    setFadeNonCandidates(false);
+  }, []);
+
+  const clearExplainS = useCallback(() => {
+    setExplainS(emptyPartialS());
+    setFadeNonCandidates(false);
+    log("cleared explain S", "info");
+  }, [log]);
+
   const setMode = (m: EditMode) => {
     setModeState(m);
     setSelected(null);
+    setExplainHover(null);
+    setExplainHighlight(null);
+    if (m !== "explain") {
+      setExplainS(emptyPartialS());
+      setFadeNonCandidates(false);
+    }
   };
+
+  const onExplainHover = useCallback(
+    (node: NodeRef | null) => {
+      if (mode !== "explain") return;
+      setExplainHover(node);
+      if (!node) setExplainHighlight(null);
+    },
+    [mode],
+  );
+
+  const toggleExplainS = useCallback(
+    (isU: boolean, id: number) => {
+      if (mode !== "explain") return;
+      if (partialSHas(explainS, isU, id)) {
+        setExplainS((prev) => {
+          const next = clonePartialS(prev);
+          if (isU) next.U.delete(id);
+          else next.V.delete(id);
+          return next;
+        });
+        log(`removed ${isU ? "U" : "V"}${id} from S`, "info");
+        return;
+      }
+      const cost = addCostToS({ U, V, edges }, explainS, { isU, id });
+      const missing = missingInS({ U, V, edges }, explainS);
+      if (missing + cost > k) {
+        log(
+          `cannot add ${isU ? "U" : "V"}${id} to S — would make missing ${missing + cost} > k=${k}`,
+          "err",
+        );
+        return;
+      }
+      setExplainS((prev) => {
+        const next = clonePartialS(prev);
+        if (isU) next.U.add(id);
+        else next.V.add(id);
+        return next;
+      });
+      log(
+        `added ${isU ? "U" : "V"}${id} to S (cost ${cost}, missing→${missing + cost}/${k})`,
+        "ok",
+      );
+    },
+    [mode, explainS, U, V, edges, k, log],
+  );
+
+  // Explain mode: 1 / 2 / Space while hovering a node.
+  useEffect(() => {
+    if (mode !== "explain") return;
+    const onKey = (ev: KeyboardEvent) => {
+      const tag = (ev.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (!explainHover) return;
+      // Shift is reserved for building S via click.
+      if (ev.shiftKey) return;
+
+      if (ev.key === "1" || ev.key === "n" || ev.key === "N") {
+        ev.preventDefault();
+        setExplainHighlight("neighbors");
+      } else if (ev.key === "2" || ev.key === "x" || ev.key === "X") {
+        ev.preventDefault();
+        setExplainHighlight("nonneighbors");
+      } else if (ev.key === " " || ev.key === "Spacebar") {
+        ev.preventDefault();
+        setExplainHighlight((prev) =>
+          prev === "neighbors" ? "nonneighbors" : "neighbors",
+        );
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, explainHover]);
 
   const clearGraph = () => {
     if (U.size === 0 && V.size === 0) return;
@@ -269,12 +372,8 @@ export function useGraphLab() {
   };
 
   const saveCsv = () => {
-    download(
-      "indexed_interactions.csv",
-      serializeCsv(edges),
-      "text/csv",
-    );
-    log("saved indexed_interactions.csv (load.jl format)", "ok");
+    download("edges.csv", serializeCsv(edges), "text/csv");
+    log("saved edges.csv (u,v format)", "ok");
   };
 
   const loadFile = async (file: File) => {
@@ -424,10 +523,27 @@ export function useGraphLab() {
   const height = canvasHeight(U.size, V.size);
   const width = Math.max(canvasWidth, 500);
 
+  const explainC =
+    mode === "explain"
+      ? candidatesOfS({ U, V, edges }, explainS, k)
+      : { U: new Set<number>(), V: new Set<number>() };
+  const explainMissing = missingInS({ U, V, edges }, explainS);
+
   let viewMode = "original";
   if (reducedPreview) viewMode = "reduction preview";
   if (solution)
     viewMode += (reducedPreview ? " + " : "") + "solution highlighted";
+  if (mode === "explain" && partialSSize(explainS) > 0) {
+    const sLabel = `S(|U|=${explainS.U.size},|V|=${explainS.V.size},miss=${explainMissing})`;
+    viewMode = viewMode === "original" ? sLabel : `${viewMode} + ${sLabel}`;
+  }
+  if (mode === "explain" && fadeNonCandidates) {
+    viewMode += ` + C(|U|=${explainC.U.size},|V|=${explainC.V.size})`;
+  }
+  if (mode === "explain" && explainHover && explainHighlight) {
+    const focus = `${explainHover.isU ? "U" : "V"}${explainHover.id}`;
+    viewMode += ` + ${focus} ${explainHighlight}`;
+  }
 
   return {
     // graph
@@ -436,6 +552,12 @@ export function useGraphLab() {
     edges,
     mode,
     selected,
+    explainHover,
+    explainHighlight,
+    explainS,
+    explainC,
+    explainMissing,
+    fadeNonCandidates,
     reducedPreview,
     solution,
     // params
@@ -454,6 +576,7 @@ export function useGraphLab() {
     canUndo: history.length > 0,
     canApplyReduce: !!reducedPreview,
     canClearSolution: !!solution,
+    canClearExplainS: partialSSize(explainS) > 0,
     modeHint: MODE_HINTS[mode],
     stats: {
       u: U.size,
@@ -464,6 +587,10 @@ export function useGraphLab() {
     canvas: { width, height, scrollRef },
     // actions
     setMode,
+    onExplainHover,
+    toggleExplainS,
+    clearExplainS,
+    setFadeNonCandidates,
     clearGraph,
     undo,
     generateRandom,

@@ -75,8 +75,47 @@ export function Sidebar({ lab }: { lab: GraphLabApi }) {
           >
             Delete
           </Button>
+          <Button
+            wide
+            active={lab.mode === "explain"}
+            title="Hover a node, then press 1/2 to highlight neighbors or non-neighbors"
+            onClick={() => lab.setMode("explain")}
+          >
+            Explain
+          </Button>
         </div>
         <div className="hint">{lab.modeHint}</div>
+        {lab.mode === "explain" && (
+          <>
+            <div className="btnrow" style={{ marginTop: 8 }}>
+              <Button
+                wide
+                active={lab.fadeNonCandidates}
+                title="Dim every node that cannot be added to S without exceeding k missing edges (fade G \\ (S ∪ C))"
+                onClick={() =>
+                  lab.setFadeNonCandidates(!lab.fadeNonCandidates)
+                }
+              >
+                Fade non-candidates
+              </Button>
+              <Button
+                wide
+                disabled={!lab.canClearExplainS}
+                onClick={lab.clearExplainS}
+              >
+                Clear S
+              </Button>
+            </div>
+            <div className="hint">
+              Partial set S: |U<sub>S</sub>|={lab.explainS.U.size}, |V
+              <sub>S</sub>|={lab.explainS.V.size}, missing=
+              {lab.explainMissing}/{lab.k}. Candidate set C: |U
+              <sub>C</sub>|={lab.explainC.U.size}, |V<sub>C</sub>|=
+              {lab.explainC.V.size}. Shift+click toggles membership in S
+              (refuses adds that would exceed k).
+            </div>
+          </>
+        )}
         <div className="btnrow" style={{ marginTop: 8 }}>
           <Button wide danger onClick={lab.clearGraph}>
             Clear graph
@@ -220,8 +259,8 @@ export function Sidebar({ lab }: { lab: GraphLabApi }) {
           </label>
         </div>
         <div className="hint">
-          .csv matches load.jl&apos;s <code>user_id,item_id,timestamp</code>{" "}
-          format. .json preserves layout + k/θ.
+          .csv expects <code>u,v</code> columns (header optional). .json
+          preserves layout + k/θ.
         </div>
       </Section>
 
