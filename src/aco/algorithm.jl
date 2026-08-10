@@ -340,5 +340,141 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     end
     println("ACO global best found at iteration $best_iteration " *
             "(t=$(round(best_time; digits=4))s, score=$best_score)")
-    return remapped, best_iterations, best_times
+    return remapped, best_iterations, best_times, pheromones, remapping
+end
+
+"""
+Collect effective pheromone for every compact node under `species`.
+"""
+function all_node_pheromones(colony::ColonyPheromones, species::Int)
+    nU = length(colony.shared.U)
+    nV = length(colony.shared.V)
+    τ = Vector{Float64}(undef, nU + nV)
+    for i in 1:nU
+        τ[i] = effective_pheromone(colony, Node(true, i), species)
+    end
+    for i in 1:nV
+        τ[nU + i] = effective_pheromone(colony, Node(false, i), species)
+    end
+    return τ
+end
+
+"""
+Given final ACO trails and a reference solution in *original* vertex ids
+(e.g. the pivot optimum), find the minimum pheromone among solution nodes
+that survived reduction, and report what fraction of all nodes sit strictly
+below that floor — i.e. how many could be cut while keeping the solution intact.
+"""
+function pheromone_cut_stats(colony::ColonyPheromones, remapping::GraphRemapping,
+    solution::SubGraph; species::Int=1)
+    species >= 1 || throw(ArgumentError("species must be >= 1, got $species"))
+    species <= length(colony.species) ||
+        throw(ArgumentError("species $species > num subspecies $(length(colony.species))"))
+
+    u_map = Dict{Int,Int}(orig => i for (i, orig) in enumerate(remapping.u_original))
+    v_map = Dict{Int,Int}(orig => i for (i, orig) in enumerate(remapping.v_original))
+
+    all_τ = all_node_pheromones(colony, species)
+    n_nodes = length(all_τ)
+    global_min_τ = isempty(all_τ) ? nothing : minimum(all_τ)
+    global_max_τ = isempty(all_τ) ? nothing : maximum(all_τ)
+
+    sol_entries = []
+    dropped_U = Int[]
+    dropped_V = Int[]
+    for u in solution.U
+        if haskey(u_map, u)
+            cid = u_map[u]
+            push!(sol_entries, (; is_u=true, orig_id=u, compact_id=cid,
+                τ=effective_pheromone(colony, Node(true, cid), species)))
+        else
+            push!(dropped_U, u)
+        end
+    end
+    for v in solution.V
+        if haskey(v_map, v)
+            cid = v_map[v]
+            push!(sol_entries, (; is_u=false, orig_id=v, compact_id=cid,
+                τ=effective_pheromone(colony, Node(false, cid), species)))
+        else
+            push!(dropped_V, v)
+        end
+    end
+
+    isempty(sol_entries) && return (;
+        n_nodes,
+        n_solution_kept=0,
+        dropped_U=sort(dropped_U),
+        dropped_V=sort(dropped_V),
+        min_τ=nothing,
+        min_node=nothing,
+        n_below=0,
+        cut_fraction=0.0,
+        percentile=nothing,
+        global_min_τ,
+        global_max_τ,
+        n_at_global_min=0,
+        on_trail_floor=false,
+    )
+
+    min_entry = argmin(e -> e.τ, sol_entries)
+    min_τ = min_entry.τ
+    n_below = count(τ -> τ < min_τ, all_τ)
+    # Percentile of min_τ among all nodes: fraction with τ ≤ min_τ.
+    n_at_or_below = count(τ -> τ <= min_τ, all_τ)
+    percentile = 100.0 * n_at_or_below / n_nodes
+    cut_fraction = n_below / n_nodes
+    # Shared trails start at 1 and evaporate; unvisited nodes pile up on that floor.
+    # If the solution's weakest node is still on the global min trail, ACO never
+    # reinforced it and a pheromone-only cut cannot safely remove anything.
+    rtol = 1e-9 + 1e-6 * abs(something(global_min_τ, 0.0))
+    on_trail_floor = global_min_τ !== nothing && abs(min_τ - global_min_τ) <= rtol
+    n_at_global_min = global_min_τ === nothing ? 0 :
+        count(τ -> abs(τ - global_min_τ) <= rtol, all_τ)
+
+    return (;
+        n_nodes,
+        n_solution_kept=length(sol_entries),
+        dropped_U=sort(dropped_U),
+        dropped_V=sort(dropped_V),
+        min_τ,
+        min_node=min_entry,
+        n_below,
+        cut_fraction,
+        percentile,
+        global_min_τ,
+        global_max_τ,
+        n_at_global_min,
+        on_trail_floor,
+    )
+end
+
+function print_pheromone_cut_stats(stats; label::String="solution")
+    println()
+    println("ACO-reduce analysis (vs $label):")
+    if !isempty(stats.dropped_U) || !isempty(stats.dropped_V)
+        println("  reduction dropped solution nodes before ACO: " *
+                "U=$(stats.dropped_U) V=$(stats.dropped_V)")
+    end
+    if stats.min_τ === nothing
+        println("  no solution nodes remained after reduction; cannot score cut threshold")
+        return
+    end
+    side = stats.min_node.is_u ? "U" : "V"
+    println("  nodes on reduced graph     : $(stats.n_nodes)")
+    println("  solution nodes kept        : $(stats.n_solution_kept)")
+    println("  trail range                : [$(round(stats.global_min_τ; digits=6)), " *
+            "$(round(stats.global_max_τ; digits=6))]")
+    println("  min τ in solution          : $(round(stats.min_τ; digits=6)) " *
+            "($side id=$(stats.min_node.orig_id), compact=$(stats.min_node.compact_id))")
+    println("  τ percentile (≤ min)       : $(round(stats.percentile; digits=2))%")
+    println("  nodes with τ < min         : $(stats.n_below) " *
+            "($(round(100 * stats.cut_fraction; digits=2))% cuttable)")
+    if stats.on_trail_floor
+        println("  !!! solution sits on the unevaporated/unvisited trail floor " *
+                "($(stats.n_at_global_min)/$(stats.n_nodes) nodes share τ≈$(round(stats.global_min_τ; digits=6))).")
+        println("      ACO never reinforced this solution, so a τ-threshold cut cannot " *
+                "separate it from the bulk of the graph (0% cuttable is expected).")
+        println("      Try more --iterations / --ants so ACO rediscovers it on its own.")
+    end
 end

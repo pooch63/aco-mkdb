@@ -389,7 +389,7 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             end)
     end
 
-    sols, best_iterations, best_times = m.value
+    sols, best_iterations, best_times, _pheromones, _remapping = m.value
     g_eval = deepcopy(g)
     fg_eval = apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
     best_idx = argmax(i -> Subgraph.edge_count(fg_eval, sols[i]), eachindex(sols))
