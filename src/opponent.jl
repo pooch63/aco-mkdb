@@ -5,18 +5,15 @@ isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
 
 using EnumX
 
-const TRACE = false
+const BRANCH_TRACE = true
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
-const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = true
-const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = true
+const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = false
+const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = false
 
 # Trying to maximize number of vertices or number of edges?
-# In large graphs, this almost certainly doesn't matter. If, somehow, a subgraph
-# with the most vertices isn't equal to the subgraph with the most edges, we'd
-# want to record both. In the small graphs with a lot of variation that we use for testing,
-# it's just good to have this setting enabled. I've spent at least two painful debugging sessions
+# I've spent at least two painful debugging sessions
 # trying to figure out why my algorithm wasn't performing only to find it WAS and was just optimizing
-# for the wrong thing (which again, doesn't actually matter!), so I'll just set this to edges for now
+# for the wrong thing, so I'll just set this to edges for now
 @enumx GraphPart Vertices Edges
 const MAXIMIZING = GraphPart.Edges
 
@@ -238,7 +235,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     best::SharedTopN, k::Int, θ::Int, mode::BranchMode.T, S_missing::Int=0, depth::Int=0)
     ensure_membership!(S, g)
     ensure_membership!(C, g)
-    if TRACE
+    if BRANCH_TRACE
         me = S_missing
         println("  "^depth, "depth=$depth  S.U=", sorted_str(S.U), " S.V=", sorted_str(S.V),
                 "  missing(S)=$me/$k  C.U=", sorted_str(C.U), " C.V=", sorted_str(C.V))
@@ -253,17 +250,15 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     end
 
     if OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES
-        max_u = length(C.U) + length(S.U)
-        max_v = length(C.V) + length(S.V)
 
         if OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION
             upper_u, upper_v, upper_e = upper_bound(S, C, g, k, S_missing)
         else
-            upper_u, upper_v, upper_e = θ, θ, best_edges(best)
+            upper_u, upper_v, upper_e = length(C.U) + length(S.U), length(C.V) + length(S.V), best_edges(best)
         end
         if (upper_u < θ || upper_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
             (upper_e < best_edges(best)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
-            TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, top_score=$(top_score(best)), prune_floor=$(best_edges(best)))")
+            BRANCH_TRACE && println("  "^depth, "-> pruned (too few reachable vertices, θ=$θ, top_score=$(top_score(best)), prune_floor=$(best_edges(best)))")
             return
         end
     end
@@ -276,7 +271,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     if Subgraph.vertex_count(C) == 0
         @assert length(S.U) >= θ && length(S.V) >= θ "Should not have reached leaf node that contains invalid solution"
     
-        if TRACE
+        if BRANCH_TRACE
             println("  "^depth, "-> LEAF: S_score=$(solution_score(S, S_missing)) D_score=$(best_edges(best))")
         end
     
@@ -295,7 +290,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             node = _node
         end
 
-        TRACE && println("  "^depth, "branching on ", is_u ? "u=" : "v=", node, "  (d̄_S=$nondegree)")
+        BRANCH_TRACE && println("  "^depth, "branching on ", is_u ? "u=" : "v=", node, "  (d̄_S=$nondegree)")
 
         C′, C′_0, maximum_nondegree = update(S, C, g, is_u, node, k, S_missing)
 
@@ -325,19 +320,19 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             Subgraph.remove_node!(S, g, is_u, node)
         end
     elseif mode == BranchMode.pivot
-        TRACE && println("  "^depth, "[pivot] entering pivot mode, remaining_budget=$(k - S_missing)")
+        BRANCH_TRACE && println("  "^depth, "[pivot] entering pivot mode, remaining_budget=$(k - S_missing)")
 
         C_0_u = [u for u in C.U if nondegree_in_subgraph(g, true, u::Int, S) == 0]
         C_0_v = [v for v in C.V if nondegree_in_subgraph(g, false, v::Int, S) == 0]
 
         C_0 = SubGraph(Set(C_0_u), Set(C_0_v))
         bind_membership!(C_0, g)
-        TRACE && println("  "^depth, "[pivot] C_0 size=$(length(C_0_u) + length(C_0_v))  C_0.U=", sorted_str(C_0.U), " C_0.V=", sorted_str(C_0.V))
+        BRANCH_TRACE && println("  "^depth, "[pivot] C_0 size=$(length(C_0_u) + length(C_0_v))  C_0.U=", sorted_str(C_0.U), " C_0.V=", sorted_str(C_0.V))
 
         if length(C_0_u) + length(C_0_v) == 0 || Subgraph.vertex_count(Subgraph.minus(C, C_0)) > k - S_missing
-            TRACE && println("  "^depth, "[pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget")
+            BRANCH_TRACE && println("  "^depth, "[pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget")
             is_u, node = argmax_nodes((u, n) -> nondegree_in_subgraph(g, u, n, S), C)
-            C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
+            C′, C′_0 = update(S, C, g, is_u, node, k, S_missing, depth)
 
             # S′ = S ∪ C′_0
             Subgraph.add!(S, g, C′_0)
@@ -346,7 +341,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
             nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
-            TRACE && println("  "^depth, "[pivot] branch A -> recurse with selected node $(is_u ? "u" : "v")=$node")
+            BRANCH_TRACE && println("  "^depth, "[pivot] branch A -> recurse with selected node $(is_u ? "u" : "v")=$node")
             branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
             # S = S′ ∖ C′_0 ∖ {u}
@@ -379,9 +374,9 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 end
             end
 
-            TRACE && println("  "^depth, "[pivot] branch A -> recurse on reduced candidate set")
+            BRANCH_TRACE && println("  "^depth, "[pivot] branch A -> recurse on reduced candidate set")
             branch!(S, C, g, best, k, θ, mode, S_missing, depth + 1)
-                        
+
             if total_nondegree <= 1 && OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION
                 if is_u
                     for u in removed_nodes
@@ -400,12 +395,12 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
             is_u, node = argmin_nodes((u, n) -> nondegree_in_subgraph(g, u, n, C), C_0)
 
             C_nondegree = nondegree_in_subgraph(g, is_u, node, C)
-            TRACE && println("  "^depth, "[pivot] branch B: selected $(is_u ? "u" : "v")=$node with C_nondegree=$C_nondegree")
+            BRANCH_TRACE && println("  "^depth, "[pivot] branch B: selected $(is_u ? "u" : "v")=$node with C_nondegree=$C_nondegree")
 
             if C_nondegree > k - S_missing > 0
-                TRACE && println("  "^depth, "[pivot] branch B1: C_nondegree exceeds remaining budget")
-                
-                C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
+                BRANCH_TRACE && println("  "^depth, "[pivot] branch B1: C_nondegree exceeds remaining budget")
+
+                C′, C′_0 = update(S, C, g, is_u, node, k, S_missing, depth)
 
                 # S′ = S ∪ C′_0 ∪ {u}
                 Subgraph.add!(S, g, C′_0)
@@ -413,7 +408,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
                 nondegree = nondegree_in_subgraph(g, is_u, node, S)
 
-                TRACE && println("  "^depth, "[pivot] branch B1 -> recurse with added node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
+                BRANCH_TRACE && println("  "^depth, "[pivot] branch B1 -> recurse with added node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
                 branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
                 # S = S′ ∖ C′_0 ∖ {u}
@@ -422,13 +417,13 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
                 # C = C ∖ {u}
                 Subgraph.remove_node!(C, g, is_u, node)
-                TRACE && println("  "^depth, "[pivot] branch B1 -> recurse after removing node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
+                BRANCH_TRACE && println("  "^depth, "[pivot] branch B1 -> recurse after removing node $(is_u ? "u" : "v")=$node, nondegree=$nondegree")
                 branch!(S, C, g, best, k, θ, mode, S_missing, depth + 1)
             
                 Subgraph.add_node!(C, g, is_u, node)
             else
-                TRACE && println("  "^depth, "[pivot] branch B2: using the zero-nondegree candidate set")
-                C′, C′_0 = update(S, C, g, is_u, node, k, S_missing)
+                BRANCH_TRACE && println("  "^depth, "[pivot] branch B2: using the zero-nondegree candidate set")
+                C′, C′_0 = update(S, C, g, is_u, node, k, S_missing, depth)
 
                 # S′ = S ∪ C′_0 ∪ {u}
                 Subgraph.add!(S, g, C′_0)
@@ -439,7 +434,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
                 # Let L = search space
                 # L = {u} ∪ nonneighbors_C(u)
                 # u ∈ L
-                TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on primary branch with nondegree=$nondegree")
+                BRANCH_TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on primary branch ($is_u, $node) with nondegree=$nondegree")
                 branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
                 Subgraph.minus!(S, g, C′_0)
@@ -449,9 +444,9 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
                 # v = {u} ∪ nonneighbors_C(u)
                 nonneighbors = Subgraph.nonneighbors_in_subgraph(g, is_u, node, C)
-                TRACE && println("  "^depth, "[pivot] branch B2 -> exploring $(length(nonneighbors)) nonneighbors")
+                BRANCH_TRACE && println("  "^depth, "[pivot] branch B2 -> exploring $(length(nonneighbors)) nonneighbors")
                 for v in nonneighbors
-                    C′, C′_0 = update(S, C, g, !is_u, v, k, S_missing)
+                    C′, C′_0 = update(S, C, g, !is_u, v, k, S_missing, depth)
 
                     # S′ = S ∪ C′_0 ∪ {u}
 
@@ -460,7 +455,7 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
 
                     nondegree = nondegree_in_subgraph(g, !is_u, v, S)
 
-                    TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on nonneighbor $(is_u ? "v" : "u")=$v, nondegree=$nondegree")
+                    BRANCH_TRACE && println("  "^depth, "[pivot] branch B2 -> recurse on nonneighbor $(is_u ? "v" : "u")=$v, nondegree=$nondegree")
                     branch!(S, C′, g, best, k, θ, mode, S_missing + nondegree, depth + 1)
 
                     Subgraph.minus!(S, g, C′_0)

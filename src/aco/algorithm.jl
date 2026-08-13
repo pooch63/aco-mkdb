@@ -14,8 +14,8 @@ isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
 isdefined(@__MODULE__, :__TABU_JL__) || include(joinpath("..", "tabu.jl"))
 
 # Flip to true to dump per-step construction / pruning decisions (like opponent.jl).
-# Best used with parallelize=false — ACO forces that when TRACE is on.
-const TRACE = false
+# Best used with parallelize=false — ACO forces that when ACO_TRACE is on.
+const ACO_TRACE = false
 
 # Ablation switches for paper experiments (baseline ACO vs optimized ACO).
 # Softmax-select a few finished ants by fitness and deposit elite pheromone on them.
@@ -80,8 +80,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     elite_seed_ants >= 0 || throw(ArgumentError("elite_seed_ants must be >= 0, got $elite_seed_ants"))
     elite_seed_remove >= 0 || throw(ArgumentError("elite_seed_remove must be >= 0, got $elite_seed_remove"))
 
-    if TRACE && parallelize
-        println("ACO TRACE: forcing parallelize=false so step logs stay readable")
+    if ACO_TRACE && parallelize
+        println("ACO ACO_TRACE: forcing parallelize=false so step logs stay readable")
         parallelize = false
     end
 
@@ -111,8 +111,9 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
     best_scores = fill(0, num_subspecies)
     best_subgraphs = [SubGraph() for _ in 1:num_subspecies]
-    # Iteration / wall time at which each subspecies / global best was last improved.
-    # 0 / 0.0 = θ-heuristic / forced-seed incumbent before the ACO loop.
+    # Iteration / wall time at which each subspecies / global best was last improved
+    # by an ant. 0 / 0.0 only if a forced-seed incumbent was installed pre-loop
+    # (θ-heuristic is never tracked as best).
     best_iterations = fill(0, num_subspecies)
     best_times = fill(0.0, num_subspecies)
     best_score::Int = 0
@@ -120,35 +121,9 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     best_iteration::Int = 0
     best_time::Float64 = 0.0
 
-    # Seed MMAS τ_max from the θ-heuristic solution size so the ceiling starts
-    # higher than the empty-best default (best_n=2).
-    heuristic_sg = theta_based_heuristic(compact_fg, k, θ; return_invalid=true)
-    if Subgraph.vertex_count(heuristic_sg) > 0
-        heuristic_score = instance_fitness(compact_fg, heuristic_sg, θ)
-        # With forced seed_nodes, only keep the heuristic as incumbent if it
-        # already contains every required node — otherwise it would be returned
-        # as "best" without the seed (found_at_iter=0).
-        if seed_compact === nothing || subgraph_has_seed(heuristic_sg, seed_compact)
-            best_subgraph = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
-            best_score = heuristic_score
-            best_iteration = 0
-            best_time = 0.0
-            for s in 1:num_subspecies
-                best_subgraphs[s] = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
-                best_scores[s] = heuristic_score
-                best_iterations[s] = 0
-                best_times[s] = 0.0
-            end
-            println("ACO θ-heuristic seed: |U|=$(length(heuristic_sg.U)) |V|=$(length(heuristic_sg.V)) " *
-                    "score=$heuristic_score vertices=$(Subgraph.vertex_count(heuristic_sg))")
-        else
-            println("ACO θ-heuristic seed ignored for incumbent (|U|=$(length(heuristic_sg.U)) " *
-                    "|V|=$(length(heuristic_sg.V)) score=$heuristic_score): missing forced seed_nodes")
-        end
-    end
-
     # Forced-inclusion incumbent: every reported best must contain seed_compact.
-    if seed_compact !== nothing && !subgraph_has_seed(best_subgraph, seed_compact)
+    # (Unlike the θ-heuristic, this is a hard constraint on admissible solutions.)
+    if seed_compact !== nothing
         seed_score = instance_fitness(compact_fg, seed_compact, θ)
         best_subgraph = SubGraph(copy(seed_compact.U), copy(seed_compact.V))
         best_score = seed_score
@@ -168,7 +143,25 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     τ_mins = Vector{Float64}(undef, num_subspecies)
     τ_maxs = Vector{Float64}(undef, num_subspecies)
     if USE_MMAS
-        update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
+        # θ-heuristic feeds MMAS τ bounds only — never the tracked incumbent.
+        # Prefer a seed-feasible heuristic so the ceiling reflects admissible quality;
+        # otherwise fall back to empty-best default (best_n=2) via empty subgraphs.
+        mmas_init = [SubGraph() for _ in 1:num_subspecies]
+        heuristic_sg = theta_based_heuristic(compact_fg, k, θ; return_invalid=true)
+        if Subgraph.vertex_count(heuristic_sg) > 0 &&
+           (seed_compact === nothing || subgraph_has_seed(heuristic_sg, seed_compact))
+            heuristic_score = instance_fitness(compact_fg, heuristic_sg, θ)
+            for s in 1:num_subspecies
+                mmas_init[s] = SubGraph(copy(heuristic_sg.U), copy(heuristic_sg.V))
+            end
+            println("ACO θ-heuristic → MMAS init only: |U|=$(length(heuristic_sg.U)) " *
+                    "|V|=$(length(heuristic_sg.V)) score=$heuristic_score " *
+                    "vertices=$(Subgraph.vertex_count(heuristic_sg))")
+        elseif Subgraph.vertex_count(heuristic_sg) > 0
+            println("ACO θ-heuristic skipped for MMAS init (|U|=$(length(heuristic_sg.U)) " *
+                    "|V|=$(length(heuristic_sg.V))): missing forced seed_nodes")
+        end
+        update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, mmas_init;
             pheromone_min=pheromone_min, pheromone_max=pheromone_max)
         clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
         println("ACO MMAS species bounds (init): " *
@@ -177,16 +170,17 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     else
         fill!(τ_mins, 0.0)
         fill!(τ_maxs, Inf)
-        println("ACO MMAS disabled: species pheromone unbounded [0, +∞)")
+        println("ACO MMAS disabled: species pheromone unbounded [0, +∞) " *
+                "(θ-heuristic not run for ACO)")
     end
     println("ACO ablations: elite_pheromone=$USE_ELITE_PHEROMONE tabu=$USE_TABU mmas=$USE_MMAS")
     # println("ACO MMAS species bounds: τ_min=$(round(τ_min; digits=6)) τ_max=$(round(τ_max; digits=6))")
     # Compact-space watch target (optional). Dropped nodes mean reduction already
     # removed part of the known optimum — ACO can never recover those.
     target_compact::Union{Nothing,SubGraph} = nothing
-    if TRACE && trace_target !== nothing
+    if ACO_TRACE && trace_target !== nothing
         target_compact, dropped_U, dropped_V = compactify_subgraph(remapping, trace_target)
-        println("ACO TRACE target: original |U|=$(length(trace_target.U)) |V|=$(length(trace_target.V)) → " *
+        println("ACO ACO_TRACE target: original |U|=$(length(trace_target.U)) |V|=$(length(trace_target.V)) → " *
                 "compact |U|=$(length(target_compact.U)) |V|=$(length(target_compact.V))")
         println("  compact U=", sorted_str(target_compact.U), " V=", sorted_str(target_compact.V))
         if !isempty(dropped_U) || !isempty(dropped_V)
@@ -201,11 +195,11 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
     explored_ants = [ant for ant in ants]
 
-    # Wall-clock origin for time-to-best (excludes reduction / heuristic seed setup).
+    # Wall-clock origin for time-to-best (excludes reduction / MMAS setup).
     t0 = time_ns()
 
     for iter in 1:num_iterations
-        TRACE && println("==== ACO iter $iter/$num_iterations  best_score=$best_score " *
+        ACO_TRACE && println("==== ACO iter $iter/$num_iterations  best_score=$best_score " *
                          "|U|=$(length(best_subgraph.U)) |V|=$(length(best_subgraph.V)) ====")
 
         # Elite partial-restart overwrites forced seed_nodes; skip it while
@@ -213,7 +207,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         if elite_seed && seed_compact === nothing
             seed_ants_from_elites!(ants, best_subgraphs, best_subgraph, best_scores,
                 elite_seed_ants, elite_seed_remove, compact_fg, k)
-            if TRACE
+            if ACO_TRACE
                 for i in 1:min(elite_seed_ants, length(ants))
                     sg = ants[i].explored
                     msg = "  seed ant=$i species=$(ants[i].species) " *
@@ -280,12 +274,12 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     n_elite,
                 )
                 for ant in elites
-                    TRACE && println("  elite species=$s pre-repair score=$(instance_fitness(compact_fg, ant.explored, θ)) " *
+                    ACO_TRACE && println("  elite species=$s pre-repair score=$(instance_fitness(compact_fg, ant.explored, θ)) " *
                                      "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))")
                     if USE_TABU
                         tabu_repair!(compact_fg, ant.explored, k, θ, tt, tabu_patience)
                         seed_compact !== nothing && merge_seed!(ant.explored, seed_compact)
-                        if TRACE
+                        if ACO_TRACE
                             post_score = instance_fitness(compact_fg, ant.explored, θ)
                             msg = "  elite species=$s post-repair score=$post_score " *
                                   "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))"
@@ -348,7 +342,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 end
                 best_iteration = iter
                 best_time = (time_ns() - t0) / 1e9
-                if TRACE
+                if ACO_TRACE
                     msg = "  NEW BEST score=$best_score iter=$best_iteration " *
                           "t=$(round(best_time; digits=4))s " *
                           "U=$(sorted_str(best_subgraph.U)) V=$(sorted_str(best_subgraph.V))"
@@ -369,7 +363,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
             clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
         end
 
-        if TRACE && target_compact !== nothing
+        if ACO_TRACE && target_compact !== nothing
             ou, ov = target_overlap(best_subgraph, target_compact)
             println("  iter=$iter end: best_score=$best_score " *
                     "target_hit=$ou/$(length(target_compact.U)),$ov/$(length(target_compact.V))")
@@ -398,17 +392,31 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     end
     for s in 1:num_subspecies
         sg = remapped[s]
+        src = if Subgraph.vertex_count(best_subgraphs[s]) == 0
+            " (no ACO solution)"
+        elseif best_iterations[s] == 0
+            " (forced-seed incumbent; ants never improved)"
+        else
+            ""
+        end
         println("ACO subspecies $s best: |U|=$(length(sg.U)) |V|=$(length(sg.V)) " *
                 "score=$(best_scores[s]) found_at_iter=$(best_iterations[s]) " *
-                "found_at_t=$(round(best_times[s]; digits=4))s")
-        if TRACE && trace_target !== nothing
+                "found_at_t=$(round(best_times[s]; digits=4))s$src")
+        if ACO_TRACE && trace_target !== nothing
             ou = length(intersect(sg.U, trace_target.U))
             ov = length(intersect(sg.V, trace_target.V))
             println("  target_hit (original ids)=$ou/$(length(trace_target.U)),$ov/$(length(trace_target.V))")
         end
     end
+    src = if Subgraph.vertex_count(best_subgraph) == 0
+        " — no ACO solution found"
+    elseif best_iteration == 0
+        " — still the forced-seed incumbent (ants never improved)"
+    else
+        ""
+    end
     println("ACO global best found at iteration $best_iteration " *
-            "(t=$(round(best_time; digits=4))s, score=$best_score)")
+            "(t=$(round(best_time; digits=4))s, score=$best_score)$src")
     return remapped, best_iterations, best_times, pheromones, remapping
 end
 

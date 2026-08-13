@@ -26,6 +26,8 @@ Reports:
 
 const __BENCHMARK_JL__ = true
 
+using Printf
+
 # Default directory for `--save=` filenames with no directory component.
 const BENCHMARK_RESULTS_DIR = joinpath(@__DIR__, "results")
 
@@ -43,6 +45,9 @@ function format_bytes(n::Integer)
     end
     return string(round(x; digits=2), " ", units[i])
 end
+
+"""Wall / elapsed seconds always shown to 4 decimal places (e.g. `0.0000`)."""
+format_seconds(t::Real) = @sprintf("%.4f", Float64(t))
 
 """
 Process high-water RSS in bytes (Julia's Sys.maxrss is already in bytes).
@@ -79,7 +84,7 @@ function print_metric_block(title::AbstractString; kwargs...)
                              endswith(String(k), "allocated") || endswith(String(k), "memory"))
             println("  $(rpad(String(k), 28)) $(format_bytes(v))  ($v bytes)")
         elseif v isa AbstractFloat && endswith(String(k), "s")
-            println("  $(rpad(String(k), 28)) $(round(v; digits=4))s")
+            println("  $(rpad(String(k), 28)) $(format_seconds(v))s")
         elseif v === nothing
             println("  $(rpad(String(k), 28)) —")
         else
@@ -411,6 +416,11 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
         iterations_budget = num_iterations,
         iterations_to_best = iterations_to_best,
         iterations_to_optimal = found ? first_hit[] : nothing,
+        best_source = iterations_to_best == 0 ?
+            (Subgraph.vertex_count(sol) == 0 ?
+                "no ACO solution" :
+                "forced-seed incumbent (ants never improved)") :
+            "ACO search (iteration $iterations_to_best)",
         matched_optimal_note = found ?
             "matched optimum at iteration $(first_hit[])" :
             (opt_edges === nothing ? "no pivot optimum provided" : "optimum not reached within budget"),
@@ -425,8 +435,8 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
         println()
         println("  ACO first matched pivot optimum at iteration $(first_hit[]) " *
                 "with $num_ants ants ($(format_bytes(m.allocated)) allocated, " *
-                "$(round(time_to_best; digits=4))s to best, " *
-                "$(round(m.time; digits=4))s total wall).")
+                "$(format_seconds(time_to_best))s to best, " *
+                "$(format_seconds(m.time))s total wall).")
     elseif opt_edges !== nothing
         println()
         println("  ACO did not match pivot optimum ($opt_edges edges) within " *
@@ -434,9 +444,18 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     end
 
     println()
-    println("  ACO final solution found at iteration $iterations_to_best " *
-            "($(round(time_to_best; digits=4))s; budget $num_iterations, " *
-            "total wall $(round(m.time; digits=4))s).")
+    if iterations_to_best == 0 && Subgraph.vertex_count(sol) == 0
+        println("  ACO found no solution within budget $num_iterations " *
+                "(total wall $(format_seconds(m.time))s).")
+    elseif iterations_to_best == 0
+        println("  ACO never improved on the forced-seed incumbent (still best at iter 0 / " *
+                "$(format_seconds(time_to_best))s; budget $num_iterations, " *
+                "total wall $(format_seconds(m.time))s).")
+    else
+        println("  ACO final solution found at iteration $iterations_to_best " *
+                "($(format_seconds(time_to_best))s; budget $num_iterations, " *
+                "total wall $(format_seconds(m.time))s).")
+    end
 
     return (; sol, time = m.time, time_to_best = time_to_best,
         allocated = m.allocated, rss_delta = m.rss_delta,
@@ -520,36 +539,46 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
 
     println()
     println("==================== SUMMARY ======================")
-    println("  reduction time       : $(round(graph_stats.reduction_time; digits=4))s")
+    println("  reduction time       : $(format_seconds(graph_stats.reduction_time))s")
     println("  graph mutable memory : $(format_bytes(graph_stats.mutable_bytes))")
     println("  graph frozen memory  : $(format_bytes(graph_stats.frozen_bytes))")
     if pivot_stats !== nothing
-        println("  pivot time           : $(round(pivot_stats.time; digits=4))s")
+        println("  pivot time           : $(format_seconds(pivot_stats.time))s")
         println("  pivot allocated      : $(format_bytes(pivot_stats.allocated))")
         println("  pivot RSS Δ          : $(format_bytes(pivot_stats.rss_delta))")
         println("  pivot optimum edges  : $(pivot_stats.opt_edges)")
     end
     if heuristic_stats !== nothing
-        println("  heuristic time       : $(round(heuristic_stats.time; digits=4))s")
+        println("  heuristic time       : $(format_seconds(heuristic_stats.time))s")
         println("  heuristic allocated  : $(format_bytes(heuristic_stats.allocated))")
         println("  heuristic RSS Δ      : $(format_bytes(heuristic_stats.rss_delta))")
         println("  heuristic edges      : $(heuristic_stats.final_edges)" *
                 (heuristic_stats.opt_edges === nothing ? "" : " / $(heuristic_stats.opt_edges) optimal"))
     end
     if ga_stats !== nothing
-        println("  GA time              : $(round(ga_stats.time; digits=4))s")
+        println("  GA time              : $(format_seconds(ga_stats.time))s")
         println("  GA allocated         : $(format_bytes(ga_stats.allocated))")
         println("  GA RSS Δ             : $(format_bytes(ga_stats.rss_delta))")
         println("  GA edges             : $(ga_stats.final_edges)" *
                 (ga_stats.opt_edges === nothing ? "" : " / $(ga_stats.opt_edges) optimal"))
     end
     if aco_stats !== nothing
-        println("  ACO time             : $(round(aco_stats.time; digits=4))s")
-        println("  ACO time → best      : $(round(aco_stats.time_to_best; digits=4))s")
+        println("  ACO time             : $(format_seconds(aco_stats.time))s")
+        println("  ACO time → best      : $(format_seconds(aco_stats.time_to_best))s" *
+                (aco_stats.iterations_to_best == 0 ?
+                    (Subgraph.vertex_count(aco_stats.sol) == 0 ?
+                        "  (no ACO solution)" :
+                        "  (forced-seed incumbent; ants never improved)") :
+                    ""))
         println("  ACO allocated        : $(format_bytes(aco_stats.allocated))")
         println("  ACO RSS Δ           : $(format_bytes(aco_stats.rss_delta))")
         println("  ACO ants             : $(aco_stats.ants)")
-        println("  ACO iters → best     : $(aco_stats.iterations_to_best)")
+        println("  ACO iters → best     : $(aco_stats.iterations_to_best)" *
+                (aco_stats.iterations_to_best == 0 ?
+                    (Subgraph.vertex_count(aco_stats.sol) == 0 ?
+                        "  (no ACO solution)" :
+                        "  (forced-seed incumbent)") :
+                    ""))
         println("  ACO iters → optimal  : $(aco_stats.first_hit_iteration === nothing ? "not found" : aco_stats.first_hit_iteration)")
         println("  ACO final edges      : $(aco_stats.final_edges)" *
                 (aco_stats.opt_edges === nothing ? "" : " / $(aco_stats.opt_edges) optimal"))
@@ -582,7 +611,7 @@ end
 
 _bench_json_val(x::Bool) = x ? "true" : "false"
 _bench_json_val(x::Integer) = string(x)
-_bench_json_val(x::AbstractFloat) = isfinite(x) ? string(x) : "null"
+_bench_json_val(x::AbstractFloat) = isfinite(x) ? format_seconds(x) : "null"
 _bench_json_val(::Nothing) = "null"
 _bench_json_val(x::AbstractString) = "\"" * _bench_json_escape(x) * "\""
 _bench_json_val(x::Symbol) = _bench_json_val(string(x))

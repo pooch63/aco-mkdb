@@ -1,0 +1,7 @@
+Loading graph from: data/example/indexed_interactions.csv
+Parameters: k=2 θ=5
+Solver: branch-and-bound (pivot)
+Reduction: progressive
+Graph edges: 13
+nU=5, nV=4, |E|=13
+a = 1478586440

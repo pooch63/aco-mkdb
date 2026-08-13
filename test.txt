@@ -6,3 +6,5 @@ julia -t auto tests/test_aco.jl --parallelize --N=1 --no-optimum --seed=99754290
 
 julia -t auto tests/test_aco.jl --parallelize --N=1 --no-optimum --seed=4694188377250462284 --iterations=5 > results/aco.txt
 julia -t auto tests/test_theta_heuristic.jl --N=1 --no-optimum --seed=4694188377250462284 --iterations=5 > results/th.txt
+
+julia -t 8 load.jl konect/bitcoin --vary=ant-count --save=bitcoin_ants.json --seed=84561254375521

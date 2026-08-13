@@ -138,7 +138,7 @@ function upper_bound(S::SubGraph, C::SubGraph, g::FrozenBipartite, k::Int, S_mis
 end
 
 # If we add u to S, what does C become? What "free" nodes can we add to S that don't limit the search space?
-function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int, S_missing::Int)
+function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::Int, k::Int, S_missing::Int, depth::Int)
     # C′ = {v ∈ C ∖ {u} | nondegree_{ S ∪ {u} }(v) ≤ k - Ē(S)}
 
     ensure_membership!(S, g)
@@ -184,8 +184,8 @@ function update(S::SubGraph, C::SubGraph, g::FrozenBipartite, is_u::Bool, node::
 
     Subgraph.minus!(C′, g, C′_0)
 
-    if TRACE
-        println("    [update] branched-on=$node  maximum_nondegree=$maximum_nondegree",
+    if BRANCH_TRACE
+        println("  "^(depth + 1), "[update] branched-on=($is_u, $node)  maximum_nondegree=$maximum_nondegree",
                 "  C′.U=", sorted_str(C′.U), " C′.V=", sorted_str(C′.V),
                 "  C′_0.U=", sorted_str(C′_0.U), " C′_0.V=", sorted_str(C′_0.V))
     end

@@ -142,7 +142,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     missing = ant.missing
     candidates = ant.candidates
 
-    if TRACE
+    if ACO_TRACE
         println("  "^depth, "ant=$ant_id species=$(ant.species) depth=$depth  ",
                 "S.U=", sorted_str(ant.explored.U), " S.V=", sorted_str(ant.explored.V),
                 "  missing=$missing/$k  |C|=$(length(candidates))")
@@ -158,7 +158,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     end
 
     if isempty(candidates)
-        if TRACE
+        if ACO_TRACE
             msg = "  "^depth * "-> STOP (no candidates)"
             if trace_target !== nothing
                 ou, ov = target_overlap(ant.explored, trace_target)
@@ -172,13 +172,13 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     # Soft bias: when exactly one side of S already has ≥θ, boost candidates on
     # the under-θ (smaller) side instead of hard-filtering the other side out.
     prefer_u = prefer_smaller_side ? prefer_smaller_side_prefer_u(ant.explored, θ) : nothing
-    if TRACE && prefer_u !== nothing
+    if ACO_TRACE && prefer_u !== nothing
         println("  "^depth, "  prefer_smaller_side: boost ",
                 prefer_u ? "U" : "V", " ×", PREFER_SMALLER_SIDE_MULTIPLIER,
                 "  (|U|=$(length(ant.explored.U)) |V|=$(length(ant.explored.V)) θ=$θ)")
     end
 
-    if TRACE
+    if ACO_TRACE
         println("  "^depth, "  candidates=", _trace_degree_nodes(candidates))
     end
 
@@ -196,7 +196,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
 
     next = Node(next_with_deg)
 
-    if TRACE
+    if ACO_TRACE
         # Expensive: score every candidate so we can see how peaked the distribution is.
         dmin = Inf
         dmax = -Inf
@@ -243,7 +243,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     ant.missing = missing + cost
     ant.last_visited = next
 
-    if TRACE
+    if ACO_TRACE
         true_missing = Subgraph.missing_edges(fg, ant.explored)
         ant.missing == true_missing ||
             error("ant missing drift: tracked=$(ant.missing) true=$true_missing")

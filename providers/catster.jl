@@ -4,7 +4,7 @@ catster (KONECT Petster / Catster) provider
 =================================================================================
 Downloads a KONECT TSV network archive and converts the `out.*` edgelist to the
 shared interactions CSV. Sparse / non-dense endpoint IDs are remapped to 1..n by
-the shared index_dataset step (same as Amazon / tnet / roadmap).
+the shared index_dataset step (same as Amazon / Konect / roadmap).
 
 Line format (KONECT out.*):
   % comment lines are ignored

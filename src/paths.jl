@@ -62,3 +62,57 @@ function split_provider_dataset(dataset_name::AbstractString)
     dataset = join(parts[2:end], "/")
     return provider, dataset
 end
+
+"""
+Count edges in an indexed CSV (`u,v` with a header row) without loading the graph.
+"""
+function count_indexed_edges(path::AbstractString)
+    n = countlines(path)
+    return max(0, n - 1)  # subtract header
+end
+
+"""
+    discover_indexed_graphs(; data_root="data", skip=("raw",)) -> Vector{NamedTuple}
+
+Walk `data_root` for directories containing `indexed_interactions.csv`.
+Returns unsorted entries `(key, path, edges)` where `key` is the dataset path
+relative to `data_root` using `/` (e.g. `"amazon/boxes"`).
+
+Top-level directories named in `skip` (default: `raw`) are ignored.
+"""
+function discover_indexed_graphs(; data_root::AbstractString="data",
+    skip=("raw",))
+    root = abspath(data_root)
+    skip_set = Set(String(s) for s in skip)
+    entries = NamedTuple{(:key, :path, :edges), Tuple{String,String,Int}}[]
+
+    isdir(root) || return entries
+
+    for (dir, _subdirs, files) in walkdir(root)
+        "indexed_interactions.csv" in files || continue
+        rel = relpath(dir, root)
+        rel == "." && continue
+        parts = split(replace(rel, '\\' => '/'), '/'; keepempty=false)
+        isempty(parts) && continue
+        first(parts) in skip_set && continue
+
+        path = joinpath(dir, "indexed_interactions.csv")
+        key = join(parts, "/")
+        edges = count_indexed_edges(path)
+        push!(entries, (key=key, path=path, edges=edges))
+    end
+
+    return entries
+end
+
+"""
+    order_graphs_by_edges(; data_root="data", skip=("raw",), ascending=true)
+
+Discover indexed graphs under `data_root` and return them sorted by edge count
+(ascending by default — smallest / easiest first).
+"""
+function order_graphs_by_edges(; data_root::AbstractString="data",
+    skip=("raw",), ascending::Bool=true)
+    entries = discover_indexed_graphs(; data_root=data_root, skip=skip)
+    return sort!(entries; by=(e -> e.edges), rev=!ascending)
+end

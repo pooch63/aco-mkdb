@@ -30,6 +30,12 @@ Benchmarking:
   --benchmark=aco,pivot,heuristic,ga   any comma-separated mix of the above
   --save=NAME.json        write benchmark JSON under results/ (or an explicit path)
 
+Parameter sweeps (see vary.jl):
+  --vary=ant-count            sweep `--ants-range` and record time / iters / quality as JSON
+  --ants-range=5,10,20,50     ant counts to try (default: 1,2,5,10,20,50,100)
+  --aco-runs=N                stochastic ACO replicates per ant count (default: 1; distinct seeds)
+  --vary-no-pivot=true        skip pivot optimum (default: run pivot once for quality baseline)
+
 Problem parameters:
   --k=N       maximum missing edges (default: 2)
   --theta=N   minimum side size θ (default: 5)
@@ -81,6 +87,7 @@ How to Run from the Command Line:
     julia load.jl amazon/boxes --benchmark=aco,pivot
     julia load.jl amazon/boxes --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
     julia load.jl amazon/boxes --benchmark=heuristic,ga,aco --save=boxes_compare.json
+    julia load.jl konect/bitcoin --vary=ant-count --ants-range=10,20,50,100 --save=bitcoin_ants.json
     julia load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
 =#
@@ -100,6 +107,7 @@ isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel
 isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco", "algorithm.jl"))
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
 isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(@__DIR__, "benchmark.jl"))
+isdefined(@__MODULE__, :__VARY_JL__) || include(joinpath(@__DIR__, "vary.jl"))
 
 global const DEBUG = true
 
@@ -108,7 +116,7 @@ const GA_N = 10
 
 const ACO_PHEREMONE = 1
 const ACO_NUM_ANTS = 50
-const ACO_NUM_ITERATIONS = 3
+const ACO_NUM_ITERATIONS = 5
 const ACO_EVAPORATION = 0.95
 const ACO_NUM_SUBSPECIES = 1
 
@@ -292,9 +300,13 @@ function parse_args()
     k, θ = parse_k_theta()
     aco_options = parse_aco_options()
     benchmark = parse_benchmark()
+    vary = parse_vary()
     save_path = parse_benchmark_save()
     inject = parse_inject()
     aco_reduce = parse_bool_eq("aco-reduce", false)
+    ants_range = parse_ants_range()
+    vary_run_pivot = parse_vary_run_pivot()
+    aco_runs = parse_aco_runs()
 
     for arg in ARGS
         if arg == "--ga"
@@ -321,7 +333,9 @@ function parse_args()
                startswith(arg, "--save=") ||
                startswith(arg, "--prefer-smaller-side=") || startswith(arg, "--elite-seed=") ||
                startswith(arg, "--elite-seed-ants=") || startswith(arg, "--elite-seed-remove=") ||
-               startswith(arg, "--aco-reduce=")
+               startswith(arg, "--aco-reduce=") ||
+               startswith(arg, "--vary=") || startswith(arg, "--ants-range=") ||
+               startswith(arg, "--vary-no-pivot=") || startswith(arg, "--aco-runs=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -341,8 +355,14 @@ function parse_args()
     if aco_reduce && benchmark !== nothing
         throw(ArgumentError("--aco-reduce cannot be combined with --benchmark"))
     end
+    if vary !== nothing && benchmark !== nothing
+        throw(ArgumentError("--vary cannot be combined with --benchmark"))
+    end
+    if vary !== nothing && aco_reduce
+        throw(ArgumentError("--vary cannot be combined with --aco-reduce"))
+    end
 
-    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, save_path, inject, aco_reduce
+    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs
 end
 
 """
@@ -516,7 +536,7 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, save_path, inject, aco_reduce =
+    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs =
         parse_args()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
@@ -527,12 +547,12 @@ function main()
         exit(1)
     end
 
-    if save_path !== nothing && benchmark === nothing
-        throw(ArgumentError("--save= is only valid with --benchmark=..."))
+    if save_path !== nothing && benchmark === nothing && vary === nothing
+        throw(ArgumentError("--save= requires --benchmark=... or --vary=..."))
     end
 
     # Seed early when injection or a stochastic solver needs reproducibility.
-    needs_seed = inject.enabled || aco_reduce ||
+    needs_seed = inject.enabled || aco_reduce || vary !== nothing ||
         (benchmark !== nothing && (:aco in benchmark || :ga in benchmark)) ||
         solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
     if needs_seed
@@ -552,6 +572,13 @@ function main()
     if aco_reduce
         println("Mode: ACO-reduce (blind ACO, then score cut vs pivot optimum)")
         println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
+    elseif vary == :ant_count
+        println("Mode: vary ant-count (range=$(join(ants_range, ",")), aco_runs=$aco_runs)")
+        println("ACO: iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
+        println("Pivot for quality baseline: $(vary_run_pivot ? "yes" : "no")")
+        if save_path !== nothing
+            println("Save: $(resolve_benchmark_save_path(save_path))")
+        end
     elseif benchmark !== nothing
         println("Mode: benchmark ($(join(sort!(collect(String(t) for t in benchmark)), ",")))")
         if :aco in benchmark
@@ -582,6 +609,19 @@ function main()
             g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             run_aco_reduce!(g, k, θ, reduction, aco_options)
+        elseif vary == :ant_count
+            g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
+            println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
+            results = run_vary_ant_count!(g, edges, k, θ, reduction, aco_options;
+                ant_counts=ants_range, run_pivot=vary_run_pivot,
+                seed=seed, dataset=String(dataset_name), n_runs=aco_runs)
+            if save_path !== nothing
+                payload = vary_results_to_dict(results;
+                    k=k, θ=θ, dataset=String(dataset_name),
+                    seed=seed, reduction=reduction, edge_count=edges,
+                    run_pivot=vary_run_pivot)
+                save_vary_json(resolve_benchmark_save_path(save_path), payload)
+            end
         elseif benchmark !== nothing
             g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")

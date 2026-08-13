@@ -1,0 +1,1129 @@
+                                             On the Efficient Discovery of Maximum 𝑘-Defective Biclique
+                                                         Donghang Cui                                        Ronghua Li                                 Qiangqiang Dai
+                                                Beijing Institute of Technology                    Beijing Institute of Technology              Beijing Institute of Technology
+                                                   cuidonghang@bit.edu.cn                              lironghuabit@126.com                          qiangd66@gmail.com
+
+                                                                                  Hongchao Qin                                  Guoren Wang
+                                                                         Beijing Institute of Technology                Beijing Institute of Technology
+                                                                               qhc.neu@gmail.com                            wanggrbit@gmail.com
+                                         Abstract                                                                     potentially reducing the mining efficiency; and (2) a significant de-
+                                         The problem of identifying the maximum edge biclique in bipar-               crease in density, undermining the capability to represent cohesive
+                                         tite graphs has attracted considerable attention in bipartite graph          communities.
+
+
+
+
+arXiv:2506.16121v1 [cs.DS] 19 Jun 2025
+                                         analysis, with numerous real-world applications such as fraud de-                Inspired by the widely studied 𝑘-defective clique in traditional
+                                         tection, community detection, and online recommendation systems.             graphs [12, 13, 49], we introduce a novel cohesive subgraph model
+                                         However, real-world graphs may contain noise or incomplete infor-            for bipartite graphs, named 𝑘-defective biclique. Specifically, a 𝑘-
+                                         mation, leading to overly restrictive conditions when employing              defective biclique is a subgraph of a bipartite graph containing at
+                                         the biclique model. To mitigate this, we focus on a new relaxed              most 𝑘 missing edges. Fig. 1a illustrates an example graph show-
+                                         subgraph model, called the 𝑘-defective biclique, which allows for            casing two 𝑘-defective bicliques, where the 1-defective biclique has
+                                         up to 𝑘 missing edges compared to the biclique model. We investi-            one missing edge (𝑢 3, 𝑣 1 ), and the 3-defective biclique has three
+                                         gate the problem of finding the maximum edge 𝑘-defective biclique            missing edges (𝑢 1, 𝑣 3 ), (𝑢 3, 𝑣 1 ) and (𝑢 3, 𝑣 3 ).
+                                         in a bipartite graph, and prove that the problem is NP-hard. To                  The 𝑘-defective biclique offers greater flexibility over biclique,
+                                         tackle this computation challenge, we propose a novel algorithm              as its density can be controlled by adjusting 𝑘 to suit specific re-
+                                         based on a new branch-and-bound framework, which achieves a                  quirements. When 𝑘 = 0, the 𝑘-defective biclique degenerates to the
+                                         worst-case time complexity of 𝑂 (𝑚𝛼𝑘𝑛 ), where 𝛼𝑘 < 2. We further            biclique, thereby illustrating its generalization capability. In compar-
+                                         enhance this framework by incorporating a novel pivoting tech-               ison to the 𝑘-biplex, 𝑘-defective biclique offers a more fine-grained
+                                         nique, reducing the worst-case time complexity to 𝑂 (𝑚𝛽𝑘𝑛 ), where           relaxation of the biclique due to its stricter retention of edges. As
+                                         𝛽𝑘 < 𝛼𝑘 . To improve the efficiency, we develop a series of optimiza-        illustrated in Fig. 1c, the 𝑘-defective biclique exhibits much closer
+                                         tion techniques, including graph reduction methods, novel upper              quantity and density to the biclique compared to 𝑘-biplex, especially
+                                         bounds, and a heuristic approach. Extensive experiments on 10                for larger 𝑘. Here, we refer to a 𝑘-defective biclique as "maximal"
+                                         large real-world datasets validate the efficiency and effectiveness of       if it cannot be contained within any other 𝑘-defective biclique (or
+                                         the proposed approaches. The results indicate that our algorithms            𝑘-biplex), and as "maximum" when it is the maximal 𝑘-defective
+                                         consistently outperform state-of-the-art algorithms, offering up to          biclique (or 𝑘-biplex) with the largest number of edges. In this
+                                         1000× speedups across various parameter settings.                            paper, we focus mainly on the problem of identifying a maximum 𝑘-
+                                                                                                                      defective biclique. We prove that the maximum 𝑘-defective biclique
+                                                                                                                      search problem is NP-hard, indicating that no polynomial-time
+                                                                                                                      algorithms exist for solving this problem unless NP=P.
+                                         1    Introduction                                                                Notably, adapting existing maximum/maximal 𝑘-defective clique
+                                         Bipartite graph is a commonly encountered graph structure con-               algorithms [9, 13] and maximum biclique algorithms [23, 36] to
+                                         sisting of two disjoint vertex sets and an edge set, where each edge         our problem poses significant challenges for the following reasons:
+                                         connects vertices from the two different sets. In recent decades,            (1) Adapting the maximum 𝑘-defective clique algorithm involves
+                                         bipartite graphs have been utilized as a fundamental tool for model-         fully connecting vertices on each side of the bipartite graph (as
+                                         ing various binary relationships, such as user-product interactions          shown in Fig. 1b). However, applying such algorithms to these
+                                         in e-commerce [31], authorship connections between authors and               graphs may yield incorrect results. For instance, in Fig. 1b, the
+                                         publications [30], and associations between genes and phenotypes             maximum 1-defective biclique has 5 edges whereas the output of
+                                         in bioinformatics [18, 39]. Mining cohesive subgraphs from bipar-            maximum 1-defective clique algorithms yields only 4 edges; (2)
+                                         tite graphs has proven to be critically important across diverse             Applying maximal 𝑘-defective clique algorithms on such each-side-
+                                         domains [16, 46]. For instance, identifying cohesive subgraphs in            fully-connected graphs will generate a large number of redundant
+                                         reviewer-product graphs facilitates the identification of fraudulent         branches and is computationally expensive (as evidenced in Table
+                                         reviews or camouflage attacks [25].                                          2); and (3) Adapting maximum biclique algorithms to our problem
+                                            The biclique, which connects all vertices on both sides, serves as a      involves a preprocess of adding 𝑘 edges on the original graph, which
+                                                                                                                                      
+                                         fundamental cohesive subgraph structure [32, 37, 47] due to its wide         generates in 𝑚 𝑘 possible input graphs where 𝑚 denotes the number
+                                         applications [4, 6, 28, 29]. Extensive methods for maximum biclique          of missing edges. Searching for the maximum biclique across all
+                                         search have been developed in recent years [4, 16, 19, 23, 34, 36].          such input graphs remains highly inefficient, making this approach
+                                         However, real-world graphs often contain noisy or incomplete in-             impractical for large-scale graphs.
+                                         formation [33], making the biclique model overly restrictive for             Contributions. To efficiently address the maximum 𝑘-defective
+                                         capturing cohesive subgraphs on such a kind of bipartite graphs.             biclique search problem, we conduct an in-depth study of its prop-
+                                         More relaxed biclique models offer a promising alternative to ad-            erties and develop two novel algorithms with the worst-case time
+                                         dress this challenge. The 𝑘-biplex model, which allows each vertex           complexity less than 𝑂 ∗ (2𝑛 ). We also present a series of optimiza-
+                                         to have at most 𝑘 non-neighbors, has recently attracted significant          tion techniques to further improve the efficiency of our algorithms.
+                                         attention [16, 50, 51]. However, due to its excessive structural relax-      Finally, we evaluate the effectiveness and efficiency of our methods
+                                         ation, a slightly increase in 𝑘 can lead to: (1) a sharp rise in quantity,
+                                                                                             Donghang Cui, Ronghua Li, Qiangqiang Dai, Hongchao Qin, and Guoren Wang
+
+
+
+
+   biclique             3-defective biclique          output of maximum 1-defective clique algorithm                               maximal k-biplex          maximum k-biplex
+                                                                                                                                   number                    density
+                                                                                                                                   maximal k-defective       maximum k-defective
+    𝑢1        𝑢2        𝑢3         𝑢4        𝑢5                                                                                    biclique number           biclique density
+
+                                                         𝑢1        𝑢2        𝑢3         𝑢4         𝑢5                                                                         1.00
+                                                                                                                          108
+                                                                                                                               6
+
+
+                                                                                                                 Number
+                                                                                                                          10
+                                                                                                                                                                                     Density
+                                                                                                                                                                              0.95
+                                                                                                                          104
+                                                                                                                                                                              0.90
+         𝑣1        𝑣2        𝑣3         𝑣4                    𝑣1        𝑣2        𝑣3          𝑣4
+                                                                                                                          102
+                                                                                                                               0
+                                                                                                                          10                                                  0.85
+                                                                                                                                   0         1           2     3          4
+                    1-defective biclique               maximum 1-defective biclique                                                                      k
+(a) Example graph showcasing a biclique and two           (b) Example of incorrect output from                     (c) Comparison of quantity and density between
+               𝑘 -defective cliques                           𝑘 -defective clique algorithms                    𝑘 -biplex and 𝑘 -defective biclique on Amazon dataset
+                                                                                                                                  with side size ≥ 14
+                                  Figure 1: Illustrations of 𝑘-defective biclique: examples and comparisons
+
+through comprehensive experiments. The main contributions of                           2      Preliminaries
+this paper are summarized as follows:                                                  Let 𝐺 = (𝑈 , 𝑉 , 𝐸) be an undirected bipartite graph, where 𝑈 and 𝑉
+A new cohesive subgraph model. We propose a new cohesive sub-                          are two disjoint sets of vertices, and 𝐸 ⊆ 𝑈 × 𝑉 is the set of edges.
+graph model for bipartite graphs named the 𝑘-defective biclique,                       Denote by 𝑛 = |𝑈 | + |𝑉 | and 𝑚 = |𝐸| the total number of vertices
+which is defined as a subgraph with at most 𝑘 missing edges. We                        and edges in 𝐺, respectively. Denote by 𝑆 = (𝑈𝑆 , 𝑉𝑆 ) a vertex subset
+then demonstrate that the problem of finding the maximum 𝑘-                            of 𝐺, where 𝑈𝑆 ⊆ 𝑈 and 𝑉𝑆 ⊆ 𝑉 . Let 𝑣 ∈ 𝑆 indicate that 𝑣 ∈ 𝑈𝑆 ∪𝑉𝑆 .
+defective biclique in bipartite graphs is NP-hard.                                     Let 𝐺 (𝑆) = (𝑈𝑆 , 𝑉𝑆 , 𝐸𝑆 ) be the subgraph of 𝐺 induced by 𝑆, where
+Two Novel Search Algorithms. We propose two novel maximum 𝑘-                           𝐸𝑆 = {(𝑢, 𝑣) | 𝑢 ∈ 𝑈𝑆 ∧ 𝑣 ∈ 𝑉𝑆 ∧ (𝑢, 𝑣) ∈ 𝐸}. For 𝑢 ∈ 𝑈 , denote by
+defective biclique search algorithms with nontrivial worst-case                        𝑁 (𝑢) = {𝑣 ∈ 𝑉 | (𝑢, 𝑣) ∈ 𝐸} and 𝑁 (𝑢) = {𝑣 ∈ 𝑉 | (𝑢, 𝑣) ∉ 𝐸} the
+time complexity guarantees. The first algorithm utilizes a branch-                     set of neighbors and non-neighbors of 𝑢 in 𝐺, respectively. Similar
+and-bound technique combined with a newly-developed binary                             definitions apply for the vertices in 𝑈 . Let 𝑑 (𝑢) = |𝑁 (𝑢)| and 𝑑 (𝑢) =
+branching strategy, which has a time complexity of 𝑂 (𝑚𝛼𝑘𝑛 ), where                    |𝑁 (𝑢)| be the degree and non-degree of 𝑢 in 𝐺, respectively. For
+𝑛 and 𝑚 represent the number of vertices and edges of the bipartite                    a vertex subset (or a subgraph) 𝑆 of 𝐺, let 𝑁𝑆 (𝑢) = 𝑁 (𝑢) ∩ (𝑈𝑆 ∪
+graph respectively, and 𝛼𝑘 is a positive real number strictly less than
+                                                                                       𝑉𝑆 ) and 𝑁 𝑆 (𝑢) = {𝑣 ∈ 𝑆 \ 𝑁 (𝑢) | 𝑢 and 𝑣 are on opposite sides} be
+2 (e.g., for 𝑘 = 1, 2, 3, 𝛼𝑘 = 1.911, 1.979, and 1.995, respectively). The
+                                                                                       the set of 𝑢’s neighbors and non-neighbors in 𝑆. respectively. Let
+second algorithm employs an innovative pivoting-based branching
+strategy that effectively integrates with our binary branching strat-                  𝑑𝑆 (𝑢) = |𝑁𝑆 (𝑢)| and 𝑑 𝑆 (𝑢) = |𝑁 𝑆 (𝑢)| be the degree and non-degree
+egy, which achieves a lower time complexity of 𝑂 (𝑚𝛽𝑘𝑛 ), where 𝛽𝑘                     of 𝑢 in 𝑆, respectively. For a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸), we refer
+is a positive real number strictly less than 𝛼𝑘 . (e.g., when 𝑘 = 1, 2, 3,             to (𝑢, 𝑣) ∈ 𝑈 × 𝑉 as a non-edge of 𝐺 if (𝑢, 𝑣) ∉ 𝐸. We denote 𝐸 𝑆
+𝛽𝑘 = 1.717, 1.856, and 1.931, respectively).                                           the set of non-edges in 𝐺 (𝑆), i.e., 𝐸 𝑆 = 𝑈𝑆 × 𝑉𝑆 \ 𝐸𝑆 . The formal
+Nontrivial optimization techniques. We also develop a series of non-                   definition of 𝑘-defective biclique is given below.
+trivial optimization techniques to improve the efficiency of our
+proposed algorithms, including graph reduction techniques, novel                          Definition 1 (𝑘-defective biclique). Given a bipartite graph 𝐺 =
+upper-bound techniques, and a heuristic approach. Specifically, the                    (𝑈 , 𝑉 , 𝐸), a 𝑘-defective biclique 𝐷 = (𝑈𝐷 , 𝑉𝐷 , 𝐸𝐷 ) of 𝐺 is a subgraph
+graph reduction techniques focus on reducing the size of the input                     of 𝐺 that has at most 𝑘 non-edges, i.e., |𝑈𝐷 × 𝑉𝐷 \ 𝐸𝐷 | ≤ 𝑘.
+bipartite graph based on constraints, such as the core and the num-
+                                                                                           The 𝑘-defective biclique corresponds to the biclique if 𝑘 = 0,
+ber of common neighbors. We devise tight vertex and edge upper
+                                                                                       which indicates that 𝑘-defective biclique represents a more general
+bounds to minimize unnecessary branching, and then design an
+                                                                                       structure. If a 𝑘-defective biclique of 𝐺 contains the most number
+efficient algorithm to compute the proposed upper bounds with lin-
+                                                                                       of edges among all 𝑘-defective bicliques in 𝐺, we refer to it as a
+ear time complexity. Additionally, we propose a heuristic approach
+                                                                                       maximum 𝑘-defective biclique in 𝐺. To facilitate the illustration,
+by incrementally expanding subsets in a specific order to obtain
+                                                                                       we denote the maximum 𝑘-defective biclique as 𝑘-MDB.
+an initial large 𝑘-defective biclique, which helps filter out smaller
+                                                                                           In this paper, we focus on the problem of searching for a 𝑘-
+𝑘-defective bicliques from further computation.
+                                                                                       MDB in a bipartite graph. However, we observe that a 𝑘-MDBs in
+Comprehensive experimental studies. We conduct extensive exper-
+                                                                                       many real-world graphs may exhibit a skewed structure, similar
+iments to evaluate the efficiency, effectiveness, and scalability of                   to that of maximum bicliques, where one side has a large number
+our algorithms on 11 large real-world graphs. The experimental                         of vertices while the other side may contain only a few (or even
+results show that our algorithms consistently outperform the state-                    one) vertices. Such 𝑘-MDBs often hold limited practical values in
+of-the-art baseline method [15] across all parameter settings. In                      network analysis. To address this issue, we define a size threshold
+particular, our algorithm achieves improvements of up to three                         𝜃 , representing the minimum number of vertices required on both
+orders of magnitude on most datasets. For instance, on the Twit-                       sides of the 𝑘-MDB. Furthermore, we impose the condition 𝜃 > 𝑘
+ter (9M vertices, 10M edges) dataset with 𝑘 = 2, our algorithm                         to ensure that the 𝑘-MDB is connected, as demonstrated in the
+takes 10 seconds while the baseline method cannot finish within 3                      following lemma.
+hours. Additionally, we perform a case study on a fraud detection
+task to show the high effectiveness of our solutions in real-world                        Lemma 1. Given a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸) and a 𝑘-defective
+applications.                                                                          biclique 𝐷 = (𝑈𝐷 , 𝑉𝐷 , 𝐸𝐷 ) of 𝐺, if |𝑈𝐷 | > 𝑘 and |𝑉𝐷 | > 𝑘, we
+                                                                                       establish that 𝐷 is a connected subgraph in 𝐺.
+On the Efficient Discovery of Maximum 𝑘 -Defective Biclique
+
+
+   Proof. Assume that a 𝑘-defective biclique 𝐷 is not connected                                                                                    𝑆: 𝑢2 , {𝑣2 }
+                                                                                                                                                   𝐶: ( 𝑢1 , 𝑢3 , 𝑢4 , 𝑢5 , {𝑣1 , 𝑣3 , 𝑣4 })
+when |𝑈𝐷 | > 𝑘 and |𝑉𝐷 | > 𝑘. In this case, 𝐷 can be decomposed                      𝑢1         𝑢2        𝑢3        𝑢4        𝑢5                                  +𝑣4                    −𝑣4
+into two nonempty subgraphs 𝐷 1 = (𝑈𝐷 1 , 𝑉𝐷 1 , 𝐸𝐷 1 ) and 𝐷 2 =                                                                             𝑆: 𝑢2 , {𝑣2 , 𝑣4 }
+                                                                                                                                                                                               ⋯
+                                                                                                                                              𝐶: ( 𝑢1 , 𝑢3 , 𝑢4 , {𝑣1 , 𝑣3 })
+(𝑈𝐷 2 , 𝑉𝐷 2 , 𝐸𝐷 2 ), with the results of 𝐸𝐷 1 ∪ 𝐸𝐷 2 = 𝐸𝐷 .The number of                                                                               +𝑣3                    −𝑣3
+                                                                                                                                       𝑆: 𝑢2 , 𝑢5 , {𝑣2 , 𝑣4 }
+non-edges between 𝐷 1 and 𝐷 2 is given by |𝑈𝐷 1 | · |𝑉𝐷 2 | + |𝑈𝐷 2 | · |𝑉𝐷 1 |,                                                       𝐶: ( 𝑢1 , 𝑢3 , 𝑢4 , {𝑣1 , 𝑣3 })
+                                                                                                                                                                                  ⋯
+which exceeds |𝑈𝐷 | (or |𝑉𝐷 |) and is thus larger than 𝑘. This contra-                     𝑣1        𝑣2        𝑣3        𝑣4
+                                                                                                                                                  +𝑢1             −𝑢1
+                                                                                                                               𝑆: 𝑢1 , 𝑢2 , {𝑣2 , 𝑣3 , 𝑣4 }
+dicts the assumption that 𝐷 is a 𝑘-defective biclique. Therefore, the                                                                                                    ⋯
+                                                                                                                               𝐶: ( 𝑢4 , {𝑣1 })
+proof is complete.                                                           □                   (a) the input graph                          (b) the branching tree
+   Based on Lemma 1, we formally define the problem addressed                      Figure 2: An example of the new binary branching strategy,
+in this paper as follows.                                                          where 𝑘 = 2 and current instance is 𝑆 = ({𝑢 2 }, {𝑣 2 }) (green ver-
+                                                                                   tices) and 𝐶 = ({𝑢 1, 𝑢 3, 𝑢 4, 𝑢 5 }, {𝑣 1, 𝑣 3, 𝑣 4 }) (uncolored vertices).
+Problem statement (MDB search problem). Given a bipartite
+graph 𝐺 = (𝑈 , 𝑉 , 𝐸) and two integers 𝑘 and 𝜃 with 𝜃 > 𝑘, the MDB
+                                                                                   to the selection of all vertices in 𝐶, leading to a worst-case time
+search problem aims to find a connected 𝑘-MDB 𝐷 = (𝑈𝐷 , 𝑉𝐷 , 𝐸𝐷 )
+                                                                                   complexity of 𝑂 ∗ (2𝑛 ) and too many unnecessary computations. To
+of 𝐺 satisfying |𝑈𝐷 | ≥ 𝜃 and |𝑉𝐷 | ≥ 𝜃 .
+                                                                                   improve the efficiency and reduce the time complexity, we propose
+    Theorem 2. The MDB search problem is NP-hard.                                  a new binary branching strategy.
+                                                                                      Intuitively, if 𝑘 vertices from 𝐶 with non-neighbors in 𝑆 are
+  Proof. We establish the NP-hardness of the MDB search prob-                      successively added to 𝑆, then 𝑆 will contain at least 𝑘 non-edges.
+lem through a polynomial-time reduction from the classical NP-                     Consequently, this implies that all vertices in 𝐶 must be the neigh-
+complete maximum clique search problem. Due to space limitation,                   bors of each vertex in 𝑆. Additionally, if no vertex in 𝐶 that has
+we present the complete version of this proof and all the omitted                  non-neighbors in 𝑆, adding a vertex 𝑣 from 𝐶 to 𝑆 will result in
+proofs of this paper in [1].                                    □                  exactly 𝑑 𝐶 (𝑣) vertices in 𝐶 with non-neighbors in 𝑆. Based on these
+                                                                                   observations, we give our new binary branching strategy as follows.
+3     Our Proposed Algorithms                                                      New binary branching strategy. Given an instance (𝑆, 𝐶), let 𝑢 =
+In this section, we propose two novel algorithms to solve the 𝑘-                   arg max𝑢 ∈𝐶 𝑑 𝑆 (𝑢). The sub-instances are generated in the following
+MDB search problem. Specifically, we first propose a new branch-                   way:
+and-bound algorithm that utilizes a newly-designed binary branch-
+ing strategy, achieving the worst-case time complexity of 𝑂 (𝑚𝛼𝑘𝑛 ),                  • If 𝑑 𝑆 (𝑢) > 0, select 𝑢 as the branching vertex and generate
+where 𝛼𝑘 < 2 (e.g. 𝑘 = 1, 2, and 3, we have 𝛼𝑘 = 1.911, 1.979,                          two sub-instances: (𝑆 ∪ {𝑢}, 𝐶 \ {𝑢}), (𝑆, 𝐶 \ {𝑢}).
+and 1.995, respectively). To further improve the efficiency, we pro-                  • Otherwise, select 𝑣 ∈ 𝐶 with the maximum 𝑑 𝐶 (𝑣) as the
+pose a novel pivoting-based algorithm that incorporates a well-                         branching vertex, and generate two sub-instances: (𝑆 ∪ {𝑣 }, 𝐶 \
+designed pivoting-based branching strategy with our proposed                            {𝑣 }), (𝑆, 𝐶 \ {𝑣 }).
+binary branching strategy. We prove that the time complexity of
+the improved algorithm is bounded by 𝑂 (𝑚𝛽𝑘𝑛 ), where 𝛽𝑘 < 𝛼𝑘                         Example 3. Fig. 2 shows an example of our new binary branching
+(e.g., when 𝑘 = 1, 2, 3, 𝛽𝑘 = 1.717, 1.856, and 1.931, respectively).              strategy for finding a 2-MDB. The input graph is depicted in Fig. 2a,
+To the best of our knowledge, the algorithms we proposed in this                   where the current instance is 𝑆 = ({𝑢 2 }, {𝑣 2 }) (green vertices) and
+section are the first two 𝑘-MDB search algorithms that surpass the                 𝐶 = ({𝑢 1, 𝑢 3, 𝑢 4, 𝑢 5 }, {𝑣 1, 𝑣 3, 𝑣 4 }) (uncolored vertices). Fig. 2(b) illus-
+trivial time complexity of 𝑂 ∗ (2𝑛 ).                                              trates the branching tree obtained by applying our binary branching
+                                                                                   strategy. Specifically, in the top-level branch, 𝑣 4 is selected as the
+3.1     A New Branch-and-bound Algorithm                                           branching vertex due to its maximum number of non-neighbors
+                                                                                   in 𝑆. When 𝑣 4 is added to 𝑆, it brings a non-edge in 𝑆 ∪ {𝑣 4 }. Then,
+We firstly introduce a branch-and-bound algorithm for the 𝑘-MDB                    we observe that there is no vertex in the second-level branch with
+problem. It employs a straightforward branch-and-bound approach                    non-neighbors in 𝑆 ∪ {𝑣 4 }. Therefore, 𝑣 3 is selected as the second-
+by selecting a vertex 𝑣 from the graph and dividing the 𝑘-MDB                      level branching vertex as it has the most non-neighbors in 𝐶 \ {𝑣 4 }.
+search problem into two subproblems: one seeks a 𝑘-MDB that in-                    In the third-level branch, 𝑢 1 is selected as the branching vertex as
+cludes 𝑣, while the other seeks a 𝑘-MDB that excludes 𝑣. Specifically,             it has the most non-neighbors in 𝑆 ∪ {𝑣 4, 𝑣 3 }. In the forth-level,
+given a bipartite graph 𝐺, denote by 𝑆 = (𝑈𝑆 , 𝑉𝑆 ) a partial set and              𝑆 ∪ {𝑢 1, 𝑣 3, 𝑣 4 } contains 2 non-edges, leading to the deletion of 𝑢 3
+𝐶 = (𝑈𝐶 , 𝑉𝐶 ) a candidate set, where 𝐺 (𝑆) is a 𝑘-defective biclique of           from 𝐶 since it still has non-neighbors in 𝑆 ∪ {𝑢 1, 𝑣 3, 𝑣 4 }, which is
+𝐺, and for any vertex 𝑢 ∈ 𝐶, 𝐺 (𝑆 ∪ {𝑢}) forms a larger 𝑘-defective                the key to reducing the unnecessary computations.
+biclique of 𝐺. (𝑆, 𝐶) is referred to as an instance, which aims to
+identify a 𝑘-MDB consisting of 𝑆 and a subset of 𝐶. In particular,                 Implementation details. Algorithm 1 outlines the pseudocode
+the instance ((∅, ∅), (𝑈 , 𝑉 )) aims to find a 𝑘-MDB of 𝐺, while the               of our proposed branch-and-bound algorithm. It takes a bipartite
+instance (𝑆 ∗, (∅, ∅)) corresponds to a possible solution 𝐺 (𝑆 ∗ ). To             graph 𝐺 and two integers 𝑘 and 𝜃 as input parameters, and returns
+clarify, we refer to a vertex 𝑢 ∈ 𝐶 as a branching vertex when a new               a 𝑘-MDB 𝐷 ∗ of 𝐺. It first initializes 𝐷 ∗ as an empty graph, and then
+sub-instance is generated by expanding 𝑆 with 𝑢.                                   starts to search 𝑘-MDB by invoking the procedure BranchB where
+    Given an instance (𝑆, 𝐶), our branch-and-bound algorithm se-                   all vertices in 𝐺 serve as the candidate set (line 2). BranchB holds an
+lects a branching vertex 𝑢 ∈ 𝐶 and generates two new sub-instances:                instance (𝑆, 𝐶) as its parameter, where 𝑆 denotes the partial set and
+(𝑆 ∪ {𝑢}, 𝐶 \ {𝑢}) and (𝑆, 𝐶 \ {𝑢}). The algorithm then recursively                𝐶 denotes the candidate set. Within BranchB, the algorithm first
+processes each sub-instance in the same manner until the candidate                 determines whether a larger 𝑘-defective biclique has been found
+set becomes empty, where the partial set yields a possible solution.               (lines 5-8). After that, it selects a branching vertex 𝑢 from 𝐶 using
+Finally, the 𝑘-MDB of 𝐺 is obtained as the yielded solution with                   the new binary branching strategy (lines 9-10) and generates two
+most edges. The simplest approach to obtain a branching vertex                     sub-instance (𝑆 ′, 𝐶 ′ ∪ {𝑢}) and (𝑆, 𝐶 \ {𝑢}) (lines 11-12). Here, 𝑆 ′
+is to randomly select one from 𝐶. However, this strategy may lead                  and 𝐶 ′ are the new partial set and new candidate set derived by
+                                                                                    Donghang Cui, Ronghua Li, Qiangqiang Dai, Hongchao Qin, and Guoren Wang
+
+
+
+ Algorithm 1: The branch-and-bound algorithm                                     which can be simplified to 𝑥 2𝑘+5 −2𝑥 2𝑘+4 +𝑥 3 −𝑥 2 +1 = 0. Therefore,
+   Input: Bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸 ) , integers 𝑘 and 𝜃                    the theorem is proven.                                               □
+   Output: A 𝑘 -MDB of 𝐺
+ 1 𝐷 ∗ ← an empty graph;                                                           Lemma 2. Given a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸), the time com-
+ 2 BranchB( ( ∅, ∅ ) , (𝑈 , 𝑉 ) );                                               plexity of Algorithm 1 for finding a 0-MDB of 𝐺 is 𝑂 (𝑚 × 1.618𝑛 ).
+ 3 return 𝐷 ∗ ;
+ 4 Procedure BranchB(𝑆 = (𝑈𝑆 , 𝑉𝑆 ) , 𝐶 = (𝑈𝐶 , 𝑉𝐶 ) ):
+ 5      if 𝐶 = ∅ then                                                               Proof. When 𝑘 = 0, the vertex 𝑣 ∈ 𝐶 with maximum 𝑑 𝐶 (𝑣) is
+ 6            if |𝐸𝐺 (𝑆 ) | > |𝐸𝐷 ∗ | and |𝑈𝑆 | ≥ 𝜃 and |𝑉𝑆 | ≥ 𝜃 then           selected as the branching vertex. Moving 𝑣 from 𝐶 to 𝑆 results in
+ 7                    𝐷 ∗ ← 𝐺 (𝑆 ) ;
+                                                                                 the deletion of 𝑣’s non-neighbors in 𝐶, leading to the recurrence
+ 8              return;
+                                                                                 𝑇 (𝑛) ≤ 𝑇 (𝑛 − 1) + 𝑇 (𝑛 − 2), which yields 𝑇 (𝑛) = 1.618𝑛 .    □
+ 9        𝑢 ← arg max𝑣 ∈𝐶 𝑑 𝑆 (𝑣) ;
+10
+11
+          if 𝑑 𝑆 (𝑢 ) = 0 then 𝑢 ← arg max𝑣 ∈𝐶 𝑑 𝐶 (𝑣) ;
+          (𝑆 ′ , 𝐶 ′ ) ← Update(𝑆 , 𝐶 , 𝑢 );
+                                                                                 3.2     A Novel Pivoting-based Algorithm
+12        BranchB(𝑆 ′ ∪ {𝑢 } , 𝐶 ′ ); BranchB(𝑆 , 𝐶 \ {𝑢 } );                    We observe that Algorithm 1 may still generate numerous unnec-
+13   Function Update(𝑆 , 𝐶 , 𝑢 ):                                                essary sub-instances. Consider an instance (𝑆, 𝐶) and a branching
+14        𝐶 ′ ← {𝑣 ∈ 𝐶 \ {𝑢 } | 𝑑 𝑆∪{𝑢} (𝑣) ≤ 𝑘 − 𝑑 (𝑆 ) } ;
+                                                                                 vertex 𝑣 ∈ 𝐶 with 𝑑 𝑆 (𝑣) = 0. In Algorithm 1, if 𝑣 and all non-
+15        𝐶 0′ ← {𝑣 ∈ 𝐶 ′ | 𝑑 𝑆∪{𝑢}∪𝐶 ′ (𝑣) = 0} ;
+                                                                                 neighbors of 𝑣 have been excluded from the current instance, the
+16        return (𝑆 ∪ 𝐶 0′ , 𝐶 ′ \ 𝐶 0′ ) ;
+                                                                                 remaining vertices cannot form any 𝑘-MDB. This is because any
+                                                                                 𝑘-defective biclique derived from these remaining vertices can al-
+                                                                                 ways be expanded by including 𝑣. Consecutively, Algorithm 1 may
+                                                                                 produce many 𝑘-defective bicliques that are not maximum. To ad-
+invoking Update (line 11), ensuring the candidate set keeps all valid            dress the problem and further improve the efficiency, we propose a
+branching vertex (lines 14-15). We next analyze the time complexity              novel pivoting-based algorithm in this section. We formalize above
+of Algorithm 1.                                                                  insights into the following lemma.
+
+   Theorem 4. Given a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸) and an integer                 Lemma 3. Given an instance (𝑆, 𝐶) and any vertex 𝑣 ∈ 𝐶 with
+𝑘, the time complexity Algorithm 1 is given by 𝑂 (𝑚𝛼𝑘𝑛 ), where 𝛼𝑘               𝑑 𝑆 (𝑣) = 0, the 𝑘-MDB of instance (𝑆, 𝐶) must contain either 𝑣 or a
+is the largest real root of equation 𝑥 2𝑘+5 − 2𝑥 2𝑘+4 + 𝑥 3 − 𝑥 2 + 1 = 0.       vertex in 𝑁 𝐶 (𝑣).
+Specifically, when 𝑘 = 1, 2 and 3, we have 𝛼𝑘 = 1.911, 1.979 and                     Based on Lemma 3, we develop a pivoting strategy that provides
+1.995, respectively.                                                             a new way to generate sub-instances. The details are presented as
+                                                                                 follows.
+    Proof. Let𝑇 (𝑛) denote the maximum number of leave instances                 Pivoting strategy. Consider an instance (𝑆, 𝐶) and a vertex 𝑢 ∈
+generated by BranchB (i.e. instances with an empty 𝐶), where 𝑛 =
+                                                                                 𝐶 with 𝑑 𝑆 (𝑢) = 0. Let 𝑢 be the pivot vertex. Assume 𝑁 𝐶 (𝑢) =
+|𝐶 | = |𝑈𝐶 | + |𝑉𝐶 |. Since each recursive call of BranchB takes 𝑂 (𝑚)
+time, the total time complexity of BranchB is 𝑂 (𝑚 · 𝑇 (𝑛)).                     {𝑣 1, 𝑣 2, . . . , 𝑣𝑟 }, where 𝑟 = 𝑑 𝐶 (𝑢). The pivoting strategy treats each
+    Then, we analyze the size of 𝑇 (𝑛) based on the binary branching             vertex in {𝑢} ∪ 𝑁 𝐶 (𝑢) as a branching vertex and generates exactly
+strategy. In each branch of BranchB, either a vertex with at least               𝑟 + 1 sub-instances. The first sub-instance is given by (𝑆 ∪ {𝑢}, 𝐶 \
+one non-neighbor in 𝑆 or a vertex with the most non-neighbors                    {𝑢}), and for 𝑖 ≥ 2, the 𝑖-th sub-instance is given by (𝑆 ∪ {𝑣𝑖 −1 }, 𝐶 \
+in 𝐶 is selected as the branching vertex. If the vertex 𝑢 with at                {𝑢, 𝑣 1, 𝑣 2, . . . , 𝑣𝑖 −1 }).
+least one non-neighbor in 𝑆 is selected, it results in at least one                  With this strategy, 𝑆 is expanded only with the vertex 𝑢 and
+additional non-edge in 𝑆 ∪ {𝑢}. Alternatively, if a vertex 𝑣 with the            vertices in 𝑁 𝐶 (𝑢), avoiding redundant sub-instances that would
+most non-neighbors in 𝐶 is selected as the branching vertex, the                 lead to non-maximum 𝑘-defective biclique. Next, we consider the
+next-level branch will contain at least 𝑑 𝐶 (𝑣) vertices in 𝐶 that have          selection of the pivot vertex. Let 𝐶 0 ⊆ 𝐶 be the set of vertices fully
+non-neighbors in 𝑆 ∪ {𝑣 }, where 𝑑 𝐶 (𝑣) > 0. Consequently, we can               connected to 𝑆, i.e., 𝐶 0 = {𝑣 ∈ 𝐶 | 𝑑 𝑆 (𝑣) = 0}. According to the
+conclude that in the worst case, adding two vertices from 𝐶 to 𝑆                 pivoting strategy, any vertex from 𝐶 0 can serve as a pivot vertex.
+will result in at least one additional non-edge in 𝑆. After adding at            To minimize the number of sub-instances, the vertex 𝑢 ∈ 𝐶 0 with
+most 2𝑘 + 1 vertices from 𝐶 to 𝑆, we have |𝐸 𝑆 | = 𝑘 and there exists            the fewest non-neighbors in 𝐶 is chosen as the pivot vertex.
+a vertex 𝑣 ∈ 𝐶 such that 𝑑 𝑆 (𝑣) > 0. Based on this, the recurrence is               In the case where 𝐶 0 is empty, every vertex in 𝐶 has at least
+                     Í2𝑘+1                                                       one non-neighbor in 𝑆, making the pivoting strategy inapplicable.
+given by 𝑇 (𝑛) ≤ 𝑖=1       𝑇 (𝑛 − 𝑖) + 𝑇 (𝑛 − 2𝑘 − 2).                           Fortunately, as discussed in Sec. 3.1, continuously branching 𝑘
+    Note that the (2𝑘 +2)-th level of branching (the term𝑇 (𝑛−2𝑘 −2))            times by adding vertices from 𝐶 to 𝑆 will result in 𝑆 containing at
+corresponds to a branch that searches for the maximum biclique. In               least 𝑘 non-edges. Moreover, 𝐶 becomes an empty set after this
+this case, it is evident that any vertex in 𝐶 selected as the branching          process, which significantly reduces unnecessary computations.
+vertex will result in at least one additional vertex being removed               Motivated by this observation, we integrate the pivoting strategy
+from 𝐶. Thus, we yield a recurrence of 𝑇 (𝑛 − 2𝑘 − 2) = 𝑇 (𝑛 − 2𝑘 −              with the binary branching strategy to develop a novel pivoting-
+3) + 𝑇 (𝑛 − 2𝑘 − 4) for such a branch. Based on above discussion,                based branching strategy as outlined below.
+we can present the following tighter recurrence.                                 Novel pivoting-based branching strategy. Given an instance
+                     2𝑘+1
+                     ∑︁                                                          (𝑆, 𝐶), let 𝐶 0 = {𝑣 ∈ 𝐶 | 𝑑 𝑆 (𝑣) = 0}. The new sub-instances of
+          𝑇 (𝑛) ≤           𝑇 (𝑛 − 𝑖) + 𝑇 (𝑛 − 2𝑘 − 3) + 𝑇 (𝑛 − 2𝑘 − 4).   (1)   (𝑆, 𝐶) are generated in the following way:
+                      𝑖=1
+                                                                                   • If 𝐶 0 is empty or |𝐶 \ 𝐶 0 | > 𝑘 − |𝐸 𝑆 |, let 𝑢 = arg max𝑣 ∈𝐶 𝑑 𝑆 (𝑣)
+According to the theory proposed in [20], 𝑇 (𝑛) can be expressed in                  be the branching vertex and generate two sub-instances: (𝑆 ∪
+the form of 𝛼𝑘𝑛 , where the value of 𝛼𝑘 derives from the largest real                {𝑢}, 𝐶 \ {𝑢}) and (𝑆, 𝐶 \ {𝑢}).
+root of equation 𝑥 𝑛 = 𝑥 𝑛−1 +𝑥 𝑛−2 +· · ·+𝑥 𝑛−2𝑘 −1 +𝑥 𝑛−2𝑘 −3 +𝑥 𝑛−2𝑘 −4 ,       • Otherwise, let 𝑢 = arg min𝑣 ∈𝐶0 𝑑 𝐶 (𝑣), and then:
+On the Efficient Discovery of Maximum 𝑘 -Defective Biclique
+
+
+pivot                                                                                                       Algorithm 2: The pivoting-based algorithm
+ 𝑢1          𝑢2          𝑢3        𝑢4        𝑢5
+                                                                                                             Input: Bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸 ) , integers 𝑘 and 𝜃
+                                                                𝑆: 𝑢2 , {𝑣1 , 𝑣2 }
+                                                                𝐶: ( 𝑢1 , 𝑢3 , 𝑢4 , 𝑢5 , {𝑣3 , 𝑣4 })         Output: A 𝑘 -MDB of 𝐺
+                                                                         +𝑣3           +𝑢3                 1 𝐷 ∗ ← an empty graph;
+                                                            +𝑢1                                        ⋯
+                                                                         − 𝑢1          − 𝑢1 , 𝑣3           2 BranchP( (∅, ∅) , (𝑈 , 𝑉 ) );
+                                              𝑆: 𝑢1 , 𝑢2 , {𝑣1 , 𝑣2 }         𝑆: 𝑢2 , {𝑣1 , 𝑣2 , 𝑣3 }      3 return 𝐷 ∗ ;
+                                              𝐶: ( 𝑢3 , 𝑢4 , 𝑢5 , {𝑣3 , 𝑣4 }) 𝐶: ( 𝑢3 , 𝑢4 , 𝑢5 , {𝑣4 })   4 Procedure BranchP(𝑆 = (𝑈𝑆 , 𝑉𝑆 ) , 𝐶 = (𝑈𝐶 , 𝑉𝐶 ) ):
+        𝑣1          𝑣2        𝑣3        𝑣4
+                                                                                                           5      if 𝐶 = ∅ then
+                                                                                                           6            if |𝐸𝐺 (𝑆 ) | > |𝐸𝐷 ∗ | and |𝑈𝑆 | ≥ 𝜃 and |𝑉𝑆 | ≥ 𝜃 then
+                  (a) the input graph                        (b) the branching tree                        7                  𝐷 ∗ ← 𝐺 (𝑆 ) ;
+Figure 3: An example of the pivoting-based branching strat-                                                 8             return;
+egy, where 𝑘 = 2 and current instance is set as 𝑆 = ({𝑢 2 }, {𝑣 2 })                                        9      𝐶 0 ← {𝑣 ∈ 𝐶 | 𝑑 𝑆 (𝑣) = 0} ;
+(green vertices) and 𝐶 = ({𝑢 1, 𝑢 3, 𝑢 4, 𝑢 5 }, {𝑣 1, 𝑣 3, 𝑣 4 }) (orange and                             10      if 𝐶 0 = ∅ or |𝐶 \ 𝐶 0 | > 𝑘 − |𝐸 𝑆 | then
+uncolored vertices).                                                                                       11            𝑢 ← arg max𝑣 ∈𝐶 𝑑 𝑆 (𝑣) ;
+                                                                                                           12             (𝑆 ′ , 𝐶 ′ ) ← Update(𝑆 , 𝐶 , 𝑢 );
+                                                                                                           13            BranchP(𝑆 ′ ∪ {𝑢 } , 𝐶 ′ ); BranchP(𝑆 , 𝐶 \ {𝑢 } );
+        – If 𝑑 𝐶 (𝑢) > 𝑘 − |𝐸 𝑆 | > 0, generate two sub-instances                                          14      else
+          with 𝑢 as the branching vertex: (𝑆 ∪ {𝑢}, 𝐶 \ {𝑢}) and                                           15             𝑢 ← arg min𝑣 ∈𝐶 𝑑𝐶 (𝑣) ;
+                                                                                                                                              0
+          (𝑆, 𝐶 \ {𝑢}).                                                                                    16             if 𝑑 𝐶 (𝑢 ) > 𝑘 − |𝐸 𝑆 | > 0 then
+        – Otherwise, assume 𝑁 𝐶 (𝑢) = {𝑣 1, 𝑣 2, . . . , 𝑣𝑟 }, where 𝑟 =                                   17                   (𝑆 ′ , 𝐶 ′ ) ← Update(𝑆 , 𝐶 , 𝑢 );
+                                                                                                           18                   BranchP(𝑆 ′ ∪ {𝑢 } , 𝐶 ′ ); BranchP(𝑆 , 𝐶 \ {𝑢 } );
+          𝑑 𝐶 (𝑣), and generate 𝑑 𝐶 (𝑢) + 1 sub-instances with 𝑢 as                                        19             else
+          the pivot vertex, where the first sub-instance is given by                                       20                    for 𝑣 ∈ {𝑢 } ∪ 𝑁 𝐶 (𝑢 ) do
+          (𝑆 ∪ {𝑢}, 𝐶 \ {𝑢}), and for 𝑖 ≥ 2, the 𝑖-th sub-instance is                                      21                          (𝑆 ′ , 𝐶 ′ ) ← Update(𝑆 , 𝐶 , 𝑣 );
+                                                                                                           22                          BranchP(𝑆 ′ ∪ {𝑣 } , 𝐶 ′ ); 𝐶 ← 𝐶 \ {𝑣 } ;
+          given by (𝑆 ∪ {𝑣𝑖 −1 }, 𝐶 \ {𝑢, 𝑣 1, 𝑣 2, . . . , 𝑣𝑖 −1 }).
+    Example 5. Fig. 3 shows an example of the our pivoting-based
+branching strategy for the 2-MDB search. The example graph is
+given by Fig. 3a, with the current instance set as 𝑆 = ({𝑢 2 }, {𝑣 1, 𝑣 2 })
+(green vertices) and 𝐶 = ({𝑢 1, 𝑢 3, 𝑢 4, 𝑢 5 }, {𝑣 3, 𝑣 4 }) (orange and uncol-                              Proof. In Algorithm 2, Let 𝑇 (𝑛) denote the maximum number
+ored vertices). According to the pivoting-based branching strategy,                                        of leave instances generated by BranchP, where 𝑛 = |𝐶 | = |𝑈𝐶 | +
+𝐶 0 = ({𝑢 1 }, {𝑣 3 }), and 𝑢 1 is selected as the pivot vertex since it has                               |𝑉𝐶 |. It is easy to verify that finding the vertex with most (least) non-
+the fewest non-neighbors in 𝐶 among vertices in 𝐶 0 . Then, only                                           neighbors in 𝑆 (𝐶) takes at most 𝑂 (𝑚) time. Then, each recursive call
+𝑢 1 and all non-neighbors of 𝑢 1 in 𝐶 are used to generate new sub-                                        of BranchP takes 𝑂 (𝑚) time, and thus BranchP takes 𝑂 (𝑚 · 𝑇 (𝑛))
+instances (orange vertices), while other vertices of 𝐶 are not con-                                        time. We next focus on analyzing the size of 𝑇 (𝑛). Based on the
+sidered (uncolored vertices). This results in only two sub-instances                                       pivoting-based branching strategy, there are three cases that need
+generated by our pivot-based branching strategy. The branching                                             to be discussed:
+tree for this example is illustrated in Fig. 3b, where the black arrows                                     (1) If 𝐶 0 = ∅ or |𝐶 \𝐶 0 | > 𝑘 − |𝐸 (𝑆)|, BranchP continuously applies
+represent the generated branches while the red arrows indicate the                                                the binary branching strategy. After moving at most 𝑘 vertices
+unnecessary branches.                                                                                             from 𝐶 to 𝑆, 𝑆 contains 𝑘 non-edges. At this point, at least
+                                                                                                                  one vertex in 𝐶 will be removed as it has non-neighbors in
+Implementation details. Algorithm 2 outlines the pseudocode
+                                                                                                                  𝑆. Therefore, the recurrence for this case is given by 𝑇 (𝑛) ≤
+of the proposed pivot-based algorithm. It begins by searching for                                                 Í𝑘+1
+𝑘-MDB by invoking the procedure BranchP with an empty partial                                                        𝑖=1 𝑇 (𝑛 − 𝑖).
+set 𝑆 and the entire vertex set of 𝐺 as the candidate set 𝐶 (line 2).                                       (2) If 𝑘 − |𝐸 𝑆 | = 0, BranchP degenerates into maximum biclique
+The algorithm returns the global variable 𝐷 ∗ as the final 𝑘-MDB                                                  search and continuously applies the pivoting strategy. Let 𝑟 =
+after BranchP is processed (line 3). Within BranchP, the algorithm                                                𝑑 𝐶 (𝑢),
+                                                                                                                       Í the recurrence for this case is given by 𝑇 (𝑛) ≤ 𝑇 (𝑛 −𝑟 −
+first updates 𝐷 ∗ if a larger 𝑘-defective biclique is found (lines 5-7).                                          1)+ 𝑟𝑖=1 𝑇 (𝑛−𝑟 −𝑖). If 𝑟 ≤ 1, we have 𝑇 (𝑛) ≤ 2𝑇 (𝑛−2). If 𝑟 ≥ 2,
+Then, it generates new sub-instances based on the pivoting-based                                                  let 𝑇 (𝑛) = 𝛾𝑟𝑛 according to the existing theory [20],
+                                                                                                                                                                       Í where 𝛾𝑟
+branching strategy (lines 8-22). Specifically, if 𝐶 0 = ∅ or |𝐶 \ 𝐶 0 | >                                         is the largest real root of equation 𝑥 𝑛 = 𝑥 𝑛−𝑟 −1 + 𝑟𝑖=1 𝑥 𝑛−𝑟 −𝑖 .
+𝑘 −|𝐸 𝑆 |, the vertex 𝑢 = arg max𝑣 ∈𝐶 𝑑 𝑆 (𝑣) is selected as the branching                                        The value of 𝛾𝑟 is monotonically decreasing with respect to     √𝑟
+vertex (line 11), and two new sub-instances are generated (line 13).                                              when 𝑟 ≥ 2. By solving the equation we have 𝛾 2 = 1.395 < 2.
+Otherwise, the algorithm assigns 𝑢 = arg min𝑣 ∈𝐶0 𝑑 𝐶 (𝑣). If 𝑑 𝐶 (𝑢) >                                           As a result, we can always say 𝑇 (𝑛) ≤ 2𝑇 (𝑛 − 2) for this case.
+𝑘 − |𝐸 𝑆 |, two sub-instances are generated with 𝑢 as the branching                                         (3) Otherwise, let 𝑢 = arg min𝑣 ∈𝐶0 𝑑 𝐶 (𝑣). If 𝑑 𝐶 (𝑢) ≤ 𝑘 − |𝐸 (𝑆)|,
+vertex (lines 16-18). Otherwise, 𝑑 𝐶 (𝑢) + 1 new sub-instances are                                                BranchP performs the pivoting strategy with 𝑢 as the pivot
+generated with 𝑢 and all 𝑢’s non-neighbors in 𝐶 as branching vertex                                               vertex. This strategy generates at most 𝑑 𝐶 (𝑢) + 1 ≤ 𝑘 + 1 sub-
+(lines 20-22). When a branching vertex is added to 𝑆, the algorithm                                               instances. Therefore, the recurrence for this case is given by
+                                                                                                                            Í
+adopts the Update procedure presented in Algorithm 1 to update                                                   𝑇 (𝑛) ≤ 𝑘+1  𝑖=1 𝑇 (𝑛 − 𝑖). Otherwise, BranchP uses 𝑢 to perform
+the current instance (lines 12, 17 and 21). Below, we analyze the                                                 binary branching strategy. In the next-level branching, we
+time complexity of Algorithm 2.                                                                                   have |𝐶 \ 𝐶 0 | > 𝑘 − |𝐸 (𝑆 ∪ {𝑢})|, as 𝑑 𝐶 (𝑢) > 𝑘 − |𝐸 (𝑆)|. In
+                                                                                                                  this case, the sub-branch (the term 𝑇 (𝑛 − 1)) will continuously
+   Theorem 6. Given a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸) and an integer                                              perform the binary branching strategy as discussed in case
+𝑘, the time complexity of Algorithm 2 is given by 𝑂 (𝑚𝛽𝑘𝑛 ), where 𝛽𝑘                                             (1). Consequently, the recurrence for this case is given by
+                                                                                                                            Í
+is the largest real root of equation 𝑥 2𝑘+5 − 2𝑥 2𝑘+4 +𝑥 𝑘+3 − 2𝑥 + 2 = 0.                                       𝑇 (𝑛) ≤ 𝑘+1   𝑖=1 𝑇 (𝑛 − 𝑖) + 𝑇 (𝑛 − 2𝑘 − 2). Note that the term
+Specifically, when 𝑘 = 1, 2 and 3, we have 𝛽𝑘 = 1.717, 1.856 and                                                 𝑇 (𝑛 − 2𝑘 − 2) degenerates to maximum biclique search, and
+1.931, respectively.                                                                                              we can derive that 𝑇 (𝑛 − 2𝑘 − 2) = 2𝑇 (𝑛 − 2𝑘 − 4) as discussed
+                                                                                  Donghang Cui, Ronghua Li, Qiangqiang Dai, Hongchao Qin, and Guoren Wang
+
+
+     in case (2). Therefore, the final recurrence for this case is given
+                  Í                                                           Algorithm 3: CnReduction(𝐺, 𝑘, 𝜃 )
+     by 𝑇 (𝑛) ≤ 𝑘+1𝑖=1 𝑇 (𝑛 − 1) + 2𝑇 (𝑛 − 2𝑘 − 4).                               Input: Bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸 ) , integers 𝑘 and 𝜃
+                                                                                  Output: A reduced bipartite graph
+   By combining the above analysis, the worst-case recurrence is             1 O ← the ascending degree order of 𝑈 ∪ 𝑉 ;
+given by                                                                     2 for 𝑢 ∈ O do
+                                                                             3      for 𝑣 ∈ 𝑁 (𝑢 ) do
+                         𝑘+1
+                         ∑︁                                                  4            for 𝑤 ∈ 𝑁 (𝑣) do
+                                                                             5                 𝑐𝑛 (𝑤 ) ← 0;
+               𝑇 (𝑛) ≤         𝑇 (𝑛 − 1) + 2𝑇 (𝑛 − 2𝑘 − 4).            (2)
+                         𝑖=1                                                  6        for 𝑣 ∈ 𝑁 (𝑢 ) do
+                                                                              7              for 𝑤 ∈ 𝑁 (𝑣) do
+   Based on the existing theorem proposed in [20], we denote by               8                     𝑐𝑛 (𝑤 ) ← 𝑐𝑛 (𝑤 ) + 1;
+𝑇 (𝑛) = 𝛽𝑘𝑛 , where 𝛽𝑘 is the largest real root of equation 𝑥 𝑛 =             9        for 𝑣 ∈ 𝑁 (𝑢 ) do
+                                                                                               𝑁 ′ ← {𝑤 ∈ 𝑁 (𝑣) | 𝑐𝑛 (𝑤 ) ≥ 𝜃 − 𝑘 } ;
+𝑥 𝑛−1 + 𝑥 𝑛−2 + · · · + 𝑥 𝑛−𝑘 −1 + 2𝑥 𝑛−2𝑘 −4 . The equation is equivalent   10
+                                                                             11                if |𝑁 ′ | < 𝜃 − 𝑘 then 𝐸 ← 𝐸 \ (𝑢, 𝑣) ;
+to 𝑥 2𝑘+5 − 2𝑥 2𝑘+4 + 𝑥 𝑘+3 − 2𝑥 + 2 = 0. Consequently, the theorem is       12        if 𝑑 (𝑢 ) < 𝜃 − 𝑘 then 𝑈 ← 𝑈 \ 𝑢 ;
+proven.                                                                 □    13        for 𝑣 ∈ 𝑁 (𝑢 ) s.t. 𝑑 (𝑣) < 𝜃 − 𝑘 do 𝑉 ← 𝑉 \ 𝑣 ;
+                                                                             14   return 𝐺 ;
+  Lemma 4. Given a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸), the time com-
+plexity of Algorithm 2 for finding a 0-MDB of 𝐺 is 𝑂 (𝑚 · 1.414𝑛 ).
+   Proof. When setting 𝑘 = 0, Algorithm 2 will always execute the            4.1        Graph Reduction Techniques
+pivoting-based branching strategy (lines 20-22), corresponding to a          Common-neighbor-based reduction. For two vertices 𝑢 and
+recurrence of 𝑇 (𝑛) < 2𝑇 (𝑛 − 2) according to the proof of Theorem           𝑣 on the same side, let 𝑐𝑛(𝑢, 𝑣) (or 𝑐𝑛𝑆 (𝑢, 𝑣)) denote the number
+6. Therefore, we have 𝑇 (𝑛) = 1.414𝑛 .                           □           of common neighbors of 𝑢 and 𝑣 in 𝐺 (or in 𝑆). Given a bipartite
+                                                                             graph 𝐺 = (𝑈 , 𝑉 , 𝐸) and a 𝑘-MDB 𝐷 = (𝑈𝐷 , 𝑉𝐷 , 𝐸𝐷 ) of 𝐺, every
+Discussion. It is worth noting that the branch-and-bound and                 edge (𝑢, 𝑣) ∈ 𝐸𝐷 satisfies that (1) 𝑑𝐷 (𝑢) ≥ 𝜃 − 𝑘, and (2) for all
+pivoting techniques has been widely applied on many cohesive sub-            𝑤 ∈ 𝑁𝐷 (𝑣), 𝑐𝑛𝐷 (𝑢, 𝑤) ≥ 𝜃 − 𝑘. By combining the two conditions,
+graph models such as the 𝑘-defective clique [8, 9, 13], the 𝑘-biplex         we can conclude that for an edge (𝑢, 𝑣) ∈ 𝐸, if 𝑣 has fewer than
+[50, 51] and the biclique [2, 3, 11]. However, our binary branching          𝜃 − 𝑘 neighbors 𝑤 such that 𝑐𝑛(𝑢, 𝑤) ≥ 𝜃 − 𝑘, the edge (𝑢, 𝑣) can
+strategy and pivoting-based branching strategy are significantly             be pruned in 𝐺.
+different from all these existing solutions.                                    Based on this idea, we present Algorithm 3 to prune such edges
+    Compared to the state-of-the-art maximum 𝑘-defective clique              from 𝐺, referred to as CnReduction. The algorithm enumerates all
+algorithm in [13], which achieves a non-trivial time complexity by           edges (𝑢, 𝑣) in ascending order of 𝑢’s degree (lines 1-2). For each
+utilizes a condition to restrict the scenarios of pivoting, directly         edges (𝑢, 𝑣), the algorithm counts common neighbors between 𝑢
+applying this approach to our pivoting-based algorithm would                 and the neighbors 𝑤 of 𝑣 (lines 3-8). If 𝑣 has fewer than 𝜃 − 𝑘
+degrade the time complexity to 𝑂 ∗ (2𝑛 ). In contrast, we employ a           neighbors 𝑤 satisfying 𝑐𝑛(𝑢, 𝑤) ≥ 𝜃 − 𝑘, the edge (𝑢, 𝑣) is pruned
+more refined pivoting strategy that considers both the number of             from 𝐺 (lines 9-11). Additionally, if the degree of 𝑢 or 𝑣 drop below
+non-edges between 𝑆 and 𝐶 (lines 10-13 in Algorithm 2) and the               𝜃 − 𝑘 due to the deletion of (𝑢, 𝑣), the algorithm will also prune 𝑢 or
+number of pivot vertex’s non-neighbors (lines 15-18 in Algorithm             𝑣 from 𝐺 (lines 12-13). We give the time complexity of Algorithm 3
+2), thereby effectively bounding the time complexity.                        in the following lemma.
+    Compared to the state-of-the-art pivoting-based maximum bi-
+plex search algorithm in [50], which achieves a time complexity of              Lemma 5. Given a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸), the complexity
+𝑂 (𝑚𝛾𝑘𝑛 ), with 𝛾𝑘 = 1.754 when 𝑘 = 1, our algorithm MDBP reaches            of Algorithm 3 is 𝑂 (𝑑 · 𝑚), where 𝑑 = max𝑢 ∈𝑈 ∪𝑉 𝑑 (𝑢).
+a better time complexity. This is mainly because the algorithm in               In practice, Algorithm 3 performs efficiently although its time
+[50] only considers prioritizing 𝑘 non-neighbors of 𝑆, which is sim-         complexity is 𝑂 (𝑑 · 𝑚). This is because in real-world graphs, most
+ilar to our binary branching strategy in Sec. 3.1. By contrast, our          vertices have degrees much smaller than 𝑑. As a result, the actual
+pivoting-based branching strategy also bounds the case that fewer            runtime of the algorithm often does not reach this worst-case time
+than 𝑘 non-neighbors are between 𝑆 and 𝐶, which reduces the size             complexity.
+of branching tree and thereby improves the time complexity (see              One-non-neighbor reduction. For an instance (𝑆, 𝐶) and a vertex
+the proof of Theorem 6).                                                     𝑢, let 𝐶𝑢 denote the subset of 𝐶 where all vertices are on the same
+    Compared to the maximal biclique algorithm in [2], our pivot             side as 𝑢. If a branching vertex has only one non-neighbor in 𝑆 ∪ 𝐶,
+vertex selection approach is much different. During the pivoting             removing it from 𝐶 can lead to the pruning of additional vertices.
+process, [2] considers the common neighbors, and selects pivot               The following lemma explains this idea in detail.
+vertex in a heuristic topological order from only one side, which may
+                                                                                 Theorem 7. Given an instance (𝑆, 𝐶) and a vertex 𝑢 ∈ 𝐶 with
+not be always optimal. In contrast, our pivoting-based branching
+strategy selects pivot vertex from both side through deterministic           𝑑 𝑆∪𝐶 (𝑢) = 1, if 𝑢 is removed from 𝐶, all vertices 𝑣 ∈ 𝐶𝑢 with
+condition, which always generates fewest new sub-branches in                 𝑑 𝑆 (𝑣) ≥ 1 can be pruned from 𝐶. Moreover, if 𝑑𝐶 (𝑢) = 1 and 𝑤 is
+each recursion.                                                              the unique non-neighbor of 𝑢, then all vertices in 𝑁 𝐶 (𝑤) can also
+                                                                             be pruned from 𝐶.
+4    Optimization Techniques
+                                                                                Proof. Assume 𝐷 is a 𝑘-MDB derived from (𝑆, 𝐶) excluding 𝑢.
+In this section, we propose various optimization techniques, includ-
+ing graph reduction techniques to eliminate redundant vertices,              For any 𝑣 ∈ 𝐶𝑢 such that 𝑣 ∈ 𝐷 and 𝑑 𝑆 (𝑣) ≥ 1, we have 𝐷 \ {𝑣 } ∪ {𝑢}
+upper-bounding techniques to prune unnecessary instances, and                is also a 𝑘-MDB. In the case where 𝑑 𝐶 (𝑢) = 1 and 𝑤 is the unique
+a heuristic approach for identifying an initial large 𝑘-defective bi-        non-neighbor of 𝑢, if 𝑤 ∉ 𝐷, then 𝐷 ∪ {𝑢} forms a larger 𝑘-MDB.
+clique. These techniques can be easily integrated into our proposed          Otherwise, for any 𝑣 ∈ 𝑁 𝐶 (𝑤) such that 𝑣 ∈ 𝐷, we have 𝐷\{𝑣 }∪{𝑢}
+algorithms in Sec. 3, and can significantly enhance their efficiency.        is also a 𝑘-MDB.                                                     □
+On the Efficient Discovery of Maximum 𝑘 -Defective Biclique
+
+
+Ordering-based reduction. Given a bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸),                 a 𝑘-MDB. The reduction based on vertex degree has been widely
+let 𝑢 1, 𝑢 2, . . . , 𝑢 |𝑈 | be an arbitrary vertex order of 𝑈 . For each vertex   applied in the form of core [50, 53]. However, this approach results
+𝑢𝑖 , the ordering-based reduction aims to find a 𝑘-MDB 𝐷𝑖 including                in a very limited reduction in graph size. Additionally, by applying
+𝑢𝑖 while excluding 𝑢 1, 𝑢 2, . . . , 𝑢𝑖 −1 . Obviously, the 𝑘-MDB of 𝐺 is          a single constraint on common neighbors of two vertices 𝑢 and 𝑣
+the one with most edges among 𝐷 1, 𝐷 2, . . . , 𝐷 |𝑈 | . Next, we extend           where 𝑐𝑛(𝑢, 𝑣) < 𝜃 − 𝑘, we can conclude that 𝑢 and 𝑣 cannot co-
+Lemma 1 to constrain the vertex distance in 𝐷𝑖 , as shown in the                   exist in the same 𝑘-MDB. However, maintaining such coexistence
+following lemma.                                                                   relationships requires 𝑂 (𝑛 2 ) space, making it quite challenging for
+   Lemma 6. Given a 𝑘-defective biclique 𝐷 = (𝑈𝐷 , 𝑉𝐷 , 𝐸𝐷 ), if |𝑈𝐷 | >           practical implementation.
+𝑘 and |𝑉𝐷 | > 𝑘, the maximum distance between any two vertices                        On the other hand, the one-non-neighbor reduction focuses
+of 𝐷 is 3.                                                                         on analyzing vertices in 𝐶 that have only one non-neighbor in the
+                                                                                   current subgraph 𝐺 (𝑆 ∪𝐶). A relevant prior technique addresses the
+    Lemma 6 indicates that when searching for 𝐷𝑖 , vertices with                   maximum 𝑘-defective clique search problem [13], where a vertex
+distances more than 3 from 𝑢𝑖 can be pruned. Let 𝑁 2 (𝑢) = {𝑤 ∈                    in 𝐶 with exactly one non-neighbor in the subgraph can be directly
+𝑁 (𝑣) | 𝑣 ∈ 𝑁 (𝑢)}, i.e., the set of 𝑢’s 2-hop neighbors. Let 𝑁 +2 (𝑢𝑖 ) =         added to 𝑆. However, this reduction cannot be directly applied to
+𝑁 2 (𝑢𝑖 ) ∩ {𝑢𝑖+1, 𝑢𝑖+2, 𝑢 |𝑈 | }. According to Lemma 6, we can construct          the 𝑘-MDB problem, as such a vertex may not belong to any 𝑘-MDB.
+                  Ð (𝑆𝑖 , 𝐶𝑖 ) to find 𝐷𝑖 , where 𝑆𝑖 = ({𝑢𝑖 }, ∅) and
+an initial instance                                                                For example, consider the following 1-MDB search instance (𝑆, 𝐶),
+𝐶𝑖 = (𝑁 +2 (𝑢𝑖 ), 𝑢 𝑗 ∈𝑁+2 (𝑢𝑖 ) 𝑁 (𝑢 𝑗 )).                                        where |𝑈𝑆 | = 2, |𝑉𝑆 | = 3, 𝑈𝐶 = {𝑢} and 𝑉𝐶 = {𝑣 }. 𝐺 (𝑆) has one
+    In practical implementation, to identify a larger 𝑘-defective bi-              non-edge, 𝑢 and 𝑣 are non-neighbors. Directly adding 𝑣 to 𝑆 results
+clique as early as possible, we traverse the vertices in 𝑈 in de-                  in a non-maximum solution, because 𝐺 (𝑆 ∪ {𝑣 }) has 7 edges while
+scending order of their degrees. This approach is based on the                     adding 𝑢 to 𝑆 yields a 𝑘-defective biclique with 8 edges. In contrast
+intuition that vertices with higher degrees are more likely to be                  to [13], we focus on the deletion of such vertices rather than their
+present in an MDB. Additionally, the common-neighbor-based re-                     addition, which restricts the pruning scope to vertices on the same
+duction techniques can be employed on (𝑆𝑖 , 𝐶𝑖 ) to prune unneces-                 side (as discussed in Theorem 7), thereby ensuring the correctness
+sary vertices and edges. Specifically, vertices 𝑢 ∈ 𝐶𝑖 are pruned if               of the searching result.
+𝑑𝑆𝑖 ∪𝐶𝑖 (𝑢) < 𝜃 − 𝑘, and edges (𝑢, 𝑣) are pruned if there are fewer
+than 𝜃 − 𝑘 neighbors 𝑤 of 𝑣 satisfying 𝑐𝑛(𝑢, 𝑤) ≥ 𝜃 − 𝑘.                           4.2        Novel Upper-Bounding Techniques
+Progressive bounding reduction. The size threshold 𝜃 is provided                   In this subsection, we propose a novel upper-bounding technique
+as an input parameter and can be set to a very small value (e.g., = 𝑘 +            that provides effective upper bounds for both vertices and edges.
+1), which may limit the effectiveness of our optimization techniques.              Formally, given an instance (𝑆, 𝐶), assume 𝑢 1, 𝑢 2, · · · , 𝑢 |𝑈𝐶 | and
+To address this issue, we utilize the progressive bounding technique               𝑣 1, 𝑣 2, · · · , 𝑣 |𝑉𝐶 | are the vertices of 𝑈𝐶 and 𝑉𝐶 in ascending order
+inspired from the maximum biclique problem [36] to provide tighter                                                        𝑖         Í                𝑖
+                                                                                   of 𝑑 𝑆 (·), respectively. Let 𝑑 𝑆 (𝑈𝐶 ) = 𝑖𝑡 =1 𝑑 𝑆 (𝑢𝑖 ) and 𝑑 𝑆 (𝑉𝐶 ) =
+size thresholds for the 𝑘-MDB search problem.                                      Í𝑖
+    Specifically, let 𝜃𝑈𝑡 and 𝜃𝑉𝑡 denote the size thresholds in 𝑡-th                  𝑡 =1 𝑑 𝑆 (𝑣 𝑖 ), i.e., the total number of non-neighbors in 𝑆 among
+round. The objective of 𝑡-th round is to identify a 𝑘-MDB 𝐷𝑡 =                     the first 𝑖 vertices of 𝑈𝐶 and 𝑉𝐶 . Based on this, the vertex upper
+(𝑈𝐷𝑡 , 𝑉𝐷𝑡 , 𝐸𝐷𝑡 ) satisfying |𝑈𝐷𝑡 | ≥ 𝜃𝑈𝑡 and |𝑉𝐷𝑡 | ≥ 𝜃𝑉𝑡 . Let 𝐷 ∗ =            bound is presented in the following lemma.
+max{𝐷 1, 𝐷 2, . . . , 𝐷𝑡 −1 } be the currently largest 𝑘-defective biclique.         Lemma 8 (Vertex upper bounds). For any 𝑘-MDB 𝐷 = (𝑈𝐷 , 𝑉𝐷 , 𝐸𝐷 )
+The progressive bounding reduction generates 𝜃𝑈𝑡 and 𝜃𝑉𝑡 in the                    derived from (𝑆, 𝐶), we have |𝑈𝐷 | ≤ |𝑈𝑆 | + 𝑖 and |𝑉𝐷 | ≤ |𝑉𝑆 | + 𝑗,
+following way:                                                                                                                       𝑖
+                                                                                   where 𝑖 and 𝑗 are the largest values satisfying 𝑑 𝑆 (𝑈𝐶 ) ≤ 𝑘 − |𝐸 𝑆 |
+                       𝜃𝑈𝑡 = max{𝜃, ⌊𝜃𝑈𝑡 −1 /2⌋},                           (3)           𝑗
+                                                                                   and 𝑑 𝑆 (𝑉𝐶 ) ≤ 𝑘 − |𝐸 𝑆 |, respectively.
+                       𝜃𝑉𝑡 = max{𝜃, ⌊|𝐸𝐷 ∗ |/𝜃𝑈𝑡 −1 ⌋}.                     (4)       Proof. For the side of 𝑈 , it is obvious that 𝑖 is the maximum
+  Specially, 𝜃𝑈0 = max𝑢 ∈𝑈 𝑑𝑈 (𝑢) + 𝑘, and the iteration terminates                number of vertices that can be added from 𝑈𝐶 to 𝑈𝑆 such that
+when 𝜃𝑈𝑡 = 0. The following lemma shows the correctness of the                     (𝑈𝑆 ∪ {𝑢 1, 𝑢 2, . . . , 𝑢𝑖 }, 𝑉𝑆 ) remains a valid 𝑘-defective biclique. For
+progressive bound reduction.                                                       any 𝑘-MDB derived from (𝑆, 𝐶) consisting of (𝑈𝑆 ∪ 𝑈𝐶 ′ , 𝑉𝑆 ∪ 𝑉𝐶 ′ ),
+                                                                                   (𝑈𝑆 ∪𝑈𝐶 ′ , 𝑉𝑆 ) is still a 𝑘-defective biclique. Therefore, we have that
+   Lemma 7. Given a bipartite graph 𝐺 and a 𝑘-MDB 𝐷 = (𝑈𝐷 , 𝑉𝐷 , 𝐸𝐷 )              |𝑈𝐶 ′ | ≤ 𝑖. The proof on the other side is similar.                       □
+of 𝐺, there always exists an integer 𝑡 such that 𝜃𝑈𝑡 ≤ |𝑈𝐷 | and
+𝜃𝑉𝑡 ≤ |𝑉𝐷 |.                                                                           Based on Lemma 8, if both sides reach their vertex upper bounds,
+                                                                                   an edge upper bound can be calculated as (|𝑈𝑆 | + 𝑖) × (|𝑉𝑆 | + 𝑗) −
+   In many real-world graphs, 𝜃𝑈𝑡 and 𝜃𝑉𝑡 are often significantly                           𝑖         𝑗
+larger than 𝜃 , which helps facilitate more effective graph reduc-                 |𝐸 𝑆 |−𝑑 𝑆 (𝑈𝐶 )−𝑑 𝑆 (𝑉𝐶 ). However, this upper bound does not account
+tion, such as a smaller reduced graph by performing the common-                    for the coexistence of vertices in 𝑈𝐶 and 𝑉𝐶 . To solve the issue, we
+neighbor-based reduction.                                                          present a tighter edge upper bound in the following lemma.
+Discussion. Several prior studies have proposed similar graph re-                    Lemma 9 (Edge upper bound). For any 𝑘-MDB 𝐷 derived from
+duction techniques for other subgraph models [13, 14, 45, 50, 53].                 (𝑆, 𝐶), we have that |𝐸𝐷 | ≤ max0≤𝑖 ≤ |𝑈𝐶 | (|𝑈𝑆 | + 𝑖) × (|𝑉𝑆 | + 𝑗) −
+The progressive bounding reduction have been widely applied on                                𝑖           𝑗
+these models [45, 50, 53]. In this work, we adapted these tech-                    |𝐸 𝑆 | − 𝑑 𝑆 (𝑈𝐶 ) − 𝑑 𝑆 (𝑉𝐶 ), where 𝑗 is the largest value satisfying
+                                                                                     𝑖           𝑗
+niques to our problem by incorporating the unique properties of                    𝑑 𝑆 (𝑈𝐶 ) + 𝑑 𝑆 (𝑉𝐶 ) ≤ 𝑘 − |𝐸 𝑆 |.
+𝑘-defective bicliques. However, our proposed common-neighbor-
+based reduction and one-non-neighbor reduction are technically                       Proof. Consider a new instance (𝑆, 𝐶 ′ ) reconstructed from (𝑆, 𝐶)
+distinct from all prior approaches.                                                by fully connecting vertices between 𝑈𝐶 ′ and 𝑉𝐶 ′ , i.e., 𝐸𝐶 = ∅.
+   On the one hand, the common-neighbor-based reduction lever-                     The ordering of vertices in 𝐶 ′ with respected to 𝑑 𝑆 (·) remains un-
+ages the constraints on vertex degree and common neighbors in                      changed. There exists a 𝑘-MDB derived from (𝑆, 𝐶 ′ ) composed of
+                                                                                                      Donghang Cui, Ronghua Li, Qiangqiang Dai, Hongchao Qin, and Guoren Wang
+
+
+
+ Algorithm 4: UpperBound((𝑆, 𝐶), 𝑘)                                                               Algorithm 5: MDBP
+   Input: Instance (𝑆 = (𝑈𝑆 , 𝑉𝑆 ), 𝐶 = (𝑈𝐶 , 𝑉𝐶 ) ) and integer 𝑘                                  Input: A bipartite graph 𝐺 = (𝑈 , 𝑉 , 𝐸 ) , integers 𝑘 , 𝜃
+   Output: two vertex upper bounds and an edge upper bound                                          Output: A 𝑘 -MDB of 𝐺
+ 1 𝑘 ′ ← 𝑘 − |𝐸 𝑆 | ;                                                                             1 𝐷 ∗ ← Heuristic(𝐺 , 𝑘 , 𝜃 );
+ 2 Let 𝑢 1 , 𝑢 2 , · · · , 𝑢 |𝑈 | and 𝑣1 , 𝑣2 , · · · , 𝑣 |𝑉 | be the vertices of 𝑈𝐶 and 𝑉𝐶 in    2 𝜃𝑈 ← max𝑢 ∈𝑈 𝑑 (𝑢 ) ;
+                           𝐶                         𝐶
+                                                                                                  3 while 𝜃𝑈 > 𝜃 do
+      ascending order of 𝑑 𝑆 (·) ;                                                                4      𝜃𝑉 ← max{𝜃, ⌊ |𝐷 ∗ |/𝜃𝑈 ⌋ } ; 𝜃𝑈 ← max{𝜃, ⌊𝜃𝑈 /2⌋ } ;
+ 3 𝑑𝑈 ← 0; 𝑑𝑉 ← 0; 𝑐𝑈 ← 0; 𝑐𝑉 ← 0;                                                                5      𝐺 ′ ← parallel CnReduction(𝐺 ′ , 𝑘 , min{𝜃𝑈 , 𝜃𝑉 } );
+ 4 for 𝑖 ← 1 . . . |𝑈𝐶 | s.t. 𝑑 𝑈 + 𝑑 𝑆 (𝑢𝑖 ) ≤ 𝑘 ′ do                                            6      {𝑢 1 , 𝑢 2 , . . . , 𝑢 |𝑈 | } ← the descending degree order of 𝑈 ;
+ 5       𝑑𝑈 ← 𝑑𝑈 + 𝑑 𝑆 (𝑢𝑖 ) ;                                                                    7      parallel for 𝑖 ∈ 1 . . . |𝑈 | do
+                                                                                                                                                         Ð
+ 6       𝑐𝑈 ← 𝑐𝑈 + 1;                                                                             8             𝑆 ← ( {𝑢𝑖 }, ∅) ; 𝐶 ← (𝑁 +2 (𝑢𝑖 ),              2
+                                                                                                                                                         𝑣 ∈𝑁 + (𝑢𝑖 )
+                                                                                                                                                                      𝑁 (𝑣) ) ;
+ 7 𝑒 ← ( |𝑈𝑆 | + 𝑐𝑈 ) · |𝑉𝑆 | − |𝐸 𝑆 | − 𝑑𝑈 ;                                                     9              𝐶 ← Reduce(𝐶 , 𝑢𝑖 , 𝜃𝑈 , 𝜃𝑉 );
+ 8 𝑖 ← 𝑐𝑈 ;                                                                                      10              BranchP∗ (𝑆 , 𝐶 ); // BranchP equipped with graph reduction
+ 9 for 𝑗 ← 1 . . . |𝑉𝐶 | s.t. 𝑑 𝑉 + 𝑑 𝑆 (𝑣𝑖 ) ≤ 𝑘 ′ do
+                                                                                                                     techniques, upper-bounding techniques and parallelization
+10       while 𝑑 𝑈 + 𝑑𝑉 + 𝑗 > 𝑘 ′ do                                                             11 return 𝐷 ∗ ;
+11           𝑑𝑈 ← 𝑑𝑈 − 𝑑 𝑆 (𝑢𝑖 ) ;                                                               12   Function Reduce(𝐶 = (𝑈𝐶 , 𝑉𝐶 ) , 𝑢 , 𝜃𝑈 , 𝜃𝑉 ):
+12           𝑖 ← 𝑖 − 1;                                                                          13        𝑈𝐶 ′ ← {𝑣 ∈ 𝑈𝐶 | 𝑐𝑛 (𝑢, 𝑣) ≥ 𝜃𝑉 − 𝑘 } ;
+13        𝑑𝑉 ← 𝑑𝑉 + 𝑑 𝑆 (𝑢𝑖 ) ;                                                                  14        𝑉𝐶 ′ ← {𝑣 ∈ 𝑉𝐶 | 𝑑 (𝑣) ≥ 𝜃𝑈 − 𝑘 } ;
+                                                                                                 15        return (𝑈𝐶 ′ , 𝑉𝐶 ′ )
+14        𝑐𝑉 ← 𝑐𝑉 + 1;
+15        𝑒 ← max{𝑒, ( |𝑈𝑆 | + 𝑖 ) · ( |𝑈𝑆 | + 𝑗 ) − |𝐸𝑆 | − 𝑑𝑈 − 𝑑𝑉 } ;
+16   return |𝑈𝑆 | + 𝑐𝑈 , |𝑉𝑆 | + 𝑐𝑉 , 𝑒 ;
+
+                                                                                                 4.4       Parallelization
+                                                                                                 To further enhance the scalability of our algorithms for handling
+                                                                                                 larger-scale graphs, we implement parallelization strategy based on
+𝑆, a prefix of {𝑢 1, 𝑢 2, . . . , 𝑢 |𝑈𝐶 | }, and a prefix of {𝑣 1, 𝑣 2, . . . , 𝑣 |𝑉𝐶 | }        our proposed algorithms and optimization techniques. The paral-
+(otherwise, for any vertex not in a prefix, a preceding vertex can                               lelization of our branch-and-bound and pivoting-based algorithms
+always be found to replace it). Moreover, the 𝑘-MDB derived from                                 is based on the search tree of the algorithm (as shown in Fig. 2b and
+(𝑆, 𝐶 ′ ) have more edges than any 𝑘-MDB derived from (𝑆, 𝐶). Con-                               Fig. 3b). Specifically, for a given branching strategy, once an instance
+sequently, Lemma 9 provide a correct edge upper bound.                                 □         (𝑆, 𝐶) corresponding to a branch is determined, the sub-branches
+                                                                                                 generated by this branch are uniquely defined and mutually inde-
+                                                                                                 pendent. Therefore, we parallelize the processing of sub-branches
+Implementation details. Algorithm 4 presents a pseudocode                                        at lower levels of the search tree. Additionally, the parallelization
+of our upper-bounding techniques. It starts by setting 𝑘 ′ as the                                process is controlled by a global counter that tracks the total num-
+remaining number of missing edges (line 1), and sorting the vertices                             ber of parallel tasks, and when the counter reaches a predefined
+                                                                                                 threshold, the sub-branches generated by each branch are processed
+of 𝑈𝐶 and 𝑉𝐶 in ascending order of 𝑑 𝑆 (·) (line 2), which can be
+                                                                                                 sequentially. Additionally, we also perform parallelization on the
+efficiently done using a bucket sort in linear time and space. Then,
+                                                                                                 ordering-based reduction through the traversal of ordered vertices,
+the algorithm calculates the vertex upper bound in 𝑈 by finding the
+                                                                                                 and on the common-neighbor-based reduction through the loop in
+longest prefix of 𝑈𝐶 that can be added to 𝑈𝑆 (lines 4-6), where 𝑐𝑈
+                                                                                                 lines 2-13 of Algorithm 3.
+records the prefix length. After that, the algorithm derives the upper
+bound 𝑐𝑉 for vertices in 𝑉 using the same way, and simultaneously
+calculates the upper bound 𝑒 for edges by removing vertices from
+                                                                                                 4.5       Optimized Algorithms
+the end of the prefix of 𝑈𝐶 while computing the longest prefix of                                All the proposed optimization techniques can be applied to our
+𝑉𝐶 (lines 9-15). Finally, it returns two upper bounds of both sides                              branch-and-bound algorithm and pivoting-based algorithm. We
+as well as an edge upper bound. We present the time complexity of                                refer to the branch-and-bound algorithm and pivoting-based al-
+the algorithm in the following lemma.                                                            gorithm equipped with all the optimization techniques as MDBB
+                                                                                                 and MDBP, respectively. An implementation of MDBP is presented
+     Lemma 10. The time complexity of Algorithm 4 is 𝑂 (𝑛).                                      in Algorithm 5. The algorithm begins by obtaining an initial 𝑘-
+                                                                                                 defective biclique (line 1) by performing the heuristic approach.
+                                                                                                 Then it starts to find 𝑘-MDB by performing the progressive bound-
+4.3        A Heuristic Approach                                                                  ing reduction (lines 2-4). In each iteration, two size thresholds 𝜃𝑈
+We propose a heuristic approach to efficiently calculate a large                                 and 𝜃𝑉 are generated based on Eq. (3) and Eq. (4). Then, the par-
+𝑘-defective biclique. We observe that in many real-world graphs,                                 allelized common-neighbor-based reduction are employed on the
+one side of the 𝑘-MDB with size threshold 𝜃 contains exactly 𝜃                                   input graph 𝐺 (line 5) by invoking CnReduction (Algorithm 3). the
+vertices, while the other side contains much more than 𝜃 vertices.                               algorithm continues by performing the parallelized ordering-based
+Motivated by this, our heuristic approach aims to find a large 𝑘-                                reduction on the reduced graph (lines 6-10). In detail, it traverses
+defective biclique with one side has 𝜃 vertices. Specifically, given                             each vertex 𝑢 of 𝑈 in descending degree order (lines 7-8), and con-
+a graph 𝐺 = (𝑈 , 𝑉 , 𝐸) and an integer 𝑘, we initially set two vertex                            structs an initial instance (𝑆, 𝐶). After that, the algorithm further
+subset 𝑈 ′ = and 𝑉 ′ = 𝑉 . let 𝑢 ∈ 𝑈 be the vertex with largest 𝑑𝑉 ′ (𝑢).                        reduce the size of 𝐶 by invoking Reduce (line 9), which utilizes
+If 𝐺 (𝑈 ′ ∪ {𝑢}, 𝑉 ′ ) has more than 𝑘 non-edges, we iteratively delete                          the common-neighbor-based reduction (lines 13-14). Finally, the
+vertices 𝑣 ∈ 𝑉 with largest 𝑑 𝑈 ′ ∪{𝑢 } (𝑣) until 𝐺 (𝑈 ′ ∪ {𝑢}, 𝑉 ′ ) has                        algorithm runs BranchP∗ to find 𝑘-MDB in (𝑆, 𝐶), which is adapted
+no more than 𝑘 non-edges, and then we add 𝑢 to 𝑈 ′ . We repeat                                   from BranchP in Algorithm 2 by additionally implementing the
+this process until |𝑈 | = 𝜃 , and yield a large 𝑘-MDB 𝐺 (𝑈 ′, 𝑉 ′ ) if                           graph reduction techniques and the upper-bounding techniques
+|𝑉 | = 𝜃 . Otherwise, we yield an empty answer. It is easy to verify                             (Algorithm 4). By taking the maximum returned solution from all
+that this approach can be finished in 𝑂 (𝜃𝑛 + 𝑚), which is linear as                             invocations of BranchP∗ , the algorithm derives a 𝑘-MDB 𝐷 ∗ at the
+𝜃 is always a small value.                                                                       end and returns 𝐷 ∗ as the final answer (line 11). The implementation
+On the Efficient Discovery of Maximum 𝑘 -Defective Biclique
+
+
+                Table 1: Datasets used in experiments                                                                MDBP                    MDBB                MBC                     MDBase                  MDCadp
+
+
+  Dataset          |𝑈 |        |𝑉 |          |𝐸 |             Δ            mdbk𝑑                   INF                                                                     INF
+
+
+
+                                                                                          Time (sec)                                                              Time (sec)
+  LKML             42,045     337,509      599,858       (31,719, 6,627)    (14, 1)                    103
+                                                                                                                                                                               103
+  Team            901,130      34,461     1,366,466         (17, 2,671)     (1, 39)                    102
+  Mummun          175,214     530,418     1,890,661        (968, 19805)     (10, 3)
+  Citeu           153,277     731,769     2,338,554     (189,292, 1,264)    (15, 3)                    101                                                                     102
+  IMDB            303,617     896,302     3,782,463       (1,334, 1,590)    (12, 4)
+                                                                                                                3    4       5   6       7     8        9   10                       3   4       5   6       7     8       9   10
+  Enwiki           18,038    2,190,091    4,129,231     (324,254, 1,127)   (228, 1)                                                  θ                                                                   θ
+  Amazon         2,146,057   1,230,915    5,743,258      (12,180, 3,096)     (2, 4)
+  Twitter         244,537    9,129,669   10,214,177       (640, 18,874)     (41, 1)                                      (a) IMDB (k = 2)                                                    (b) Google (k = 2)
+  Aol            4,811,647   1,632,788   10,741,953    (100,629, 84,530)     (2, 6)
+  Google         5,998,790   4,443,631   20,592,962       (423, 95,165)      (3, 4)                INF                                                                     INF
+
+
+
+                                                                                          Time (sec)                                                              Time (sec)
+  LiveJournal    3,201,203   7,489,073   112,307,385    (300, 1,053,676)   (35, 14)                    103
+                                                                                                                                                                               103
+                                                                                                       102
+
+of MDBB is quite similar to that of MDBP, which differs only in that                                   101                                                                     102
+replacing BranchP∗ in Algorithm 5 with BranchB from Algorithm                                                   1        2       3       4          5       6                        1       2       3       4         5       6
+                                                                                                                                     k                                                                   k
+1 incorporating the optimization techniques used in BranchP∗ .
+                                                                                                                         (c) IMDB (θ = 8)                                                    (d) Google (θ = 8)
+
+5 Experiments                                                                                          102                                                                 INF
+
+
+
+                                                                                           Time (sec)                                                             Time (sec)
+5.1 Experimental Setup                                                                                                                                                         103
+                                                                                                       101
+Datasets. We collect 11 real-world bipartite graphs from diverse                                                                                                               102
+categories to evaluate the efficiency of our algorithms. These graphs                                       0
+                                                                                                       10
+have been widely used as benchmark datasets for evaluating the                                                  3    4       5   6       7     8        9   10                       3   4       5   6       7     8       9   10
+                                                                                                                                     θ                                                                   θ
+performance of other bipartite subgraph search problem [16, 36, 50].                                                     (e) IMDB (k = 0)                                                    (f) Google (k = 0)
+The detailed information of these graphs are shown in Table 1,
+where Δ and 𝑑 represent the maximum degree and average degree                                                       Figure 4: Runtime with varying 𝜃 and 𝑘
+of vertices on each side, respectively. All the datasets are available                within the time limit. For example, on the Mummun dataset with
+at http://konect.cc/networks.                                                         𝑘 = 3 and 𝜃 = 7, MDBase takes 3,677 seconds and MDCadp times
+Algorithms. We implement two proposed algorithm MDBB and                              out at 108,000 seconds, whereas MDBP completes in just 34 seconds,
+MDBP, which are respectively the branch-and-bound algorithm in                        yielding speedups of 100× over MDBase and 1000× over MDCadp.
+Algorithm 1 and the pivoting-based algorithm in Algorithm 2                           On the other hand, when 𝑘 ≤ 2 and 𝜃 ≥ 5, the efficiency of MDBP
+equipped with all our proposed optimization techniques in Sec. 4.                     is comparable to MDBB. However, for 𝑘 ≥ 3 or 𝜃 ≤ 4, MDBP demon-
+We also implement two baseline algorithms, denoted as MDBase and                      strates a significant advantage. For example, on the Twitter dataset
+MDCadp for comparative analysis. Specifically, MDBase is a variant                    with 𝑘 = 1 and 𝜃 = 5, both MDBP and MDBB runs for about 7 sec-
+of MDBB with a time complexity of O ∗ (2𝑛 ), which is implemented                     onds, but with 𝑘 = 4 and 𝜃 = 5, MDBB takes about 1 hour while
+by substituting the binary branching strategy at line 9-10 in Algo-                   MDBP completes in just 20 seconds, achieving a speedup of more
+rithm 1 with the straightforward strategy that randomly selecting                     than 150×. These results underscore the effectiveness and high
+a branching vertex 𝑢 from 𝐶. On the other hand, MDCadp is adapted                     efficiency of the pivoting-based branching strategy mentioned in
+from the state-of-the-art maximal defective clique algorithm Pivot+                   Sec. 3.2. Additionally, MDBB retains advantages over MDBase and
+[15]. In detail, MDCadp converts the input bipartite graph into a tra-                MDCadp, highlighting the effectiveness of the new binary branching
+ditional graph by treating all vertices on the same side as fully                     strategy in Sec. 3.1.
+connected and runs Pivot+ on the converted graph, subsequently                        Exp2: Runtime with varying 𝜃 and 𝑘. We evaluate the perfor-
+extracting a 𝑘-MDB from all the maximal defective cliques of the                      mance of 4 algorithms MDBB, MDBP, MDBase and MDCadp with varying
+converted graph. Furthermore, both MDBase and MDCadp incorpo-                         𝜃 and 𝑘 on two representative datasets, IMDB and Google. The re-
+rate the optimization techniques outlined in Sec. 4.1 and 4.3. All                    sults are shown in Fig. 4, where the notion “INF” represents the
+algorithms are implemented in C++ and executed on a PC equipped                       runtime exceeds 3 hours. As observed, both MDBP and MDBB con-
+with a 2.2GHz CPU and 128GB RAM running Linux.                                        sistently outperform baseline algorithms MDBase and MDCadp with
+Parameter settings. During the evaluations of all algorithms, we                      varying 𝜃 and 𝑘, with MDBP achieving speedups greater than 1000×.
+vary the value of 𝑘 from 1 to 6. As outlined in Sec. 2, we focus on                   For example, in Fig. 4a, MDBP complete in 10 seconds at 𝜃 = 3, while
+finding a connected 𝑘-MDB, achieved by setting 𝜃 > 𝑘. Based on                        MDBase and MDCadp cannot finish within 3 hours. When 𝜃 ≥ 8 or
+this, we vary the value of 𝜃 from 𝑘 + 1 to 10 for a specified 𝑘.                      𝑘 ≤ 2, MDBP and MDBB have similar runtimes, demonstrating the
+                                                                                      efficacy of our optimization techniques in reducing graph size. Fur-
+5.2     Performance Studies                                                           thermore, as 𝑘 increases or 𝜃 decreases, the time curve of MDBP
+Exp1: Efficiency comparison among different algorithms. We                            shows a gentler slope compared to other algorithms, indicating
+evaluate the efficiency of two proposed algorithms MDBB and MDBP,                     its lower sensitivity to input parameters and superior scalability.
+along with two baseline algorithms MDBase and MDCadp. The re-                         Additionally, we evaluate the performance of MDBB and MDBP in
+sults are shown in Table 2, where the column |𝐸 ∗ | represents the                    searching for the maximum biclique by setting 𝑘 = 0. We compare
+number of edges in the 𝑘-MDB, and the notion “-” represents a                         them with a state-of-the-art maximum biclique search algorithm
+timeout exceeding 3 hours. As observed, MDBP shows superior per-                      MBC [36]. The results are shown in Fig. 4e and Fig. 4f. As observed,
+formance across most input parameters, achieving two order of                         MDBP and MDBB exhibit an advantage over MBC due to two main
+magnitude faster than MDCadp on most datasets, and two order of                       factors: (1) both of our algorithms achieves better time complexities
+magnitude faster than MDBase on most datasets when 𝑘 > 3. No-                         than MBC, which has a time complexity of 𝑂 ∗ (2𝑛 ); and (2) our algo-
+tably, MDBP essentially solves all tests on most of datasets when                     rithms incorporate more advanced heuristic approach and graph
+setting 𝑘 ≥ 3, while MDBase and MDCadp can hardly finish any tests                    reduction techniques, further enhancing their efficiency.
+                                                                                                                                                                        Donghang Cui, Ronghua Li, Qiangqiang Dai, Hongchao Qin, and Guoren Wang
+
+
+                                            Table 2: Results of runtime among different algorithms on 10 real-world graphs (in seconds)
+  Dataset                  𝑘       𝜃        |𝐸 ∗ |         MDBP             MDBB                  MDBase          MDCadp         𝑘       𝜃          |𝐸 ∗ |     MDBP        MDBB                    MDBase        MDCadp          𝑘           𝜃       |𝐸 ∗ |               MDBP            MDBB     MDBase           MDCadp
+                                   2        1,781         13.03             17.08                  111.82             -                  3           460      43.72           -                        -             -                       4         149               267.01             -          -               -
+                           1                                                                                                     2                                                                                               3
+                                   5          84           1.61              2.15                   2.36            28.19                6           70        7.60        30.14                    357.33           -                       7         60                 9.53            37.96    1,082.91            -
+  LKML
+                                   7          66          103.03          1,216.70                    -               -                  8           67       107.31     1,224.86                      -             -                       9          0                248.95         1,732.26       -               -
+                           4                                                                                                     5                                                                                               6
+                                   8          60           9.36             46.38                 2,360.74            -                  9            0       13.42        51.55                   3,441.79          -                       10         0                12.29            46.38    4,162.94            -
+                                   2         701          19.26             39.98                   43.67             -                  3           265      45.51           -                        -             -                       4         149               154.56             -          -               -
+                           1                                                                                                     2                                                                                               3
+                                   5          99           7.14              7.19                   7.73            66.18                6           64        9.53        14.09                     31.43           -                       7          0                10.07            15.41     242.20             -
+  Team
+                                   5         111          591.71               -                      -               -                  6           79      2,684.57         -                        -             -                       8          0                927.43             -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   8          0            9.92             15.89                 1,734.29            -                  9            0       10.04        16.35                   9,791.32          -                       10         0                 7.65           11.21         -               -
+                                   2       10,315         18.49             18.62                   79.28             -                  3          8,803     22.88      8,661.39                      -             -                       4        4,185              39.95              -          -               -
+                           1                                                                                                     2                                                                                               3
+                                   5        2,469         13.57             13.59                   16.49             -                  6          1,768     21.08        37.83                     84.27           -                       7        1,145              33.58           916.16    3,677.02            -
+ Mummun
+                                   5        2,481         45.73                -                      -               -                  6          1,783     69.39           -                        -             -                       7        1,163              160.89             -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   8         878          38.18           5,538.54               10,440.17            -                  9           886      40.64      6,737.14                      -             -                       10        804               53.09              -          -               -
+                                   2       12,425         141.21           146.81                     -               -                  3         12,427     148.38      187.69                       -             -                       4        9,989              137.15         4,332.55       -               -
+                           1                                                                                                     2                                                                                               3
+                                   5        7,394          5.48              5.69                     -               -                  6          4,960      7.88        77.20                       -             -                       7        3,063              17.92          3,500.77       -               -
+  Citeu
+                                   5        7,406         141.78               -                      -               -                  6          4,975     158.43          -                        -             -                       7        3,081              253.15             -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   8        2,600         25.92                -                      -               -                  9          2,600     36.03           -                        -             -                       10       2,614              134.21             -          -               -
+                                   2         775           5.99             5.39                 4,460.09             -                  3           562       8.86        16.96                       -             -                       4         522               15.85           436.35        -               -
+                           1                                                                                                     2                                                                                               3
+                                   5         514           6.12             5.35                   145.10           23.43                6           514       6.76         6.91                       -         1,123.22                    7         482               14.73            25.23        -               -
+  IMDB
+                                   5         526          19.99            593.86                     -               -                  6           529      31.05       683.75                       -             -                       7         498               57.45          7,936.24       -               -
+                           4                                                                                                     5                                                                                               6
+                                   8         436          15.13             67.00                     -               -                  9           436      19.34       170.90                       -             -                       10        426               22.77           402.50        -               -
+                                   2       203,569       3,630.07              -                      -               -                  3         133,759   4,977.99         -                        -             -                       4       80,461             3,259.88            -          -               -
+                           1                                                                                                     2                                                                                               3
+                                   5       21,939         156.70           158.87                  354.17          387.15                6          4,240     199.76      582.63                       -             -                       7        3,224              264.30             -          -               -
+  Enwiki
+                                   5       21,951        3,826.16              -                      -               -                  6          4,255    5,744.46         -                        -             -                       8        2,330             6,557.63            -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   8        2,316         339.60               -                      -               -                  9          1,696     394.81          -                        -             -                       10       1,274              639.63             -          -               -
+                                   2        1,319         42.68             45.42                     -               -                  3           427      56.54       646.44                       -             -                       4         423               88.75          1,195.66       -               -
+                           1                                                                                                     2                                                                                               3
+                                   5         413           11.71           11.12                    12.21           49.70                6           418       12.91      12.00                     167.48           -                       7         357               13.15            14.91     183.57             -
+ Amazon
+                                   5         428          99.80            850.49                     -               -                  6           433      249.97          -                        -             -                       7         390               268.21             -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   8         368          13.68             15.96                  171.44             -                  9           379      16.09        20.38                    319.93           -                       10        390               18.63            25.61        -               -
+                                   2        5,369         11.13             13.24                   46.13             -                  3          5,383     10.88        51.42                   2,143.04          -                       4        5,397              15.47           320.65        -               -
+                           1                                                                                                     2                                                                                               3
+                                   5        5,369          6.27              7.60                   36.58         8,976.29               6          5,383      6.63        19.51                   1,432.31          -                       7        5,397               9.76            84.34        -               -
+  Twitter
+                                   5        5,411         20.75           3,549.73                    -               -                  6          5,425     31.20           -                        -             -                       7        5,439              57.67              -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   8        5,411         13.29            491.74                     -               -                  9          5,425     23.69      3,268.33                      -             -                       10       5,439              43.93          9,894.96       -               -
+                                   2       10,869        1,032.95         970.79                 10,736.08            -                  3          3,208    1,635.79         -                        -             -                       4         853              3,122.56            -          -               -
+                           1                                                                                                     2                                                                                               3
+                                   5         334           49.77           48.69                    49.84         5,703.42               6           238      94.15       181.85                    581.87           -                       7         207               123.04          408.97    8,207.80            -
+   Aol
+                                   5         346         9,271.83              -                      -               -                  7           219     2,388.21         -                        -             -                       9         174                  -               -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   8         188          470.19          1,011.16                    -               -                  9           166     4,496.57    5,115.84                      -             -                       10        164              5,585.25        8,636.22       -               -
+                                   2       10,829        2,163.49         2,525.77                4,814.91            -                  3          3,370    4,121.31         -                        -             -                       4        1,201             6,250.09            -          -               -
+                           1                                                                                                     2                                                                                               3
+                                   5         439          552.42           573.02                  629.33             -                  6           184      898.04     2,771.57                  4,077.91          -                       7         151              1,351.14            -          -               -
+  Google
+                                   7         157         5,331.22              -                      -               -                  8           155     6,750.40         -                        -             -                       9         156              8,756.03            -          -               -
+                           4                                                                                                     5                                                                                               6
+                                   9         140          613.17          9,387.13                    -               -                  10          145      683.84          -                        -             -                       10        145              1,978.33            -          -               -
+
+
+                                            MDBP                 MDBB                           MDBP-H                  MDBB-H                                                                      Original                -1                         -1C                          -1CP               -1CPO
+
+                  103                                                                 INF                                                                                         INF                                                                         INF
+
+
+
+
+      Time (sec)                                                             Time (sec)                                                                                  Time (sec)                                                                  Time (sec)
+                                                                                                                                                                                      103                                                                         103
+                  102                                                                     103
+                                                                                                                                                                                      102                                                                         102
+                  101                                                                     102                                                                                         101                                                                         101
+                           3   4       5     6       7   8       9   10                          3    4       5     6    7       8       9    10                                               3     4       5   6    7     8            9    10                        3   4       5    6    7    8       9   10
+                                          θ                                                                       θ                                                                                       θ                                                                        θ
+                                   (a) IMDB (k = 2)                                                       (b) Google (k = 2)                                                                   (a) MDBP on IMDB (k = 2)                                                 (b) MDBB on IMDB (k = 2)
+
+              INF                                                                     INF                                                                                         INF                                                                         INF
+
+
+
+
+     Time (sec)                                                              Time (sec)                                                                                  Time (sec)                                                                  Time (sec)
+                  103                                                                                                                                                                 103                                                                         103
+                                                                                          103
+                       2
+                  10                                                                                                                                                                  10   2                                                                      102
+
+                       1
+                  10                                                                      102                                                                                         101                                                                         101
+                           1       2        3        4       5       6                           1        2        3         4       5        6                                                1         2       3     4             5           6                      1       2       3      4       5       6
+                                          k                                                                       k                                                                                       k                                                                        k
+                                   (c) IMDB (θ = 8)                                                       (d) Google (θ = 8)                                                                   (c) MDBP on IMDB (θ = 8)                                                 (d) MDBB on IMDB (θ = 8)
+
+  Figure 5: Runtime without using the heuristic approach                                                                                                                Figure 6: Runtime without graph reduction techniques
+
+Exp3: Efficacy of the heuristic approach. To evaluate the effec-                                                                                                  𝑘, while the progressive bounding and ordering-based reduction
+tiveness of our proposed heuristic approach, we compare MDBB and                                                                                                  demonstrate more pronounced improvements when 𝜃 decreases
+MDBP with their versions without the heuristic approach, referred                                                                                                 or 𝑘 increases. Notably, when 𝑘 = 1 or 𝜃 = 10, versions of MDBB
+to as MDBB-H and MDBP-H, respectively. The results are shown in                                                                                                   and MDBP without progressive bounding reduction still outperform
+Fig. 5. As observed, MDBB and MDBP always outperform MDBB-H and                                                                                                   those with it. This suggests that our algorithms are well-designed
+MDBP-H, respectively. This is because the heuristic approach pro-                                                                                                 and robust, achieving strong performance for small 𝑘 or large 𝜃
+vides a relatively large 𝑘-defective biclique at the beginning, which                                                                                             even without progressive bounding reduction.
+enhances the effectiveness of our upper-bounding techniques. Ad-                                                                                                  Exp5: Efficacy of upper-bounding techniques. To evaluate
+ditionally, we observe that MDBP-H still always performs better than                                                                                              the effectiveness of our proposed upper-bounding techniques, we
+MDBB when 𝜃 ≤ 6 or 𝑘 ≥ 3, which further highlights the high                                                                                                       compare MDBB and MDBP with their versions excluding the upper-
+efficiency of our pivoting techniques.                                                                                                                            bounding techniques (Algorithm 4), denoted as MDBB-H and MDBP-H,
+Exp4: Efficacy of graph reduction techniques. To evaluate the                                                                                                     respectively. The results are shown in Fig. 7. As observed, incorpo-
+effectiveness of our graph reduction techniques, we implement                                                                                                     rating the upper-bounding techniques significantly improves the
+4 ablation versions of MDBP and MDBB by successively removing                                                                                                     efficiency of both MDBB and MDBP. Moreover, the improvement be-
+the following reductions: one-non-neighbor reduction, common-                                                                                                     comes more pronounced as 𝑘 increases or 𝜃 decreases, indicating the
+neighbor-based reduction, progressive bounding reduction and                                                                                                      strong effectiveness and efficiency of our proposed upper-bounding
+ordering-based reduction. The results are presented in Fig 6, which                                                                                               techniques. Additionally, the improvement of MDBP by performing
+label the original algorithm as “Original”, and label the 4 ablation                                                                                              upper-bounding techniques is more substantial compared to MDBB.
+versions as “-1”, “-1C”, “-1CP”, “-1CPO”. As observed, all graph                                                                                                  This is likely because the pivoting-based branching strategy intro-
+reduction techniques contribute to efficiency improvements. Specif-                                                                                               duces more non-edges to the partial set 𝑆 earlier, resulting in tighter
+ically, the one-non-neighbor and common-neighbor-based reduc-                                                                                                     vertex and edge upper bounds derived from the upper-bounding
+tions yield stable performance improvements with varying 𝜃 and                                                                                                    techniques, which helps prune more unnecessary instances.
+On the Efficient Discovery of Maximum 𝑘 -Defective Biclique
+
+
+                                                MDBP                    MDBB                         MDBP-U                 MDBB-U                      Table 4: Runtime of parallelized algorithms (in seconds)
+                  103                                                                      INF                                                                                            MDBP with threads             MDBB with threads
+                                                                                                                                                          Dataset              𝑘 𝜃     1        10          20       1        10         20
+
+      Time (sec)                                                                  Time (sec)
+                  102                                                                          103
+                                                                                                                                                                    1             2 2,163.49 425.76        34.69  3,052.03 870.92 305.05
+                                                                                                                                                          Google    3             4 6,250.09 1,324.98 802.67          -        -     10,649.47
+                                                                                                                                                                    5             6     -        -       8,947.28     -        -          -
+                  101                                                                          102                                                                  1             2 119.61     89.14      47.11       -        -      9,314.33
+                                                                                                                                                        LiveJournal 3             4 3,996.77 997.90       850.52      -        -          -
+                            3      4       5    6        7     8        9   10                        3     4       5   6        7   8       9   10
+                                              θ                                                                         θ                                           5             6     -        -      10,016.72     -        -          -
+                                       (a) IMDB (k = 2)                                                         (b) Google (k = 2)
+
+              INF                                                                          INF
+                                                                                                                                                                               Graph
+                                                                                                                                                                         104
+
+
+     Time (sec)                                                                   Time (sec)
+                  103                                                                                                                                                          MDBP
+                                                                                                                                                                               MDBB
+
+
+
+
+                                                                                                                                                           Memory (MB)
+                                                                                               103
+                                                                                                                                                                               MDBase
+                  102                                                                                                                                                    103   MDCadp
+
+                  101                                                                          102
+                                                                                                                                                                         102
+                            1          2        3        4          5        6                        1         2       3        4       5        6
+                                              k                                                                         k
+                                       (c) IMDB (θ = 8)                                                         (d) Google (θ = 8)                                       101
+                                                                                                                                                                               LKML        Team         IMDB        Twitter     Google
+  Figure 7: Runtime without upper-bounding techniques                                                                                                                      Figure 9: Memory usage of various algorithms
+     Table 3: Runtime on synthetic graphs (in seconds)
+Distribution 𝜌                         Δ                       𝑘 = 1, 𝜃 = 2         𝑘 = 3, 𝜃 = 4          𝑘 = 5, 𝜃 = 6
+                                                    𝑑        |𝐸 ∗ | MDBP MDBB |𝐸 ∗ | MDBP      MDBB |𝐸 ∗ | MDBP      MDBB
+                            0.2 (97, 82) (19, 19) 197 0.10 0.18 181 0.29      0.96 175 8.03      11.82                                                 techniques for effectively pruning suboptimal branches, which can
+                            0.3 (77, 99) (29, 29) 269 0.11 0.33 277 0.56      9.52 292 16.02 133.29                                                    also reflected in the real-world graphs in Table 2. Additionally, We
+Power-law
+                            0.4 (95, 100) (36, 36) 349 0.27 0.51 357 1.76    26.01 375 33.84 432.58
+                            0.5 (100, 99) (45, 45) 482 0.92 1.94 494 5.83    105.49 506 189.92 2,030.16                                                observe that MDBP outperforms MDBB on these synthetic graphs,
+                            0.2 (29, 29) (17, 17) 27 0.26 0.47 29 31.74 75.84 32 59.74 153.87                                                          indicating the effectiveness advancement of our pivoting-based
+                            0.3 (43, 43) (29, 29) 44 1.24 3.04 45 179.49 397.23 49 312.55 1,225.26
+  Normal
+                            0.4 (48, 51) (39, 39) 56 3.78 10.73 67 489.87 1,015.43 65 1,300.01     -                                                   branching strategy.
+                            0.5 (62, 61) (49, 49) 65 15.03 43.81 65 2,095.58    -    -    -        -
+                                                                                                                                                       Exp7: Scalability testing. To evaluate the scalability of algorithms,
+                                               MDBP                 MDBB                        MDBase                  MDCadp                         we test the runtime of MDBB, MDBP, MDBase and MDCadp on the Google
+                  INF                                                                          INF                                                     dataset using random sampling of vertices or edges. Results on the
+
+
+     Time (sec)                                                                   Time (sec)
+                   103                                                                         103                                                     other datasets are consistent. We prepare 8 proportionally sampled
+                        2
+                                                                                               102                                                     subgraphs of Google by sampling 20%, 40%, 60% and 80% vertices or
+                   10
+                                                                                               101                                                     edges from the original graph. The results are shown in Fig. 8. As
+                   101                                                                                                                                 observed, MDBP shows the slowest runtime growth as the graph size
+                                                                                               100
+                            20         40           60         80           100                      20          40         60       80          100
+                                            m                                                                         n                                increases, while MDCadp exhibits the steepest rise; MDBB and MDBase
+                                 (a) Google (k = 2, θ = 5)                                                (b) Google (k = 2, θ = 5)                    fall in between, where MDBB has better performances. This result
+                                                                                                                                                       indicates that MDBP achieves the best scalability among the algo-
+                  INF                                                                          INF
+                                                                                                                                                       rithms. Furthermore, regardless of graph size, both MDBP and MDBB
+
+     Time (sec)                                                                   Time (sec)
+                                                                                               103
+                   103                                                                                                                                 significantly outperform MDBase and MDCadp, underscoring the ef-
+                                                                                               102
+                   10   2                                                                                                                              fectiveness of the proposed branching strategies and optimization
+                                                                                               101
+                   101
+                                                                                                                                                       techniques.
+                                                                                               100
+                            20         40           60         80           100                                     2                4                 Exp8: Efficiency of parallelized algorithms. To evaluate the
+                                            m                                                                         n                                efficiency of the parallel version of MDBB and MDBP, we test their
+                                 (c) Google (k = 5, θ = 8)                                                (d) Google (k = 5, θ = 8)                    runtime on two large-scale graphs, Google and LiveJournal, which
+                            Figure 8: Scalability of different algorithms                                                                              are two hard cases for our sequential algorithms as shown in Table
+                                                                                                                                                       1. The results are shown in Table 4. As observed, the runtime of
+Exp6: Performance on synthetic graphs. To discover the re-                                                                                             MDBP and MDBB consistently decreases as the number of threads
+lationship between the efficiency of our approaches and graph                                                                                          increases, which illustrates the effectiveness of our parallelization
+characteristics, we evaluate the runtime of MDBB and MDBP on syn-                                                                                      technique. Notably, our parallelized algorithms successfully address
+thetic graphs with varying vertex degree distributions and graph                                                                                       two challenging inputs where 𝑘 = 5 and 𝜃 = 6 are set on Google and
+densities. Specifically, we generate 8 synthetic graphs with 100                                                                                       LiveJournal, which the sequential version of our algorithms failed
+vertices on each side. Their vertex degrees follows a power-law                                                                                        to solve within 3 hours. This further demonstrates the scalability
+or normal distribution, and the density 𝜌 = |𝑈 |𝐸| · |𝑉
+                                                      |
+                                                        | varies from
+                                                                                                                                                       of our parallelized algorithms.
+                                                                                                                                                       Exp9: Memory usage. In this experiment, we evaluate the mem-
+0.2 to 0.5. The results are presented in Table 3. As observed, our                                                                                     ory usage of algorithms MDBB, MDBP, MDBase and MDCadp on five
+algorithms consistently exhibits high efficiency on power-law dis-                                                                                     representative graphs. We measure the maximum physical memory
+tribution graphs, whereas their performance on normal distribution                                                                                     (in MB) used by these algorithms with the parameters 𝑘 = 2 and
+graphs is more significantly influenced by 𝜌 and 𝑘. This phenome-                                                                                      𝜃 = 3. Similar results can also be observed with other parameters.
+non can be attributed to two key factors. First, Power-law graphs                                                                                      The results are shown in Fig. 9. As observed, all algorithms except
+exhibit a larger gap between Δ and 𝑑 than normal graphs, which                                                                                         MDCadp exhibit comparable space consumption, which is approxi-
+facilitates our branching strategies to eliminate more redundant                                                                                       mately proportional to the size of input graph. Notably, the space
+branches and enables our graph reduction techniques to exclude                                                                                         consumed by MDCadp is higher than other algorithms. This is mainly
+more vertices. This explains why our approaches are highly efficient                                                                                   because MDCadp requires to fully connect vertices on both sides of
+on large-scale real-world graphs with a significantly gap between                                                                                      a bipartite graph, resulting in increased graph density and a larger
+Δ and 𝑑, as illustrated in Table 1 and 2. Second, the higher number                                                                                    search space. These results indicate that our proposed algorithms
+of 𝑘-MDB edges in power-law graphs benefits our upper bound                                                                                            are space efficient.
+                                                                                                        Donghang Cui, Ronghua Li, Qiangqiang Dai, Hongchao Qin, and Guoren Wang
+
+
+       1-MDB
+       2-MDB
+                   1-biplex
+                   2-biplex
+                                     biclique
+                                     (α, β)-core
+                                                   FRAUDAR
+                                                             Method         F1 Modularity Time(s)   6    Related Work
+    1.0                                                      1-MDB        0.82       0.33    0.30   Maximum 𝑘-defective clique search. As a problem related to
+                                                             2-MDB        0.95      0.45    15.44
+                                                             1-biplex     0.92       0.37   35.15   our work, maximum 𝑘-defective clique search has received consid-
+  F10.5
+                                                             2-biplex     0.78       0.24 1187.82   erable attention in recent years, resulting in the development of
+                                                             biclique     0.57       0.15    0.23   many solutions and algorithms [8, 9, 12, 13, 21, 24, 27, 35, 42, 44].
+    0.0                                                      (𝛼, 𝛽 )-core 0.45       0.04    0.14
+          1    2         3       4          5      6    7    FRAUDAR 0.72            0.27   17.60
+                                                                                                    Specifically, Trukhanov et al. [44] proposed the first exact algo-
+                              θV (α, n)                                                             rithm for detecting a maximum 𝑘-defective clique with a Russian
+(a) F1-score with varying parameters                          (b) Optimal performance               Doll search scheme. Subsequently, Gschwinda et al. [24] improved
+          Figure 10: Performance on fraud detection task                                            the algorithm with a new preprocessing technique and a better
+                                                                                                    verification procedure. These algorithms are derived from more
+5.3       Case Study                                                                                general clique relaxation search frameworks. There are many stud-
+We conduct a case study to evaluate the effectiveness of 𝑘-MDB in a                                 ies focusing on the maximum 𝑘-defective clique. Particularly, Chen
+fraud detection task, following the experimental setup described in                                 et al. [12] proposed a branch-and-bound algorithm with a time
+[26]. We simulates a camouflage attack scenario on the dataset Ap-                                  complexity below 𝑂 ∗ (2𝑛 ), and introduced a coloring-based upper
+pliance (https://amazon-reviews-2023.github.io/), which contains                                    bound to further improve the efficiency. Gao et al. [21] proposed
+602,777 reviews on 30,459 products by 515,650 users. We inject a                                    another branch-and-bound algorithm with new vertex and edge
+fraud block consisting of 500 fake users, 500 fake products, along                                  reduction rules, achieving better practical performance. Chang [8]
+with 10,000 fake reviews by randomly connect fake users and fake                                    proposed an algorithm using a non-fully-adjacent-first branching
+products, and 10,000 camouflage reviews by randomly connect fake                                    rule, achieving tighter time complexity than the solutions in [12].
+users and real products. We adapt MDBP using the approach out-                                      Subsequently, Chang [9] further enhanced the algorithm with an
+lined in [50] to identify the top 2000 𝑘-MDBs on the attacked graph,                                ordering technique, resulting in better time complexity and experi-
+treating all users and products in these 𝑘-MDBs as fake. For com-                                   mental results. Dai et al. [13] proposed a new branch-and-bound
+parison, we implement four baseline methods: maximum biclique                                       algorithm equipped with a pivot-based branching technique and
+[36], maximum 𝑘-biplex [50] and (𝛼, 𝛽)-core[7], where the (𝛼, 𝛽)-                                   a series of optimization techniques, attaining the best time com-
+core is the largest subgraph in which the vertex degrees in left and                                plexity and experimental results to date. Nevertheless, it is difficult
+right side are no less than 𝛼 and 𝛽, respectively. To ensure fairness,                              to adapt these algorithms for the 𝑘-MDB search problem, which is
+we identify the top 2000 largest maximum biclique and maximum                                       primarily due to the different definitions of maximum.
+𝑘-biplex as fake items. We also incorporate a widely used fraud de-                                 Maximum biclique search. The maximum biclique search prob-
+tection method, FRAUDAR [26], which is a densest-subgraph-based                                     lem has been extensively studied in recent years [10, 17, 19, 23,
+algorithm that identifies suspicious blocks of nodes by iteratively                                 36, 38, 40, 43, 52]. These studies can be classified into three cate-
+removing edges with the lowest likelihood of being part of a fraud-                                 gories. The first category is maximum edge biclique search, which
+ulent structure, thereby resulting in several suspicious subgraphs.                                 aims to find a biclique with maximum number of edges. Peeters
+    Let 𝜃𝑈 and 𝜃𝑉 denote the size thresholds of users and products,                                 et al. [38] proved the NP-hardness of the problem, and Ambühl
+respectively. We use 𝜃𝑈 and 𝜃𝑉 to constrain the side size of 𝑘-MDB,                                 et al. [5] showed the inapproximability of the problem. Shaham
+maximum 𝑘-biplex and maximum biclique. Let 𝑛 denote the number                                      et al. [40] proposed a probabilistic algorithm for maximum edge
+of blocks that FRAUDAR needs to detect, which is a key parameter                                    biclique search utilizing a Monte-Carlo subspace clustering method.
+that affects the detection accuracy of FRAUDAR. We test the F1-score                                Shahinpour et al. [41] provided an integer programming method
+  2·precision·recall                                                                                with a scale reduction technique. Lyu et al. [36] proposed a branch-
+( precision+recall ) of each methods with varying 𝜃𝑉 , 𝛼 and 𝑛 from 1
+                                                                                                    and-bound algorithm with a progressive bounding framework and
+to 7, where we fix 𝜃𝑈 = 𝛽 = 3. The results are shown in Fig. 10a. As                                several graph reduction methods, achieving maximum edge biclique
+illustrated, when 𝜃𝑉 ≥ 5, 2-MDB consistently outperforms other                                      search on billion-scale graphs. The second category is maximum
+methods. Additionally, the F1-score of 2-MDB rises over 1-MDB                                       vertex biclique search, which aims to identify a biclique with maxi-
+while 2-biplex drops below 1-biplex, as 𝑘-MDB offers finer-grained                                  mum number of vertices. Garey et al. [22] shown that a maximum
+density relaxation than 𝑘-biplex with increasing 𝑘. For 𝜃𝑉 ≤ 4,                                     vertex biclique can be found in polynomial time using a minimum-
+biclique and FRAUDAR outperform 𝑘-MDB and 𝑘-biplex, as the latter                                   cut algorithm. The third category is maximum balanced biclique
+two are too sparse and skewed to provide meaningful structure.                                      search, which intends to find a maximum biclique with an equal
+However, the F1-score of biclique declines when 𝜃𝑉 ≥ 5, as the                                      number of vertices on both sides. Yuan et al. [52] proposed an evo-
+strict definition of biclique limits its ability to detect fake items,                              lutionary algorithm for the problem with structure mutation. Wang
+resulting in lower recall. In contrast, 𝑘-MDB and 𝑘-biplex, with                                    et al. [48] proposed a local search framework with four optimiza-
+their more relaxed definitions, still maintain high F1-scores.                                      tion heuristics. Zhou et al. [54] proposed an upper bound propa-
+    We also evaluate the running time and the quality of subgraphs                                  gation served for two algorithms, which are respectively based on
+generated by each method, utilizing the widely adopted modularity                                   branch-and-bound and integer linear programming. Chen et al. [10]
+   1 Í                     𝑑 (𝑢 )𝑑 (𝑣)
+( 2𝑚     𝑢 ∈𝑈𝑆 ,𝑣 ∈𝑉𝑆 (1 −     2𝑚      )) metric, which quantifies the strength                     introduced two efficient branch-and-bound algorithms utilizing a
+of internal connectivity relative to a random distribution and serves                               bipartite sparsity measurement, targeting small dense and large
+as a key indicator for assessing the community structure within                                     sparse graphs, achieving improved time complexities and better
+the subgraph. Fig. 10b illustrates the optimal performance of each                                  practical performance. All these mentioned techniques are tailored
+method across all parameter settings. As observed, 2-MDB achieves                                   for maximum biclique search and cannot be directly used to solve
+the highest modularity value, indicating the high quality of the                                    our 𝑘-MDB search problem.
+subgraphs it produces, which consequently results in a higher F1
+score for fraud detection. Additionally, although 1-biplex has a F1-                                7    Conclusion
+score close to 2-MDB, its running time is significantly higher than                                 In this paper, we investigate the problem of finding a maximum
+that of 2-MDB. These results demonstrate the high effectiveness                                     𝑘-defective biclique in a bipartite graph. We propose two novel
+and efficiency of our solutions for fraud detection applications.                                   algorithms to tackle the problem. The first algorithm employs a
+On the Efficient Discovery of Maximum 𝑘 -Defective Biclique
+
+
+newly-designed binary branching strategy that reduces the time                                  234 (2018), 131–138.
+complexity to below 𝑂 ∗ (2𝑛 ), while the second algorithm utilizes                         [25] Bryan Hooi, Kijung Shin, Hyun Ah Song, Alex Beutel, Neil Shah, and Christos
+                                                                                                Faloutsos. 2017. Graph-Based Fraud Detection in the Face of Camouflage. ACM
+a novel pivoting-based branching strategy, achieving a notably                                  Trans. Knowl. Discov. Data 11, 4 (2017), Article 44.
+lower time complexity. Additionally, we propose a series of non-                           [26] Bryan Hooi, Hyun Ah Song, Alex Beutel, Neil Shah, Kijung Shin, and Christos
+trivial optimization techniques to further improve the efficiency of                            Faloutsos. 2016. Fraudar: Bounding graph fraud in the face of camouflage. In
+                                                                                                Proceedings of the 22nd ACM SIGKDD international conference on knowledge
+our algorithms. Extensive experiments conducted on 10 real-word                                 discovery and data mining. 895–904.
+graphs demonstrate the notable effectiveness and efficiency of our                         [27] Mingming Jin, Jiongzhi Zheng, and Kun He. 2024. KD-Club: An Efficient Exact
+algorithms and optimization techniques.                                                         Algorithm with New Coloring-based Upper Bound for the Maximum k-Defective
+                                                                                                Clique Problem. In Proceedings of the AAAI Conference on Artificial Intelligence,
+                                                                                                Vol. 38. 20735–20742.
+References                                                                                 [28] MA Langston, Elissa J Chesler, and Y Zhang. 2008. On finding bicliques in
+ [1] Online. Maximum Defective Biclique Search in Large Bipartite Graphs (full ver-             bipartite graphs: a novel algorithm with application to the integration of diverse
+     sion). https://github.com/dawhc/MaximumDefectiveBiclique/blob/main/docs/                   biological data types. In Proceedings of the 41st Annual Hawaii International
+     defbiclique-full.pdf                                                                       Conference on System Sciences (HICSS 2008)(HICSS), Vol. 1. 473.
+ [2] Aman Abidi, Rui Zhou, Lu Chen, and Chengfei Liu. 2020. Pivot-based Maximal            [29] Sune Lehmann, Martin Schwartz, and Lars Kai Hansen. 2008. Biclique communi-
+     Biclique Enumeration. In IJCAI. 3558–3564.                                                 ties. Physical Review E—Statistical, Nonlinear, and Soft Matter Physics 78, 1 (2008),
+ [3] Gabriela Alexe, Sorin Alexe, Yves Crama, Stephan Foldes, Peter L Hammer, and               016108.
+     Bruno Simeone. 2004. Consensus algorithms for the generation of all maximal           [30] Michael Ley. 2002. The DBLP Computer Science Bibliography: Evolution, Re-
+     bicliques. Discrete Applied Mathematics 145, 1 (2004), 11–21.                              search Issues, Perspectives (String Processing and Information Retrieval). Springer
+ [4] Taher Alzahrani and Kathy Horadam. 2019. Finding maximal bicliques in bipartite            Berlin Heidelberg, 1–10.
+     networks using node similarity. Applied Network Science 4, 1 (2019), 21.              [31] Jingdong Li, Zhao Li, Xiaoling Wang, Xingjian Lu, Ji Zhang, and Hongyang
+ [5] Christoph Ambühl, Monaldo Mastrolilli, and Ola Svensson. 2011. Inapproxima-                Chen. 2023. GPU-Accelerated Maximal Bicliques Mining Framework for Large
+     bility results for maximum edge biclique, minimum linear arrangement, and                  E-commerce Networks. 539-544 pages.
+     sparsest cut. SIAM J. Comput. 40, 2 (2011), 567–596.                                  [32] Jinyan Li, Guimei Liu, Haiquan Li, and Limsoon Wong. 2007. Maximal biclique
+ [6] Fabian Braun, Olivier Caelen, Evgueni N. Smirnov, Steven Kelk, and Bertrand                subgraphs and closed pattern pairs of the adjacency matrix: A one-to-one corre-
+     Lebichot. 2017. Improving Card Fraud Detection Through Suspicious Pattern                  spondence and mining algorithms. IEEE Transactions on Knowledge and Data
+     Discovery. In Advances in Artificial Intelligence: From Theory to Practice, Salem          Engineering 19, 12 (2007), 1625–1637.
+     Benferhat, Karim Tabia, and Moonis Ali (Eds.). Springer International Publishing,     [33] Jinyan Li, Kelvin Sim, Guimei Liu, and Limsoon Wong. 2008. Maximal quasi-
+     181–190.                                                                                   bicliques with balanced noise tolerance: Concepts and co-clustering applications.
+ [7] Monika Cerinšek and Vladimir Batagelj. 2015. Generalized two-mode cores.                   In Proceedings of the 2008 SIAM International Conference on Data Mining. SIAM,
+     Social Networks 42 (2015), 80–87.                                                          72–83.
+ [8] Lijun Chang. 2023. Efficient Maximum k-Defective Clique Computation with              [34] Guimei Liu, Kelvin Sim, and Jinyan Li. 2006. Efficient mining of large maximal
+     Improved Time Complexity. Proceedings of the ACM on Management of Data 1, 3                bicliques. In Data Warehousing and Knowledge Discovery: 8th International Con-
+     (2023), 1–26.                                                                              ference, DaWaK 2006, Krakow, Poland, September 4-8, 2006. Proceedings 8. Springer,
+ [9] Lijun Chang. 2024. Maximum Defective Clique Computation: Improved Time                     437–448.
+     Complexities and Practical Performance. arXiv preprint arXiv:2403.07561 (2024).       [35] Chunyu Luo, Yi Zhou Zhengren Wang, and Mingyu Xiao. 2024. A Faster Branch-
+[10] Lu Chen, Chengfei Liu, Rui Zhou, Jiajie Xu, and Jianxin Li. 2021. Efficient                ing Algorithm for the Maximum 𝑘 -Defective Clique Problem. arXiv preprint
+     exact algorithms for maximum balanced biclique search in bipartite graphs. In              arXiv:2407.16588 (2024).
+     Proceedings of the 2021 International Conference on Management of Data. 248–260.      [36] Bingqing Lyu, Lu Qin, Xuemin Lin, Ying Zhang, Zhengping Qian, and Jingren
+[11] Lu Chen, Chengfei Liu, Rui Zhou, Jiajie Xu, and Jianxin Li. 2022. Efficient maximal        Zhou. 2020. Maximum biclique search at billion scale. Proceedings of the VLDB
+     biclique enumeration for large sparse bipartite graphs. Proceedings of the VLDB            Endowment (2020).
+     Endowment 15, 8 (2022), 1559–1571.                                                    [37] Sara C Madeira and Arlindo L Oliveira. 2004. Biclustering algorithms for biolog-
+[12] Xiaoyu Chen, Yi Zhou, Jin-Kao Hao, and Mingyu Xiao. 2021. Computing maxi-                  ical data analysis: a survey. IEEE/ACM transactions on computational biology and
+     mum k-defective cliques in massive graphs. Computers & Operations Research                 bioinformatics 1, 1 (2004), 24–45.
+     127 (2021), 105131.                                                                   [38] René Peeters. 2003. The maximum edge biclique problem is NP-complete. Discrete
+[13] Qiangqiang Dai, Ronghua Li, Donghang Cui, and Guoren Wang. 2024. Theoreti-                 Applied Mathematics 131, 3 (2003), 651–654.
+     cally and Practically Efficient Maximum Defective Clique Search. Proceedings of       [39] Amela Prelić, Stefan Bleuler, Philip Zimmermann, Anja Wille, Peter Bühlmann,
+     the ACM on Management of Data 2, 4 (2024), 1–27.                                           Wilhelm Gruissem, Lars Hennig, Lothar Thiele, and Eckart Zitzler. 2006. A sys-
+[14] Qiangqiang Dai, Rong-Hua Li, Donghang Cui, Meihao Liao, Yu-Xuan Qiu, and                   tematic comparison and evaluation of biclustering methods for gene expression
+     Guoren Wang. 2024. Efficient Maximal Biplex Enumerations with Improved                     data. Bioinformatics 22, 9 (2006), 1122–1129.
+     Worst-Case Time Guarantee. Proceedings of the ACM on Management of Data 2,            [40] Eran Shaham, Honghai Yu, and Xiao-Li Li. 2016. On finding the maximum edge
+     3 (2024), 1–26.                                                                            biclique in a bipartite graph: a subspace clustering approach. In Proceedings of
+[15] Qiangqiang Dai, Rong-Hua Li, Meihao Liao, and Guoren Wang. 2023. Maximal                   the 2016 SIAM International Conference on Data Mining. SIAM, 315–323.
+     defective clique enumeration. Proceedings of the ACM on Management of Data 1,         [41] Shahram Shahinpour, Shirin Shirvani, Zeynep Ertem, and Sergiy Butenko. 2017.
+     1 (2023), 1–26.                                                                            Scale reduction techniques for computing maximum induced bicliques. Algo-
+[16] Qiangqiang Dai, Rong-Hua Li, Xiaowei Ye, Meihao Liao, Weipeng Zhang, and                   rithms 10, 4 (2017), 113.
+     Guoren Wang. 2023. Hereditary Cohesive Subgraphs Enumeration on Bipartite             [42] Vladimir Stozhkov, Austin Buchanan, Sergiy Butenko, and Vladimir Boginski.
+     Graphs: The Power of Pivot-based Approaches. Proceedings of the ACM on                     2022. Continuous cubic formulations for cluster detection problems in networks.
+     Management of Data 1, 2 (2023), 1–26.                                                      Mathematical Programming 196, 1 (2022), 279–307.
+[17] Milind Dawande, Pinar Keskinocak, Jayashankar M. Swaminathan, and Sridhar R.          [43] Melih Sözdinler and Can Özturan. 2018. Finding maximum edge biclique in
+     Tayur. 2001. On Bipartite and Multipartite Clique Problems. J. Algorithms 41, 2            bipartite networks by integer programming. In 2018 IEEE International Conference
+     (2001), 388–403.                                                                           on Computational Science and Engineering (CSE). IEEE, 132–137.
+[18] Kemal Eren, Mehmet Deveci, Onur Küçüktunç, and Ümit V Çatalyürek. 2013.               [44] Svyatoslav Trukhanov, Chitra Balasubramaniam, Balabhaskar Balasundaram,
+     A comparative analysis of biclustering algorithms for gene expression data.                and Sergiy Butenko. 2013. Algorithms for detecting optimal hereditary structures
+     Briefings in bioinformatics 14, 3 (2013), 279–292.                                         in graphs, with application to clique relaxations. Computational Optimization
+[19] Qilong Feng, Shaohua Li, Zeyang Zhou, and Jianxin Wang. 2018. Parameterized                and Applications 56 (2013), 113–130.
+     algorithms for edge biclique and related problems. Theoretical Computer Science       [45] Jianhua Wang, Jianye Yang, Ziyi Ma, Chengyuan Zhang, Shiyu Yang, and Wenjie
+     734 (2018), 105–118.                                                                       Zhang. 2023. Efficient Maximal Biclique Enumeration on Large Uncertain Bi-
+[20] Fedor V Fomin and Petteri Kaski. 2013. Exact exponential algorithms. Commun.               partite Graphs. IEEE Trans. on Knowl. and Data Eng. 35, 12 (2023), 12634–12648.
+     ACM 56, 3 (2013), 80–88.                                                                   doi:10.1109/tkde.2023.3272110
+[21] Jian Gao, Zhenghang Xu, Ruizhi Li, and Minghao Yin. 2022. An exact algorithm          [46] Kai Wang, Yiheng Hu, Xuemin Lin, Wenjie Zhang, Lu Qin, and Ying Zhang. 2021.
+     with new upper bounds for the maximum k-defective clique problem in massive                A Cohesive Structure Based Bipartite Graph Analytics System. 4799–4803 pages.
+     sparse graphs. In Proceedings of the AAAI Conference on Artificial Intelligence,      [47] Kai Wang, Wenjie Zhang, Xuemin Lin, Lu Qin, and Alexander Zhou. 2022. Ef-
+     Vol. 36. 10174–10183.                                                                      ficient personalized maximum biclique search. In 2022 IEEE 38th International
+[22] Michael R Garey and David S Johnson. 1979. Computers and intractability. Vol. 174.         Conference on Data Engineering (ICDE). IEEE, 498–511.
+     freeman San Francisco.                                                                [48] Yiyuan Wang, Shaowei Cai, and Minghao Yin. 2018. New heuristic approaches for
+[23] Nicolas Gillis and François Glineur. 2014. A continuous characterization of the            maximum balanced biclique problem. Information Sciences 432 (2018), 362–375.
+     maximum-edge biclique problem. Journal of Global Optimization 58, 3 (2014),           [49] Haiyuan Yu, Alberto Paccanaro, Valery Trifonov, and Mark Gerstein. 2006. Pre-
+     439–464.                                                                                   dicting interactions in protein networks by completing defective cliques. Bioin-
+[24] Timo Gschwind, Stefan Irnich, and Isabel Podlinski. 2018. Maximum weight                   formatics 22, 7 (2006), 823–829.
+     relaxed cliques and Russian Doll Search revisited. Discrete Applied Mathematics
+                                                                                           Donghang Cui, Ronghua Li, Qiangqiang Dai, Hongchao Qin, and Guoren Wang
+
+
+[50] Kaiqiang Yu and Cheng Long. 2023. Maximum k-Biplex Search on Bipartite                 IEEE Transactions on Cybernetics 45, 5 (2015), 1054–1067.
+     Graphs: A Symmetric-BK Branching Approach. Proc. ACM Manag. Data 1, 1             [53] Hongru Zhou, Shengxin Liu, and Ruidi Cao. 2025. Efficient Maximum Vertex
+     (2023), Article 49.                                                                    (k,l)-Biplex Computation on Bipartite Graphs. Tsinghua Science and Technology
+[51] Kaiqiang Yu, Cheng Long, Shengxin Liu, and Da Yan. 2022. Efficient Algorithms          30, 2 (2025), 569–584. doi:10.26599/TST.2024.9010009
+     for Maximal k-Biplex Enumeration. In Proceedings of the 2022 International Con-   [54] Yi Zhou and Jin-Kao Hao. 2019. Tabu search with graph reduction for finding
+     ference on Management of Data. 860–873.                                                maximum balanced bicliques in bipartite graphs. Eng. Appl. Artif. Intell. 77 (2019),
+[52] Bo Yuan, Bin Li, Huanhuan Chen, and Xin Yao. 2015. A New Evolutionary                  86–97.
+     Algorithm with Structure Mutation for the Maximum Balanced Biclique Problem.
+

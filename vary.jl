@@ -1,0 +1,400 @@
+#=
+=================================================================================
+Parameter sweeps for load.jl.
+
+Invoked via:
+  julia load.jl <dataset> --vary=ant-count [--ants-range=5,10,20,50]
+      [--aco-runs=N] [--save=...]
+
+For `--vary=ant-count`, runs ACO once per ant count (fixed iteration budget from
+`--iterations`) and records iterations-to-best, solution quality, and wall time.
+With `--aco-runs=N` (N>1), each ant count is repeated N times with a distinct
+seed derived from `--seed`, and every replicate is written into the JSON.
+Pivot runs once up front (when enabled) to supply an optimum edge count for
+quality comparison. The θ-heuristic also runs once (same reduced graph) and is
+logged in the JSON so ACO quality can be compared against it.
+=================================================================================
+=#
+
+const __VARY_JL__ = true
+
+"""
+Parse `--vary=<mode>` if present; otherwise `nothing`.
+"""
+function parse_vary()
+    for arg in ARGS
+        if startswith(arg, "--vary=")
+            mode = lowercase(strip(split(arg, "=", limit=2)[2]))
+            if mode == "ant-count"
+                return :ant_count
+            else
+                throw(ArgumentError("Unknown --vary mode '$mode' (expected ant-count)"))
+            end
+        elseif arg == "--vary"
+            throw(ArgumentError("--vary requires a value, e.g. --vary=ant-count"))
+        end
+    end
+    return nothing
+end
+
+"""
+Parse `--ants-range=a,b,c` into a sorted unique vector of positive integers.
+Default sweep: 1, 2, 5, 10, 20, 50, 100.
+"""
+function parse_ants_range()
+    for arg in ARGS
+        if startswith(arg, "--ants-range=")
+            raw = split(arg, "=", limit=2)[2]
+            counts = Int[]
+            for part in split(raw, ',')
+                s = strip(part)
+                isempty(s) && continue
+                n = parse(Int, s)
+                n >= 1 || throw(ArgumentError("ants-range values must be >= 1, got $n"))
+                push!(counts, n)
+            end
+            isempty(counts) && throw(ArgumentError("--ants-range= needs at least one integer"))
+            return sort!(unique!(counts))
+        end
+    end
+    return [1, 2, 5, 10, 20, 50, 100]
+end
+
+"""
+Parse `--aco-runs=N`: number of stochastic ACO replicates per ant count (default 1).
+"""
+function parse_aco_runs()
+    for arg in ARGS
+        if startswith(arg, "--aco-runs=")
+            n = parse(Int, split(arg, "=", limit=2)[2])
+            n >= 1 || throw(ArgumentError("--aco-runs must be >= 1, got $n"))
+            return n
+        elseif arg == "--aco-runs"
+            throw(ArgumentError("--aco-runs requires a value, e.g. --aco-runs=10"))
+        end
+    end
+    return 1
+end
+
+"""
+Whether to run pivot once for an optimum edge count (default: true).
+Disable with `--vary-no-pivot=true`.
+"""
+function parse_vary_run_pivot()
+    for arg in ARGS
+        if startswith(arg, "--vary-no-pivot=")
+            val = lowercase(split(arg, "=", limit=2)[2])
+            if val in ("true", "1", "yes", "on")
+                return false
+            elseif val in ("false", "0", "no", "off")
+                return true
+            else
+                throw(ArgumentError("Bad boolean for --vary-no-pivot: $val"))
+            end
+        end
+    end
+    return true
+end
+
+"""
+Stable per-replicate seed: `base + (ant_index-1)*n_runs + (run-1)`.
+"""
+function vary_run_seed(base_seed::UInt64, ant_index::Int, run::Int, n_runs::Int)
+    offset = UInt64((ant_index - 1) * n_runs + (run - 1))
+    return base_seed + offset
+end
+
+"""
+Run ACO for a single ant count; return metrics without verbose printing.
+"""
+function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
+    num_ants::Int, opt_edges::Union{Nothing,Int}=nothing,
+    reduction::ReductionMode.T=ReductionMode.none)
+    pheremone, _na, num_iterations, evaporation, num_subspecies = aco_options
+    prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
+    elite_seed = get(aco_options, :elite_seed, true)
+    elite_seed_ants = get(aco_options, :elite_seed_ants, 3)
+    elite_seed_remove = get(aco_options, :elite_seed_remove, 2)
+
+    first_hit = Ref{Union{Nothing,Int}}(nothing)
+
+    g_run = deepcopy(g)
+    m = measure_call() do
+        aco(g_run, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
+            parallelize=false,
+            force_gc=false,
+            prefer_smaller_side=prefer_smaller_side,
+            elite_seed=elite_seed,
+            elite_seed_ants=elite_seed_ants,
+            elite_seed_remove=elite_seed_remove,
+            reduction=reduction,
+            iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
+                if opt_edges === nothing || first_hit[] !== nothing
+                    return true
+                end
+                edges = Subgraph.edge_count(compact_fg, best_compact)
+                missing = Subgraph.missing_edges(compact_fg, best_compact)
+                θ_ok = (length(best_compact.U) ≥ θ && length(best_compact.V) ≥ θ) ||
+                    (opt_edges == 0 && edges == 0)
+                if missing <= k && θ_ok && edges >= opt_edges
+                    first_hit[] = iter
+                end
+                return true
+            end)
+    end
+
+    sols, best_iterations, best_times, _pheromones, _remapping = m.value
+    g_eval = deepcopy(g)
+    fg_eval = if reduction == ReductionMode.none
+        freeze(g_eval)
+    else
+        apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
+    end
+    best_idx = argmax(i -> Subgraph.edge_count(fg_eval, sols[i]), eachindex(sols))
+    sol = sols[best_idx]
+    iterations_to_best = best_iterations[best_idx]
+    time_to_best = best_times[best_idx]
+    final_edges = Subgraph.edge_count(fg_eval, sol)
+    missing = Subgraph.missing_edges(fg_eval, sol)
+    θ_feasible = (length(sol.U) ≥ θ && length(sol.V) ≥ θ) ||
+        (final_edges == 0 && Subgraph.vertex_count(sol) == 0)
+    matched_optimal = opt_edges !== nothing &&
+        is_optimal_solution(fg_eval, sol, k, θ, opt_edges)
+
+    return (; num_ants,
+        wall_time_s = m.time,
+        time_to_best_s = time_to_best,
+        allocated_bytes = m.allocated,
+        rss_delta_bytes = m.rss_delta,
+        iterations_budget = num_iterations,
+        iterations_to_best,
+        iterations_to_optimal = first_hit[],
+        final_edges,
+        optimal_edges = opt_edges,
+        matched_optimal,
+        nU = length(sol.U),
+        nV = length(sol.V),
+        missing,
+        theta_feasible = θ_feasible)
+end
+
+"""
+Sweep ant counts on an already-reduced graph.
+
+When `n_runs > 1`, each ant count is repeated with a distinct seed derived from
+`seed` (required). Every replicate is appended to `trials`.
+"""
+function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int,
+    reduction::ReductionMode.T, aco_options; ant_counts::Vector{Int},
+    run_pivot::Bool=true, seed=nothing, dataset::AbstractString="",
+    n_runs::Int=1)
+    n_runs >= 1 || throw(ArgumentError("n_runs must be >= 1, got $n_runs"))
+    _, _, num_iterations, _, _ = aco_options
+
+    base_seed = seed === nothing ? UInt64(time_ns()) : UInt64(seed)
+
+    println()
+    println("==================== VARY ant-count ====================")
+    println("dataset=$dataset  k=$k  θ=$θ  iterations=$num_iterations")
+    println("ants-range=$(join(ant_counts, ","))  run_pivot=$run_pivot  aco_runs=$n_runs")
+    println("base_seed=$base_seed")
+
+    println()
+    println("Warming up (excluded from timings)…")
+    warmup_benchmarks!(k, θ, reduction, aco_options; targets=Set([:aco, :heuristic]))
+
+    mutable_bytes = Base.summarysize(g)
+    g_reduced = deepcopy(g)
+    println()
+    println("Reducing graph once…")
+    m_red = measure_call() do
+        apply_graph_reductions!(g_reduced, k, θ, nothing, nothing, true, reduction)
+    end
+    fg = m_red.value
+    frozen_bytes = Base.summarysize(fg)
+    print_metric_block("Graph reduction";
+        wall_time_s = m_red.time,
+        allocated_bytes = m_red.allocated,
+        reduced_nU = length(fg.u_ids),
+        reduced_nV = length(fg.v_ids),
+    )
+    print_metric_block("Graph structure";
+        nU = length(g.adjU),
+        nV = length(g.adjV),
+        edges = edge_count,
+        mutable_graph_bytes = mutable_bytes,
+        frozen_after_reduction_bytes = frozen_bytes,
+    )
+    graph_stats = (; mutable_bytes, frozen_bytes, fg,
+        reduction_time = m_red.time, reduction_allocated = m_red.allocated,
+        reduction_rss_delta = m_red.rss_delta)
+
+    solver_reduction = ReductionMode.none
+
+    opt_edges = nothing
+    pivot_stats = nothing
+    if run_pivot
+        pivot_stats = benchmark_pivot!(g_reduced, k, θ, solver_reduction)
+        opt_edges = pivot_stats.opt_edges
+    end
+
+    # θ-heuristic once per graph — baseline for "does ACO beat the heuristic?"
+    heuristic_stats = benchmark_heuristic!(g_reduced, k, θ, solver_reduction; opt_edges=opt_edges)
+    heur_missing = Subgraph.missing_edges(heuristic_stats.fg_eval, heuristic_stats.sol)
+    heur_θ_ok = (length(heuristic_stats.sol.U) ≥ θ && length(heuristic_stats.sol.V) ≥ θ) ||
+        (heuristic_stats.final_edges == 0 && Subgraph.vertex_count(heuristic_stats.sol) == 0)
+    heuristic_stats = merge(heuristic_stats, (;
+        nU = length(heuristic_stats.sol.U),
+        nV = length(heuristic_stats.sol.V),
+        missing = heur_missing,
+        theta_feasible = heur_θ_ok,
+    ))
+
+    trials = NamedTuple[]
+    for (ai, n_ants) in enumerate(ant_counts)
+        for run in 1:n_runs
+            run_seed = vary_run_seed(base_seed, ai, run, n_runs)
+            Random.seed!(run_seed)
+
+            println()
+            if n_runs == 1
+                println("── ACO $(ai)/$(length(ant_counts)): ants=$n_ants ──")
+            else
+                println("── ACO ants=$n_ants  run $run/$n_runs  seed=$run_seed ──")
+            end
+            trial = vary_aco_trial!(g_reduced, k, θ, aco_options;
+                num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction)
+            beats_heuristic = trial.final_edges > heuristic_stats.final_edges &&
+                trial.theta_feasible
+            trial = merge(trial, (; run, seed=string(run_seed), beats_heuristic))
+            println("  wall=$(format_seconds(trial.wall_time_s))s  " *
+                    "to_best=$(format_seconds(trial.time_to_best_s))s  " *
+                    "iters→best=$(trial.iterations_to_best)  " *
+                    "edges=$(trial.final_edges)" *
+                    (opt_edges === nothing ? "" : " / $opt_edges optimal") *
+                    "  vs heur=$(heuristic_stats.final_edges)" *
+                    (beats_heuristic ? " (beats)" : ""))
+            push!(trials, trial)
+        end
+    end
+
+    println()
+    println("==================== SUMMARY ======================")
+    println("θ-heuristic edges=$(heuristic_stats.final_edges)" *
+            (opt_edges === nothing ? "" : " / $opt_edges optimal") *
+            "  θ-feasible=$(heuristic_stats.theta_feasible)" *
+            "  |U|=$(heuristic_stats.nU) |V|=$(heuristic_stats.nV)")
+    if n_runs == 1
+        println(rpad("ants", 8), rpad("time", 12), rpad("→best", 12),
+                rpad("iters", 8), rpad("edges", 10), rpad(">heur", 8), "optimal")
+        for t in trials
+            opt_str = t.optimal_edges === nothing ? "—" :
+                (t.matched_optimal ? "yes" : "no ($(t.final_edges)/$(t.optimal_edges))")
+            println(rpad(t.num_ants, 8),
+                    rpad(format_seconds(t.wall_time_s) * "s", 12),
+                    rpad(format_seconds(t.time_to_best_s) * "s", 12),
+                    rpad(string(t.iterations_to_best), 8),
+                    rpad(string(t.final_edges), 10),
+                    rpad(t.beats_heuristic ? "yes" : "no", 8),
+                    opt_str)
+        end
+    else
+        println(rpad("ants", 8), rpad("run", 6), rpad("time", 12),
+                rpad("iters", 8), rpad("edges", 10), rpad(">heur", 8), "optimal")
+        for t in trials
+            opt_str = t.optimal_edges === nothing ? "—" :
+                (t.matched_optimal ? "yes" : "no ($(t.final_edges)/$(t.optimal_edges))")
+            println(rpad(t.num_ants, 8),
+                    rpad(t.run, 6),
+                    rpad(format_seconds(t.wall_time_s) * "s", 12),
+                    rpad(string(t.iterations_to_best), 8),
+                    rpad(string(t.final_edges), 10),
+                    rpad(t.beats_heuristic ? "yes" : "no", 8),
+                    opt_str)
+        end
+    end
+    println("===================================================")
+
+    return (; graph_stats, pivot_stats, heuristic_stats, trials, ant_counts, opt_edges,
+        n_runs, base_seed=string(base_seed))
+end
+
+function vary_results_to_dict(results; k::Int=0, θ::Int=0,
+    dataset::AbstractString="", seed=nothing, reduction=nothing,
+    edge_count::Union{Nothing,Int}=nothing, run_pivot::Bool=true)
+    out = Dict{String,Any}(
+        "vary" => "ant-count",
+        "dataset" => String(dataset),
+        "k" => k,
+        "theta" => θ,
+        "seed" => seed === nothing ? nothing : string(seed),
+        "base_seed" => get(results, :base_seed, seed === nothing ? nothing : string(seed)),
+        "aco_runs" => get(results, :n_runs, 1),
+        "reduction" => reduction === nothing ? nothing : string(reduction),
+        "edge_count" => edge_count,
+        "run_pivot" => run_pivot,
+        "ants_range" => results.ant_counts,
+    )
+
+    gs = results.graph_stats
+    out["graph"] = Dict(
+        "mutable_bytes" => gs.mutable_bytes,
+        "frozen_bytes" => gs.frozen_bytes,
+        "reduced_nU" => length(gs.fg.u_ids),
+        "reduced_nV" => length(gs.fg.v_ids),
+        "reduction_time_s" => gs.reduction_time,
+    )
+
+    if results.pivot_stats !== nothing
+        ps = results.pivot_stats
+        out["pivot"] = Dict(
+            "wall_time_s" => ps.time,
+            "optimal_edges" => ps.opt_edges,
+        )
+    end
+
+    if results.heuristic_stats !== nothing
+        hs = results.heuristic_stats
+        out["heuristic"] = Dict(
+            "wall_time_s" => hs.time,
+            "allocated_bytes" => hs.allocated,
+            "rss_delta_bytes" => hs.rss_delta,
+            "final_edges" => hs.final_edges,
+            "optimal_edges" => hs.opt_edges,
+            "matched_optimal" => hs.matched_optimal,
+            "nU" => get(hs, :nU, length(hs.sol.U)),
+            "nV" => get(hs, :nV, length(hs.sol.V)),
+            "missing" => get(hs, :missing, nothing),
+            "theta_feasible" => get(hs, :theta_feasible, nothing),
+        )
+    end
+
+    out["trials"] = [
+        Dict(
+            "run" => get(t, :run, 1),
+            "seed" => get(t, :seed, nothing),
+            "ants" => t.num_ants,
+            "wall_time_s" => t.wall_time_s,
+            "time_to_best_s" => t.time_to_best_s,
+            "allocated_bytes" => t.allocated_bytes,
+            "rss_delta_bytes" => t.rss_delta_bytes,
+            "iterations_budget" => t.iterations_budget,
+            "iterations_to_best" => t.iterations_to_best,
+            "iterations_to_optimal" => t.iterations_to_optimal,
+            "final_edges" => t.final_edges,
+            "optimal_edges" => t.optimal_edges,
+            "matched_optimal" => t.matched_optimal,
+            "beats_heuristic" => get(t, :beats_heuristic, nothing),
+            "nU" => t.nU,
+            "nV" => t.nV,
+            "missing" => t.missing,
+            "theta_feasible" => t.theta_feasible,
+        ) for t in results.trials
+    ]
+
+    return out
+end
+
+function save_vary_json(path::AbstractString, payload::AbstractDict)
+    return save_benchmark_json(path, payload)
+end

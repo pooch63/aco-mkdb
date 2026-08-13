@@ -8,8 +8,14 @@
 \usepackage{amssymb}
 \usepackage{hyperref}
 \usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+    \usetikzlibrary{positioning}
+\usepackage{pgfplots}
+\usepgfplotslibrary{groupplots}
+    \pgfplotsset{compat=1.18}
 
-\title{SCO Approach to k-MDB}
+\title{A Novel Application of Ant Colony Optimization to $k$-defective Maximum Edge Bicliques}
 \author{Kiyaan Pillai}
 \date{July 2026}
 
@@ -38,37 +44,178 @@
 \begin{document}
 \maketitle
 
+We apply Ant Colony Optimization to the maximum $k$-defective edge biclique problem, an NP-hard optimization. We compare its performance to other proposed heuristics and find it complements previously proposed heuristics to serve as an upper bound for . We find that our algorithm offers a promising ability to identify $k$-MDB with lower dependence on a tuned hyperparameter, $\theta$, than previous approaches. We evaluate our approach on several small and large bipartite graphs, and identify several opportunities to further increase performance.
+
 \section{Introduction}
 
-A bipartite graph is a common graph structure where one set of vertices is connected solely to another. Bipartite graphs can model user-product behavior, person-place interaction, and more. A biclique is a set of vertices on a bipartite graph such that each vertex on one side is connected to each vertex on the other.  The maximum edge biclique problem aims to identify the biclique with the most edges on a bipartite graph.  The problem has applications in online recommendation systems, fraud detection, and community detection [Cui et al.].
+A bipartite graph is a common graph structure where one set of vertices is connected solely to another. Bipartite graphs can model user-product behavior, person-place interaction, and more. A biclique is a set of vertices on a bipartite graph such that each vertex on one side is connected to each vertex on the other.  The maximum edge biclique problem aims to identify the biclique with the most edges on a bipartite graph.  The problem has applications in online recommendation systems, fraud detection, and community detection [1].
 
-Real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique, can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emergent field.
+Real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique, can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emerging field.
 
-The $k$-MDB problem is NP-hard, meaning any guaranteed algorithm must run in exponential time. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
+The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm guaranteed to find the maximum solution that can run in polynomial time. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
 
-Ant-colony optimization was first proposed to solve difficult combinatorial optimization problems, specifically the Traveling Salesman Problem. Several improvements have been proposed to the algorithm since its inception, most notably the Min-Max Ant System (MMAS). We adapt MMAS to the $k$-MDB problem as a heuristic approach to identifying $k$-MDB. We observe it performs significantly faster than brute-force algorithms while still returning comparably large $k$-defective bicliques.
+Dorigo et al. first proposed Ant Colony Optimization (ACO) as a metaheuristic to solve difficult combinatorial optimization problems, specifically the Traveling Salesman Problem [2]. Several improvements have been proposed to the algorithm since its inception, most notably the Min-Max Ant System (MMAS) [4]. We adapt MMAS as a heuristic approach to identifying the $k$-MDB. We observe it performs significantly faster than brute-force algorithms while still returning comparably large $k$-defective bicliques.
 
 \section{Background}
 
 \subsection{Definitions}
 
-Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
+Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Define $n = |U| + |V|$ and $m = |E|$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
 
-Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        Uvertex/.style={
+            circle,
+            draw=blue!70!black,
+            fill=blue!15,
+            minimum size=8mm
+        },
+        Vvertex/.style={
+            circle,
+            draw=red!70!black,
+            fill=red!15,
+            minimum size=8mm
+        },
+        edge/.style={thick}
+    ]
 
-Define expanding a $k$-MDB $S$ as adding a vertex $u$ such that $|\bar{E}(S \cup \{u\})| \leq k$. Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$.
+    % Left side U
+    \node[Uvertex] (u1) at (0,2) {$u_1$};
+    \node[Uvertex] (u2) at (0,1) {$u_2$};
+    \node[Uvertex] (u3) at (0,0) {$u_3$};
+    \node[Uvertex] (u4) at (0,-1) {$u_4$};
 
-The algorithms proposed in this paper seek to find the maximum $k$-MDB where both sides have at least $\theta$ vertices. This is because, on real-world graphs, $k$-defective bicliques can be formed with many edges and disproportionate vertex counts, where one side has very few vertices and one side has many [Cui et al.]. Without the $\theta$ term, the utility of the algorithm is limited.
+    % Right side V
+    \node[Vvertex] (v1) at (4,2) {$v_1$};
+    \node[Vvertex] (v2) at (4,1) {$v_2$};
+    \node[Vvertex] (v3) at (4,0) {$v_3$};
+    \node[Vvertex] (v4) at (4,-1) {$v_4$};
+
+    % Edges
+    \draw[edge] (u1) -- (v1);
+    \draw[edge] (u1) -- (v2);
+    \draw[edge] (u1) -- (v3);
+
+    \draw[edge] (u2) -- (v1);
+    \draw[edge] (u2) -- (v2);
+    \draw[edge] (u2) -- (v4);
+
+    \draw[edge] (u3) -- (v1);
+    \draw[edge] (u3) -- (v3);
+    \draw[edge] (u3) -- (v4);
+
+    \draw[edge] (u4) -- (v1);
+    \draw[edge] (u4) -- (v4);
+
+    % Labels
+    \node[above=5mm of u1] {\textcolor{blue!70!black}{$U$}};
+    \node[above=5mm of v1] {\textcolor{red!70!black}{$V$}};
+
+    \end{tikzpicture}
+    \caption{Example bipartite graph $G=(U,V,E)$}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        Uvertex/.style={
+            circle,
+            draw=blue!70!black,
+            fill=blue!15,
+            minimum size=8mm
+        },
+        Vvertex/.style={
+            circle,
+            draw=red!70!black,
+            fill=red!15,
+            minimum size=8mm
+        },
+        edge/.style={
+            thick,
+            draw=black!70
+        },
+        missing/.style={
+            thick,
+            dashed,
+            draw=red!75!black
+        }
+    ]
+
+    % --- Vertices ---
+    \node[Uvertex] (u1) at (0,2) {$u_1$};
+    \node[Uvertex] (u2) at (0,1) {$u_2$};
+    \node[Uvertex] (u3) at (0,0) {$u_3$};
+
+    \node[Vvertex] (v1) at (4,2) {$v_1$};
+    \node[Vvertex] (v2) at (4,1) {$v_2$};
+    \node[Vvertex] (v3) at (4,0) {$v_3$};
+
+    % --- Present edges ---
+    \draw[edge] (u1) -- (v1);
+    \draw[edge] (u1) -- (v2);
+    \draw[edge] (u1) -- (v3);
+
+    \draw[edge] (u2) -- (v1);
+    \draw[edge] (u2) -- (v2);
+
+    \draw[edge] (u3) -- (v1);
+    \draw[edge] (u3) -- (v3);
+
+    % --- Missing edges ---
+    \draw[missing] (u2) -- (v3);
+    \draw[missing] (u3) -- (v2);
+
+    % --- Set labels ---
+    \node[above=6mm of u1]
+        {\textcolor{blue!70!black}{$U_S$}};
+    \node[above=6mm of v1]
+        {\textcolor{red!70!black}{$V_S$}};
+
+    % --- Centered legend ---
+    \node[below=12mm of $(u3)!0.5!(v3)$] (legend) {};
+
+    \draw[edge]
+        ([xshift=-35mm]legend.center) --
+        ([xshift=-27mm]legend.center);
+    \node[anchor=west, font=\small]
+        at ([xshift=-25mm]legend.center) {present edge};
+
+    \draw[missing]
+        ([xshift=8mm]legend.center) --
+        ([xshift=16mm]legend.center);
+    \node[anchor=west, font=\small]
+        at ([xshift=18mm]legend.center) {missing edge};
+
+    \end{tikzpicture}
+
+    \caption{
+        A $2$-defective biclique present in Figure 1. Every vertex in $U_S$ is connected
+        to every vertex in $V_S$ except for two missing edges.
+        Since $|\bar{E}(S)|=2$, this is a $k$-defective biclique, where $k \geq 2$.
+    }
+    \label{fig:k-defective-biclique}
+\end{figure}
+
+Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \in S \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \in S \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
+
+Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$. Let $\theta$ be a user-defined limitation on the solution space. The algorithms proposed in this paper seek to find the maximum $k$-MDB where both sides have at least $\theta$ vertices. This is because, on real-world graphs, $k$-defective bicliques can be formed with many edges but disproportionate vertex counts, where one side has very few vertices while the other has many [1]. Without the $\theta$ term, the utility of the algorithm is limited.
 
 \subsection{Computational Complexity}
 
-Finding the maximum $k$-MDB on a bipartite graph is an NP-hard optimization problem The problem reduces to the well-known NP-hard maximum clique problem, which seeks to find the maximum set of vertices on a graph connected to every other vertex [Cui et al.].
+Finding the maximum $k$-MDB on a bipartite graph is an NP-hard optimization problem. The problem reduces to the well-known NP-hard maximum clique problem, which seeks to find the maximum set of vertices on a graph connected to every other vertex [1].
+
+\subsection{Previous Work}
+
+Cui et al. [1] proposed a brute-force approach to the $k$-MDB problem, as well as an initial heuristic designed to find a $k$-MDB with exactly $\theta$ nodes on one side of the graph.
+
+Dorigo et al. [2] proposed a metaheuristic for exploring graphs known as Ant Colony Optimization (ACO). Initially used on identifying the shortest path in problems such as the Traveling Salesman Problem, ACO has been adapted to several .
 
 \section{Methods}
 
-Ant-colony optimization traditionally has a set of ants that traverse a graph, leaving pheromone that attracts other ants to follow their path. As the ants explore the solution space, they all converge on one particular path as the quantity pheromones on that path becomes increasingly larger.
+ACO traditionally has a set of ants that traverse a graph, leaving pheromone that attracts other ants to follow their path. As the ants explore the solution space, they all converge on one particular path as the quantity pheromones on that path becomes increasingly larger.
 
-We adapt the Ant-Colony optimization algorithm to the $k$-MDB problem. A population of ants iteratively adds vertices from $G$ to a subgraph $S$, preferring nodes with higher $d_S$ and higher pheromone $\tau$.
+We adapt the ACO algorithm to the $k$-MDB problem. A population of ants iteratively adds vertices from $G$ to a subgraph $S$, preferring nodes with higher $d_S$ and higher pheromone $\tau$.
 
 \begin{algorithm}[H]
 \caption{ACO}
@@ -81,16 +228,27 @@ We adapt the Ant-Colony optimization algorithm to the $k$-MDB problem. A populat
             \State $\tau(u) \gets 1$
         \EndFor
         \State $e \gets 0$
+
+        \State $B \gets \{\}$
+        
         \While{$e < N_e$}
             \State $e \gets e + 1$
             \State $A \gets$ $N_a$ empty subgraphs
             \State $\tau_C \gets \tau$
             
             \ForPar{$S_i \in S$}
-                \State $next \gets \text{softmax}$ nodes in $\Call{Candidate}{S_i}$ based on  $\Call{desirability}{u, S_i, \tau_C}$
-                \State add $next$ to $S_i$
-                \State $\tau_C(u) \gets \tau_C(u) + T$
+                \While{$|\bar{E}(S_i)|<k$}
+                    \State $next \gets \text{softmax}$ nodes in $\Call{Candidate}{S_i}$ based on  $\Call{desirability}{u, S_i, \tau_C}$
+                    \State add $next$ to $S_i$
+                    \State $\tau_C(u) \gets \tau_C(u) + T$
+                \EndWhile
             \EndForPar
+
+            \State $S_B \gets \text{argmax}_{S_i \in S}{\Call{InstanceFitness}{S_i}}$
+
+            \If{$\Call{InstanceFitness}{S_B} > \Call{InstanceFitness}{B}$}
+                \State $B \gets S_B$
+            \EndIf
 
             \State $\tau \gets \tau_C$
 
@@ -99,7 +257,7 @@ We adapt the Ant-Colony optimization algorithm to the $k$-MDB problem. A populat
             \EndFor
         \EndWhile
         
-        \State \Return $T$
+        \State \Return $B$
     \EndFunction
 
     \Function{Candidate}{$S$}
@@ -135,7 +293,7 @@ Additionally, to encourage bicliques with at least $\theta$ vertices on both sid
 
 Finally, we implement the Min-Max ACO system.
 
-We also compare the opponent algorithm to a genetic algorithm. [Shah, 2020] proposes a genetic algorithm to identify the maximum clique on a generalized graph. We adapt this algorithm to biclique graphs and keep the logic the same. The algorithm initializes populations with single nodes and utilizes genetic algorithms to evolve instances. Two subgraphs are crossed over as outlined below, and then both a greedy and tabu repair algorithm are applied. The greedy algorithm simply adds nodes with the highest degree among $S$ to $S$ until the number of missing edges is too large. The tabu algorithm utilizes the fitness function to explore graphs that initially appear worse but can eventually lead to superior graphs. After utilizing both repair methods on independent copies of $S$, whichever instance has the highest fitness is used as the offspring.
+We also compare the opponent algorithm to a genetic algorithm. A genetic algorithm has been proposed to identify the maximum clique on a generalized graph [3]. We adapt this algorithm to biclique graphs while keeping the crossover logic the same. The algorithm initializes populations with single nodes and utilizes genetic algorithms to evolve instances. Two subgraphs are crossed over as outlined below, and then both a greedy and tabu repair algorithm are applied. The greedy algorithm simply adds nodes with the highest $d_S$ to $S$ until the number of missing edges exceeds $k$. The tabu algorithm utilizes the fitness function to explore graphs that initially appear worse but can eventually lead to superior graphs. After utilizing both repair methods on independent copies of $S$, whichever instance has the highest fitness is used as the offspring.
 
 \begin{algorithm}[H]
 \caption{Genetic Algorithm}
@@ -157,7 +315,10 @@ We also compare the opponent algorithm to a genetic algorithm. [Shah, 2020] prop
 
                 \State $(P_n)_i \gets \Call{CrossoverS}{P_m, P_f}$
             \EndForPar
+            \State $P \gets P_N$
         \EndWhile
+
+        \State \Return $P$
     \EndFunction
 
     \Function{CrossoverS}{$S_m$, $S_f$}
@@ -238,7 +399,7 @@ Finally, we implement the approach proposed by [Cui et al.]. [Cui et al.] observ
 \end{minipage}
 \end{algorithm}
 
-They then propose the following branch-and-pivot brute force algorithm that takes advantage of this initial heuristic upper bound.
+They then propose the following branch-and-pivot algorithm that takes advantage of this initial heuristic upper bound. The algorithm checks combinations of $S = (U_S, V_S)$ by maintaining a candidate set $C = (U_C, V_C)$ of all remaining nodes $u \in G \mathrel{\text{s.t.}} |\bar{E}(S \cup \{u\})| \leq k$ that could still be added to $S$. It recursively branches on $(S^\prime = S \cup \{u \in C\}, C^\prime = \text{candidate set of } S^\prime)$ and $(S^\prime = S, C^\prime = C \setminus \{u \in C\})$. Several optimizations are added to make this algorithm faster than a naive brute-force approach. Its time complexity is $O(m\beta_k^n)$, where $\beta$ is the largest real root of the equation $x^{2k + 5} - 2x^{2k + 4} +  x^{k + 3} - 2x + 2 = 0$. 
 
 \begin{algorithm}
 \caption{Branch and Pivot}
@@ -284,34 +445,129 @@ The paper proposes several novel optimization techniques as well. These techniqu
 
 \section{Results}
 
-We use several graphs from \url{konect.cc}, a registry of bipartite graphs.
+We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We first applied the reductions proposed by [Cui et al.], and then ran both ACO and the [Cui et al.] heuristic. We ran ACO for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution. We measured time and performance for the Cui Heuristic. We summarize our results below.
+
+
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=1 by 3, vertical sep=30pt, x descriptions at=edge bottom},
+    title style={yshift=-3pt},
+    width=0.75\textwidth,
+    height=0.33\textwidth,
+    xmode=log,
+    log basis x=2,
+    grid=major,
+]
+\nextgroupplot[
+    ylabel={Dev. from optimum (\%)},
+    ylabel style={align=center, font=\small},
+    title={Solution quality (feasible trials only)},
+    title style={font=\small},
+    legend to name=sharedlegend,
+    legend columns=3,
+    legend style={draw=none, fill=white, font=\small},
+]
+\addplot coordinates {(5,-10.5263) (10,-7.4163) (20,-10.0478) (50,18.2749) (100,17.6316)};
+\addlegendentry{konect/bitcoin}
+\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
+\addlegendentry{amazon/boxes}
+\addplot coordinates {(1,-47.6190) (5,-31.7460) (10,-28.9242) (20,6.1508) (50,21.2197) (100,51.1111)};
+\addlegendentry{konect/ciaodvd}
+\addplot coordinates {(1,-100.0000) (100,-63.0682)};
+\addlegendentry{konect/dblp-cite}
+\addplot coordinates {(1,-84.6645) (5,-57.9553) (10,-62.2627) (20,-42.8451) (50,-36.4217) (100,-34.7764)};
+\addlegendentry{konect/dimacs-polblogs}
+\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
+\addlegendentry{wikipedia/eswiki}
+\addplot coordinates {(10,-23.3333) (20,14.4444) (50,36.6667) (100,44.2857)};
+\addlegendentry{konect/gnutella}
+\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
+\addlegendentry{wikipedia/jawiki}
+\addplot coordinates {(1,-80.7057) (2,-71.8468) (5,-59.7998) (10,-54.5796) (20,-42.6877) (50,-40.5556) (100,-32.7628)};
+\addlegendentry{konect/openflights}
+\addplot coordinates {(1,-65.4135) (5,16.2907) (10,-28.5714) (20,4.8120) (50,-18.4962) (100,-4.2607)};
+\addlegendentry{konect/pgp-arenas}
+\nextgroupplot[
+    ylabel={Infeasible trials (\%)},
+    ylabel style={align=center, font=\small},
+    title={Theta-infeasibility rate},
+    title style={font=\small},
+    ymin=0,
+]
+\addplot coordinates {(1,100.0000) (2,100.0000) (5,95.0000) (10,45.0000) (20,45.0000) (50,10.0000) (100,0.0000)};
+\addplot coordinates {(1,70.0000) (2,55.0000) (5,25.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
+\addplot coordinates {(1,95.0000) (2,100.0000) (5,85.0000) (10,55.0000) (20,20.0000) (50,5.0000) (100,0.0000)};
+\addplot coordinates {(1,95.0000) (2,100.0000) (5,100.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,70.0000)};
+\addplot coordinates {(1,95.0000) (2,100.0000) (5,50.0000) (10,15.0000) (20,5.0000) (50,0.0000) (100,0.0000)};
+\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
+\addplot coordinates {(1,100.0000) (2,100.0000) (5,100.0000) (10,95.0000) (20,85.0000) (50,90.0000) (100,65.0000)};
+\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
+\addplot coordinates {(1,80.0000) (2,80.0000) (5,25.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
+\addplot coordinates {(1,95.0000) (2,100.0000) (5,85.0000) (10,80.0000) (20,75.0000) (50,50.0000) (100,10.0000)};
+\nextgroupplot[
+    xlabel={Number of ants},
+    ylabel={Mean WCT (s)},
+    ylabel style={align=center, font=\small},
+    title={Run time},
+    title style={font=\small},
+    ymode=log,
+]
+\addplot coordinates {(1,0.0068) (2,0.0066) (5,0.0173) (10,0.0323) (20,0.0509) (50,0.1386) (100,0.1886)};
+\addplot coordinates {(1,0.0001) (2,0.0002) (5,0.0002) (10,0.0003) (20,0.0004) (50,0.0008) (100,0.0015)};
+\addplot coordinates {(1,0.0077) (2,0.0133) (5,0.0339) (10,0.0384) (20,0.1519) (50,0.3171) (100,0.4142)};
+\addplot coordinates {(1,0.0195) (2,0.0275) (5,0.0781) (10,0.2433) (20,0.3034) (50,0.9414) (100,1.5752)};
+\addplot coordinates {(1,0.0029) (2,0.0032) (5,0.0066) (10,0.0126) (20,0.0233) (50,0.0533) (100,0.0918)};
+\addplot coordinates {(1,0.0002) (2,0.0002) (5,0.0003) (10,0.0004) (20,0.0005) (50,0.0011) (100,0.0018)};
+\addplot coordinates {(1,0.0009) (2,0.0016) (5,0.0037) (10,0.0113) (20,0.0130) (50,0.0364) (100,0.0574)};
+\addplot coordinates {(1,0.0002) (2,0.0002) (5,0.0003) (10,0.0004) (20,0.0005) (50,0.0010) (100,0.0017)};
+\addplot coordinates {(1,0.0015) (2,0.0020) (5,0.0041) (10,0.0070) (20,0.0124) (50,0.0279) (100,0.0468)};
+\addplot coordinates {(1,0.0040) (2,0.0048) (5,0.0155) (10,0.0227) (20,0.0714) (50,0.1320) (100,0.2260)};
+\end{groupplot}
+\end{tikzpicture}
+
+\begin{center}
+\ref{sharedlegend}
+\end{center}
+
+
+
+
 
 \begin{table}[htbp]
   \centering
-  \begin{tabular}{lrrrrrrrrrr}
-    \toprule
-    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|E(D^*)|$ (ACO) & Time & $|E(D^*)|$ (Cui) & Time \\
-    \midrule
-    Catster & 60 & 442 & 6 & 0.0119 & 7 & 0.0000 \\
-    BD3 & Grafo1.txt & 50 & 270 & 7 & 0.0083 & 8 & 0.0000 \\
-    % Add the rest of your data rows here...
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\begin{table}[htbp]
-  \centering
+  \caption{$k=2, \theta=5$}
   \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns
   
-  \begin{tabular}{l *{12}{r}} % 1 left-aligned column + 12 right-aligned columns
+  \begin{tabular}{l *{11}{r}} % 1 left-aligned column + 12 right-aligned columns
     \toprule
-    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$ & \multicolumn{4}{c}{ACO} & \multicolumn{2}{c}{Cui} \\
-    \cmidrule(lr){8-11} \cmidrule(lr){12-13}
-    & & & & & & & $|E(D^*)|$ & Time & ITB & TTB & $|E(D^*)|$ & Time \\
+    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & \multicolumn{4}{c}{ACO} & \multicolumn{2}{c}{Cui} \\
+    \cmidrule(lr){7-10} \cmidrule(lr){11-12}
+    & & & & & & $|E(D^*)|$ & Time & ITB & TTB & $|E(D^*)|$ & Time \\
     \midrule
-    BD0 & 10 & 60 & 442 & 5 & 30 & 220 & 6 & 0.0119 & 120 & 0.004 & 7 & 0.0000 \\
-    BD3 & 10 & 50 & 270 & 5 & 25 & 135 & 7 & 0.0083 & 95  & 0.002 & 8 & 0.0000 \\
+    Boxes & 15237 & 1128 & 16239 & 14 & 14 & 23 & 0.0023 & 1 & 0.0008 & 23 & 0.0002 \\
+    Music & 100952 & 70519 & 130457 & 63 & 81 & 18 & 0.0088 & 1 & 0.0033  & 13 & 0.0003 \\
+    
     \bottomrule
   \end{tabular}
 \end{table}
+
+Additionally, we varied the number of ants and identified .
+
+\section{Discussion}
+
+\section{Conclusion}
+
+\section{Works Cited}
+
+[1]
+D. Cui, R. Li, Q. Dai, H. Qin, and G. Wang, “On the Efficient Discovery of Maximum $K$-Defective Biclique,” arXiv.org. Accessed: Aug. 11, 2026. [Online]. Available: https://arxiv.org/abs/2506.16121
+\
+
+[2]
+M. Dorigo, V. Maniezzo, and A. Colorni, “Ant System: Optimization by a Colony of Cooperating Agents,” IEEE Transactions on Systems, Man and Cybernetics, Part B (Cybernetics), vol. 26, no. 1, pp. 29–41, 1996, doi: 10.1109/3477.484436.
+\
+
+[3]
+S. Shah, “GCLIQUE: An Open Source Genetic Algorithm for the Maximum Clique Problem,” Aug. 2020, doi: 10.36227/techrxiv.12814217.v1.
 \end{document}
+

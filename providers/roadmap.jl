@@ -4,7 +4,7 @@ roadmap (SNAP road networks) provider
 =================================================================================
 Downloads a SNAP road-network edgelist and converts it to the shared
 interactions CSV. Sparse / non-dense endpoint IDs are remapped to 1..n by the
-shared index_dataset step (same as Amazon / tnet).
+shared index_dataset step (same as Amazon / Konect).
 
 Line format (SNAP roadNet-*.txt):
   # comment lines are ignored
