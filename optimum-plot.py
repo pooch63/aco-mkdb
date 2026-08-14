@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 """
-Scan a directory of ACO benchmark JSON files (vary.jl ant-count format) and
-emit pgfplots LaTeX:
+Scan a directory of ACO benchmark JSON files and emit pgfplots LaTeX.
 
-  A 1x4 groupplot:
-       - top:    mean % deviation from optimum, computed ONLY over trials
-                 that were theta-feasible.
-       - 2nd:    mean % deviation from the Cui θ-heuristic (file-level
-                 "heuristic".final_edges), feasible trials only.
-       - 3rd:    % of trials at that ant count that were infeasible.
-       - bottom: mean wall-clock time vs. ant count.
+Modes
+-----
+  quality (default)
+      Vary.jl ant-count format → 1x4 groupplot:
+        - mean % deviation from optimum (feasible trials)
+        - mean % deviation from Cui θ-heuristic (feasible trials)
+        - % theta-infeasible trials
+        - mean wall-clock time vs ant count
 
-Files with no usable optimum (per-trial, file-level, or pivot.optimal_edges)
-are skipped for the optimum panel. Files with no "heuristic".final_edges are
-skipped for the Cui-heuristic panel.
+  seed-compare
+      compare-seeds.jl output → bar / coordinate plot of branch-and-pivot
+      wall-time reduction when seeding with the best ACO subgraph (vs θ only).
+      On each file, ACO trial selection already preferred max edges then min
+      time_to_best_s; this mode plots time_reduction_pct (and optional absolute
+      seconds).
 
 Usage:
     python optimum-plot.py /path/to/json/dir -o plot.tex
-        -> writes plot.tex
-
-    python optimum-plot.py /path/to/json/dir
-        -> prints LaTeX to stdout
+    python optimum-plot.py /path/to/json/dir --mode=seed-compare -o seed.tex
 """
 
 import argparse
@@ -295,43 +295,131 @@ def build_combined_latex(
     return "\n".join(lines)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def summarize_seed_compare(data):
+    """
+    Extract pivot timing fields from a compare-seeds.jl JSON.
 
-    parser.add_argument(
-        "directory",
-        help="Directory containing the JSON result files",
-    )
+    Returns dict with dataset label fields, or None if not a seed-compare file.
+    """
+    if data.get("compare") != "seeds":
+        return None
 
-    parser.add_argument(
-        "-o",
-        "--output",
-        help="Write the combined LaTeX to this file instead of stdout",
-    )
+    theta = data.get("pivot_theta") or {}
+    aco = data.get("pivot_aco_seed") or {}
+    trial = data.get("aco_trial") or {}
 
-    args = parser.parse_args()
+    theta_t = theta.get("wall_time_s")
+    aco_t = aco.get("wall_time_s")
+    if theta_t is None or aco_t is None:
+        return None
 
-    json_paths = sorted(
-        glob.glob(os.path.join(args.directory, "*.json"))
-    )
+    reduction_s = data.get("time_reduction_s")
+    if reduction_s is None:
+        reduction_s = float(theta_t) - float(aco_t)
 
-    if not json_paths:
-        raise SystemExit(
-            f"No .json files found in {args.directory}"
+    reduction_pct = data.get("time_reduction_pct")
+    if reduction_pct is None:
+        reduction_pct = (
+            100.0 * float(reduction_s) / float(theta_t) if float(theta_t) > 0 else 0.0
         )
 
+    return {
+        "theta_wall_time_s": float(theta_t),
+        "aco_seed_wall_time_s": float(aco_t),
+        "time_reduction_s": float(reduction_s),
+        "time_reduction_pct": float(reduction_pct),
+        "aco_time_to_best_s": trial.get("time_to_best_s"),
+        "aco_final_edges": trial.get("final_edges"),
+        "heuristic_edges": trial.get("heuristic_edges"),
+        "ants": trial.get("ants"),
+    }
+
+
+def build_seed_compare_latex(rows):
+    """
+    Build a 1x2 groupplot:
+
+      1. % wall-time reduction of pivot when seeded with ACO vs θ only
+      2. Absolute pivot wall times (θ seed vs θ+ACO seed)
+
+    X positions are categorical symbolic coordinates (dataset names).
+    """
+    if not rows:
+        raise ValueError("No seed-compare rows to plot")
+
+    # Stable alphabetical order by display name.
+    rows = sorted(rows, key=lambda r: r["name"])
+    symbols = ",".join(r["name"] for r in rows)
+
+    red_coords = " ".join(
+        f"({r['name']},{r['time_reduction_pct']:.4f})" for r in rows
+    )
+    theta_coords = " ".join(
+        f"({r['name']},{r['theta_wall_time_s']:.6f})" for r in rows
+    )
+    aco_coords = " ".join(
+        f"({r['name']},{r['aco_seed_wall_time_s']:.6f})" for r in rows
+    )
+
+    lines = [
+        r"\begin{tikzpicture}",
+        r"\begin{groupplot}[",
+        r"    group style={group size=1 by 2, vertical sep=40pt, x descriptions at=edge bottom},",
+        r"    title style={yshift=-3pt},",
+        r"    width=0.85\textwidth,",
+        r"    height=0.38\textwidth,",
+        r"    grid=major,",
+        r"    symbolic x coords={" + symbols + r"},",
+        r"    xtick=data,",
+        r"    x tick label style={rotate=45, anchor=east, font=\small},",
+        r"    yticklabel style={font=\small},",
+        r"]",
+
+        r"\nextgroupplot[",
+        r"    ylabel={Pivot time reduction (\%)},",
+        r"    ylabel style={align=center, font=\small},",
+        r"    title={Branch-and-pivot speedup from ACO seed (vs $\theta$-heuristic only)},",
+        r"    title style={font=\small},",
+        r"]",
+        r"\addplot+[ybar, bar width=8pt, fill=black!40] coordinates {" + red_coords + r"};",
+
+        r"\nextgroupplot[",
+        r"    ylabel={Pivot WCT (s)},",
+        r"    ylabel style={align=center, font=\small},",
+        r"    title={Absolute pivot wall time},",
+        r"    title style={font=\small},",
+        r"    ymode=log,",
+        r"    legend to name=seedcomparelegend,",
+        r"    legend columns=2,",
+        r"    legend style={draw=none, fill=white, font=\small},",
+        r"]",
+        r"\addplot+[mark=*, thick] coordinates {" + theta_coords + r"};",
+        r"\addlegendentry{$\theta$ seed}",
+        r"\addplot+[mark=square*, thick] coordinates {" + aco_coords + r"};",
+        r"\addlegendentry{$\theta$ + ACO seed}",
+
+        r"\end{groupplot}",
+        r"\end{tikzpicture}",
+        r"",
+        r"\begin{center}",
+        r"\ref{seedcomparelegend}",
+        r"\end{center}",
+    ]
+
+    return "\n".join(lines)
+
+
+def run_quality_mode(json_paths, output):
     quality_series = []
     heuristic_series = []
     infeasible_series = []
     time_series = []
-
     skipped = []
 
     for path in json_paths:
         try:
             with open(path) as f:
                 data = json.load(f)
-
         except (json.JSONDecodeError, OSError) as e:
             skipped.append((path, f"unreadable: {e}"))
             continue
@@ -376,8 +464,8 @@ def main():
         time_series,
     )
 
-    if args.output:
-        with open(args.output, "w") as f:
+    if output:
+        with open(output, "w") as f:
             f.write(combined_tex + "\n")
     else:
         print(combined_tex)
@@ -387,12 +475,103 @@ def main():
             f"# Skipped {len(skipped)} file(s):",
             file=sys.stderr,
         )
-
         for path, reason in skipped:
             print(
                 f"#   {os.path.basename(path)}: {reason}",
                 file=sys.stderr,
             )
+
+
+def run_seed_compare_mode(json_paths, output):
+    rows = []
+    skipped = []
+
+    for path in json_paths:
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            skipped.append((path, f"unreadable: {e}"))
+            continue
+
+        summary = summarize_seed_compare(data)
+        if summary is None:
+            skipped.append((path, "not a compare-seeds result (or missing timings)"))
+            continue
+
+        name = series_name(path, data)
+        rows.append({"name": name, **summary})
+
+    if not rows:
+        raise SystemExit(
+            "No compare-seeds JSON files with pivot timings -- nothing to plot."
+        )
+
+    tex = build_seed_compare_latex(rows)
+
+    if output:
+        with open(output, "w") as f:
+            f.write(tex + "\n")
+    else:
+        print(tex)
+
+    # Compact numeric summary for the terminal / paper notes.
+    print(
+        f"# seed-compare: {len(rows)} dataset(s); "
+        f"mean time reduction = "
+        f"{statistics.mean(r['time_reduction_pct'] for r in rows):.2f}%",
+        file=sys.stderr,
+    )
+
+    if skipped:
+        print(
+            f"# Skipped {len(skipped)} file(s):",
+            file=sys.stderr,
+        )
+        for path, reason in skipped:
+            print(
+                f"#   {os.path.basename(path)}: {reason}",
+                file=sys.stderr,
+            )
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+
+    parser.add_argument(
+        "directory",
+        help="Directory containing the JSON result files",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Write the combined LaTeX to this file instead of stdout",
+    )
+
+    parser.add_argument(
+        "--mode",
+        choices=("quality", "seed-compare"),
+        default="quality",
+        help="quality = vary.jl ant-count plots (default); "
+             "seed-compare = pivot time reduction from ACO seeding",
+    )
+
+    args = parser.parse_args()
+
+    json_paths = sorted(
+        glob.glob(os.path.join(args.directory, "*.json"))
+    )
+
+    if not json_paths:
+        raise SystemExit(
+            f"No .json files found in {args.directory}"
+        )
+
+    if args.mode == "seed-compare":
+        run_seed_compare_mode(json_paths, args.output)
+    else:
+        run_quality_mode(json_paths, args.output)
 
 
 if __name__ == "__main__":

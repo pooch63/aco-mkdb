@@ -34,7 +34,7 @@ Parameter sweeps (see vary.jl):
   --vary=ant-count            sweep `--ants-range` and record time / iters / quality as JSON
   --ants-range=5,10,20,50     ant counts to try (default: 1,2,5,10,20,50,100)
   --aco-runs=N                stochastic ACO replicates per ant count (default: 1; distinct seeds)
-  --vary-no-pivot=true        skip pivot optimum (default: run pivot once for quality baseline)
+  --vary-pivot=true           run pivot once for an optimum edge count (default: false)
 
 Problem parameters:
   --k=N       maximum missing edges (default: 2)
@@ -115,7 +115,7 @@ global const DEBUG = true
 const GA_N = 10
 
 const ACO_PHEREMONE = 1
-const ACO_NUM_ANTS = 50
+const ACO_NUM_ANTS = 100
 const ACO_NUM_ITERATIONS = 5
 const ACO_EVAPORATION = 0.95
 const ACO_NUM_SUBSPECIES = 1
@@ -335,7 +335,7 @@ function parse_args()
                startswith(arg, "--elite-seed-ants=") || startswith(arg, "--elite-seed-remove=") ||
                startswith(arg, "--aco-reduce=") ||
                startswith(arg, "--vary=") || startswith(arg, "--ants-range=") ||
-               startswith(arg, "--vary-no-pivot=") || startswith(arg, "--aco-runs=")
+               startswith(arg, "--vary-pivot=") || startswith(arg, "--aco-runs=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg

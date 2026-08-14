@@ -145,3 +145,5 @@ Future: maximum WEIGHTED biclique or smt?
 BIG BIG BIG BIG BIG BIG BIG IDEA
     What if, instead of ant colony optimization, we just have a heuristic that adds nodes that
     can still be added with the maximum degree, with the prefer-nodes-on-one-side thing.
+
+Could we just run tabu search on the final solution?

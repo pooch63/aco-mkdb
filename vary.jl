@@ -10,9 +10,12 @@ For `--vary=ant-count`, runs ACO once per ant count (fixed iteration budget from
 `--iterations`) and records iterations-to-best, solution quality, and wall time.
 With `--aco-runs=N` (N>1), each ant count is repeated N times with a distinct
 seed derived from `--seed`, and every replicate is written into the JSON.
-Pivot runs once up front (when enabled) to supply an optimum edge count for
-quality comparison. The θ-heuristic also runs once (same reduced graph) and is
-logged in the JSON so ACO quality can be compared against it.
+Each trial also logs the returned subgraph vertex ids (`U` / `V`) so downstream
+tools (compare-seeds.jl) can re-seed branch-and-pivot.
+Pivot is off by default (it is too slow on large graphs); enable with
+`--vary-pivot=true` to supply an optimum edge count for quality comparison.
+The θ-heuristic also runs once (same reduced graph) and is logged in the JSON
+so ACO quality can be compared against it.
 =================================================================================
 =#
 
@@ -77,23 +80,25 @@ function parse_aco_runs()
 end
 
 """
-Whether to run pivot once for an optimum edge count (default: true).
-Disable with `--vary-no-pivot=true`.
+Whether to run pivot once for an optimum edge count (default: false).
+Enable with `--vary-pivot=true`.
 """
 function parse_vary_run_pivot()
     for arg in ARGS
-        if startswith(arg, "--vary-no-pivot=")
+        if startswith(arg, "--vary-pivot=")
             val = lowercase(split(arg, "=", limit=2)[2])
             if val in ("true", "1", "yes", "on")
-                return false
-            elseif val in ("false", "0", "no", "off")
                 return true
+            elseif val in ("false", "0", "no", "off")
+                return false
             else
-                throw(ArgumentError("Bad boolean for --vary-no-pivot: $val"))
+                throw(ArgumentError("Bad boolean for --vary-pivot: $val"))
             end
+        elseif arg == "--vary-pivot"
+            throw(ArgumentError("--vary-pivot requires a value, e.g. --vary-pivot=true"))
         end
     end
-    return true
+    return false
 end
 
 """
@@ -174,6 +179,8 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
         matched_optimal,
         nU = length(sol.U),
         nV = length(sol.V),
+        U = sort!(collect(sol.U)),
+        V = sort!(collect(sol.V)),
         missing,
         theta_feasible = θ_feasible)
 end
@@ -186,7 +193,7 @@ When `n_runs > 1`, each ant count is repeated with a distinct seed derived from
 """
 function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int,
     reduction::ReductionMode.T, aco_options; ant_counts::Vector{Int},
-    run_pivot::Bool=true, seed=nothing, dataset::AbstractString="",
+    run_pivot::Bool=false, seed=nothing, dataset::AbstractString="",
     n_runs::Int=1)
     n_runs >= 1 || throw(ArgumentError("n_runs must be >= 1, got $n_runs"))
     _, _, num_iterations, _, _ = aco_options
@@ -246,6 +253,8 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     heuristic_stats = merge(heuristic_stats, (;
         nU = length(heuristic_stats.sol.U),
         nV = length(heuristic_stats.sol.V),
+        U = sort!(collect(heuristic_stats.sol.U)),
+        V = sort!(collect(heuristic_stats.sol.V)),
         missing = heur_missing,
         theta_feasible = heur_θ_ok,
     ))
@@ -321,7 +330,7 @@ end
 
 function vary_results_to_dict(results; k::Int=0, θ::Int=0,
     dataset::AbstractString="", seed=nothing, reduction=nothing,
-    edge_count::Union{Nothing,Int}=nothing, run_pivot::Bool=true)
+    edge_count::Union{Nothing,Int}=nothing, run_pivot::Bool=false)
     out = Dict{String,Any}(
         "vary" => "ant-count",
         "dataset" => String(dataset),
@@ -364,6 +373,8 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
             "matched_optimal" => hs.matched_optimal,
             "nU" => get(hs, :nU, length(hs.sol.U)),
             "nV" => get(hs, :nV, length(hs.sol.V)),
+            "U" => get(hs, :U, sort!(collect(hs.sol.U))),
+            "V" => get(hs, :V, sort!(collect(hs.sol.V))),
             "missing" => get(hs, :missing, nothing),
             "theta_feasible" => get(hs, :theta_feasible, nothing),
         )
@@ -387,6 +398,8 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
             "beats_heuristic" => get(t, :beats_heuristic, nothing),
             "nU" => t.nU,
             "nV" => t.nV,
+            "U" => get(t, :U, Int[]),
+            "V" => get(t, :V, Int[]),
             "missing" => t.missing,
             "theta_feasible" => t.theta_feasible,
         ) for t in results.trials

@@ -7,6 +7,7 @@
 #   JULIA_THREADS=8 ./vary.bash
 #   ANTS_RANGE=10,20,50,100 ITERATIONS=100 ./vary.bash
 #   ACO_RUNS=10 ./vary.bash             # 10 seeded ACO replicates per ant count
+#   RUN_PIVOT=1 ./vary.bash             # also run branch-and-pivot for optimum (slow)
 #   RESUME_FROM=13 ./vary.bash          # skip graphs 1–12; start at #13
 
 set -euo pipefail
@@ -20,6 +21,7 @@ ITERATIONS="${ITERATIONS:-3}"
 ACO_RUNS="${ACO_RUNS:-20}"
 SEED="${SEED:-1}"
 RESUME_FROM="${RESUME_FROM:-1}"
+RUN_PIVOT="${RUN_PIVOT:-0}"
 
 # Optional inject (same defaults as test.bash k2t5i). Set INJECT=0 to disable.
 INJECT="${INJECT:-1}"
@@ -47,6 +49,7 @@ mapfile -t DATASETS < <(julia order_graphs.jl --keys-only)
 n="${#DATASETS[@]}"
 echo "Found $n graphs"
 echo "ACO replicates per ant count: $ACO_RUNS"
+echo "Run pivot for optimum: $RUN_PIVOT"
 
 if (( RESUME_FROM > n )); then
   echo "RESUME_FROM=$RESUME_FROM is past the last graph ($n)" >&2
@@ -64,6 +67,11 @@ fi
 INJECT_ARGS=()
 if [[ "$INJECT" == "1" ]]; then
   INJECT_ARGS=(--inject --u="$INJECT_U" --v="$INJECT_V")
+fi
+
+PIVOT_ARGS=(--vary-pivot=false)
+if [[ "$RUN_PIVOT" == "1" ]]; then
+  PIVOT_ARGS=(--vary-pivot=true)
 fi
 
 i=0
@@ -87,6 +95,7 @@ for key in "${DATASETS[@]}"; do
     --ants-range="$ANTS_RANGE" \
     --iterations="$ITERATIONS" \
     --aco-runs="$ACO_RUNS" \
+    "${PIVOT_ARGS[@]}" \
     "${SEED_ARGS[@]}" \
     --save="${OUT_DIR}/${name}_ants.json"
 done

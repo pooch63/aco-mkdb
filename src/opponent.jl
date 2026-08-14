@@ -162,12 +162,58 @@ function branch_from_all_u!(fg::FrozenBipartite, best::SharedTopN, k::Int, θ::I
     return nothing
 end
 
+"""
+Keep only vertices from `seed` that still exist on `fg` after reduction.
+"""
+function filter_seed_to_graph(fg::FrozenBipartite, seed::SubGraph)
+    U = Set{Int}(u for u in seed.U if haskey(fg.u_index, u))
+    V = Set{Int}(v for v in seed.V if haskey(fg.v_index, v))
+    return SubGraph(U, V)
+end
+
+"""
+Choose the best initial incumbent among the θ-heuristic (if enabled) and an
+optional external seed (e.g. an ACO subgraph). Higher `solution_score` wins.
+"""
+function choose_initial_seed(fg::FrozenBipartite, k::Int, θ::Int, use_heuristic::Bool,
+    initial_seed::Union{Nothing,SubGraph})
+    candidates = SubGraph[]
+    if use_heuristic
+        push!(candidates, theta_based_heuristic(fg, k, θ; return_invalid=false))
+    end
+    if initial_seed !== nothing
+        filtered = filter_seed_to_graph(fg, initial_seed)
+        if Subgraph.vertex_count(filtered) > 0
+            push!(candidates, filtered)
+        end
+    end
+    isempty(candidates) && return SubGraph(Set(), Set())
+
+    best = candidates[1]
+    best_missing = Subgraph.missing_edges(fg, best)
+    best_score = solution_score(best, best_missing)
+    for c in Iterators.drop(candidates, 1)
+        m = Subgraph.missing_edges(fg, c)
+        s = solution_score(c, m)
+        if s > best_score
+            best = c
+            best_missing = m
+            best_score = s
+        end
+    end
+    return best
+end
+
 # If the number of entries in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side.
 # Returns the top `num_solutions` subgraphs by `solution_score`, best first.
+#
+# `initial_seed`: optional external incumbent (original vertex ids). When
+# `use_heuristic` is also true, the better of θ-heuristic and `initial_seed`
+# seeds the search (useful for measuring ACO→branch-and-bound speedups).
 function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, k::Int, θ::Int,
     reduction::ReductionMode.T=ReductionMode.all_reductions; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing,
-    num_solutions::Int=1)
+    num_solutions::Int=1, initial_seed::Union{Nothing,SubGraph}=nothing)
 
     num_solutions >= 1 || throw(ArgumentError("num_solutions must be >= 1, got $num_solutions"))
     @assert θ > k "θ must be greater than k"
@@ -186,7 +232,7 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
 
     println("Initial reduction is complete")
 
-    D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+    D = choose_initial_seed(fg, k, θ, use_heuristic, initial_seed)
     D_missing = Subgraph.missing_edges(fg, D)
     best = SharedTopN(D, D_missing, num_solutions)
 
@@ -241,8 +287,10 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
 end
 
 function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T=ReductionMode.all_reductions; num_solutions::Int=1)
-    return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction; num_solutions=num_solutions)
+    k::Int, θ::Int, reduction::ReductionMode.T=ReductionMode.all_reductions; num_solutions::Int=1,
+    initial_seed::Union{Nothing,SubGraph}=nothing)
+    return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction;
+        num_solutions=num_solutions, initial_seed=initial_seed)
 end
 
 function common_neighbors(fg::FrozenBipartite, is_u::Bool, a::Int, b::Int)

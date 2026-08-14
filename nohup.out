@@ -1,0 +1,1473 @@
+Discovering graphs (ascending by edges)…
+Found 17 graphs
+ACO replicates per ant count: 20
+Run pivot for optimum: 0
+
+[1/17] amazon/boxes → vary_k2t5i/boxes_ants.json
+Loading graph from: data/amazon/boxes/indexed_interactions.csv
+Parameters: k=2 θ=5
+Inject: u=5 v=5 k=2 (in-memory; CSV unchanged)
+Mode: vary ant-count (range=1,2,5,10,20,50,100, aco_runs=20)
+ACO: iterations=3 pheromone=1 evaporation=0.95 subspecies=1
+Pivot for quality baseline: no
+Save: /home/kiyaanpillai/Documents/pioneer-academics/temporal-mkdb/vary_k2t5i/boxes_ants.json
+Reduction: progressive
+Graph edges: 16216
+Injected biclique: u=5 v=5 k=2 (existing=0 inserted=23 missing=2)
+  planted U: [1145, 1938, 6484, 9265, 11016]
+  planted V: [382, 453, 794, 934, 1073]
+  reserved missing: [(1145, 794), (1938, 1073)]
+nU=15237, nV=1128, |E|=16239
+
+==================== VARY ant-count ====================
+dataset=amazon/boxes  k=2  θ=5  iterations=3
+ants-range=1,2,5,10,20,50,100  run_pivot=false  aco_runs=20
+base_seed=1
+
+Warming up (excluded from timings)…
+Progressive reductions took 2 iterations (0 new reduces)
+Prefer smaller side: false
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512 found_at_iter=1 found_at_t=0.1587s
+ACO global best found at iteration 1 (t=0.1587s, score=512)
+Progressive reductions took 2 iterations (0 new reduces)
+
+Reducing graph once…
+Progressive reductions took 1 iterations (0 new reduces)
+
+── Graph reduction ──
+  wall_time_s                  0.0069s
+  allocated_bytes              2.28 MiB  (2387120 bytes)
+  reduced_nU                   14
+  reduced_nV                   14
+
+── Graph structure ──
+  nU                           15237
+  nV                           1128
+  edges                        16239
+  mutable_graph_bytes          5.51 MiB  (5779192 bytes)
+  frozen_after_reduction_bytes 2.91 KiB  (2976 bytes)
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0000s
+  allocated_bytes              7.7 KiB  (7888 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               780.6 MiB  (818515968 bytes)
+  solution                     |U|=5 |V|=5 edges=23 missing=2 (k=2)
+  final_edges                  23
+  optimal_edges                —
+  matched_optimal              false
+
+── ACO ants=1  run 1/20  seed=1 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=1  run 2/20  seed=2 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=1  run 3/20  seed=3 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=4)
+  wall=0.0004s  to_best=0.0002s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=1  run 4/20  seed=4 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=1 |V|=5 score=1 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=1)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=3  vs heur=23
+
+── ACO ants=1  run 5/20  seed=5 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0001s
+ACO global best found at iteration 3 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=1  run 6/20  seed=6 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0001s
+ACO global best found at iteration 3 (t=0.0001s, score=125)
+  wall=0.0003s  to_best=0.0001s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=1  run 7/20  seed=7 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0012s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=1  run 8/20  seed=8 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=5 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=8  vs heur=23
+
+── ACO ants=1  run 9/20  seed=9 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=3 found_at_t=0.0001s
+ACO global best found at iteration 3 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=3  edges=9  vs heur=23
+
+── ACO ants=1  run 10/20  seed=10 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=6  vs heur=23
+
+── ACO ants=1  run 11/20  seed=11 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=1  run 12/20  seed=12 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=3 found_at_t=0.0001s
+ACO global best found at iteration 3 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=3  edges=9  vs heur=23
+
+── ACO ants=1  run 13/20  seed=13 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=1  run 14/20  seed=14 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=4 score=4 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=6  vs heur=23
+
+── ACO ants=1  run 15/20  seed=15 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=1  run 16/20  seed=16 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=6 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=10  vs heur=23
+
+── ACO ants=1  run 17/20  seed=17 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=4 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=6  vs heur=23
+
+── ACO ants=1  run 18/20  seed=18 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=4 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=6  vs heur=23
+
+── ACO ants=1  run 19/20  seed=19 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=5 score=4 found_at_iter=3 found_at_t=0.0001s
+ACO global best found at iteration 3 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=3  edges=8  vs heur=23
+
+── ACO ants=1  run 20/20  seed=20 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=4 score=4 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=6  vs heur=23
+
+── ACO ants=2  run 1/20  seed=21 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=2  run 2/20  seed=22 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0001s
+ACO global best found at iteration 3 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=2  run 3/20  seed=23 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=2  run 4/20  seed=24 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=2  run 5/20  seed=25 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=2  run 6/20  seed=26 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=2  run 7/20  seed=27 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=9  vs heur=23
+
+── ACO ants=2  run 8/20  seed=28 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=2  run 9/20  seed=29 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0002s
+ACO global best found at iteration 3 (t=0.0002s, score=125)
+  wall=0.0002s  to_best=0.0002s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=2  run 10/20  seed=30 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0001s
+ACO global best found at iteration 3 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=2  run 11/20  seed=31 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=9  vs heur=23
+
+── ACO ants=2  run 12/20  seed=32 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=125)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=2  run 13/20  seed=33 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=9  vs heur=23
+
+── ACO ants=2  run 14/20  seed=34 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=2  run 15/20  seed=35 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=5 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=8  vs heur=23
+
+── ACO ants=2  run 16/20  seed=36 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=4 score=4 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=2  edges=6  vs heur=23
+
+── ACO ants=2  run 17/20  seed=37 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=2 score=4 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=4)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=6  vs heur=23
+
+── ACO ants=2  run 18/20  seed=38 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=2  run 19/20  seed=39 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=2  run 20/20  seed=40 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=125)
+  wall=0.0003s  to_best=0.0001s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=5  run 1/20  seed=41 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0004s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=5  run 2/20  seed=42 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=9)
+  wall=0.0004s  to_best=0.0002s  iters→best=2  edges=9  vs heur=23
+
+── ACO ants=5  run 3/20  seed=43 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=5  run 4/20  seed=44 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0003s  to_best=0.0002s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=5  run 5/20  seed=45 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=5  run 6/20  seed=46 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0003s
+ACO global best found at iteration 3 (t=0.0003s, score=125)
+  wall=0.0003s  to_best=0.0003s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=5  run 7/20  seed=47 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0003s  to_best=0.0002s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=5  run 8/20  seed=48 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0005s
+ACO global best found at iteration 3 (t=0.0005s, score=125)
+  wall=0.0006s  to_best=0.0005s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=5  run 9/20  seed=49 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0003s  to_best=0.0002s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=5  run 10/20  seed=50 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=6  vs heur=23
+
+── ACO ants=5  run 11/20  seed=51 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0004s  to_best=0.0002s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=5  run 12/20  seed=52 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=2  vs heur=23
+
+── ACO ants=5  run 13/20  seed=53 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=3 found_at_t=0.0003s
+ACO global best found at iteration 3 (t=0.0003s, score=9)
+  wall=0.0004s  to_best=0.0003s  iters→best=3  edges=9  vs heur=23
+
+── ACO ants=5  run 14/20  seed=54 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=9)
+  wall=0.0004s  to_best=0.0002s  iters→best=2  edges=9  vs heur=23
+
+── ACO ants=5  run 15/20  seed=55 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0003s
+ACO global best found at iteration 3 (t=0.0003s, score=125)
+  wall=0.0004s  to_best=0.0003s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=5  run 16/20  seed=56 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0004s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=5  run 17/20  seed=57 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=5  run 18/20  seed=58 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=5  run 19/20  seed=59 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0003s
+ACO global best found at iteration 3 (t=0.0003s, score=125)
+  wall=0.0004s  to_best=0.0003s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=5  run 20/20  seed=60 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 1/20  seed=61 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0006s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 2/20  seed=62 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0006s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 3/20  seed=63 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 4/20  seed=64 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0003s
+ACO global best found at iteration 2 (t=0.0003s, score=125)
+  wall=0.0005s  to_best=0.0003s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=10  run 5/20  seed=65 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0004s
+ACO global best found at iteration 2 (t=0.0004s, score=125)
+  wall=0.0006s  to_best=0.0004s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=10  run 6/20  seed=66 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0007s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 7/20  seed=67 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0003s
+ACO global best found at iteration 2 (t=0.0003s, score=125)
+  wall=0.0005s  to_best=0.0003s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=10  run 8/20  seed=68 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 9/20  seed=69 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 10/20  seed=70 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 11/20  seed=71 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0003s
+ACO global best found at iteration 2 (t=0.0003s, score=125)
+  wall=0.0004s  to_best=0.0003s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=10  run 12/20  seed=72 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0004s
+ACO global best found at iteration 3 (t=0.0004s, score=125)
+  wall=0.0005s  to_best=0.0004s  iters→best=3  edges=23  vs heur=23
+
+── ACO ants=10  run 13/20  seed=73 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0006s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 14/20  seed=74 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 15/20  seed=75 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 16/20  seed=76 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 17/20  seed=77 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 18/20  seed=78 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0003s
+ACO global best found at iteration 2 (t=0.0003s, score=125)
+  wall=0.0005s  to_best=0.0003s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=10  run 19/20  seed=79 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=10  run 20/20  seed=80 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 1/20  seed=81 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0016s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 2/20  seed=82 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0008s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 3/20  seed=83 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0010s  to_best=0.0004s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 4/20  seed=84 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0005s
+ACO global best found at iteration 2 (t=0.0005s, score=125)
+  wall=0.0009s  to_best=0.0005s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=20  run 5/20  seed=85 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0009s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 6/20  seed=86 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0006s
+ACO global best found at iteration 1 (t=0.0006s, score=125)
+  wall=0.0013s  to_best=0.0006s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 7/20  seed=87 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 8/20  seed=88 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 9/20  seed=89 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0009s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 10/20  seed=90 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0009s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 11/20  seed=91 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 12/20  seed=92 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0009s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 13/20  seed=93 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0011s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 14/20  seed=94 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0011s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 15/20  seed=95 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0004s
+ACO global best found at iteration 2 (t=0.0004s, score=125)
+  wall=0.0007s  to_best=0.0004s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=20  run 16/20  seed=96 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0009s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 17/20  seed=97 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0004s
+ACO global best found at iteration 2 (t=0.0004s, score=125)
+  wall=0.0007s  to_best=0.0004s  iters→best=2  edges=23  vs heur=23
+
+── ACO ants=20  run 18/20  seed=98 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0007s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 19/20  seed=99 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0009s  to_best=0.0003s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=20  run 20/20  seed=100 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 1/20  seed=101 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0021s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 2/20  seed=102 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0022s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 3/20  seed=103 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0017s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 4/20  seed=104 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0015s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 5/20  seed=105 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0006s
+ACO global best found at iteration 1 (t=0.0006s, score=125)
+  wall=0.0020s  to_best=0.0006s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 6/20  seed=106 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0022s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 7/20  seed=107 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0008s
+ACO global best found at iteration 1 (t=0.0008s, score=125)
+  wall=0.0023s  to_best=0.0008s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 8/20  seed=108 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0016s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 9/20  seed=109 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0021s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 10/20  seed=110 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0024s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 11/20  seed=111 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0016s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 12/20  seed=112 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0022s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 13/20  seed=113 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0021s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 14/20  seed=114 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0015s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 15/20  seed=115 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0016s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 16/20  seed=116 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0006s
+ACO global best found at iteration 1 (t=0.0006s, score=125)
+  wall=0.0020s  to_best=0.0006s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 17/20  seed=117 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0027s  to_best=0.0007s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 18/20  seed=118 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0008s
+ACO global best found at iteration 1 (t=0.0008s, score=125)
+  wall=0.0023s  to_best=0.0008s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 19/20  seed=119 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0014s  to_best=0.0004s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=50  run 20/20  seed=120 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=125)
+  wall=0.0016s  to_best=0.0005s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 1/20  seed=121 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0040s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 2/20  seed=122 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0040s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 3/20  seed=123 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0015s
+ACO global best found at iteration 1 (t=0.0015s, score=125)
+  wall=0.0044s  to_best=0.0015s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 4/20  seed=124 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0008s
+ACO global best found at iteration 1 (t=0.0008s, score=125)
+  wall=0.0031s  to_best=0.0008s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 5/20  seed=125 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0013s
+ACO global best found at iteration 1 (t=0.0013s, score=125)
+  wall=0.0041s  to_best=0.0013s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 6/20  seed=126 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0014s
+ACO global best found at iteration 1 (t=0.0014s, score=125)
+  wall=0.0043s  to_best=0.0014s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 7/20  seed=127 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0030s  to_best=0.0009s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 8/20  seed=128 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0039s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 9/20  seed=129 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0013s
+ACO global best found at iteration 1 (t=0.0013s, score=125)
+  wall=0.0042s  to_best=0.0013s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 10/20  seed=130 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0040s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 11/20  seed=131 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0046s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 12/20  seed=132 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0040s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 13/20  seed=133 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0029s  to_best=0.0009s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 14/20  seed=134 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0038s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 15/20  seed=135 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=125)
+  wall=0.0039s  to_best=0.0012s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 16/20  seed=136 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0030s  to_best=0.0009s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 17/20  seed=137 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0030s  to_best=0.0009s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 18/20  seed=138 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0008s
+ACO global best found at iteration 1 (t=0.0008s, score=125)
+  wall=0.0029s  to_best=0.0008s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 19/20  seed=139 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0031s  to_best=0.0009s  iters→best=1  edges=23  vs heur=23
+
+── ACO ants=100  run 20/20  seed=140 ──
+Prefer smaller side: false
+Size of reduced graphs14 14
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0013s
+ACO global best found at iteration 1 (t=0.0013s, score=125)
+  wall=0.0042s  to_best=0.0013s  iters→best=1  edges=23  vs heur=23
+
+==================== SUMMARY ======================
+θ-heuristic edges=23  θ-feasible=true  |U|=5 |V|=5
+ants    run   time        iters   edges     >heur   optimal
+1       1     0.0002s     1       23        no      —
+1       2     0.0004s     1       23        no      —
+1       3     0.0004s     1       2         no      —
+1       4     0.0002s     1       3         no      —
+1       5     0.0002s     3       23        no      —
+1       6     0.0003s     3       23        no      —
+1       7     0.0012s     1       2         no      —
+1       8     0.0002s     1       8         no      —
+1       9     0.0002s     3       9         no      —
+1       10    0.0002s     1       6         no      —
+1       11    0.0002s     1       23        no      —
+1       12    0.0002s     3       9         no      —
+1       13    0.0002s     2       23        no      —
+1       14    0.0002s     2       6         no      —
+1       15    0.0003s     1       2         no      —
+1       16    0.0002s     1       10        no      —
+1       17    0.0002s     1       6         no      —
+1       18    0.0002s     1       6         no      —
+1       19    0.0002s     3       8         no      —
+1       20    0.0002s     2       6         no      —
+2       1     0.0002s     1       23        no      —
+2       2     0.0002s     3       23        no      —
+2       3     0.0002s     1       2         no      —
+2       4     0.0003s     1       2         no      —
+2       5     0.0003s     1       23        no      —
+2       6     0.0003s     1       23        no      —
+2       7     0.0002s     2       9         no      —
+2       8     0.0002s     1       2         no      —
+2       9     0.0002s     3       23        no      —
+2       10    0.0002s     3       23        no      —
+2       11    0.0002s     1       9         no      —
+2       12    0.0002s     2       23        no      —
+2       13    0.0002s     2       9         no      —
+2       14    0.0003s     1       23        no      —
+2       15    0.0002s     1       8         no      —
+2       16    0.0003s     2       6         no      —
+2       17    0.0002s     2       6         no      —
+2       18    0.0003s     1       2         no      —
+2       19    0.0003s     1       2         no      —
+2       20    0.0003s     2       23        no      —
+5       1     0.0004s     1       23        no      —
+5       2     0.0004s     2       9         no      —
+5       3     0.0004s     1       23        no      —
+5       4     0.0003s     2       23        no      —
+5       5     0.0004s     1       23        no      —
+5       6     0.0003s     3       23        no      —
+5       7     0.0003s     2       23        no      —
+5       8     0.0006s     3       23        no      —
+5       9     0.0003s     2       23        no      —
+5       10    0.0003s     1       6         no      —
+5       11    0.0004s     2       23        no      —
+5       12    0.0003s     1       2         no      —
+5       13    0.0004s     3       9         no      —
+5       14    0.0004s     2       9         no      —
+5       15    0.0004s     3       23        no      —
+5       16    0.0004s     1       23        no      —
+5       17    0.0004s     1       23        no      —
+5       18    0.0003s     1       23        no      —
+5       19    0.0004s     3       23        no      —
+5       20    0.0004s     1       23        no      —
+10      1     0.0006s     1       23        no      —
+10      2     0.0006s     1       23        no      —
+10      3     0.0005s     1       23        no      —
+10      4     0.0005s     2       23        no      —
+10      5     0.0006s     2       23        no      —
+10      6     0.0007s     1       23        no      —
+10      7     0.0005s     2       23        no      —
+10      8     0.0005s     1       23        no      —
+10      9     0.0005s     1       23        no      —
+10      10    0.0005s     1       23        no      —
+10      11    0.0004s     2       23        no      —
+10      12    0.0005s     3       23        no      —
+10      13    0.0006s     1       23        no      —
+10      14    0.0005s     1       23        no      —
+10      15    0.0005s     1       23        no      —
+10      16    0.0005s     1       23        no      —
+10      17    0.0005s     1       23        no      —
+10      18    0.0005s     2       23        no      —
+10      19    0.0005s     1       23        no      —
+10      20    0.0005s     1       23        no      —
+20      1     0.0016s     1       23        no      —
+20      2     0.0008s     1       23        no      —
+20      3     0.0010s     1       23        no      —
+20      4     0.0009s     2       23        no      —
+20      5     0.0009s     1       23        no      —
+20      6     0.0013s     1       23        no      —
+20      7     0.0008s     1       23        no      —
+20      8     0.0008s     1       23        no      —
+20      9     0.0009s     1       23        no      —
+20      10    0.0009s     1       23        no      —
+20      11    0.0008s     1       23        no      —
+20      12    0.0009s     1       23        no      —
+20      13    0.0011s     1       23        no      —
+20      14    0.0011s     1       23        no      —
+20      15    0.0007s     2       23        no      —
+20      16    0.0009s     1       23        no      —
+20      17    0.0007s     2       23        no      —
+20      18    0.0007s     1       23        no      —
+20      19    0.0009s     1       23        no      —
+20      20    0.0008s     1       23        no      —
+50      1     0.0021s     1       23        no      —
+50      2     0.0022s     1       23        no      —
+50      3     0.0017s     1       23        no      —
+50      4     0.0015s     1       23        no      —
+50      5     0.0020s     1       23        no      —
+50      6     0.0022s     1       23        no      —
+50      7     0.0023s     1       23        no      —
+50      8     0.0016s     1       23        no      —
+50      9     0.0021s     1       23        no      —
+50      10    0.0024s     1       23        no      —
+50      11    0.0016s     1       23        no      —
+50      12    0.0022s     1       23        no      —
+50      13    0.0021s     1       23        no      —
+50      14    0.0015s     1       23        no      —
+50      15    0.0016s     1       23        no      —
+50      16    0.0020s     1       23        no      —
+50      17    0.0027s     1       23        no      —
+50      18    0.0023s     1       23        no      —
+50      19    0.0014s     1       23        no      —
+50      20    0.0016s     1       23        no      —
+100     1     0.0040s     1       23        no      —
+100     2     0.0040s     1       23        no      —
+100     3     0.0044s     1       23        no      —
+100     4     0.0031s     1       23        no      —
+100     5     0.0041s     1       23        no      —
+100     6     0.0043s     1       23        no      —
+100     7     0.0030s     1       23        no      —
+100     8     0.0039s     1       23        no      —
+100     9     0.0042s     1       23        no      —
+100     10    0.0040s     1       23        no      —
+100     11    0.0046s     1       23        no      —
+100     12    0.0040s     1       23        no      —
+100     13    0.0029s     1       23        no      —
+100     14    0.0038s     1       23        no      —
+100     15    0.0039s     1       23        no      —
+100     16    0.0030s     1       23        no      —
+100     17    0.0030s     1       23        no      —
+100     18    0.0029s     1       23        no      —
+100     19    0.0031s     1       23        no      —
+100     20    0.0042s     1       23        no      —
+===================================================
+Wrote benchmark results → /home/kiyaanpillai/Documents/pioneer-academics/temporal-mkdb/vary_k2t5i/boxes_ants.json
+Random seed: --seed=1
+a = 2251333288
+
+[2/17] konect/bitcoin → vary_k2t5i/bitcoin_ants.json
