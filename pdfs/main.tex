@@ -293,61 +293,6 @@ Additionally, to encourage bicliques with at least $\theta$ vertices on both sid
 
 Finally, we implement the Min-Max ACO system.
 
-We also compare the opponent algorithm to a genetic algorithm. A genetic algorithm has been proposed to identify the maximum clique on a generalized graph [3]. We adapt this algorithm to biclique graphs while keeping the crossover logic the same. The algorithm initializes populations with single nodes and utilizes genetic algorithms to evolve instances. Two subgraphs are crossed over as outlined below, and then both a greedy and tabu repair algorithm are applied. The greedy algorithm simply adds nodes with the highest $d_S$ to $S$ until the number of missing edges exceeds $k$. The tabu algorithm utilizes the fitness function to explore graphs that initially appear worse but can eventually lead to superior graphs. After utilizing both repair methods on independent copies of $S$, whichever instance has the highest fitness is used as the offspring.
-
-\begin{algorithm}[H]
-\caption{Genetic Algorithm}
-\begin{minipage}{\textwidth}
-\begin{algorithmic}
-
-    \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
-
-    \Function{GeneticAlgorithm}{$G$, $N_G$, $N_e$, $m_k$}
-        \State $P \gets$ $N_i$ distinct subgraphs $\{\text{softmax}_{u \in G}(d(u))\}$
-        \State $K \gets k$
-
-        \State $e \gets 0$
-        \State $P_n \gets P$
-
-        \While{$e < N_e$}
-            \ForPar{$i \in [1, |P|]$}
-                \State $m, f \gets 2$ distinct $\text{argsoftmax}_{P_C \in P \setminus P_i}(\Call{InstanceFitness}{P_C})$
-
-                \State $(P_n)_i \gets \Call{CrossoverS}{P_m, P_f}$
-            \EndForPar
-            \State $P \gets P_N$
-        \EndWhile
-
-        \State \Return $P$
-    \EndFunction
-
-    \Function{CrossoverS}{$S_m$, $S_f$}
-        \State $C \gets S_m \cap S_f$
-
-        \If{$|C| = 0$}
-            \State $U \gets S_m \cup S_f$
-            \State $C \gets \{\}$
-
-            \While{$|\bar{E(C)}| < k$ and $|U| > 0$}
-                \State $u \gets \text{argmax}_{v \in C}d_c(v)$
-                \State $C \gets C \cup \{u\}$
-                \State $U \gets U \setminus \{u\}$
-            \EndWhile
-        \EndIf
-
-        \While{$|\bar{E}(C)| > k$}
-            \State $C \gets C \setminus \{\text{argmax}_{u \in C}\bar{d}_C(u)\}$
-        \EndWhile
-
-        \State \Call{Repair}{C}
-
-        \State \Return C
-    \EndFunction
-
-\end{algorithmic}
-\end{minipage}
-\end{algorithm}
-
 \begin{algorithm}[H]
 \caption{Repair}
 \begin{minipage}{\textwidth}
@@ -447,11 +392,9 @@ The paper proposes several novel optimization techniques as well. These techniqu
 
 We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We first applied the reductions proposed by [Cui et al.], and then ran both ACO and the [Cui et al.] heuristic. We ran ACO for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution. We measured time and performance for the Cui Heuristic. We summarize our results below.
 
-
 \begin{tikzpicture}
 \begin{groupplot}[
-    group style={group size=1 by 3, vertical sep=30pt, x descriptions at=edge bottom},
-    title style={yshift=-3pt},
+    group style={group size=1 by 3, vertical sep=16pt, x descriptions at=edge bottom},
     width=0.75\textwidth,
     height=0.33\textwidth,
     xmode=log,
@@ -465,7 +408,7 @@ We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We f
     title style={font=\small},
     legend to name=sharedlegend,
     legend columns=3,
-    legend style={draw=none, fill=white, font=\small},
+    legend style={draw=black, fill=white, font=\small},
 ]
 \addplot coordinates {(5,-10.5263) (10,-7.4163) (20,-10.0478) (50,18.2749) (100,17.6316)};
 \addlegendentry{konect/bitcoin}
@@ -506,7 +449,7 @@ We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We f
 \addplot coordinates {(1,95.0000) (2,100.0000) (5,85.0000) (10,80.0000) (20,75.0000) (50,50.0000) (100,10.0000)};
 \nextgroupplot[
     xlabel={Number of ants},
-    ylabel={Mean WCT (s)},
+    ylabel={Mean wall-clock time (s)},
     ylabel style={align=center, font=\small},
     title={Run time},
     title style={font=\small},
@@ -529,10 +472,6 @@ We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We f
 \ref{sharedlegend}
 \end{center}
 
-
-
-
-
 \begin{table}[htbp]
   \centering
   \caption{$k=2, \theta=5$}
@@ -550,8 +489,6 @@ We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We f
     \bottomrule
   \end{tabular}
 \end{table}
-
-Additionally, we varied the number of ants and identified .
 
 \section{Discussion}
 
