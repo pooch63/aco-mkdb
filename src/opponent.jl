@@ -5,10 +5,10 @@ isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
 
 using EnumX
 
-const BRANCH_TRACE = true
+const BRANCH_TRACE = false
 const OPTIMIZATION_PRUNE_BRANCHES_TOO_FEW_NODES = true
-const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = false
-const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = false
+const OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION = true
+const OPTIMIZATION_ONE_NONNEIGHBOR_REDUCTION = true
 
 # Trying to maximize number of vertices or number of edges?
 # I've spent at least two painful debugging sessions
@@ -100,6 +100,68 @@ function snapshot_solutions(sb::SharedTopN)
     end
 end
 
+# BitVectors / reduce_graph! are indexed by original ids (1..max_id). After a
+# prior reduction `length(adjU)` is a count, not a max id.
+@inline function original_id_span(ids::Vector{Int}, fallback::Int)
+    isempty(ids) && return fallback
+    return max(fallback, maximum(ids))
+end
+
+"""
+Exact search: branch from every U vertex (degree order) with candidate sets
+N²₊(u) / N³₊(u), pruned by `reduce_candidate_set` at the current (θ_U, θ_V).
+
+`id_U` / `id_V` are BitVector lengths, indexed by original vertex ids.
+"""
+function branch_from_all_u!(fg::FrozenBipartite, best::SharedTopN, k::Int, θ::Int,
+    mode::BranchMode.T, θ_U::Int, θ_V::Int, id_U::Int, id_V::Int)
+    us = get_degree_order(fg, true, true)
+
+    # Multithreading reduces the effectiveness of upper bounding techniques
+    # We order degrees because finding those nodes first is likelier to speed the search
+    # up, but running completely sequentially turns out to be slower than parallelizing,
+    # even if it reduces the effectiveness of upper bounding
+    # Room for algorithmic improvement: @threads chunks the indices into
+    # [1, 2, 3], [4, 5, 6], etc. But u_i that are later in the list have fewer indices,
+    # so we're essentially packing all the u's that don't really remove much from the list
+    # into one thread. That one thread is therefore going to take longer than the others.
+    # If we wanted to make this faster, we could mix up the degrees, so do [1, 5, 6], [2, 3, 4].
+    @threads for i in eachindex(us)
+        S = SubGraph(Set(us[i]), Set())
+
+        # N²₊(u): U-nodes at distance 2 from us[i].
+        # neighbors_u(u) → V-nbrs; neighbors_v(v) → U-nbrs.
+        _2_hop_neighbors = falses(id_U)
+        for v in neighbors_u(fg, us[i])
+            for _2u in neighbors_v(fg, v)
+                _2_hop_neighbors[_2u] = true
+            end
+        end
+        _2_hop_neighbors[us[i]] = false  # open neighborhood
+
+        # N³₊(u): V-nodes adjacent to those 2-hop U-nodes (includes N(u)).
+        _3_hop_neighbors = falses(id_V)
+        for u in eachindex(_2_hop_neighbors)
+            if _2_hop_neighbors[u]
+                for v in neighbors_u(fg, u)
+                    _3_hop_neighbors[v] = true
+                end
+            end
+        end
+
+        C = SubGraph(
+            Set(u for u in eachindex(_2_hop_neighbors) if _2_hop_neighbors[u]),
+            Set(v for v in eachindex(_3_hop_neighbors) if _3_hop_neighbors[v])
+        )
+        C = reduce_candidate_set(fg, C, us[i], θ_U, θ_V, k)
+        bind_membership!(S, fg)
+        bind_membership!(C, fg)
+
+        branch!(S, C, fg, best, k, θ, mode)
+    end
+    return nothing
+end
+
 # If the number of entries in g.adjU is not equal to the number of nodes or same for V,
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side.
 # Returns the top `num_solutions` subgraphs by `solution_score`, best first.
@@ -128,6 +190,9 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
     D_missing = Subgraph.missing_edges(fg, D)
     best = SharedTopN(D, D_missing, num_solutions)
 
+    id_U = original_id_span(fg.u_ids, num_U)
+    id_V = original_id_span(fg.v_ids, num_V)
+
     if reduction == ReductionMode.progressive || reduction == ReductionMode.all_reductions
         u_degrees = Int[]
         for u in fg.u_ids
@@ -153,59 +218,23 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
                 fg = freeze(g)
                 last_θ_eff = θ_eff
                 reductions += 1
+                id_U = original_id_span(fg.u_ids, num_U)
+                id_V = original_id_span(fg.v_ids, num_V)
             end
 
-            # Get the degree ordering, because nodes with higher degrees are
-            # likelier to appear in the k-MDB. So we find those first, and we get a higher
-            # initial k-MDB. We can then prune more branches.
-            us = get_degree_order(fg, true, true)
-
-            # Multithreading reduces the effectiveness of upper bounding techniques
-            # We order degrees because finding those nodes first is likelier to speed the search
-            # up, but running completely sequentially turns out to be slower than parallelizing,
-            # even if it reduces the effectiveness of upper bounding
-            # Room for algorithmic improvement: @threads chunks the indices into
-            # [1, 2, 3], [4, 5, 6], etc. But u_i that are later in the list have fewer indices,
-            # so we're essentially packing all the u's that don't really remove much from the list
-            # into one thread. That one thread is therefore going to take longer than the others.
-            # If we wanted to make this faster, we could mix up the degrees, so do [1, 5, 6], [2, 3, 4].
-            @threads for i in eachindex(us)
-                S = SubGraph(Set(us[i]), Set())
-
-                # N²₊(u): U-nodes at distance 2 from us[i].
-                # neighbors_u(u) → V-nbrs; neighbors_v(v) → U-nbrs.
-                # BitVectors are indexed by original ids (1..num_U / 1..num_V).
-                _2_hop_neighbors = falses(num_U)
-                for v in neighbors_u(fg, us[i])
-                    for _2u in neighbors_v(fg, v)
-                        _2_hop_neighbors[_2u] = true
-                    end
-                end
-                _2_hop_neighbors[us[i]] = false  # open neighborhood
-
-                # N³₊(u): V-nodes adjacent to those 2-hop U-nodes (includes N(u)).
-                _3_hop_neighbors = falses(num_V)
-                for u in eachindex(_2_hop_neighbors)
-                    if _2_hop_neighbors[u]
-                        for v in neighbors_u(fg, u)
-                            _3_hop_neighbors[v] = true
-                        end
-                    end
-                end
-
-                C = SubGraph(
-                    Set(u for u in eachindex(_2_hop_neighbors) if _2_hop_neighbors[u]),
-                    Set(v for v in eachindex(_3_hop_neighbors) if _3_hop_neighbors[v])
-                )
-                C = reduce_candidate_set(fg, C, us[i], θ_U, θ_V, k)
-                bind_membership!(S, fg)
-                bind_membership!(C, fg)
-
-                branch!(S, C, fg, best, k, θ, mode)
-            end
-
-        println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
+            branch_from_all_u!(fg, best, k, θ, mode, θ_U, θ_V, id_U, id_V)
         end
+        println("Progressive reductions took $(iterations) iterations ($(reductions) new reduces)")
+        if iterations == 0
+            # max-degree + k ≤ θ: the progressive loop never enters, but search still must run.
+            branch_from_all_u!(fg, best, k, θ, mode, θ, θ, id_U, id_V)
+        end
+    else
+        # none / simple: still run exact search on the (already) reduced graph.
+        # Use the true (θ, θ) candidate bounds — not a heuristic-tightened θ_V —
+        # so a better balanced solution cannot be pruned away.
+        println("Searching without further reduction")
+        branch_from_all_u!(fg, best, k, θ, mode, θ, θ, id_U, id_V)
     end
 
     return snapshot_solutions(best)
@@ -254,7 +283,8 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
         if OPTIMIZATION_USE_TIGHT_UPPER_BOUNDING_FUNCTION
             upper_u, upper_v, upper_e = upper_bound(S, C, g, k, S_missing)
         else
-            upper_u, upper_v, upper_e = length(C.U) + length(S.U), length(C.V) + length(S.V), best_edges(best)
+            upper_u, upper_v = length(C.U) + length(S.U), length(C.V) + length(S.V)
+            upper_e = upper_u * upper_v
         end
         if (upper_u < θ || upper_v < θ) || # No matter how many vertices we add, we won't pass the θ threshold
             (upper_e < best_edges(best)) # No matter how many edges we add, we won't surpass D. Assumes we're optimizing for edges, not vertices 
@@ -269,12 +299,17 @@ function branch!(S::SubGraph, C::SubGraph, g::FrozenBipartite,
     end
 
     if Subgraph.vertex_count(C) == 0
-        @assert length(S.U) >= θ && length(S.V) >= θ "Should not have reached leaf node that contains invalid solution"
-    
+        # Starting from a singleton (or a pruned candidate set) can reach a leaf
+        # that is not θ-feasible; that is a dead end, not a solution.
+        if length(S.U) < θ || length(S.V) < θ
+            BRANCH_TRACE && println("  "^depth, "-> leaf skipped (not θ-feasible)")
+            return
+        end
+
         if BRANCH_TRACE
             println("  "^depth, "-> LEAF: S_score=$(solution_score(S, S_missing)) D_score=$(best_edges(best))")
         end
-    
+
         @assert S_missing <= k "INVALID SOLUTION: d̄(S)=$(Subgraph.missing_edges(g, S)) > k=$k"
         try_update!(best, S, S_missing)
         return

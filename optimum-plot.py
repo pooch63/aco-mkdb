@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-Scan a directory of ACO benchmark JSON files and emit pgfplots LaTeX:
+Scan a directory of ACO benchmark JSON files (vary.jl ant-count format) and
+emit pgfplots LaTeX:
 
-  A 1x3 groupplot:
+  A 1x4 groupplot:
        - top:    mean % deviation from optimum, computed ONLY over trials
                  that were theta-feasible.
-       - middle: % of trials at that ant count that were infeasible.
+       - 2nd:    mean % deviation from the Cui θ-heuristic (file-level
+                 "heuristic".final_edges), feasible trials only.
+       - 3rd:    % of trials at that ant count that were infeasible.
        - bottom: mean wall-clock time vs. ant count.
 
-Files with no optimum specified anywhere (per-trial or file-level
-"optimal_edges") are skipped entirely.
+Files with no usable optimum (per-trial, file-level, or pivot.optimal_edges)
+are skipped for the optimum panel. Files with no "heuristic".final_edges are
+skipped for the Cui-heuristic panel.
 
 Usage:
-    python make_pct_optimum_plot.py /path/to/json/dir -o plot.tex
+    python optimum-plot.py /path/to/json/dir -o plot.tex
         -> writes plot.tex
 
-    python make_pct_optimum_plot.py /path/to/json/dir
+    python optimum-plot.py /path/to/json/dir
         -> prints LaTeX to stdout
 """
 
@@ -28,45 +32,78 @@ import sys
 from collections import defaultdict
 
 
-def pct_from_optimum(final_edges, optimal_edges):
-    if not optimal_edges:
+def pct_deviation(final_edges, baseline_edges):
+    """Percent change of final_edges relative to baseline_edges.
+
+    Positive means more edges than the baseline. Returns None when the
+    baseline is missing or zero (division undefined).
+    """
+    if baseline_edges is None or baseline_edges == 0:
         return None
-    return 100.0 * (final_edges - optimal_edges) / optimal_edges
+    return 100.0 * (final_edges - baseline_edges) / baseline_edges
+
+
+def file_level_optimal(data):
+    """Resolve optimum edge count from the vary.jl JSON shape."""
+    if data.get("optimal_edges") is not None:
+        return data["optimal_edges"]
+
+    pivot = data.get("pivot") or {}
+    if pivot.get("optimal_edges") is not None:
+        return pivot["optimal_edges"]
+
+    heuristic = data.get("heuristic") or {}
+    return heuristic.get("optimal_edges")
+
+
+def heuristic_baseline(data):
+    """Cui θ-heuristic edge count from the top-level heuristic block."""
+    heuristic = data.get("heuristic") or {}
+    return heuristic.get("final_edges")
 
 
 def summarize_file(data):
     """
-    Returns (pct_by_ants, infeasible_pct_by_ants, time_by_ants) or None if
-    no trial in this file has a usable optimum.
+    Returns
+        (pct_by_ants, heur_pct_by_ants, infeasible_pct_by_ants, time_by_ants)
+    or None if this file has neither a usable optimum nor a heuristic baseline.
 
     pct_by_ants: {ants: mean % deviation from optimum}, feasible trials only.
 
-    infeasible_pct_by_ants: {ants: % of trials at that ant count that were
-                             theta_feasible == False}, computed over ALL
-                             trials with a usable optimum.
+    heur_pct_by_ants: {ants: mean % deviation from Cui heuristic}, feasible
+                      trials only. Empty when the file has no heuristic block.
 
-    time_by_ants: {ants: mean wall_time_s}, over all trials with a usable
-                  optimum, regardless of feasibility.
+    infeasible_pct_by_ants: {ants: % of trials at that ant count that were
+                             theta_feasible == False}, over trials that had
+                             either a usable optimum or a heuristic baseline.
+
+    time_by_ants: {ants: mean wall_time_s}, over the same trial set as
+                  infeasible_pct_by_ants.
     """
     trials = data.get("trials", [])
-    file_level_optimal = data.get("optimal_edges")
+    file_level_opt = file_level_optimal(data)
+    heur_edges = heuristic_baseline(data)
 
     pct_vals = defaultdict(list)
+    heur_pct_vals = defaultdict(list)
     feasible_flags = defaultdict(list)
     time_vals = defaultdict(list)
 
     any_usable = False
 
     for t in trials:
-        optimal = t.get("optimal_edges", file_level_optimal)
+        optimal = t.get("optimal_edges", file_level_opt)
         final = t.get("final_edges")
         ants = t.get("ants")
 
-        if optimal is None or final is None or ants is None:
+        if final is None or ants is None:
             continue
 
-        pct = pct_from_optimum(final, optimal)
-        if pct is None:
+        pct = pct_deviation(final, optimal)
+        heur_pct = pct_deviation(final, heur_edges)
+
+        # Need a non-zero baseline against which we can compute a % deviation.
+        if pct is None and heur_pct is None:
             continue
 
         any_usable = True
@@ -74,8 +111,11 @@ def summarize_file(data):
         feasible = bool(t.get("theta_feasible"))
         feasible_flags[ants].append(feasible)
 
-        if feasible:
+        if feasible and pct is not None:
             pct_vals[ants].append(pct)
+
+        if feasible and heur_pct is not None:
+            heur_pct_vals[ants].append(heur_pct)
 
         wall_time = t.get("wall_time_s")
         if wall_time is not None:
@@ -90,6 +130,12 @@ def summarize_file(data):
         if vals
     }
 
+    heur_pct_by_ants = {
+        ants: statistics.mean(vals)
+        for ants, vals in heur_pct_vals.items()
+        if vals
+    }
+
     infeasible_pct_by_ants = {
         ants: 100.0 * (1 - sum(flags) / len(flags))
         for ants, flags in feasible_flags.items()
@@ -101,7 +147,7 @@ def summarize_file(data):
         if vals
     }
 
-    return pct_by_ants, infeasible_pct_by_ants, time_by_ants
+    return pct_by_ants, heur_pct_by_ants, infeasible_pct_by_ants, time_by_ants
 
 
 def series_name(path, data):
@@ -109,16 +155,20 @@ def series_name(path, data):
     return str(label).replace("_", "-")
 
 
-def _addplots(series_dicts, with_legend):
-    """
-    series_dicts: list of (name, {x: y}).
+def _series_lookup(series_dicts):
+    return {name: xy for name, xy in series_dicts}
 
-    If with_legend is False, emit only the addplot calls. This keeps
-    colors/markers aligned with the panel that owns the legend.
+
+def _addplots(ordered_names, series_lookup, with_legend):
+    """
+    Emit one \\addplot per name in ordered_names so pgfplots cycle lists
+    stay aligned across panels even when a series is missing from a panel.
+    Missing series get empty coordinates (no marks drawn).
     """
     lines = []
 
-    for name, xy in series_dicts:
+    for name in ordered_names:
+        xy = series_lookup.get(name) or {}
         coords = " ".join(
             f"({x},{y:.4f})"
             for x, y in sorted(xy.items())
@@ -135,37 +185,50 @@ def _addplots(series_dicts, with_legend):
 LEGEND_COLUMNS = 3
 
 
-def build_combined_latex(quality_series, infeasible_series, time_series):
+def build_combined_latex(
+    quality_series,
+    heuristic_series,
+    infeasible_series,
+    time_series,
+):
     """
-    Build a single 1x3 groupplot:
+    Build a single 1x4 groupplot:
 
-      1. Solution quality
-      2. Theta-infeasibility rate
-      3. Run time
+      1. Solution quality vs optimum
+      2. Output compared to Cui Heuristic
+      3. Theta-infeasibility rate
+      4. Run time
 
     The legend is emitted only once by the top panel and placed below
-    the complete figure using legend to name.
-
-    The panels are deliberately taller and more widely separated than
-    the original version. The original 0.28\textwidth height and 10pt
-    vertical separation caused the titles and y-axis labels to crowd
-    the neighboring panels.
+    the complete figure using legend to name. Series order is the union
+    of all panels so colors/markers stay consistent.
     """
+
+    ordered_names = []
+    seen = set()
+    for series in (
+        quality_series,
+        heuristic_series,
+        infeasible_series,
+        time_series,
+    ):
+        for name, _ in series:
+            if name not in seen:
+                seen.add(name)
+                ordered_names.append(name)
+
+    quality_lookup = _series_lookup(quality_series)
+    heuristic_lookup = _series_lookup(heuristic_series)
+    infeasible_lookup = _series_lookup(infeasible_series)
+    time_lookup = _series_lookup(time_series)
 
     lines = [
         r"\begin{tikzpicture}",
         r"\begin{groupplot}[",
-        # More vertical space between panels prevents titles from colliding
-        # with the x-axis/ticks of the panel above.
-        r"    group style={group size=1 by 3, vertical sep=30pt, x descriptions at=edge bottom},",
+        r"    group style={group size=1 by 4, vertical sep=30pt, x descriptions at=edge bottom},",
         r"    title style={yshift=-3pt},",
-
-        # Taller panels make the y-axis labels and titles much easier to read.
-        # 0.31\textwidth is a good compromise between readability and total
-        # figure height for a paper.
         r"    width=0.75\textwidth,",
         r"    height=0.33\textwidth,",
-
         r"    xmode=log,",
         r"    log basis x=2,",
         r"    grid=major,",
@@ -182,7 +245,18 @@ def build_combined_latex(quality_series, infeasible_series, time_series):
         r"]",
     ]
 
-    lines += _addplots(quality_series, with_legend=True)
+    lines += _addplots(ordered_names, quality_lookup, with_legend=True)
+
+    lines += [
+        r"\nextgroupplot[",
+        r"    ylabel={Dev. from Cui Heuristic (\%)},",
+        r"    ylabel style={align=center, font=\small},",
+        r"    title={Output compared to Cui Heuristic},",
+        r"    title style={font=\small},",
+        r"]",
+    ]
+
+    lines += _addplots(ordered_names, heuristic_lookup, with_legend=False)
 
     lines += [
         r"\nextgroupplot[",
@@ -194,7 +268,7 @@ def build_combined_latex(quality_series, infeasible_series, time_series):
         r"]",
     ]
 
-    lines += _addplots(infeasible_series, with_legend=False)
+    lines += _addplots(ordered_names, infeasible_lookup, with_legend=False)
 
     lines += [
         r"\nextgroupplot[",
@@ -207,7 +281,7 @@ def build_combined_latex(quality_series, infeasible_series, time_series):
         r"]",
     ]
 
-    lines += _addplots(time_series, with_legend=False)
+    lines += _addplots(ordered_names, time_lookup, with_legend=False)
 
     lines += [
         r"\end{groupplot}",
@@ -247,6 +321,7 @@ def main():
         )
 
     quality_series = []
+    heuristic_series = []
     infeasible_series = []
     time_series = []
 
@@ -264,14 +339,22 @@ def main():
         result = summarize_file(data)
 
         if result is None:
-            skipped.append((path, "optimum not specified"))
+            skipped.append((path, "no usable optimum or heuristic"))
             continue
 
-        pct_by_ants, infeasible_pct_by_ants, time_by_ants = result
+        (
+            pct_by_ants,
+            heur_pct_by_ants,
+            infeasible_pct_by_ants,
+            time_by_ants,
+        ) = result
         name = series_name(path, data)
 
         if pct_by_ants:
             quality_series.append((name, pct_by_ants))
+
+        if heur_pct_by_ants:
+            heuristic_series.append((name, heur_pct_by_ants))
 
         if infeasible_pct_by_ants:
             infeasible_series.append(
@@ -281,13 +364,14 @@ def main():
         if time_by_ants:
             time_series.append((name, time_by_ants))
 
-    if not quality_series and not time_series:
+    if not quality_series and not heuristic_series and not time_series:
         raise SystemExit(
-            "No files had a specified optimum -- nothing to plot."
+            "No files had a usable optimum or heuristic -- nothing to plot."
         )
 
     combined_tex = build_combined_latex(
         quality_series,
+        heuristic_series,
         infeasible_series,
         time_series,
     )

@@ -11,13 +11,13 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 THREADS="${JULIA_THREADS:-8}"
 ANTS_RANGE="${ANTS_RANGE:-1,2,5,10,20,50,100}"
 ITERATIONS="${ITERATIONS:-3}"
-ACO_RUNS="${ACO_RUNS:-1}"
+ACO_RUNS="${ACO_RUNS:-20}"
 SEED="${SEED:-1}"
 RESUME_FROM="${RESUME_FROM:-1}"
 

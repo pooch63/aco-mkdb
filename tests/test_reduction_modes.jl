@@ -144,4 +144,25 @@ else
 
         @test isempty(mismatches)
     end
+
+    @testset "pre-reduced + none matches all_reductions (vary pipeline)" begin
+        # vary.jl reduces once, then calls find_kmdb! with ReductionMode.none.
+        # That must still branch — and must tolerate gapped original ids.
+        for trial in 1:N
+            edges, nU, nV, k, θ, _, _ = random_graph(;
+                nU_range=3:6, nV_range=3:6, edge_prob=0.5, θ_max=nothing, k_max=4)
+            fg = build_frozen(edges, nU, nV)
+
+            sols_full = find_kmdb(build_mutable_graph(fg), true, BranchMode.pivot, k, θ,
+                ReductionMode.all_reductions)
+            e_full = isempty(sols_full) ? 0 : Subgraph.edge_count(fg, first(sols_full))
+
+            g_pre = build_mutable_graph(fg)
+            apply_graph_reductions!(g_pre, k, θ, nU, nV, true, ReductionMode.all_reductions)
+            sols_vary = find_kmdb!(g_pre, true, BranchMode.pivot, k, θ, ReductionMode.none)
+            e_vary = isempty(sols_vary) ? 0 : Subgraph.edge_count(fg, first(sols_vary))
+
+            @test e_full == e_vary
+        end
+    end
 end

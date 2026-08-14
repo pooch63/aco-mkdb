@@ -236,7 +236,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     Threads.@spawn advance_ants!(compact_fg, pheromones, pheromone, ants, k, θ, chunk;
                         prefer_smaller_side=prefer_smaller_side, trace_target=target_compact)
                 end
-                
+
                 # 2. Wait for all threads to finish their step
                 results = fetch.(tasks)
             else

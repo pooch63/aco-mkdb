@@ -1,7 +1,1502 @@
 Loading graph from: data/example/indexed_interactions.csv
-Parameters: k=2 θ=5
+Parameters: k=2 θ=3
 Solver: branch-and-bound (pivot)
 Reduction: progressive
 Graph edges: 13
 nU=5, nV=4, |E|=13
-a = 1478586440
+Initial reduction is complete
+depth=0  S.U={2} S.V={}  missing(S)=0/2  C.U={1,3,4,5} C.V={1,2,3,4}
+[pivot] entering pivot mode, remaining_budget=2
+[pivot] C_0 size=7  C_0.U={1,3,4,5} C_0.V={1,2,4}
+[pivot] branch B: selected u=3 with C_nondegree=1
+[pivot] branch B2: using the zero-nondegree candidate set
+  [update] branched-on=(true, 3)  maximum_nondegree=2  C′.U={1,4,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+  depth=1  S.U={2,3} S.V={}  missing(S)=0/2  C.U={1,4,5} C.V={1,2,3,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=5  C_0.U={1,4,5} C_0.V={2,4}
+  [pivot] branch B: selected u=1 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+    depth=2  S.U={1,2,3} S.V={}  missing(S)=0/2  C.U={4,5} C.V={1,2,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(false, 4)  maximum_nondegree=1  C′.U={4,5} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node v=4
+      depth=3  S.U={1,2,3} S.V={4}  missing(S)=1/2  C.U={4,5} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={5} C′.V={2}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=3
+        depth=4  S.U={1,2,3} S.V={3,4}  missing(S)=2/2  C.U={5} C.V={2}
+        [pivot] entering pivot mode, remaining_budget=0
+        [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+        [pivot] branch B: selected u=5 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 5)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+          depth=5  S.U={1,2,3,5} S.V={3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+          depth=5  S.U={1,2,3} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> LEAF: S_score=7 D_score=7
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,2,3} S.V={4}  missing(S)=1/2  C.U={4,5} C.V={1,2}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+        [pivot] branch B: selected u=4 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={5} C′.V={1,2}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+          depth=5  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1,2}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=2
+            depth=6  S.U={1,2,3,4} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=1  C′.U={5} C′.V={1}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+          depth=5  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={5} C.V={1}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(true, 5)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node u=5
+            depth=6  S.U={1,2,3,5} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={} C.V={1}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=1
+              depth=7  S.U={1,2,3} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1,2,3} S.V={}  missing(S)=0/2  C.U={4,5} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+      [pivot] branch B: selected u=5 with C_nondegree=2
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={4} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+        depth=4  S.U={1,2,3,5} S.V={}  missing(S)=0/2  C.U={4} C.V={1,2,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={4} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={1,2,3,4,5} S.V={1}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,3,5} S.V={}  missing(S)=0/2  C.U={4} C.V={2,3}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 2 nonneighbors
+        [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={1,3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+        depth=4  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={4} C.V={1,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=4
+          depth=5  S.U={1,2,3,4} S.V={2}  missing(S)=1/2  C.U={} C.V={1}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={} C.V={1,3}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=3
+            depth=6  S.U={1,2,3} S.V={2,3}  missing(S)=1/2  C.U={} C.V={1}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=1
+              depth=7  S.U={1,2,3} S.V={1,2,3}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,2,3} S.V={2,3}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={4} C′.V={3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+        depth=4  S.U={1,2,3} S.V={1}  missing(S)=1/2  C.U={4} C.V={3}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+    depth=2  S.U={2,3} S.V={4}  missing(S)=0/2  C.U={4,5} C.V={1,2,3}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+    [pivot] branch B: selected u=5 with C_nondegree=2
+    [pivot] branch B2: using the zero-nondegree candidate set
+      [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={4} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+      depth=3  S.U={2,3,5} S.V={4}  missing(S)=0/2  C.U={4} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={4} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=1
+        depth=4  S.U={2,3,4,5} S.V={1,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={2,3,5} S.V={4}  missing(S)=0/2  C.U={4} C.V={2,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+        [pivot] branch B: selected u=4 with C_nondegree=2
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 4)  maximum_nondegree=2  C′.U={} C′.V={2,3}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+          depth=5  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={2,3}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=2
+            depth=6  S.U={2,3,4,5} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={3}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 2 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=1  C′.U={} C′.V={3}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=1
+          depth=5  S.U={2,3,5} S.V={2,4}  missing(S)=1/2  C.U={} C.V={3}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=3
+            depth=6  S.U={2,3,5} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+            -> LEAF: S_score=7 D_score=7
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={2,3,5} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=1
+          depth=5  S.U={2,3,5} S.V={3,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch B2 -> exploring 2 nonneighbors
+      [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={1,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+      depth=3  S.U={2,3} S.V={2,4}  missing(S)=0/2  C.U={4} C.V={1,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=0  C_0.U={} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node u=4
+        depth=4  S.U={2,3,4} S.V={2,4}  missing(S)=1/2  C.U={} C.V={1}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={2,3,4} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+          -> LEAF: S_score=7 D_score=7
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={2,3,4} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={2,3} S.V={2,4}  missing(S)=0/2  C.U={} C.V={1,3}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={4} C′.V={3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+      depth=3  S.U={2,3} S.V={1,4}  missing(S)=1/2  C.U={4} C.V={3}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+      [pivot] branch B: selected u=4 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+        depth=4  S.U={2,3,4} S.V={1,4}  missing(S)=1/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=1
+        depth=4  S.U={2,3} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+[pivot] branch B2 -> exploring 1 nonneighbors
+  [update] branched-on=(false, 1)  maximum_nondegree=2  C′.U={1,4,5} C′.V={2,3,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=0
+  depth=1  S.U={2} S.V={1}  missing(S)=0/2  C.U={1,4,5} C.V={2,3,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=4  C_0.U={1,4} C_0.V={2,4}
+  [pivot] branch B: selected u=1 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={4,5} C′.V={2,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+    depth=2  S.U={1,2} S.V={1}  missing(S)=0/2  C.U={4,5} C.V={2,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=2  C_0.U={4} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={4} C′.V={2,3,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node u=5
+      depth=3  S.U={1,2,5} S.V={1}  missing(S)=1/2  C.U={4} C.V={2,3,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={4} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=4
+        depth=4  S.U={1,2,4,5} S.V={1,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,2,5} S.V={1}  missing(S)=1/2  C.U={4} C.V={2,3}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=2
+          depth=5  S.U={1,2,5} S.V={1,2}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,5} S.V={1}  missing(S)=1/2  C.U={4} C.V={3}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1,2} S.V={1}  missing(S)=0/2  C.U={4} C.V={2,3,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=2  C_0.U={4} C_0.V={2}
+      [pivot] branch B: selected v=2 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={3,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (false, 2) with nondegree=0
+        depth=4  S.U={1,2} S.V={1,2}  missing(S)=0/2  C.U={4} C.V={3,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={4}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=4
+          depth=5  S.U={1,2,4} S.V={1,2}  missing(S)=1/2  C.U={} C.V={4}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=4
+            depth=6  S.U={1,2,4} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> LEAF: S_score=7 D_score=7
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,4} S.V={1,2}  missing(S)=1/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2} S.V={1,2}  missing(S)=0/2  C.U={} C.V={3,4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(true, 4)  maximum_nondegree=2  C′.U={} C′.V={3,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor u=4, nondegree=0
+        depth=4  S.U={1,2,4} S.V={1}  missing(S)=0/2  C.U={} C.V={3,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=3
+          depth=5  S.U={1,2,4} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,4} S.V={1}  missing(S)=0/2  C.U={} C.V={4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={4,5} C′.V={2,3}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+    depth=2  S.U={2} S.V={1,4}  missing(S)=0/2  C.U={4,5} C.V={2,3}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=2  C_0.U={4} C_0.V={2}
+    [pivot] branch B: selected u=4 with C_nondegree=2
+    [pivot] branch B2: using the zero-nondegree candidate set
+      [update] branched-on=(true, 4)  maximum_nondegree=2  C′.U={5} C′.V={2,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+      depth=3  S.U={2,4} S.V={1,4}  missing(S)=0/2  C.U={5} C.V={2,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=0  C_0.U={} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=3
+        depth=4  S.U={2,4} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={2,4} S.V={1,4}  missing(S)=0/2  C.U={5} C.V={2}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=5
+          depth=5  S.U={2,4,5} S.V={1,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={2,4} S.V={1,4}  missing(S)=0/2  C.U={} C.V={2}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch B2 -> exploring 2 nonneighbors
+      [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={5} C′.V={3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+      depth=3  S.U={2} S.V={1,2,4}  missing(S)=0/2  C.U={5} C.V={3}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={5} C′.V={}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=1
+      depth=3  S.U={2} S.V={1,3,4}  missing(S)=1/2  C.U={5} C.V={}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+depth=0  S.U={3} S.V={}  missing(S)=0/2  C.U={1,2,4,5} C.V={1,2,3,4}
+[pivot] entering pivot mode, remaining_budget=2
+[pivot] C_0 size=7  C_0.U={1,2,4,5} C_0.V={2,3,4}
+[pivot] branch B: selected u=2 with C_nondegree=1
+[pivot] branch B2: using the zero-nondegree candidate set
+  [update] branched-on=(true, 2)  maximum_nondegree=2  C′.U={1,4,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on primary branch (true, 2) with nondegree=0
+  depth=1  S.U={2,3} S.V={}  missing(S)=0/2  C.U={1,4,5} C.V={1,2,3,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=5  C_0.U={1,4,5} C_0.V={2,4}
+  [pivot] branch B: selected u=1 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+    depth=2  S.U={1,2,3} S.V={}  missing(S)=0/2  C.U={4,5} C.V={1,2,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(false, 4)  maximum_nondegree=1  C′.U={4,5} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node v=4
+      depth=3  S.U={1,2,3} S.V={4}  missing(S)=1/2  C.U={4,5} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={5} C′.V={2}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=3
+        depth=4  S.U={1,2,3} S.V={3,4}  missing(S)=2/2  C.U={5} C.V={2}
+        [pivot] entering pivot mode, remaining_budget=0
+        [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+        [pivot] branch B: selected u=5 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 5)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+          depth=5  S.U={1,2,3,5} S.V={3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+          depth=5  S.U={1,2,3} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> LEAF: S_score=7 D_score=7
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,2,3} S.V={4}  missing(S)=1/2  C.U={4,5} C.V={1,2}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+        [pivot] branch B: selected u=4 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={5} C′.V={1,2}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+          depth=5  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1,2}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=2
+            depth=6  S.U={1,2,3,4} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=1  C′.U={5} C′.V={1}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+          depth=5  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={5} C.V={1}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(true, 5)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node u=5
+            depth=6  S.U={1,2,3,5} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={} C.V={1}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=1
+              depth=7  S.U={1,2,3} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1,2,3} S.V={}  missing(S)=0/2  C.U={4,5} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+      [pivot] branch B: selected u=5 with C_nondegree=2
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={4} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+        depth=4  S.U={1,2,3,5} S.V={}  missing(S)=0/2  C.U={4} C.V={1,2,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={4} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={1,2,3,4,5} S.V={1}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,3,5} S.V={}  missing(S)=0/2  C.U={4} C.V={2,3}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 2 nonneighbors
+        [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={1,3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+        depth=4  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={4} C.V={1,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=4
+          depth=5  S.U={1,2,3,4} S.V={2}  missing(S)=1/2  C.U={} C.V={1}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={} C.V={1,3}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=3
+            depth=6  S.U={1,2,3} S.V={2,3}  missing(S)=1/2  C.U={} C.V={1}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=1
+              depth=7  S.U={1,2,3} S.V={1,2,3}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,2,3} S.V={2,3}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={4} C′.V={3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+        depth=4  S.U={1,2,3} S.V={1}  missing(S)=1/2  C.U={4} C.V={3}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+    depth=2  S.U={2,3} S.V={4}  missing(S)=0/2  C.U={4,5} C.V={1,2,3}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+    [pivot] branch B: selected u=5 with C_nondegree=2
+    [pivot] branch B2: using the zero-nondegree candidate set
+      [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={4} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+      depth=3  S.U={2,3,5} S.V={4}  missing(S)=0/2  C.U={4} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={4} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=1
+        depth=4  S.U={2,3,4,5} S.V={1,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={2,3,5} S.V={4}  missing(S)=0/2  C.U={4} C.V={2,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+        [pivot] branch B: selected u=4 with C_nondegree=2
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 4)  maximum_nondegree=2  C′.U={} C′.V={2,3}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+          depth=5  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={2,3}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=2
+            depth=6  S.U={2,3,4,5} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={3}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 2 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=1  C′.U={} C′.V={3}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=1
+          depth=5  S.U={2,3,5} S.V={2,4}  missing(S)=1/2  C.U={} C.V={3}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=3
+            depth=6  S.U={2,3,5} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+            -> LEAF: S_score=7 D_score=7
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={2,3,5} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=1
+          depth=5  S.U={2,3,5} S.V={3,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch B2 -> exploring 2 nonneighbors
+      [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={1,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+      depth=3  S.U={2,3} S.V={2,4}  missing(S)=0/2  C.U={4} C.V={1,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=0  C_0.U={} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node u=4
+        depth=4  S.U={2,3,4} S.V={2,4}  missing(S)=1/2  C.U={} C.V={1}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={2,3,4} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+          -> LEAF: S_score=7 D_score=7
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={2,3,4} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={2,3} S.V={2,4}  missing(S)=0/2  C.U={} C.V={1,3}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={4} C′.V={3}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+      depth=3  S.U={2,3} S.V={1,4}  missing(S)=1/2  C.U={4} C.V={3}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+      [pivot] branch B: selected u=4 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+        depth=4  S.U={2,3,4} S.V={1,4}  missing(S)=1/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=1
+        depth=4  S.U={2,3} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+[pivot] branch B2 -> exploring 1 nonneighbors
+  [update] branched-on=(false, 3)  maximum_nondegree=2  C′.U={1,4,5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=0
+  depth=1  S.U={3} S.V={3}  missing(S)=0/2  C.U={1,4,5} C.V={1,2,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=4  C_0.U={1,5} C_0.V={2,4}
+  [pivot] branch B: selected u=1 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+    depth=2  S.U={1,3} S.V={3}  missing(S)=0/2  C.U={4,5} C.V={1,2,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node u=4
+      depth=3  S.U={1,3,4} S.V={3}  missing(S)=1/2  C.U={5} C.V={1,2,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={5} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=4
+        depth=4  S.U={1,3,4,5} S.V={3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,3,4} S.V={3}  missing(S)=1/2  C.U={5} C.V={1,2}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=2
+          depth=5  S.U={1,3,4} S.V={2,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,3,4} S.V={3}  missing(S)=1/2  C.U={5} C.V={1}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1,3} S.V={3}  missing(S)=0/2  C.U={5} C.V={1,2,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+      [pivot] branch B: selected v=2 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={5} C′.V={1,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (false, 2) with nondegree=0
+        depth=4  S.U={1,3} S.V={2,3}  missing(S)=0/2  C.U={5} C.V={1,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={} C′.V={4}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=5
+          depth=5  S.U={1,3,5} S.V={2,3}  missing(S)=1/2  C.U={} C.V={4}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=4
+            depth=6  S.U={1,3,5} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+            -> LEAF: S_score=7 D_score=7
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,3,5} S.V={2,3}  missing(S)=1/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,3} S.V={2,3}  missing(S)=0/2  C.U={} C.V={1,4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={} C′.V={1,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor u=5, nondegree=0
+        depth=4  S.U={1,3,5} S.V={3}  missing(S)=0/2  C.U={} C.V={1,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={1,3,5} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,3,5} S.V={3}  missing(S)=0/2  C.U={} C.V={4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+    depth=2  S.U={3} S.V={3,4}  missing(S)=0/2  C.U={4,5} C.V={1,2}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+    [pivot] branch B: selected u=5 with C_nondegree=2
+    [pivot] branch B2: using the zero-nondegree candidate set
+      [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={4} C′.V={1,2}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+      depth=3  S.U={3,5} S.V={3,4}  missing(S)=0/2  C.U={4} C.V={1,2}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=0  C_0.U={} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=1
+        depth=4  S.U={3,5} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={3,5} S.V={3,4}  missing(S)=0/2  C.U={4} C.V={2}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=4
+          depth=5  S.U={3,4,5} S.V={3,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={3,5} S.V={3,4}  missing(S)=0/2  C.U={} C.V={2}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch B2 -> exploring 2 nonneighbors
+      [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={1}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+      depth=3  S.U={3} S.V={2,3,4}  missing(S)=0/2  C.U={4} C.V={1}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={4} C′.V={}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+      depth=3  S.U={3} S.V={1,3,4}  missing(S)=1/2  C.U={4} C.V={}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+depth=0  S.U={1} S.V={}  missing(S)=0/2  C.U={2,3,4,5} C.V={1,2,3,4}
+[pivot] entering pivot mode, remaining_budget=2
+[pivot] C_0 size=7  C_0.U={2,3,4,5} C_0.V={1,2,3}
+[pivot] branch B: selected u=2 with C_nondegree=1
+[pivot] branch B2: using the zero-nondegree candidate set
+  [update] branched-on=(true, 2)  maximum_nondegree=2  C′.U={3,4,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on primary branch (true, 2) with nondegree=0
+  depth=1  S.U={1,2} S.V={}  missing(S)=0/2  C.U={3,4,5} C.V={1,2,3,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=5  C_0.U={3,4,5} C_0.V={1,2}
+  [pivot] branch B: selected u=3 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 3)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+    depth=2  S.U={1,2,3} S.V={}  missing(S)=0/2  C.U={4,5} C.V={1,2,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(false, 4)  maximum_nondegree=1  C′.U={4,5} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node v=4
+      depth=3  S.U={1,2,3} S.V={4}  missing(S)=1/2  C.U={4,5} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={5} C′.V={2}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=3
+        depth=4  S.U={1,2,3} S.V={3,4}  missing(S)=2/2  C.U={5} C.V={2}
+        [pivot] entering pivot mode, remaining_budget=0
+        [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+        [pivot] branch B: selected u=5 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 5)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+          depth=5  S.U={1,2,3,5} S.V={3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+          depth=5  S.U={1,2,3} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> LEAF: S_score=7 D_score=7
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,2,3} S.V={4}  missing(S)=1/2  C.U={4,5} C.V={1,2}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+        [pivot] branch B: selected u=4 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={5} C′.V={1,2}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+          depth=5  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1,2}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=2
+            depth=6  S.U={1,2,3,4} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=1  C′.U={5} C′.V={1}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+          depth=5  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={5} C.V={1}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(true, 5)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node u=5
+            depth=6  S.U={1,2,3,5} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={} C.V={1}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=1
+              depth=7  S.U={1,2,3} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,2,3} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1,2,3} S.V={}  missing(S)=0/2  C.U={4,5} C.V={1,2,3}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=3  C_0.U={4,5} C_0.V={2}
+      [pivot] branch B: selected u=5 with C_nondegree=2
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={4} C′.V={1,2,3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+        depth=4  S.U={1,2,3,5} S.V={}  missing(S)=0/2  C.U={4} C.V={1,2,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={4} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={1,2,3,4,5} S.V={1}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,3,5} S.V={}  missing(S)=0/2  C.U={4} C.V={2,3}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 2 nonneighbors
+        [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={1,3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=0
+        depth=4  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={4} C.V={1,3}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=4
+          depth=5  S.U={1,2,3,4} S.V={2}  missing(S)=1/2  C.U={} C.V={1}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={} C.V={1,3}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=3
+            depth=6  S.U={1,2,3} S.V={2,3}  missing(S)=1/2  C.U={} C.V={1}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=1
+              depth=7  S.U={1,2,3} S.V={1,2,3}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,2,3} S.V={2,3}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3} S.V={2}  missing(S)=0/2  C.U={} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={4} C′.V={3}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+        depth=4  S.U={1,2,3} S.V={1}  missing(S)=1/2  C.U={4} C.V={3}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 1)  maximum_nondegree=2  C′.U={4,5} C′.V={2,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=0
+    depth=2  S.U={1,2} S.V={1}  missing(S)=0/2  C.U={4,5} C.V={2,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=2  C_0.U={4} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={4} C′.V={2,3,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node u=5
+      depth=3  S.U={1,2,5} S.V={1}  missing(S)=1/2  C.U={4} C.V={2,3,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={4} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=4
+        depth=4  S.U={1,2,4,5} S.V={1,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,2,5} S.V={1}  missing(S)=1/2  C.U={4} C.V={2,3}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=1  C_0.U={4} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=2
+          depth=5  S.U={1,2,5} S.V={1,2}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,5} S.V={1}  missing(S)=1/2  C.U={4} C.V={3}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1,2} S.V={1}  missing(S)=0/2  C.U={4} C.V={2,3,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=2  C_0.U={4} C_0.V={2}
+      [pivot] branch B: selected v=2 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={4} C′.V={3,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (false, 2) with nondegree=0
+        depth=4  S.U={1,2} S.V={1,2}  missing(S)=0/2  C.U={4} C.V={3,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={} C′.V={4}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=4
+          depth=5  S.U={1,2,4} S.V={1,2}  missing(S)=1/2  C.U={} C.V={4}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=4
+            depth=6  S.U={1,2,4} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> LEAF: S_score=7 D_score=7
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,4} S.V={1,2}  missing(S)=1/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2} S.V={1,2}  missing(S)=0/2  C.U={} C.V={3,4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(true, 4)  maximum_nondegree=2  C′.U={} C′.V={3,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor u=4, nondegree=0
+        depth=4  S.U={1,2,4} S.V={1}  missing(S)=0/2  C.U={} C.V={3,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=3
+          depth=5  S.U={1,2,4} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,4} S.V={1}  missing(S)=0/2  C.U={} C.V={4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+[pivot] branch B2 -> exploring 1 nonneighbors
+  [update] branched-on=(false, 3)  maximum_nondegree=2  C′.U={3,4,5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=0
+  depth=1  S.U={1} S.V={3}  missing(S)=0/2  C.U={3,4,5} C.V={1,2,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=4  C_0.U={3,5} C_0.V={1,2}
+  [pivot] branch B: selected u=3 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 3)  maximum_nondegree=2  C′.U={4,5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+    depth=2  S.U={1,3} S.V={3}  missing(S)=0/2  C.U={4,5} C.V={1,2,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node u=4
+      depth=3  S.U={1,3,4} S.V={3}  missing(S)=1/2  C.U={5} C.V={1,2,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={5} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=4
+        depth=4  S.U={1,3,4,5} S.V={3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,3,4} S.V={3}  missing(S)=1/2  C.U={5} C.V={1,2}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=2
+          depth=5  S.U={1,3,4} S.V={2,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,3,4} S.V={3}  missing(S)=1/2  C.U={5} C.V={1}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1,3} S.V={3}  missing(S)=0/2  C.U={5} C.V={1,2,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=2  C_0.U={5} C_0.V={2}
+      [pivot] branch B: selected v=2 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(false, 2)  maximum_nondegree=2  C′.U={5} C′.V={1,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (false, 2) with nondegree=0
+        depth=4  S.U={1,3} S.V={2,3}  missing(S)=0/2  C.U={5} C.V={1,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={} C′.V={4}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=5
+          depth=5  S.U={1,3,5} S.V={2,3}  missing(S)=1/2  C.U={} C.V={4}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=4
+            depth=6  S.U={1,3,5} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+            -> LEAF: S_score=7 D_score=7
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,3,5} S.V={2,3}  missing(S)=1/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,3} S.V={2,3}  missing(S)=0/2  C.U={} C.V={1,4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={} C′.V={1,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor u=5, nondegree=0
+        depth=4  S.U={1,3,5} S.V={3}  missing(S)=0/2  C.U={} C.V={1,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={1,3,5} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,3,5} S.V={3}  missing(S)=0/2  C.U={} C.V={4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 1)  maximum_nondegree=2  C′.U={4,5} C′.V={2,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=0
+    depth=2  S.U={1} S.V={1,3}  missing(S)=0/2  C.U={4,5} C.V={2,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=1  C_0.U={} C_0.V={2}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={4} C′.V={2,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node u=5
+      depth=3  S.U={1,5} S.V={1,3}  missing(S)=1/2  C.U={4} C.V={2,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=0  C_0.U={} C_0.V={}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(true, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch A -> recurse with selected node u=4
+        depth=4  S.U={1,4,5} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={1,5} S.V={1,3}  missing(S)=1/2  C.U={} C.V={2,4}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={1} S.V={1,3}  missing(S)=0/2  C.U={4} C.V={2,4}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+depth=0  S.U={5} S.V={}  missing(S)=0/2  C.U={1,2,3,4} C.V={1,2,3,4}
+[pivot] entering pivot mode, remaining_budget=2
+[pivot] C_0 size=6  C_0.U={1,2,3,4} C_0.V={3,4}
+[pivot] branch B: selected u=2 with C_nondegree=1
+[pivot] branch B2: using the zero-nondegree candidate set
+  [update] branched-on=(true, 2)  maximum_nondegree=2  C′.U={1,3,4} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on primary branch (true, 2) with nondegree=0
+  depth=1  S.U={2,5} S.V={}  missing(S)=0/2  C.U={1,3,4} C.V={1,2,3,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=4  C_0.U={1,3,4} C_0.V={4}
+  [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+    [update] branched-on=(false, 2)  maximum_nondegree=1  C′.U={1,3,4} C′.V={1,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch A -> recurse with selected node v=2
+    depth=2  S.U={2,5} S.V={2}  missing(S)=1/2  C.U={1,3,4} C.V={1,3,4}
+    [pivot] entering pivot mode, remaining_budget=1
+    [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(true, 4)  maximum_nondegree=0  C′.U={1,3} C′.V={4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node u=4
+      depth=3  S.U={2,4,5} S.V={2}  missing(S)=2/2  C.U={1,3} C.V={4}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={2,5} S.V={2}  missing(S)=1/2  C.U={1,3} C.V={1,3,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+      [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+        [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={3} C′_0.V={}
+      [pivot] branch A -> recurse with selected node v=3
+        depth=4  S.U={2,3,5} S.V={2,3}  missing(S)=2/2  C.U={1} C.V={4}
+        [pivot] entering pivot mode, remaining_budget=0
+        [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+        [pivot] branch B: selected u=1 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+          depth=5  S.U={1,2,3,5} S.V={2,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+          depth=5  S.U={2,3,5} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> LEAF: S_score=7 D_score=7
+      [pivot] branch A -> recurse on reduced candidate set
+        depth=4  S.U={2,5} S.V={2}  missing(S)=1/2  C.U={1,3} C.V={1,4}
+        [pivot] entering pivot mode, remaining_budget=1
+        [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+        [pivot] branch B: selected u=3 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 3)  maximum_nondegree=1  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+          depth=5  S.U={2,3,5} S.V={2}  missing(S)=1/2  C.U={1} C.V={4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+          depth=5  S.U={2,5} S.V={1,2}  missing(S)=2/2  C.U={1} C.V={4}
+          [pivot] entering pivot mode, remaining_budget=0
+          [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+          [pivot] branch B: selected u=1 with C_nondegree=1
+          [pivot] branch B2: using the zero-nondegree candidate set
+            [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+            depth=6  S.U={1,2,5} S.V={1,2}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch B2 -> exploring 1 nonneighbors
+            [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+            depth=6  S.U={2,5} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch A -> recurse on reduced candidate set
+    depth=2  S.U={2,5} S.V={}  missing(S)=0/2  C.U={1,3,4} C.V={1,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=4  C_0.U={1,3,4} C_0.V={4}
+    [pivot] branch B: selected u=4 with C_nondegree=1
+    [pivot] branch B2: using the zero-nondegree candidate set
+      [update] branched-on=(true, 4)  maximum_nondegree=2  C′.U={1,3} C′.V={1,3,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on primary branch (true, 4) with nondegree=0
+      depth=3  S.U={2,4,5} S.V={}  missing(S)=0/2  C.U={1,3} C.V={1,3,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+      [pivot] branch B: selected u=3 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 3)  maximum_nondegree=2  C′.U={1} C′.V={1,3,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+        depth=4  S.U={2,3,4,5} S.V={}  missing(S)=0/2  C.U={1} C.V={1,3,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+        [pivot] branch B: selected u=1 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={} C′.V={1,3,4}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+          depth=5  S.U={1,2,3,4,5} S.V={}  missing(S)=0/2  C.U={} C.V={1,3,4}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=3
+            depth=6  S.U={1,2,3,4,5} S.V={3}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3,4,5} S.V={}  missing(S)=0/2  C.U={} C.V={1,4}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={} C′.V={1,3}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+          depth=5  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={1,3}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=3
+            depth=6  S.U={2,3,4,5} S.V={3,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+        depth=4  S.U={2,4,5} S.V={1}  missing(S)=1/2  C.U={1} C.V={4}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch B2 -> exploring 1 nonneighbors
+      [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={1,3} C′.V={1,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=1
+      depth=3  S.U={2,5} S.V={3}  missing(S)=1/2  C.U={1,3} C.V={1,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+      [pivot] branch B: selected u=3 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 3)  maximum_nondegree=1  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+        depth=4  S.U={2,3,5} S.V={3}  missing(S)=1/2  C.U={1} C.V={4}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+        depth=4  S.U={2,5} S.V={1,3}  missing(S)=2/2  C.U={1} C.V={4}
+        [pivot] entering pivot mode, remaining_budget=0
+        [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+        [pivot] branch B: selected u=1 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+          depth=5  S.U={1,2,5} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+          depth=5  S.U={2,5} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+[pivot] branch B2 -> exploring 1 nonneighbors
+  [update] branched-on=(false, 3)  maximum_nondegree=2  C′.U={1,3,4} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=0
+  depth=1  S.U={5} S.V={3}  missing(S)=0/2  C.U={1,3,4} C.V={1,2,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+  [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+    [update] branched-on=(true, 4)  maximum_nondegree=1  C′.U={1,3} C′.V={1,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch A -> recurse with selected node u=4
+    depth=2  S.U={4,5} S.V={3}  missing(S)=1/2  C.U={1,3} C.V={1,4}
+    [pivot] entering pivot mode, remaining_budget=1
+    [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+    [pivot] branch B: selected u=3 with C_nondegree=1
+    [pivot] branch B2: using the zero-nondegree candidate set
+      [update] branched-on=(true, 3)  maximum_nondegree=1  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+      depth=3  S.U={3,4,5} S.V={3}  missing(S)=1/2  C.U={1} C.V={4}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch B2 -> exploring 1 nonneighbors
+      [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+      depth=3  S.U={4,5} S.V={1,3}  missing(S)=2/2  C.U={1} C.V={4}
+      [pivot] entering pivot mode, remaining_budget=0
+      [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+      [pivot] branch B: selected u=1 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+        depth=4  S.U={1,4,5} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+        depth=4  S.U={4,5} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch A -> recurse on reduced candidate set
+    depth=2  S.U={5} S.V={3}  missing(S)=0/2  C.U={1,3} C.V={1,2,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=3  C_0.U={1,3} C_0.V={4}
+    [pivot] branch B: selected u=3 with C_nondegree=1
+    [pivot] branch B2: using the zero-nondegree candidate set
+      [update] branched-on=(true, 3)  maximum_nondegree=2  C′.U={1} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+      depth=3  S.U={3,5} S.V={3}  missing(S)=0/2  C.U={1} C.V={1,2,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+      [pivot] branch B: selected u=1 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+        depth=4  S.U={1,3,5} S.V={3}  missing(S)=0/2  C.U={} C.V={1,2,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=1
+          depth=5  S.U={1,3,5} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,3,5} S.V={3}  missing(S)=0/2  C.U={} C.V={2,4}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 4)  maximum_nondegree=1  C′.U={} C′.V={2}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=4
+            depth=6  S.U={1,3,5} S.V={3,4}  missing(S)=1/2  C.U={} C.V={2}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=2
+              depth=7  S.U={1,3,5} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,3,5} S.V={3,4}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,3,5} S.V={3}  missing(S)=0/2  C.U={} C.V={2}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={} C′.V={1,2}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+        depth=4  S.U={3,5} S.V={3,4}  missing(S)=0/2  C.U={} C.V={1,2}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch B2 -> exploring 1 nonneighbors
+      [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={1} C′.V={2,4}  C′_0.U={} C′_0.V={}
+    [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+      depth=3  S.U={5} S.V={1,3}  missing(S)=1/2  C.U={1} C.V={2,4}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+depth=0  S.U={4} S.V={}  missing(S)=0/2  C.U={1,2,3,5} C.V={1,2,3,4}
+[pivot] entering pivot mode, remaining_budget=2
+[pivot] C_0 size=6  C_0.U={1,2,3,5} C_0.V={1,4}
+[pivot] branch B: selected u=2 with C_nondegree=1
+[pivot] branch B2: using the zero-nondegree candidate set
+  [update] branched-on=(true, 2)  maximum_nondegree=2  C′.U={1,3,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on primary branch (true, 2) with nondegree=0
+  depth=1  S.U={2,4} S.V={}  missing(S)=0/2  C.U={1,3,5} C.V={1,2,3,4}
+  [pivot] entering pivot mode, remaining_budget=2
+  [pivot] C_0 size=5  C_0.U={1,3,5} C_0.V={1,4}
+  [pivot] branch B: selected u=3 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 3)  maximum_nondegree=2  C′.U={1,5} C′.V={1,2,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+    depth=2  S.U={2,3,4} S.V={}  missing(S)=0/2  C.U={1,5} C.V={1,2,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=3  C_0.U={1,5} C_0.V={4}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={5} C′_0.V={}
+    [pivot] branch A -> recurse with selected node v=3
+      depth=3  S.U={2,3,4,5} S.V={3}  missing(S)=2/2  C.U={1} C.V={4}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={2,3,4} S.V={}  missing(S)=0/2  C.U={1,5} C.V={1,2,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=3  C_0.U={1,5} C_0.V={4}
+      [pivot] branch B: selected u=1 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+        depth=4  S.U={1,2,3,4} S.V={}  missing(S)=0/2  C.U={5} C.V={1,2,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(false, 4)  maximum_nondegree=1  C′.U={5} C′.V={1,2}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node v=4
+          depth=5  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1,2}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=2
+            depth=6  S.U={1,2,3,4} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,3,4} S.V={4}  missing(S)=1/2  C.U={5} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,3,4} S.V={}  missing(S)=0/2  C.U={5} C.V={1,2}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={5} C′.V={1,2}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+        depth=4  S.U={2,3,4} S.V={4}  missing(S)=0/2  C.U={5} C.V={1,2}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=1  C_0.U={5} C_0.V={}
+        [pivot] branch B: selected u=5 with C_nondegree=2
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 5)  maximum_nondegree=2  C′.U={} C′.V={1,2}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+          depth=5  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={1,2}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=2
+            depth=6  S.U={2,3,4,5} S.V={2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={2,3,4,5} S.V={4}  missing(S)=0/2  C.U={} C.V={1}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 2 nonneighbors
+          [update] branched-on=(false, 2)  maximum_nondegree=1  C′.U={} C′.V={1}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=2, nondegree=1
+          depth=5  S.U={2,3,4} S.V={2,4}  missing(S)=1/2  C.U={} C.V={1}
+          [pivot] entering pivot mode, remaining_budget=1
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=1
+            depth=6  S.U={2,3,4} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+            -> LEAF: S_score=7 D_score=7
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={2,3,4} S.V={2,4}  missing(S)=1/2  C.U={} C.V={}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+          depth=5  S.U={2,3,4} S.V={1,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 1)  maximum_nondegree=2  C′.U={1,5} C′.V={2,3,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=0
+    depth=2  S.U={2,4} S.V={1}  missing(S)=0/2  C.U={1,5} C.V={2,3,4}
+    [pivot] entering pivot mode, remaining_budget=2
+    [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(false, 3)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node v=3
+      depth=3  S.U={2,4} S.V={1,3}  missing(S)=2/2  C.U={1} C.V={4}
+      [pivot] entering pivot mode, remaining_budget=0
+      [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+      [pivot] branch B: selected u=1 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+        depth=4  S.U={1,2,4} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+        depth=4  S.U={2,4} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={2,4} S.V={1}  missing(S)=0/2  C.U={1,5} C.V={2,4}
+      [pivot] entering pivot mode, remaining_budget=2
+      [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+      [pivot] branch B: selected u=1 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 1)  maximum_nondegree=2  C′.U={5} C′.V={2,4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+        depth=4  S.U={1,2,4} S.V={1}  missing(S)=0/2  C.U={5} C.V={2,4}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={} C′.V={4}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=5
+          depth=5  S.U={1,2,4,5} S.V={1}  missing(S)=1/2  C.U={} C.V={4}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={1,2,4} S.V={1}  missing(S)=0/2  C.U={} C.V={2,4}
+          [pivot] entering pivot mode, remaining_budget=2
+          [pivot] C_0 size=0  C_0.U={} C_0.V={}
+          [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+            [update] branched-on=(false, 4)  maximum_nondegree=1  C′.U={} C′.V={2}  C′_0.U={} C′_0.V={}
+          [pivot] branch A -> recurse with selected node v=4
+            depth=6  S.U={1,2,4} S.V={1,4}  missing(S)=1/2  C.U={} C.V={2}
+            [pivot] entering pivot mode, remaining_budget=1
+            [pivot] C_0 size=0  C_0.U={} C_0.V={}
+            [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+              [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+            [pivot] branch A -> recurse with selected node v=2
+              depth=7  S.U={1,2,4} S.V={1,2,4}  missing(S)=2/2  C.U={} C.V={}
+              -> LEAF: S_score=7 D_score=7
+            [pivot] branch A -> recurse on reduced candidate set
+              depth=7  S.U={1,2,4} S.V={1,4}  missing(S)=1/2  C.U={} C.V={}
+              -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+          [pivot] branch A -> recurse on reduced candidate set
+            depth=6  S.U={1,2,4} S.V={1}  missing(S)=0/2  C.U={} C.V={2}
+            -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 4)  maximum_nondegree=2  C′.U={5} C′.V={2}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+        depth=4  S.U={2,4} S.V={1,4}  missing(S)=0/2  C.U={5} C.V={2}
+        [pivot] entering pivot mode, remaining_budget=2
+        [pivot] C_0 size=0  C_0.U={} C_0.V={}
+        [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+          [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch A -> recurse with selected node u=5
+          depth=5  S.U={2,4,5} S.V={1,4}  missing(S)=1/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch A -> recurse on reduced candidate set
+          depth=5  S.U={2,4} S.V={1,4}  missing(S)=0/2  C.U={} C.V={2}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+[pivot] branch B2 -> exploring 1 nonneighbors
+  [update] branched-on=(false, 3)  maximum_nondegree=1  C′.U={1,3,5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+[pivot] branch B2 -> recurse on nonneighbor v=3, nondegree=1
+  depth=1  S.U={4} S.V={3}  missing(S)=1/2  C.U={1,3,5} C.V={1,2,4}
+  [pivot] entering pivot mode, remaining_budget=1
+  [pivot] C_0 size=5  C_0.U={1,3,5} C_0.V={1,4}
+  [pivot] branch B: selected u=3 with C_nondegree=1
+  [pivot] branch B2: using the zero-nondegree candidate set
+    [update] branched-on=(true, 3)  maximum_nondegree=1  C′.U={1,5} C′.V={1,2,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on primary branch (true, 3) with nondegree=0
+    depth=2  S.U={3,4} S.V={3}  missing(S)=1/2  C.U={1,5} C.V={1,2,4}
+    [pivot] entering pivot mode, remaining_budget=1
+    [pivot] C_0 size=3  C_0.U={1,5} C_0.V={4}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(false, 2)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node v=2
+      depth=3  S.U={3,4} S.V={2,3}  missing(S)=2/2  C.U={1} C.V={4}
+      [pivot] entering pivot mode, remaining_budget=0
+      [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+      [pivot] branch B: selected u=1 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+        depth=4  S.U={1,3,4} S.V={2,3}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+        depth=4  S.U={3,4} S.V={2,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={3,4} S.V={3}  missing(S)=1/2  C.U={1,5} C.V={1,4}
+      [pivot] entering pivot mode, remaining_budget=1
+      [pivot] C_0 size=3  C_0.U={1,5} C_0.V={4}
+      [pivot] branch B: selected u=5 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 5)  maximum_nondegree=1  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 5) with nondegree=0
+        depth=4  S.U={3,4,5} S.V={3}  missing(S)=1/2  C.U={1} C.V={4}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 1)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=1
+        depth=4  S.U={3,4} S.V={1,3}  missing(S)=2/2  C.U={1} C.V={4}
+        [pivot] entering pivot mode, remaining_budget=0
+        [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+        [pivot] branch B: selected u=1 with C_nondegree=1
+        [pivot] branch B2: using the zero-nondegree candidate set
+          [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+          depth=5  S.U={1,3,4} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+        [pivot] branch B2 -> exploring 1 nonneighbors
+          [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+        [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+          depth=5  S.U={3,4} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+          -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+  [pivot] branch B2 -> exploring 1 nonneighbors
+    [update] branched-on=(false, 1)  maximum_nondegree=1  C′.U={1,5} C′.V={2,4}  C′_0.U={} C′_0.V={}
+  [pivot] branch B2 -> recurse on nonneighbor v=1, nondegree=0
+    depth=2  S.U={4} S.V={1,3}  missing(S)=1/2  C.U={1,5} C.V={2,4}
+    [pivot] entering pivot mode, remaining_budget=1
+    [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+    [pivot] branch A: no usable zero-nondegree set or remaining vertices exceed budget
+      [update] branched-on=(true, 5)  maximum_nondegree=0  C′.U={1} C′.V={4}  C′_0.U={} C′_0.V={}
+    [pivot] branch A -> recurse with selected node u=5
+      depth=3  S.U={4,5} S.V={1,3}  missing(S)=2/2  C.U={1} C.V={4}
+      [pivot] entering pivot mode, remaining_budget=0
+      [pivot] C_0 size=2  C_0.U={1} C_0.V={4}
+      [pivot] branch B: selected u=1 with C_nondegree=1
+      [pivot] branch B2: using the zero-nondegree candidate set
+        [update] branched-on=(true, 1)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on primary branch (true, 1) with nondegree=0
+        depth=4  S.U={1,4,5} S.V={1,3}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+      [pivot] branch B2 -> exploring 1 nonneighbors
+        [update] branched-on=(false, 4)  maximum_nondegree=0  C′.U={} C′.V={}  C′_0.U={} C′_0.V={}
+      [pivot] branch B2 -> recurse on nonneighbor v=4, nondegree=0
+        depth=4  S.U={4,5} S.V={1,3,4}  missing(S)=2/2  C.U={} C.V={}
+        -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+    [pivot] branch A -> recurse on reduced candidate set
+      depth=3  S.U={4} S.V={1,3}  missing(S)=1/2  C.U={1} C.V={2,4}
+      -> pruned (too few reachable vertices, θ=3, top_score=7, prune_floor=7)
+Progressive reductions took 1 iterations (0 new reduces)
+Solution 1:
+(d.U, d.V) = (Set([2, 3, 1]), Set([2, 3, 1]))
+2
+a = 1645738624
