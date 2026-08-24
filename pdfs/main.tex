@@ -14,10 +14,13 @@
 \usepackage{pgfplots}
 \usepgfplotslibrary{groupplots}
     \pgfplotsset{compat=1.18}
+\usepackage{changepage}
+
+
 
 \title{A Novel Application of Ant Colony Optimization to $k$-defective Maximum Edge Bicliques}
 \author{Kiyaan Pillai}
-\date{July 2026}
+\date{September 2026}
 
 % --- Custom "parallel for each" block, wired into algpseudocodex's
 %     internal indent/highlight hooks (bare \algdef breaks the package's
@@ -50,7 +53,7 @@ The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard
 
 A bipartite graph is a common graph structure where one set of vertices is connected solely to another. Bipartite graphs can model user-product behavior, person-place interaction, and more. A biclique is a set of vertices on a bipartite graph such that each vertex on one side is connected to each vertex on the other.  The maximum edge biclique problem aims to identify the biclique with the most edges on a bipartite graph.  The problem has applications in online recommendation systems, fraud detection, and community detection [1].
 
-Real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique, can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emerging field.
+Real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique ($k$-DB), can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emerging field.
 
 The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm guaranteed to find the maximum solution that can run in polynomial time. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
 
@@ -240,7 +243,7 @@ We adapt the ACO algorithm to the $k$-MDB problem. A population of ants iterativ
             
             \ForPar{$S_i \in S$}
                 \While{$|\bar{E}(S_i)|<k$}
-                    \State $next \gets \text{softmax}$ nodes in $\Call{Candidate}{S_i}$ based on  $\Call{desirability}{u, S_i, \tau_C}$
+                    \State $next \gets \text{softmax}$ nodes in $\{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$ based on  $\Call{desirability}{u, S_i, \tau_C}$
                     \State add $next$ to $S_i$
                     \State $\tau_C(u) \gets \tau_C(u) + T$
                 \EndWhile
@@ -261,34 +264,25 @@ We adapt the ACO algorithm to the $k$-MDB problem. A population of ants iterativ
         
         \State \Return $B$
     \EndFunction
-
-    \Function{Candidate}{$S$}
-        \State \Return $\{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$
-    \EndFunction
-
-    \Function{InstanceFitness}{$S$}
-        \State $a, b \gets \text{minmax}(|U_S|, |V_S|)$
-        \If{$a \geq \theta$}
-            \State \Return $b \times a^2$
-        \Else
-            \State \Return $a^2$
-        \EndIf
-    \EndFunction
-    
-    \Function{Desirability}{$u, S, \tau$}
-        \State $\eta \gets d_S(u) + d_G(u) \times \sigma(|U_S| + |V_S|)$
-        \State \Return $\tau(u) \times \eta^3$
-    \EndFunction
 \end{algorithmic}
 \end{minipage}
 \end{algorithm}
 
-We observe that ACO has trouble generating graphs with at least $\theta$ nodes because it often adds a disproportionate number of nodes on one side. We introduce an additional hyperparameter $P$, a factor that favors nodes on the smaller side when one side of an ant's subgraph has $\geq \theta$ nodes and another side has $< \theta$. We update the desirability function.
+We observe that ACO has trouble generating graphs with at least $\theta$ nodes because it often adds a disproportionate number of nodes on one side. We first introduce an instance fitness function that rewards a more balanced biclique by squaring the minimum number of nodes. For the desirability function, we introduce a hyperparameter $P$, a factor that favors nodes on the smaller side when one side of an ant's subgraph has $\geq \theta$ nodes and another side has $< \theta$. We use the following desirability.
 
 \begin{algorithm}[H]
 \caption{Prefer-Smaller-Side Desirability}
 \begin{minipage}{\textwidth}
 \begin{algorithmic}
+
+\Function{InstanceFitness}{$S$}
+    \State $a, b \gets \text{minmax}(|U_S|, |V_S|)$
+    \If{$a \geq \theta$}
+        \State \Return $b \times a^2$
+    \Else
+        \State \Return $a^2$
+    \EndIf
+\EndFunction
 
 \Function{Desirability}{$u, S, \tau$}
     \State $\eta \gets d_S(u) + d_G(u) \times \sigma(|U_S| + |V_S|)$
@@ -334,62 +328,18 @@ Finally, we implement the approach proposed by Cui et al. These authors observe 
 \end{minipage}
 \end{algorithm}
 
-They then propose the following branch-and-pivot algorithm that takes advantage of this initial heuristic upper bound. The algorithm checks combinations of $S = (U_S, V_S)$ by maintaining a candidate set $C = (U_C, V_C)$ of all remaining nodes $u \in G \mathrel{\text{s.t.}} |\bar{E}(S \cup \{u\})| \leq k$ that could still be added to $S$. It recursively branches on $(S^\prime = S \cup \{u \in C\}, C^\prime = \text{candidate set of } S^\prime)$ and $(S^\prime = S, C^\prime = C \setminus \{u \in C\})$. Several optimizations are added to make this algorithm faster than a naive brute-force approach. Its time complexity is $O(m\beta_k^n)$, where $\beta$ is the largest real root of the equation $x^{2k + 5} - 2x^{2k + 4} +  x^{k + 3} - 2x + 2 = 0$. 
-
-\begin{algorithm}
-\caption{Branch and Pivot}
-\begin{minipage}{\textwidth}
-\begin{algorithmic}
-\State $D^* \gets \Call{ThetaHeuristic}{G}$
-\Function{BranchP}{$S = (U_S, V_S), C = (U_C, V_C)$}
-        \If{$C = \varnothing$}
-            \If{$|E(S)| > |E(D^*)|$ and $|U_S| \geq \theta$ and $|V_S| \geq \theta$}
-                \State $D^* \gets S$
-                \State \Return
-            \EndIf
-        \EndIf
-
-        \State $C_0 \gets \{v \in C \mid \bar{d}_S(v) = 0\}$
-        \If{$C_0 = \varnothing$ or $|C \setminus C_0| \geq k - |\bar{E}(S)|$}
-            \State $u \gets \text{argmax}_{v \in C}{\bar{d}_S}$
-            \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, u}$
-            \State \Call{BranchP}{$S^\prime \cup \{u\}, C^\prime$}
-            \State \Call{BranchP}{$S, C \setminus \{u\}$}
-        \Else
-            \State $u \gets \text{argmin}_{v \in C_0}\bar{d}_C$
-            \If{$\bar{d}_C(u) > k - |\bar{E}(S)| > 0$}
-                \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, u}$
-                \State \Call{BranchP}{$S^\prime \cup \{u\}, C^\prime$}
-                \State \Call{BranchP}{$S, C \setminus \{u\}$}
-            \Else
-                \For{$v \in \{u\} \cup N_C(u)$}
-                    \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, v}$
-                    \State \Call{BranchP}{$S^\prime \cup \{v\}, C^\prime$}
-                    \State $C \gets C \setminus \{v\}$
-                \EndFor
-            \EndIf
-        \EndIf
-    \EndFunction
-\end{algorithmic}
-\end{minipage}
-\end{algorithm}
-
-Where $D^*$ is the $k$-MDB of the graph.
+They then propose a branch-and-pivot algorithm that takes advantage of this initial heuristic upper bound. The algorithm checks combinations of $S = (U_S, V_S)$ by maintaining a candidate set $C = (U_C, V_C)$ of all remaining nodes $u \in G \mathrel{\text{s.t.}} |\bar{E}(S \cup \{u\})| \leq k$ that could still be added to $S$. It recursively chooses a node $u \in C$ and branches on $(S^\prime = S \cup \{u\}, C^\prime = \text{candidate set of } S^\prime)$ and $(S^\prime = S, C^\prime = C \setminus \{u\})$. Several optimizations are added to make this algorithm faster than a naive brute-force approach. Its time complexity is $O(m\beta_k^n)$, where $\beta$ is the largest real root of the equation $x^{2k + 5} - 2x^{2k + 4} +  x^{k + 3} - 2x + 2 = 0$. See Appendix B for full pseudocode. 
 
 The paper proposes several novel optimization techniques as well. These techniques are beyond the scope of this paper but were implemented during testing. These optimizations include several graph reduction techniques that remove nodes provably not part of a $k$-MDB.
 
 
 \subsection{Time Complexity}
 
-Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine $n - 1$ nodes, and then $n - 2$ nodes, etc. Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = \frac{n(n + 1)}{2}$. Additionally, at each step, an ant generates a candidate set of nodes that could still be added to its subgraph. This pass is optimized to be $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large, the upper time complexity would therefore be $\mathcal{O}(A \times I \times (n^2 + n))$ for $A$ ants advancing for $I$ iterations, but this would be dominated by $n^2$. In a parallelized implementation with $p$ threads, the true upper complexity bound is $\mathcal{O}(\lceil A / p \rceil \times I \times n^2))$.
+Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine $n - 1$ nodes, and then $n - 2$ nodes, etc. Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = \frac{n(n + 1)}{2}$. Additionally, at each step, an ant generates a candidate set of nodes that could still be added to its subgraph. This pass is optimized to be $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large, the upper time complexity would therefore be $\mathcal{O}(A \times I \times (n^2 + n))$ for $A$ ants advancing for $I$ iterations, but this would be dominated by $n^2$. In a parallelized implementation with $p$ processors, the true upper complexity bound is $\mathcal{O}(\lceil A / p \rceil \times I \times n^2))$.
 
-In practice, however, there are two factors limiting this complexity. First, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because smaller side preference encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of $\mathcal{O}{\lceil A / p \rceil \times I \times n_D \times n}$. $n_D$ is often much lower than the total number of nodes. Additionally, the candidate set is reduced as the ant's subgraph grows. Therefore, the time complexity rarely scales linearly with $n$.
+In practice, however, there are two factors limiting this complexity. First, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because smaller side preference encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, the candidate set is reduced as the ant's subgraph grows. Therefore, the time complexity rarely scales linearly with $n$.
 
-The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$.
-
-\subsection{Space Complexity}
-
-
+The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$ [1].
 
 \subsection{Experimental Setup}
 
@@ -409,15 +359,17 @@ subset of graphs:
         Number of epochs ($N_e$) & 5 \\
         Number of ants ($N_S$) & varied, 1--100 (see below) \\
         Smaller-side preference factor ($P$) & 2 \\
+        k & 2 \\
+        $\theta$ & 5 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 \section{Results}
 
-We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We first applied the reductions proposed by [Cui et al.], and then ran both ACO and the [Cui et al.] heuristic. We ran ACO for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution. We measured time and performance for the $\theta$-Heuristic. We summarize our results below.
+We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We first applied the reductions proposed by Cui et al., and then ran both ACO and the $\theta$-heuristic.
 
-All tests were run with 8 threads on a computer running Ubuntu on an Intel(R) Core(TM) Ultra 7 258V and 32 gigabytes of RAM.
+All tests were run with 8 threads on a computer with Ubuntu, an Intel(R) Core(TM) Ultra 7 258V, and 32 gigabytes of RAM.
 
 We also vary the number of ants and analyze the effect on run time as well as solution quality. We compare ACO results to $\theta$-heuristic results. Finally, because Branch and Pivot can prune more branches with a larger initial $D^*$, we demonstrate the speed increase from using ACO as the heuristic seeding method in cases where ACO outperformed the $\theta$-heuristic. Ant count $N_S$ is varied across $\{1, 2, 5, 10, 20, 50, 100\}$.
 
@@ -441,47 +393,47 @@ We also vary the number of ants and analyze the effect on run time as well as so
     legend style={draw=none, fill=white, font=\small},
 ]
 \addplot coordinates {(5,-10.5263) (10,-7.4163) (20,-10.0478) (50,18.2749) (100,17.6316)};
-\addlegendentry{konect/bitcoin}
+\addlegendentry{bitcoin}
 \addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{amazon/boxes}
+\addlegendentry{boxes}
 \addplot coordinates {(1,-47.6190) (5,-31.7460) (10,-28.9242) (20,6.1508) (50,21.2197) (100,51.1111)};
-\addlegendentry{konect/ciaodvd}
+\addlegendentry{ciaodvd}
 \addplot coordinates {(1,-100.0000) (100,-63.0682)};
-\addlegendentry{konect/dblp-cite}
+\addlegendentry{dblp-cite}
 \addplot coordinates {(1,-84.6645) (5,-57.9553) (10,-62.2627) (20,-42.8451) (50,-36.4217) (100,-34.7764)};
-\addlegendentry{konect/dimacs-polblogs}
+\addlegendentry{dimacs-polblogs}
 \addplot coordinates {(1,-35.3583) (2,-30.2570) (5,-0.4556) (10,30.8645) (20,73.8435) (50,86.0631) (100,109.3575)};
-\addlegendentry{konect-small/dnc-corecipient}
+\addlegendentry{dnc-corecipient}
 \addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
 \addlegendentry{wikipedia/eswiki}
 \addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{konect-small/euroroad}
+\addlegendentry{euroroad}
 \addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{konect-small/facebook}
+\addlegendentry{facebook}
 \addplot coordinates {(10,-23.3333) (20,14.4444) (50,36.6667) (100,44.2857)};
-\addlegendentry{konect/gnutella}
+\addlegendentry{gnutella}
 \addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
 \addlegendentry{wikipedia/jawiki}
 \addplot coordinates {(1,76.9231)};
-\addlegendentry{konect-small/maayan-vidal}
+\addlegendentry{maayan-vidal}
 \addplot coordinates {(1,-100.0000) (5,27.7778) (10,27.7778) (20,61.1111)};
-\addlegendentry{konect/matter}
+\addlegendentry{matter}
 \addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{konect-small/moreno}
+\addlegendentry{moreno}
 \addplot coordinates {(1,-11.5385) (2,76.9231) (5,76.9231) (20,76.9231) (50,76.9231) (100,76.9231)};
-\addlegendentry{amazon/music}
+\addlegendentry{music}
 \addplot coordinates {(1,-35.3583) (2,-30.2570) (5,-0.4556) (10,30.8645) (20,73.8435) (50,86.0631) (100,109.3575)};
-\addlegendentry{konect-small/nawiki}
+\addlegendentry{nawiki}
 \addplot coordinates {(1,-80.7057) (2,-71.8468) (5,-59.7998) (10,-54.5796) (20,-42.6877) (50,-40.5556) (100,-32.7628)};
-\addlegendentry{konect/openflights}
+\addlegendentry{openflights}
 \addplot coordinates {(1,-65.4135) (5,16.2907) (10,-28.5714) (20,4.8120) (50,-18.4962) (100,-4.2607)};
-\addlegendentry{konect/pgp-arenas}
+\addlegendentry{pgp-arenas}
 \addplot coordinates {(1,64.2857) (10,64.2857) (20,64.2857) (50,64.2857) (100,64.2857)};
-\addlegendentry{konect-small/urwiki}
+\addlegendentry{urwiki}
 \addplot coordinates {(2,666.6667) (5,833.3333) (50,666.6667) (100,833.3333)};
-\addlegendentry{konect/wiki-talk-nds}
+\addlegendentry{wiki-talk-nds}
 \addplot coordinates {};
-\addlegendentry{amazon/appliances}
+\addlegendentry{appliances}
 \nextgroupplot[
     ylabel={Feasible trials (\%)},
     ylabel style={align=center, font=\small},
@@ -551,82 +503,127 @@ We observe that a marginal increase in the initial upper bound of the subgraph f
 
 \begin{tikzpicture}
 \begin{groupplot}[
-    group style={group size=1 by 3, vertical sep=40pt, x descriptions at=edge bottom},
+    group style={group size=1 by 2, vertical sep=55pt},
     title style={yshift=-3pt},
     width=0.85\textwidth,
-    height=0.44\textwidth,
+    height=0.38\textwidth,
     grid=major,
-    symbolic x coords={konect-small/euroroad,konect-small/facebook,konect-small/kuwiki,konect-small/maayan-vidal,konect-small/moreno,konect-small/urwiki},
-    xtick=data,
+    symbolic x coords={dnc-corecipient,euroroad,facebook,kuwiki,maayan-vidal,moreno,nawiki,urwiki},
+    xtick={dnc-corecipient,euroroad,facebook,kuwiki,maayan-vidal,moreno,nawiki,urwiki},
     x tick label style={rotate=45, anchor=east, font=\small},
     yticklabel style={font=\small},
 ]
 \nextgroupplot[
-    ylabel={Pivot time reduction (\%)},
+    ylabel={Time reduction incl.\ ACO (s)},
     ylabel style={align=center, font=\small},
-    title={Branch-and-pivot speedup from ACO seed (pivot only, vs $\theta$ only)},
+    title={Net change vs $\theta$-only pivot },
     title style={font=\small},
-]
-\addplot+[ybar, bar width=8pt, fill=black!40] coordinates {(konect-small/maayan-vidal,72.3029) (konect-small/urwiki,92.9082)};
-\nextgroupplot[
-    ylabel={Net time change incl.\ ACO (s)},
-    ylabel style={align=center, font=\small},
-    title={Net change vs $\theta$-only pivot in seconds (ACO discovery included; negative = time increase)},
-    title style={font=\small},
-    legend to name=seedcompareincllegend,
+    legend to name=seedcomparereductionlegend,
     legend columns=2,
     legend style={draw=none, fill=white, font=\small},
 ]
-\addplot+[ybar, bar width=8pt, fill=black!40] coordinates {(konect-small/maayan-vidal,1.162900) (konect-small/urwiki,1.165200)};
+\addplot+[ybar, bar width=8pt, fill=black!40] coordinates {(maayan-vidal,1.162900) (urwiki,1.165200)};
 \addlegendentry{time saved}
-\addplot+[ybar, bar width=8pt, fill=black!15] coordinates {(konect-small/euroroad,-0.171200) (konect-small/facebook,-0.185100) (konect-small/kuwiki,-0.065400) (konect-small/moreno,-0.189500)};
+\addplot+[ybar, bar width=8pt, fill=black!15] coordinates {(dnc-corecipient,-1.780100) (euroroad,-0.171200) (facebook,-0.185100) (kuwiki,-0.065400) (moreno,-0.189500) (nawiki,-1.103500)};
 \addlegendentry{time increase}
 \nextgroupplot[
-    ylabel={Pivot WCT (s)},
+    ylabel={Wall time (s)},
     ylabel style={align=center, font=\small},
-    title={Absolute pivot wall time},
+    title={Pivot WCT and ACO discovery cost},
     title style={font=\small},
     ymode=log,
     legend to name=seedcomparelegend,
     legend columns=2,
     legend style={draw=none, fill=white, font=\small},
 ]
-\addplot+[mark=*, thick] coordinates {(konect-small/maayan-vidal,1.618800) (konect-small/urwiki,1.256900)};
-\addlegendentry{$\theta$ seed}
-\addplot+[mark=square*, thick] coordinates {(konect-small/maayan-vidal,0.448400) (konect-small/urwiki,0.089100)};
-\addlegendentry{$\theta$ + ACO seed}
+\addplot+[only marks, mark=*] coordinates {(maayan-vidal,1.618800) (urwiki,1.256900)};
+\addlegendentry{$\theta$ pivot}
+\addplot+[only marks, mark=square*] coordinates {(maayan-vidal,0.448400) (urwiki,0.089100)};
+\addlegendentry{$\theta$ + ACO pivot}
+\addplot+[only marks, mark=triangle*] coordinates {(dnc-corecipient,1.780100) (euroroad,0.171200) (facebook,0.185100) (kuwiki,0.065400) (maayan-vidal,0.007500) (moreno,0.189500) (nawiki,1.103500) (urwiki,0.002600)};
+\addlegendentry{ACO discovery}
+\addplot+[only marks, mark=x] coordinates {(dnc-corecipient,0.027996) (euroroad,0.001223) (facebook,0.001322) (kuwiki,0.000467) (maayan-vidal,0.006903) (moreno,0.001354) (nawiki,0.019291) (urwiki,0.005173)};
+\addlegendentry{mean ACO WCT}
 \end{groupplot}
 \end{tikzpicture}
 
 \begin{center}
-\ref{seedcompareincllegend}\qquad\ref{seedcomparelegend}
+\ref{seedcomparereductionlegend}\qquad\ref{seedcomparelegend}
 \end{center}
+
+We ran ACO for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution. We measured time and performance for the $\theta$-Heuristic. In no trial did the $\theta$-heuristic find a $k$-DB with more edges than ACO. On several trials, ACO identifies a much larger $k$-MDB than the $\theta$-heuristic. Some representative trials are shown below.
+
 
 \section{Discussion}
 
+\subsection{Interpretation of Results}
 
+Across the tested graphs, ACO with smaller-side preference 
+- outperformed theta heuristic, suggesting theta restriction is too restrictive on real-world graphs.
+Small improvements in 
 
 \subsection{Limitations}
 
-Our evaluation of ACO-seeded branch-and-pivot was constrained to six small graphs (\texttt{konect-small/euroroad}, \texttt{facebook}, \texttt{kuwiki}, \texttt{maayan-vidal}, \texttt{moreno}, and \texttt{urwiki}). Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{konect/matter}, \texttt{konect/dimacs-polblogs}) was not feasible on the hardware available for this study. As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to the graphs where ACO's advantage over the $\theta$-heuristic is largest (see Section~4).
+Our evaluation of ACO-seeded branch-and-pivot was constrained to six small graphs (\texttt{euroroad}, \texttt{facebook}, \texttt{kuwiki}, \texttt{maayan-vidal}, \texttt{moreno}, and \texttt{urwiki}). Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{matter}, \texttt{dimacs-polblogs}) was not feasible on the hardware available for this study. As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to the graphs where ACO's advantage over the $\theta$-heuristic is largest (see Section~4).
 
 \section{Conclusion}
 
 \subsection{Future Work}
 
-The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{konect/dblp-cite}, \texttt{konect/ciaodvd}, and \texttt{konect/matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~1). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
+The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{dblp-cite}, \texttt{ciaodvd}, and \texttt{matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~1). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
 
+Additionally, ACO could be adapted to have N subspecies that find N solutions in parallel by using a repulsion mechanism similar to that proposed for diversity in other ant colony variants [9], extending previous multi-colony parallelization strategies [10].
 
-\section{Appendix}
+\section{Works Cited}
 
-Below are the results of varying the number of ants versus the $\theta$-heuristic.
+[1] D. Cui, R. Li, Q. Dai, H. Qin, and G. Wang, “On the Efficient Discovery of Maximum $K$-Defective Biclique,” arXiv.org. Accessed: Aug. 11, 2026. [Online]. Available: https://arxiv.org/abs/2506.16121
+\
+
+[2]
+M. Dorigo, V. Maniezzo, and A. Colorni, “Ant System: Optimization by a Colony of Cooperating Agents,” IEEE Transactions on Systems, Man and Cybernetics, Part B (Cybernetics), vol. 26, no. 1, pp. 29–41, 1996, doi: 10.1109/3477.484436.
+\
+
+[3]
+S. Shah, “GCLIQUE: An Open Source Genetic Algorithm for the Maximum Clique Problem,” Aug. 2020, doi: 10.36227/techrxiv.12814217.v1.
+\
+
+[4]
+T. Stützle and H. H. Hoos, “– Ant System,” Future Generation Computer Systems, vol. 16, no. 8, pp. 889–914, Jun. 2000, doi: 10.1016/s0167-739x(00)00043-1.
+\
+
+[5]
+A. E. Rizzoli, R. Montemanni, E. Lucibello, and L. M. Gambardella, “Ant Colony Optimization for Real-World Vehicle Routing Problems,” Swarm Intelligence, vol. 1, no. 2, pp. 135–151, Sep. 2007, doi: 10.1007/s11721-007-0005-x.
+\
+
+[6]
+L. M. Gambardella, É. D Taillard, and M. Dorigo, “Ant Colonies for the Quadratic Assignment Problem,” Journal of the Operational Research Society, vol. 50, no. 2, pp. 167–176, Feb. 1999, doi: 10.1057/palgrave.jors.2600676.
+\
+
+[7]
+K. A. Dowsland and J. M. Thompson, “An improved ant colony optimisation heuristic for graph colouring,” Discrete Applied Mathematics, vol. 156, no. 3, pp. 313–324, Feb. 2008, doi: 10.1016/j.dam.2007.03.025.
+\
+
+[8]
+C. Solnon and S. Fenet, “A Study of ACO Capabilities for Solving the Maximum Clique Problem,” Journal of Heuristics, vol. 12, no. 3, pp. 155–180, May 2006, doi: 10.1007/s10732-006-4295-8.
+\
+
+[9] W. Tfaili and P. Siarry, “A New Charged Ant Colony Algorithm for Continuous Dynamic Optimization,” Applied Mathematics and Computation, vol. 197, no. 2, pp. 604–613, Apr. 2008, doi: 10.1016/j.amc.2007.08.087.
+
+\
+
+[10] M. Middendorf, F. Reischle, and H. Schmeck, “Multi Colony Ant Algorithms,” Journal of Heuristics, vol. 8, no. 3, pp. 305–320, May 2002, doi: 10.1023/a:1015057701750.
+
+\section{Appendix A: ACO vs $\theta$-heuristic}
 
 Below are the results of running ACO with 100 ants vs the $\theta$-heuristic on 10 different graphs.
 
 \begin{table}[htbp]
   \centering
   \caption{$k=2, \theta=5$}
-  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns
+
+  \begin{adjustwidth}{-5cm}{-5cm}
+  \centering
+  \setlength{\tabcolsep}{5pt} % Reduced spacing between columns
 
   \begin{tabular}{l *{11}{r}} % 1 left-aligned column + 11 right-aligned columns
     \toprule
@@ -657,19 +654,52 @@ Below are the results of running ACO with 100 ants vs the $\theta$-heuristic on 
     Eswiki & -- & -- & 4896779 & 5 & 5 & 23 & 0.0002 & 1 & 0.0001 & 23 & 0.0000 \\
     \bottomrule
   \end{tabular}
+
+  \end{adjustwidth}
+  
 \end{table}
 
-\section{Works Cited}
 
-[1]
-D. Cui, R. Li, Q. Dai, H. Qin, and G. Wang, “On the Efficient Discovery of Maximum $K$-Defective Biclique,” arXiv.org. Accessed: Aug. 11, 2026. [Online]. Available: https://arxiv.org/abs/2506.16121
-\
+\section{Appendix B: Branch and Pivot Pseudocode}
 
-[2]
-M. Dorigo, V. Maniezzo, and A. Colorni, “Ant System: Optimization by a Colony of Cooperating Agents,” IEEE Transactions on Systems, Man and Cybernetics, Part B (Cybernetics), vol. 26, no. 1, pp. 29–41, 1996, doi: 10.1109/3477.484436.
-\
+\begin{algorithm}
+\caption{Branch and Pivot}
+\begin{minipage}{\textwidth}
+\begin{algorithmic}
+\State $D^* \gets \Call{ThetaHeuristic}{G}$
+\Function{BranchP}{$S = (U_S, V_S), C = (U_C, V_C)$}
+        \If{$C = \varnothing$}
+            \If{$|E(S)| > |E(D^*)|$ and $|U_S| \geq \theta$ and $|V_S| \geq \theta$}
+                \State $D^* \gets S$
+                \State \Return
+            \EndIf
+        \EndIf
 
-[3]
-S. Shah, “GCLIQUE: An Open Source Genetic Algorithm for the Maximum Clique Problem,” Aug. 2020, doi: 10.36227/techrxiv.12814217.v1.
+        \State $C_0 \gets \{v \in C \mid \bar{d}_S(v) = 0\}$
+        \If{$C_0 = \varnothing$ or $|C \setminus C_0| \geq k - |\bar{E}(S)|$}
+            \State $u \gets \text{argmax}_{v \in C}{\bar{d}_S}$
+            \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, u}$
+            \State \Call{BranchP}{$S^\prime \cup \{u\}, C^\prime$}
+            \State \Call{BranchP}{$S, C \setminus \{u\}$}
+        \Else
+            \State $u \gets \text{argmin}_{v \in C_0}\bar{d}_C$
+            \If{$\bar{d}_C(u) > k - |\bar{E}(S)| > 0$}
+                \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, u}$
+                \State \Call{BranchP}{$S^\prime \cup \{u\}, C^\prime$}
+                \State \Call{BranchP}{$S, C \setminus \{u\}$}
+            \Else
+                \For{$v \in \{u\} \cup N_C(u)$}
+                    \State $(S^\prime, C^\prime) \gets \Call{Update}{S, C, v}$
+                    \State \Call{BranchP}{$S^\prime \cup \{v\}, C^\prime$}
+                    \State $C \gets C \setminus \{v\}$
+                \EndFor
+            \EndIf
+        \EndIf
+    \EndFunction
+\end{algorithmic}
+\end{minipage}
+\end{algorithm}
+
+$D^*$ is the $k$-MDB of the graph.
+
 \end{document}
-

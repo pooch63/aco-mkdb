@@ -12,14 +12,15 @@ Modes
         - mean wall-clock time vs ant count
 
   seed-compare
-      compare-seeds.jl output → 1x2 groupplot:
-        - signed net time change vs θ-only pivot, including ACO discovery
-          cost (negative = time increase; every vary dataset)
-        - absolute wall times: θ / θ+ACO pivot when compared, plus ACO
-          discovery and mean ACO WCT for every dataset
+      compare-seeds.jl (+ vary.jl) → figures:
+        - scatter: reduced vertices vs ACO edges saved (ACO beat θ only)
+        - scatter: ACO edges saved vs % pivot time savings (beat θ only)
+        - note: N graphs examined; M where ACO did not beat θ
+        - scatter: reduced vertices vs ACO search cost (no-beat only)
       Reads full pivot comparisons and beat_heuristic=false skip markers
       written by compare-seeds.jl. Pass --vary-dir (or rely on compare_* →
-      vary_* name mapping) for datasets that still lack a compare JSON.
+      vary_* name mapping) for reduced graph sizes and datasets that still
+      lack a compare JSON.
 
   table
       Vary.jl ant-count JSON → paper-style LaTeX table.
@@ -63,8 +64,9 @@ def main(argv=None):
     parser.add_argument(
         "--vary-dir",
         default=None,
-        help="vary.jl JSON directory for ACO discovery costs and no-beat "
-             "datasets (seed-compare). Default: infer vary_* beside compare_*.",
+        help="vary.jl JSON directory for reduced graph sizes, ACO discovery "
+             "costs, and no-beat datasets (seed-compare). Default: infer "
+             "vary_* beside compare_*.",
     )
     parser.add_argument(
         "--ants",

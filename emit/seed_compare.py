@@ -1,14 +1,14 @@
 """
-seed-compare mode — compare-seeds.jl output → 1x2 groupplot:
+seed-compare mode — compare-seeds.jl (+ vary.jl) → paper figures:
 
-  - signed net time change vs θ-only pivot, including ACO discovery
-    cost (negative = time increase; every vary dataset)
-  - absolute wall times: θ / θ+ACO pivot when compared, plus ACO
-    discovery and mean ACO WCT for every dataset
+  1. Scatter (ACO beat θ only): reduced vertex count vs ACO edges saved
+  2. Scatter (ACO beat θ only): ACO edges saved vs % pivot time savings
+  3. Short note: N graphs examined; M where ACO did not beat θ
+  4. Scatter (no-beat only): reduced vertex count vs ACO search cost
 
-Reads full pivot comparisons and beat_heuristic=false skip markers
-written by compare-seeds.jl. Pass --vary-dir (or rely on compare_* →
-vary_* name mapping) for datasets that still lack a compare JSON.
+Reads full pivot comparisons and beat_heuristic=false skip markers from
+compare-seeds.jl. Pass --vary-dir (or rely on compare_* → vary_* name
+mapping) for reduced graph sizes and datasets that still lack a compare JSON.
 """
 
 from __future__ import annotations
@@ -130,6 +130,47 @@ def aco_mean_wct_s(trials):
         if t.get("wall_time_s") is not None
     ]
     return statistics.mean(times) if times else None
+
+
+def reduced_vertex_count(*graphs):
+    """
+    Reduced graph |U_R| + |V_R| from a vary.jl / compare-seeds graph block.
+
+    Prefers reduced_nU/reduced_nV; falls back to original nU/nV when reduced
+    sizes are absent. Returns None if no usable pair is found.
+    """
+    for g in graphs:
+        if not g:
+            continue
+        ru, rv = g.get("reduced_nU"), g.get("reduced_nV")
+        if ru is not None and rv is not None:
+            return int(ru) + int(rv)
+    for g in graphs:
+        if not g:
+            continue
+        u, v = g.get("nU"), g.get("nV")
+        if u is not None and v is not None:
+            return int(u) + int(v)
+    return None
+
+
+def edges_saved(aco_edges, heur_edges):
+    """Extra biclique edges found by ACO over the θ-heuristic, or None."""
+    if aco_edges is None or heur_edges is None:
+        return None
+    return int(aco_edges) - int(heur_edges)
+
+
+def attach_size_metrics(summary, data=None, vary_data=None):
+    """Add vertex_count and edges_saved onto a summary dict (in place)."""
+    vary_graph = (vary_data or {}).get("graph") if vary_data else None
+    data_graph = (data or {}).get("graph") if data else None
+    summary["vertex_count"] = reduced_vertex_count(vary_graph, data_graph)
+    summary["edges_saved"] = edges_saved(
+        summary.get("aco_final_edges"),
+        summary.get("heuristic_edges"),
+    )
+    return summary
 
 
 def summarize_no_beat_marker(data, vary_data=None):
@@ -364,81 +405,44 @@ def summarize_no_beat_vary(data):
     }
 
 
+def _scatter_coords(rows, x_key, y_key, *, require_positive_x=False):
+    """Build a pgfplots coordinates {...} body from row dicts."""
+    parts = []
+    for r in rows:
+        x, y = r.get(x_key), r.get(y_key)
+        if x is None or y is None:
+            continue
+        x, y = float(x), float(y)
+        if require_positive_x and x <= 0:
+            continue
+        parts.append(f"({x:.6f},{y:.6f})")
+    return " ".join(parts)
+
+
 def build_seed_compare_latex(rows):
     """
-    Build a 1x2 groupplot:
+    Build seed-compare figures:
 
-      1. Signed time reduction vs θ-only pivot, including ACO discovery
-         (every dataset; negative = time increase)
-      2. Absolute wall times: mean ACO WCT (every dataset), θ / θ+ACO
-         pivot when compared, and ACO discovery cost when there was no
-         pivot benefit (time-increase cases)
-
-    X positions are categorical symbolic coordinates (dataset names).
+      1–2. ACO-beat scatters (vertex size vs edges saved; edges saved vs %
+           pivot time savings)
+      3.   Note: N examined, M where ACO did not beat θ
+      4.   No-beat scatter: vertex size vs ACO search cost
     """
     if not rows:
         raise ValueError("No seed-compare rows to plot")
 
-    # Stable alphabetical order by display name.
-    rows = sorted(rows, key=lambda r: r["name"])
-    symbols = ",".join(r["name"] for r in rows)
+    beat = [r for r in rows if r.get("beat_heuristic")]
+    nobeat = [r for r in rows if not r.get("beat_heuristic")]
+    n_total = len(rows)
+    n_fail = len(nobeat)
 
-    # Prefer % when every row has an inclusive % (all have θ pivot times).
-    # Otherwise plot seconds so no-beat / uncompared rows still appear.
-    use_pct = all(r.get("inclusive_reduction_pct") is not None for r in rows)
-    red_key = "inclusive_reduction_pct" if use_pct else "inclusive_reduction_s"
-
-    def _red_val(r):
-        return r.get(red_key)
-
-    red_pos = " ".join(
-        f"({r['name']},{_red_val(r):.6f})"
-        for r in rows
-        if _red_val(r) is not None and _red_val(r) >= 0
+    coords_size_edges = _scatter_coords(
+        beat, "vertex_count", "edges_saved", require_positive_x=True
     )
-    red_neg = " ".join(
-        f"({r['name']},{_red_val(r):.6f})"
-        for r in rows
-        if _red_val(r) is not None and _red_val(r) < 0
+    coords_edges_time = _scatter_coords(beat, "edges_saved", "time_reduction_pct")
+    coords_fail_cost = _scatter_coords(
+        nobeat, "vertex_count", "aco_discovery_s", require_positive_x=True
     )
-
-    if use_pct:
-        red_ylabel = r"Time reduction incl.\ ACO (\%)"
-        red_title = (
-            r"Net speedup vs $\theta$-only pivot "
-        )
-    else:
-        red_ylabel = r"Time reduction incl.\ ACO (s)"
-        red_title = (
-            r"Net change vs $\theta$-only pivot "
-        )
-
-    theta_coords = " ".join(
-        f"({r['name']},{r['theta_wall_time_s']:.6f})"
-        for r in rows
-        if r.get("theta_wall_time_s") is not None
-    )
-    aco_pivot_coords = " ".join(
-        f"({r['name']},{r['aco_seed_wall_time_s']:.6f})"
-        for r in rows
-        if r.get("aco_seed_wall_time_s") is not None
-    )
-    aco_mean_coords = " ".join(
-        f"({r['name']},{r['aco_mean_wct_s']:.6f})"
-        for r in rows
-        if r.get("aco_mean_wct_s") is not None
-    )
-    # Discovery / overhead: every dataset that has it (highlights time-increase
-    # cases on the WCT panel even when pivot was never run).
-    discovery_coords = " ".join(
-        f"({r['name']},{r['aco_discovery_s']:.6f})"
-        for r in rows
-        if r.get("aco_discovery_s") is not None
-    )
-
-    # Explicit tick list so every dataset is labeled on both panels, even
-    # when a series only has points for ACO-success / pivot-compared rows.
-    xtick_list = ",".join(r["name"] for r in rows)
 
     lines = [
         r"\begin{tikzpicture}",
@@ -448,83 +452,88 @@ def build_seed_compare_latex(rows):
         r"    width=0.85\textwidth,",
         r"    height=0.38\textwidth,",
         r"    grid=major,",
-        r"    symbolic x coords={" + symbols + r"},",
-        r"    xtick={" + xtick_list + r"},",
-        r"    x tick label style={rotate=45, anchor=east, font=\small},",
+        r"    only marks,",
+        r"    mark=*,",
+        r"    x tick label style={font=\small},",
         r"    yticklabel style={font=\small},",
         r"]",
 
         r"\nextgroupplot[",
-        rf"    ylabel={{{red_ylabel}}},",
+        r"    xlabel={Reduced graph vertices $|U_R|+|V_R|$},",
+        r"    ylabel={ACO edges saved},",
+        r"    xlabel style={font=\small},",
         r"    ylabel style={align=center, font=\small},",
-        rf"    title={{{red_title}}},",
+        r"    title={ACO quality gain vs reduced graph size},",
         r"    title style={font=\small},",
-        r"    legend to name=seedcomparereductionlegend,",
-        r"    legend columns=2,",
-        r"    legend style={draw=none, fill=white, font=\small},",
+        r"    xmode=log,",
         r"]",
     ]
 
-    if red_pos:
+    if coords_size_edges:
         lines.append(
-            r"\addplot+[ybar, bar width=8pt, fill=black!40] coordinates {"
-            + red_pos
+            r"\addplot+[only marks, mark=*] coordinates {"
+            + coords_size_edges
             + r"};"
         )
-        lines.append(r"\addlegendentry{time saved}")
-    if red_neg:
-        lines.append(
-            r"\addplot+[ybar, bar width=8pt, fill=black!15] coordinates {"
-            + red_neg
-            + r"};"
-        )
-        lines.append(r"\addlegendentry{time increase}")
 
     lines += [
         r"\nextgroupplot[",
-        r"    ylabel={Wall time (s)},",
+        r"    xlabel={ACO edges saved},",
+        r"    ylabel={Pivot time savings (\%)},",
+        r"    xlabel style={font=\small},",
         r"    ylabel style={align=center, font=\small},",
-        r"    title={Pivot WCT and ACO discovery cost},",
+        r"    title={Pivot speedup vs ACO quality gain},",
         r"    title style={font=\small},",
-        r"    ymode=log,",
-        r"    legend to name=seedcomparelegend,",
-        r"    legend columns=2,",
-        r"    legend style={draw=none, fill=white, font=\small},",
         r"]",
     ]
 
-    if theta_coords:
-        lines.append(
-            r"\addplot+[only marks, mark=*] coordinates {" + theta_coords + r"};"
-        )
-        lines.append(r"\addlegendentry{$\theta$ pivot}")
-    if aco_pivot_coords:
+    if coords_edges_time:
         lines.append(
             r"\addplot+[only marks, mark=square*] coordinates {"
-            + aco_pivot_coords
+            + coords_edges_time
             + r"};"
         )
-        lines.append(r"\addlegendentry{$\theta$ + ACO pivot}")
-    if discovery_coords:
-        lines.append(
-            r"\addplot+[only marks, mark=triangle*] coordinates {"
-            + discovery_coords
-            + r"};"
-        )
-        lines.append(r"\addlegendentry{ACO discovery}")
-    if aco_mean_coords:
-        lines.append(
-            r"\addplot+[only marks, mark=x] coordinates {" + aco_mean_coords + r"};"
-        )
-        lines.append(r"\addlegendentry{mean ACO WCT}")
 
     lines += [
         r"\end{groupplot}",
         r"\end{tikzpicture}",
         r"",
-        r"\begin{center}",
-        r"\ref{seedcomparereductionlegend}\qquad\ref{seedcomparelegend}",
-        r"\end{center}",
+        (
+            rf"We examined ${n_total}$ graphs. On ${n_fail}$ of them, ACO did "
+            r"not beat the $\theta$-heuristic and therefore did not yield a "
+            r"seed that could reduce pivot time. Even in those unsuccessful "
+            r"cases, however, the ACO search cost stays modest:"
+        ),
+        r"",
+        r"\begin{tikzpicture}",
+        r"\begin{axis}[",
+        r"    width=0.85\textwidth,",
+        r"    height=0.38\textwidth,",
+        r"    grid=major,",
+        r"    only marks,",
+        r"    mark=triangle*,",
+        r"    xmode=log,",
+        r"    xlabel={Reduced graph vertices $|U_R|+|V_R|$},",
+        r"    ylabel={ACO search cost (s)},",
+        r"    xlabel style={font=\small},",
+        r"    ylabel style={align=center, font=\small},",
+        r"    title={ACO overhead when it fails to beat $\theta$},",
+        r"    title style={font=\small},",
+        r"    x tick label style={font=\small},",
+        r"    yticklabel style={font=\small},",
+        r"]",
+    ]
+
+    if coords_fail_cost:
+        lines.append(
+            r"\addplot+[only marks, mark=triangle*] coordinates {"
+            + coords_fail_cost
+            + r"};"
+        )
+
+    lines += [
+        r"\end{axis}",
+        r"\end{tikzpicture}",
     ]
 
     return "\n".join(lines)
@@ -564,6 +573,7 @@ def run(json_paths, output, vary_dir=None):
             skipped.append((path, "not a compare-seeds result (or missing timings)"))
             continue
 
+        attach_size_metrics(summary, data=data, vary_data=vary_data)
         name = series_name(path, data)
         rows.append({"name": name, **summary})
         seen_names.add(leaf)
@@ -578,6 +588,7 @@ def run(json_paths, output, vary_dir=None):
             summary = summarize_from_vary_only(vdata)
             if summary is None:
                 continue
+            attach_size_metrics(summary, data=vdata, vary_data=vdata)
             rows.append({"name": name, **summary})
             seen_names.add(leaf)
 
@@ -593,6 +604,12 @@ def run(json_paths, output, vary_dir=None):
     nobeat = [r for r in rows if not r.get("beat_heuristic")]
     parts = [f"# seed-compare: {len(rows)} dataset(s)"]
     if beat:
+        with_edges = sum(1 for r in beat if r.get("edges_saved") is not None)
+        with_pct = sum(1 for r in beat if r.get("time_reduction_pct") is not None)
+        parts.append(
+            f"{len(beat)} ACO beat θ ({with_edges} with edges saved, "
+            f"{with_pct} with pivot % savings)"
+        )
         compared = [
             r["time_reduction_pct"]
             for r in beat
@@ -600,20 +617,7 @@ def run(json_paths, output, vary_dir=None):
         ]
         if compared:
             parts.append(
-                f"{len(compared)} pivot-compared; mean pivot-only reduction = "
-                f"{statistics.mean(compared):.2f}%"
-            )
-        pending = len(beat) - len(compared)
-        if pending:
-            parts.append(f"{pending} ACO beat without compare JSON")
-        incl = [
-            r["inclusive_reduction_pct"]
-            for r in beat
-            if r.get("inclusive_reduction_pct") is not None
-        ]
-        if incl:
-            parts.append(
-                f"mean inclusive reduction = {statistics.mean(incl):.2f}%"
+                f"mean pivot-only reduction = {statistics.mean(compared):.2f}%"
             )
     if nobeat:
         waste = statistics.mean(r["aco_discovery_s"] for r in nobeat)

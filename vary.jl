@@ -211,6 +211,8 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     warmup_benchmarks!(k, θ, reduction, aco_options; targets=Set([:aco, :heuristic]))
 
     mutable_bytes = Base.summarysize(g)
+    nU = length(g.adjU)
+    nV = length(g.adjV)
     g_reduced = deepcopy(g)
     println()
     println("Reducing graph once…")
@@ -219,20 +221,29 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     end
     fg = m_red.value
     frozen_bytes = Base.summarysize(fg)
+    reduced_nU = length(fg.u_ids)
+    reduced_nV = length(fg.v_ids)
+    reduced_edges = length(fg.v_adj)
     print_metric_block("Graph reduction";
         wall_time_s = m_red.time,
         allocated_bytes = m_red.allocated,
-        reduced_nU = length(fg.u_ids),
-        reduced_nV = length(fg.v_ids),
+        reduced_nU,
+        reduced_nV,
+        reduced_edges,
     )
     print_metric_block("Graph structure";
-        nU = length(g.adjU),
-        nV = length(g.adjV),
+        nU,
+        nV,
         edges = edge_count,
+        reduced_nU,
+        reduced_nV,
+        reduced_edges,
         mutable_graph_bytes = mutable_bytes,
         frozen_after_reduction_bytes = frozen_bytes,
     )
-    graph_stats = (; mutable_bytes, frozen_bytes, fg,
+    graph_stats = (; nU, nV, edges = edge_count,
+        reduced_nU, reduced_nV, reduced_edges,
+        mutable_bytes, frozen_bytes, fg,
         reduction_time = m_red.time, reduction_allocated = m_red.allocated,
         reduction_rss_delta = m_red.rss_delta)
 
@@ -347,10 +358,14 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
 
     gs = results.graph_stats
     out["graph"] = Dict(
+        "nU" => get(gs, :nU, nothing),
+        "nV" => get(gs, :nV, nothing),
+        "edges" => get(gs, :edges, edge_count),
+        "reduced_nU" => get(gs, :reduced_nU, length(gs.fg.u_ids)),
+        "reduced_nV" => get(gs, :reduced_nV, length(gs.fg.v_ids)),
+        "reduced_edges" => get(gs, :reduced_edges, length(gs.fg.v_adj)),
         "mutable_bytes" => gs.mutable_bytes,
         "frozen_bytes" => gs.frozen_bytes,
-        "reduced_nU" => length(gs.fg.u_ids),
-        "reduced_nV" => length(gs.fg.v_ids),
         "reduction_time_s" => gs.reduction_time,
     )
 

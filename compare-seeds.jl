@@ -26,20 +26,38 @@ Both modes time full pivot runs (default progressive / all_reductions) on a
 fresh copy of the loaded graph each time — same path as a normal load.jl pivot,
 so progressive reduction stays interleaved with branching. (a) θ-heuristic seed
 only, (b) best of θ-heuristic and the external seed.
+
+Each timed pivot runs in a worker process with a hard timeout (default 2000s;
+override with --timeout=SECONDS). On timeout the worker is killed and the
+result is recorded with status="timeout" and wall_time_s equal to the limit.
 =================================================================================
 =#
 
+using Distributed
 using Random
 using JSON3
+
+const DEFAULT_PIVOT_TIMEOUT_SECONDS = 2000.0
 
 function usage_and_exit()
     println(stderr, """
 Usage:
   julia compare-seeds.jl <vary.json> [--inject --u=N --v=M] [--seed=S] [--save=out.json]
+      [--timeout=SECONDS]
   julia compare-seeds.jl --dataset=KEY --seed-json=seed.json --k=K --theta=T
       [--inject --u=N --v=M] [--seed=S] [--save=out.json] [--reduce=hi|lo|none]
+      [--timeout=SECONDS]
 """)
     exit(1)
+end
+
+function parse_float_eq(flag::AbstractString, default)
+    prefix = "--$flag="
+    for arg in ARGS
+        startswith(arg, prefix) || continue
+        return parse(Float64, split(arg, "=", limit=2)[2])
+    end
+    return default
 end
 
 function parse_int_eq(flag::AbstractString, default)
@@ -244,9 +262,12 @@ end
 
 # -----------------------------------------------------------------------------
 # Heavy path (pivot timing) — load.jl only pulled in when needed.
+# Timed pivots run on a Distributed worker so a hard process timeout can kill
+# a stuck search without leaving a runaway thread on the driver.
 # -----------------------------------------------------------------------------
 
 const _LOAD_JL_INCLUDED = Ref(false)
+const _WORKER_READY = Set{Int}()
 
 function ensure_load_jl!()
     _LOAD_JL_INCLUDED[] && return
@@ -254,6 +275,117 @@ function ensure_load_jl!()
     _LOAD_JL_INCLUDED[] = true
     return
 end
+
+function reduction_to_sym(reduction)
+    reduction == ReductionMode.none && return :none
+    reduction == ReductionMode.simple && return :simple
+    reduction == ReductionMode.progressive && return :progressive
+    reduction == ReductionMode.all_reductions && return :all_reductions
+    throw(ArgumentError("Unsupported reduction mode: $reduction"))
+end
+
+function setup_compare_worker!(p::Integer)
+    root = @__DIR__
+    @everywhere [p] begin
+        include(joinpath($root, "load.jl"))
+
+        function worker_reduction_from_sym(s::Symbol)
+            s === :none && return ReductionMode.none
+            s === :simple && return ReductionMode.simple
+            s === :progressive && return ReductionMode.progressive
+            s === :all_reductions && return ReductionMode.all_reductions
+            throw(ArgumentError("Unsupported reduction symbol: $s"))
+        end
+
+        """
+        Timed pivot on a fresh deepcopy of `g`. Returns lightweight fields only
+        (no SubGraph) so remotecall does not ship large solution sets back.
+        """
+        function worker_time_pivot_seeded(g, k::Int, θ::Int, reduction_sym::Symbol,
+            use_heuristic::Bool, seed_U, seed_V)
+            reduction = worker_reduction_from_sym(reduction_sym)
+            initial_seed = if seed_U === nothing
+                nothing
+            else
+                SubGraph(Set{Int}(Int(v) for v in seed_U), Set{Int}(Int(v) for v in seed_V))
+            end
+            g_run = deepcopy(g)
+            m = measure_call() do
+                find_kmdb!(g_run, use_heuristic, BranchMode.pivot, k, θ, reduction;
+                    initial_seed=initial_seed)
+            end
+            sols = m.value
+            sol = isempty(sols) ? SubGraph() : first(sols)
+            g_eval = deepcopy(g)
+            fg_eval = if reduction == ReductionMode.none
+                freeze(g_eval)
+            else
+                apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
+            end
+            edges = Subgraph.edge_count(fg_eval, sol)
+            return (
+                edges = edges,
+                time = m.time,
+                allocated = m.allocated,
+                rss_delta = m.rss_delta,
+                nU = length(sol.U),
+                nV = length(sol.V),
+            )
+        end
+    end
+    return p
+end
+
+function ensure_compare_worker!()
+    ensure_load_jl!()
+    if nprocs() == 1 || workers() == [1]
+        empty!(_WORKER_READY)
+        addprocs(1)
+    end
+    p = workers()[end]
+    if p ∉ _WORKER_READY
+        setup_compare_worker!(p)
+        push!(_WORKER_READY, p)
+    end
+    return p
+end
+
+"""
+Run a named worker function with `args` under a hard process timeout.
+
+Same dispatch pattern as test.jl: resolve `fn_name` on the worker so Julia 1.12
+does not need to deserialize driver-side method bindings.
+"""
+function with_process_timeout(timeout_seconds::Real, fn_name::Symbol, args...)
+    p = ensure_compare_worker!()
+    argv = Any[args...]
+    future = remotecall(p, fn_name, argv) do name, argv
+        getfield(Main, name)(argv...)
+    end
+
+    start_time = time()
+    while !isready(future)
+        if time() - start_time > timeout_seconds
+            @warn "Pivot timed out after $(timeout_seconds)s. Terminating worker $p…"
+            rmprocs(p; waitfor=0)
+            delete!(_WORKER_READY, p)
+            try
+                addprocs(1)
+                np = workers()[end]
+                setup_compare_worker!(np)
+                push!(_WORKER_READY, np)
+            catch e
+                @warn "Failed to respawn worker after timeout" exception = e
+            end
+            throw(ErrorException("Execution timed out after $(timeout_seconds)s."))
+        end
+        sleep(0.05)
+    end
+
+    return fetch(future)
+end
+
+is_timeout(e) = e isa ErrorException && occursin("timed out", e.msg)
 
 function subgraph_from_uv(U, V)
     return SubGraph(Set{Int}(json_int_vec(U)), Set{Int}(json_int_vec(V)))
@@ -273,58 +405,95 @@ end
 
 # Untyped signatures so this file parses before load.jl defines BipartiteGraph / SubGraph.
 function time_pivot_seeded!(g, k::Int, θ::Int, reduction;
-    use_heuristic::Bool, initial_seed)
-    g_run = deepcopy(g)
-    m = measure_call() do
-        find_kmdb!(g_run, use_heuristic, BranchMode.pivot, k, θ, reduction;
-            initial_seed=initial_seed)
+    use_heuristic::Bool, initial_seed, timeout_seconds::Real=DEFAULT_PIVOT_TIMEOUT_SECONDS)
+    seed_U = initial_seed === nothing ? nothing : collect(Int, initial_seed.U)
+    seed_V = initial_seed === nothing ? nothing : collect(Int, initial_seed.V)
+    reduction_sym = reduction_to_sym(reduction)
+    try
+        r = with_process_timeout(timeout_seconds, :worker_time_pivot_seeded,
+            g, k, θ, reduction_sym, use_heuristic, seed_U, seed_V)
+        return (;
+            edges = r.edges,
+            time = r.time,
+            allocated = r.allocated,
+            rss_delta = r.rss_delta,
+            timed_out = false,
+        )
+    catch e
+        if is_timeout(e)
+            return (;
+                edges = nothing,
+                time = Float64(timeout_seconds),
+                allocated = nothing,
+                rss_delta = nothing,
+                timed_out = true,
+            )
+        end
+        rethrow()
     end
-    sols = m.value
-    sol = isempty(sols) ? SubGraph() : first(sols)
-    g_eval = deepcopy(g)
-    fg_eval = if reduction == ReductionMode.none
-        freeze(g_eval)
-    else
-        apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
+end
+
+function pivot_result_dict(run)
+    d = Dict{String,Any}(
+        "wall_time_s" => run.time,
+        "timed_out" => run.timed_out,
+        "status" => run.timed_out ? "timeout" : "ok",
+    )
+    if !run.timed_out
+        d["allocated_bytes"] = run.allocated
+        d["rss_delta_bytes"] = run.rss_delta
+        d["final_edges"] = run.edges
     end
-    edges = Subgraph.edge_count(fg_eval, sol)
-    return (; sol, edges, time = m.time, allocated = m.allocated, rss_delta = m.rss_delta)
+    return d
 end
 
 function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
-    dataset::AbstractString="", aco_meta=nothing)
+    dataset::AbstractString="", aco_meta=nothing,
+    timeout_seconds::Real=DEFAULT_PIVOT_TIMEOUT_SECONDS)
     println()
     println("==================== COMPARE SEEDS ====================")
-    println("dataset=$dataset  k=$k  θ=$θ  reduction=$reduction")
+    println("dataset=$dataset  k=$k  θ=$θ  reduction=$reduction  timeout=$(timeout_seconds)s")
     println("ACO seed: |U|=$(length(aco_seed.U)) |V|=$(length(aco_seed.V))  " *
             "U=$(sorted_str(aco_seed.U)) V=$(sorted_str(aco_seed.V))")
 
     # Tiny synthetic graph only — JIT is type-based, so a full-instance warmup
     # would be two extra complete pivot solves (often as expensive as the timed runs).
+    # Warmup stays on the driver; timed pivots run on the timeout worker.
     println()
     println("Warming up (tiny graph, excluded from timings)…")
     aco_nt = (ACO_PHEREMONE, ACO_NUM_ANTS, ACO_NUM_ITERATIONS, ACO_EVAPORATION, ACO_NUM_SUBSPECIES)
     warmup_benchmarks!(k, θ, reduction, aco_nt; targets=Set([:pivot, :heuristic]))
 
+    # Ensure the worker is ready before the first timed run (loads load.jl there).
+    ensure_compare_worker!()
+
     println()
     println("── Pivot seeded with θ-heuristic only ──")
     theta_run = time_pivot_seeded!(g, k, θ, reduction;
-        use_heuristic=true, initial_seed=nothing)
-    print_metric_block("Pivot (θ seed)";
-        wall_time_s = theta_run.time,
-        allocated_bytes = theta_run.allocated,
-        optimal_edges = theta_run.edges,
-    )
+        use_heuristic=true, initial_seed=nothing, timeout_seconds=timeout_seconds)
+    if theta_run.timed_out
+        println("  timed out after $(format_seconds(timeout_seconds))s")
+    else
+        print_metric_block("Pivot (θ seed)";
+            wall_time_s = theta_run.time,
+            allocated_bytes = theta_run.allocated,
+            optimal_edges = theta_run.edges,
+        )
+    end
 
     println()
     println("── Pivot seeded with θ-heuristic + ACO subgraph ──")
     aco_run = time_pivot_seeded!(g, k, θ, reduction;
-        use_heuristic=true, initial_seed=aco_seed)
-    print_metric_block("Pivot (θ + ACO seed)";
-        wall_time_s = aco_run.time,
-        allocated_bytes = aco_run.allocated,
-        optimal_edges = aco_run.edges,
-    )
+        use_heuristic=true, initial_seed=aco_seed, timeout_seconds=timeout_seconds)
+    if aco_run.timed_out
+        println("  timed out after $(format_seconds(timeout_seconds))s")
+    else
+        print_metric_block("Pivot (θ + ACO seed)";
+            wall_time_s = aco_run.time,
+            allocated_bytes = aco_run.allocated,
+            optimal_edges = aco_run.edges,
+        )
+    end
 
     time_reduction_s = theta_run.time - aco_run.time
     time_reduction_pct = theta_run.time > 0 ?
@@ -332,8 +501,10 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
 
     println()
     println("==================== SUMMARY ======================")
-    println("θ-seed pivot:     $(format_seconds(theta_run.time))s  edges=$(theta_run.edges)")
-    println("θ+ACO-seed pivot: $(format_seconds(aco_run.time))s  edges=$(aco_run.edges)")
+    theta_label = theta_run.timed_out ? "TIMEOUT" : "$(format_seconds(theta_run.time))s  edges=$(theta_run.edges)"
+    aco_label = aco_run.timed_out ? "TIMEOUT" : "$(format_seconds(aco_run.time))s  edges=$(aco_run.edges)"
+    println("θ-seed pivot:     $theta_label")
+    println("θ+ACO-seed pivot: $aco_label")
     println("time reduction:   $(format_seconds(time_reduction_s))s  ($(round(time_reduction_pct; digits=2))%)")
     println("===================================================")
 
@@ -344,6 +515,7 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
         "k" => k,
         "theta" => θ,
         "reduction" => string(reduction),
+        "pivot_timeout_s" => Float64(timeout_seconds),
         "graph" => Dict(
             "nU" => length(g.adjU),
             "nV" => length(g.adjV),
@@ -354,20 +526,11 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
             "nU" => length(aco_seed.U),
             "nV" => length(aco_seed.V),
         ),
-        "pivot_theta" => Dict(
-            "wall_time_s" => theta_run.time,
-            "allocated_bytes" => theta_run.allocated,
-            "rss_delta_bytes" => theta_run.rss_delta,
-            "final_edges" => theta_run.edges,
-        ),
-        "pivot_aco_seed" => Dict(
-            "wall_time_s" => aco_run.time,
-            "allocated_bytes" => aco_run.allocated,
-            "rss_delta_bytes" => aco_run.rss_delta,
-            "final_edges" => aco_run.edges,
-        ),
+        "pivot_theta" => pivot_result_dict(theta_run),
+        "pivot_aco_seed" => pivot_result_dict(aco_run),
         "time_reduction_s" => time_reduction_s,
         "time_reduction_pct" => time_reduction_pct,
+        "any_timed_out" => theta_run.timed_out || aco_run.timed_out,
     )
 
     if aco_meta !== nothing
@@ -393,7 +556,8 @@ function load_graph_for_compare(dataset::AbstractString, inject, k::Int, seed)
     return g, edges
 end
 
-function compare_from_vary_json(vary_path::AbstractString; inject_raw, seed_override, save_path)
+function compare_from_vary_json(vary_path::AbstractString; inject_raw, seed_override,
+    save_path, timeout_seconds)
     if maybe_skip_existing(save_path)
         return Dict{String,Any}("compare" => "seeds", "skipped_existing" => true)
     end
@@ -437,11 +601,11 @@ function compare_from_vary_json(vary_path::AbstractString; inject_raw, seed_over
     ensure_load_jl!()
     return Base.invokelatest(() -> _compare_from_vary_json_loaded(
         vary_path, data, best, heur_edges, trials, dataset, k, θ;
-        inject_raw, seed_override, save_path))
+        inject_raw, seed_override, save_path, timeout_seconds))
 end
 
 function _compare_from_vary_json_loaded(vary_path, data, best, heur_edges, trials,
-    dataset, k, θ; inject_raw, seed_override, save_path)
+    dataset, k, θ; inject_raw, seed_override, save_path, timeout_seconds)
     inject = inject_raw === nothing ? parse_inject() : inject_raw
     reduction = parse_reduction_flag()
     seed = seed_override !== nothing ? seed_override :
@@ -501,7 +665,7 @@ function _compare_from_vary_json_loaded(vary_path, data, best, heur_edges, trial
 
     g, _edges = load_graph_for_compare(dataset, inject, k, seed)
     payload = run_seed_comparison!(g, k, θ, reduction, aco_seed;
-        dataset=dataset, aco_meta=aco_meta)
+        dataset=dataset, aco_meta=aco_meta, timeout_seconds=timeout_seconds)
 
     if discovery_until !== nothing
         payload["aco_discovery_s"] = discovery_until
@@ -523,17 +687,19 @@ function _compare_from_vary_json_loaded(vary_path, data, best, heur_edges, trial
     return payload
 end
 
-function compare_from_seed_json(; dataset, seed_json_path, k, θ, seed, save_path)
+function compare_from_seed_json(; dataset, seed_json_path, k, θ, seed, save_path,
+    timeout_seconds)
     if maybe_skip_existing(save_path)
         return Dict{String,Any}("compare" => "seeds", "skipped_existing" => true)
     end
 
     ensure_load_jl!()
     return Base.invokelatest(() -> _compare_from_seed_json_loaded(;
-        dataset, seed_json_path, k, θ, seed, save_path))
+        dataset, seed_json_path, k, θ, seed, save_path, timeout_seconds))
 end
 
-function _compare_from_seed_json_loaded(; dataset, seed_json_path, k, θ, seed, save_path)
+function _compare_from_seed_json_loaded(; dataset, seed_json_path, k, θ, seed, save_path,
+    timeout_seconds)
     inject = parse_inject()
     reduction = parse_reduction_flag()
 
@@ -552,7 +718,8 @@ function _compare_from_seed_json_loaded(; dataset, seed_json_path, k, θ, seed, 
 
     aco_seed = subgraph_from_uv(U, V)
     g, _edges = load_graph_for_compare(dataset, inject, k, seed)
-    payload = run_seed_comparison!(g, k, θ, reduction, aco_seed; dataset=dataset)
+    payload = run_seed_comparison!(g, k, θ, reduction, aco_seed;
+        dataset=dataset, timeout_seconds=timeout_seconds)
 
     if save_path !== nothing
         save_benchmark_json(resolve_benchmark_save_path(save_path), payload)
@@ -573,17 +740,19 @@ function compare_seeds_main()
     seed_override = seed_raw === nothing ? nothing : parse(UInt64, seed_raw)
     k = parse_int_eq("k", 2)
     θ = parse_int_eq("theta", 5)
+    timeout_seconds = parse_float_eq("timeout", DEFAULT_PIVOT_TIMEOUT_SECONDS)
+    timeout_seconds > 0 || error("--timeout= must be positive (got $timeout_seconds)")
 
     result = nothing
     if seed_json !== nothing
         dataset === nothing && error("--seed-json= requires --dataset=")
         result = compare_from_seed_json(;
             dataset, seed_json_path=seed_json, k, θ,
-            seed=seed_override, save_path)
+            seed=seed_override, save_path, timeout_seconds)
     elseif length(positional) == 1
         # inject / reduction parsed only after ensure_load_jl! when needed
         result = compare_from_vary_json(positional[1];
-            inject_raw=nothing, seed_override, save_path)
+            inject_raw=nothing, seed_override, save_path, timeout_seconds)
     else
         usage_and_exit()
     end

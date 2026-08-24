@@ -1,0 +1,56 @@
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=1 by 2, vertical sep=55pt},
+    title style={yshift=-3pt},
+    width=0.85\textwidth,
+    height=0.38\textwidth,
+    grid=major,
+    only marks,
+    mark=*,
+    x tick label style={font=\small},
+    yticklabel style={font=\small},
+]
+\nextgroupplot[
+    xlabel={Reduced graph vertices $|U_R|+|V_R|$},
+    ylabel={ACO edges saved},
+    xlabel style={font=\small},
+    ylabel style={align=center, font=\small},
+    title={ACO quality gain vs reduced graph size},
+    title style={font=\small},
+    xmode=log,
+]
+\addplot+[only marks, mark=*] coordinates {(778.000000,100.000000) (82.000000,75.000000) (215.000000,10.000000) (59.000000,9.000000) (408.000000,998.000000) (1434.000000,335.000000) (600.000000,5.000000) (408.000000,998.000000) (2162.000000,255.000000)};
+\nextgroupplot[
+    xlabel={ACO edges saved},
+    ylabel={Pivot time savings (\%)},
+    xlabel style={font=\small},
+    ylabel style={align=center, font=\small},
+    title={Pivot speedup vs ACO quality gain},
+    title style={font=\small},
+]
+\addplot+[only marks, mark=square*] coordinates {(100.000000,98.577600) (75.000000,14.301600) (10.000000,62.376000) (9.000000,91.949700)};
+\end{groupplot}
+\end{tikzpicture}
+
+We examined $17$ graphs. On $8$ of them, ACO did not beat the $\theta$-heuristic and therefore did not yield a seed that could reduce pivot time. Even in those unsuccessful cases, however, the ACO search cost stays modest:
+
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.85\textwidth,
+    height=0.38\textwidth,
+    grid=major,
+    only marks,
+    mark=triangle*,
+    xmode=log,
+    xlabel={Reduced graph vertices $|U_R|+|V_R|$},
+    ylabel={ACO search cost (s)},
+    xlabel style={font=\small},
+    ylabel style={align=center, font=\small},
+    title={ACO overhead when it fails to beat $\theta$},
+    title style={font=\small},
+    x tick label style={font=\small},
+    yticklabel style={font=\small},
+]
+\addplot+[only marks, mark=triangle*] coordinates {(235.000000,2.936600) (247.000000,6.487200) (10.000000,0.171200) (17.000000,0.185100) (25.000000,0.189500) (75.000000,1.409600) (561.000000,3.412200)};
+\end{axis}
+\end{tikzpicture}

@@ -3,12 +3,12 @@ table mode — vary.jl ant-count JSON → LaTeX table.
 
 Columns match the paper table:
 
-    Dataset | |U_G| | |V_G| | |E_G| | |U_R| | |V_R|
+    Dataset | |U_G| | |V_G| | |E_G| | |U_R| | |V_R| | |E_R|
             | ACO: |E(D*)| Time ITB TTB | θ-Heuristic: |E(D*)| Time
 
-|U_G| and |V_G| are not stored in the vary JSON, so they are emitted as
-placeholders (`--`). |E_G| is `edge_count`; |U_R| / |V_R| are the reduced
-graph sizes. ACO reports the best trial (max `final_edges`, then min
+|U_G| / |V_G| / |E_G| come from the original graph (`graph.nU` / `graph.nV`
+and top-level `edge_count`). |U_R| / |V_R| / |E_R| are the reduced graph
+sizes. ACO reports the best trial (max `final_edges`, then min
 `time_to_best_s`, then min `wall_time_s`).
 """
 
@@ -17,10 +17,6 @@ from __future__ import annotations
 import sys
 
 from .common import display_name, load_json, report_skipped, write_tex
-
-
-UG_PLACEHOLDER = "--"
-VG_PLACEHOLDER = "--"
 
 
 def fmt_int(value):
@@ -77,12 +73,19 @@ def summarize_file(data, ants=None):
     trials = data.get("trials") or []
     best = select_best_trial(trials, ants=ants)
 
+    edge_count = data.get("edge_count")
+    if edge_count is None:
+        edge_count = graph.get("edges")
+
     return {
         "k": data.get("k"),
         "theta": data.get("theta"),
-        "edge_count": data.get("edge_count"),
+        "nU": graph.get("nU"),
+        "nV": graph.get("nV"),
+        "edge_count": edge_count,
         "reduced_nU": graph.get("reduced_nU"),
         "reduced_nV": graph.get("reduced_nV"),
+        "reduced_edges": graph.get("reduced_edges"),
         "aco_edges": None if best is None else best.get("final_edges"),
         "aco_time": None if best is None else best.get("wall_time_s"),
         "aco_itb": None if best is None else best.get("iterations_to_best"),
@@ -95,11 +98,12 @@ def summarize_file(data, ants=None):
 def row_tex(name, row):
     cells = [
         name,
-        UG_PLACEHOLDER,
-        VG_PLACEHOLDER,
+        fmt_int(row["nU"]),
+        fmt_int(row["nV"]),
         fmt_int(row["edge_count"]),
         fmt_int(row["reduced_nU"]),
         fmt_int(row["reduced_nV"]),
+        fmt_int(row["reduced_edges"]),
         fmt_int(row["aco_edges"]),
         fmt_time(row["aco_time"]),
         fmt_itb(row["aco_itb"]),
@@ -124,14 +128,16 @@ def build_table(named_rows):
         r"\begin{table}[htbp]",
         r"  \centering",
         rf"  \caption{{{caption}}}",
-        r"  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns",
         r"",
-        r"  \begin{tabular}{l *{11}{r}} % 1 left-aligned column + 11 right-aligned columns",
+        r"  \begin{adjustwidth}{-5cm}{-5cm}",
+        r"  \centering",
+        r"  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns",
+        r"  \begin{tabular}{l *{12}{r}} % 1 left-aligned column + 12 right-aligned columns",
         r"    \toprule",
-        r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$"
+        r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
         r" & \multicolumn{4}{c}{ACO} & \multicolumn{2}{c}{$\theta$-Heuristic} \\",
-        r"    \cmidrule(lr){7-10} \cmidrule(lr){11-12}",
-        r"    & & & & & & $|E(D^*)|$ & Time & ITB & TTB & $|E(D^*)|$ & Time \\",
+        r"    \cmidrule(lr){8-11} \cmidrule(lr){12-13}",
+        r"    & & & & & & & $|E(D^*)|$ & Time & ITB & TTB & $|E(D^*)|$ & Time \\",
         r"    \midrule",
     ]
     for name, row in named_rows:
@@ -139,6 +145,7 @@ def build_table(named_rows):
     lines += [
         r"    \bottomrule",
         r"  \end{tabular}",
+        r"  \end{adjustwidth}",
         r"\end{table}",
     ]
     return "\n".join(lines)
