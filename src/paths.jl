@@ -106,13 +106,39 @@ function discover_indexed_graphs(; data_root::AbstractString="data",
 end
 
 """
-    order_graphs_by_edges(; data_root="data", skip=("raw",), ascending=true)
+    dataset_key_matches_prefix(key, prefix) -> Bool
+
+True if `key` is `prefix` or a nested dataset under it (`prefix/...`).
+`konect` matches `konect/bitcoin` but not `konect-small/foo`.
+Empty `prefix` matches everything. Comma-separated prefixes are OR'd.
+"""
+function dataset_key_matches_prefix(key::AbstractString, prefix::AbstractString)
+    k = replace(String(key), '\\' => '/')
+    raw = String(prefix)
+    isempty(strip(raw)) && return true
+    for part in split(raw, ',')
+        p = rstrip(replace(strip(part), '\\' => '/'), '/')
+        isempty(p) && continue
+        (k == p || startswith(k, p * "/")) && return true
+    end
+    return false
+end
+
+"""
+    order_graphs_by_edges(; data_root="data", skip=("raw",), ascending=true, prefix=nothing)
 
 Discover indexed graphs under `data_root` and return them sorted by edge count
 (ascending by default — smallest / easiest first).
+
+`prefix` restricts to a provider or nested key (`"konect-small"`, `"amazon"`).
+Comma-separated values are OR'd. Path-prefix matching is slash-bounded, so
+`"konect"` does not match `"konect-small/..."`.
 """
 function order_graphs_by_edges(; data_root::AbstractString="data",
-    skip=("raw",), ascending::Bool=true)
+    skip=("raw",), ascending::Bool=true, prefix::Union{Nothing,AbstractString}=nothing)
     entries = discover_indexed_graphs(; data_root=data_root, skip=skip)
+    if prefix !== nothing && !isempty(strip(String(prefix)))
+        filter!(e -> dataset_key_matches_prefix(e.key, prefix), entries)
+    end
     return sort!(entries; by=(e -> e.edges), rev=!ascending)
 end

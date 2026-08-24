@@ -54,7 +54,7 @@ ACO flags:
   --ants=N          number of ants per iteration (default: 10)
   --iterations=N    number of ACO iterations (default: 100)
   --pheremone=N     pheromone deposit per step (default: 1)
-  --evaporation=X   pheromone evaporation rate in (0, 1] (default: 0.9)
+  --evaporation=X   pheromone evaporation rate in (0, 1] (default: 0.95)
   --subspecies=N    number of ant subspecies (default: 1)
   --prefer-smaller-side=true|false   bias adds onto the smaller side while min < θ (default: true)
   --elite-seed=true|false            seed some ants from best − nodes (default: true)

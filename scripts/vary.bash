@@ -1,19 +1,26 @@
 #!/bin/bash
-# Sweep ACO ant-count (--vary=ant-count) across every indexed graph under data/,
+# Sweep ACO ant-count (--vary=ant-count) across indexed graphs under data/,
 # ordered by edge count ascending so smaller / easier graphs finish first.
 #
 # Usage:
-#   ./vary.bash
-#   JULIA_THREADS=8 ./vary.bash
-#   ANTS_RANGE=10,20,50,100 ITERATIONS=100 ./vary.bash
-#   ACO_RUNS=10 ./vary.bash             # 10 seeded ACO replicates per ant count
-#   RUN_PIVOT=1 ./vary.bash             # also run branch-and-pivot for optimum (slow)
-#   RESUME_FROM=13 ./vary.bash          # skip graphs 1–12; start at #13
+#   ./scripts/vary.bash
+#   PREFIX=konect-small ./scripts/vary.bash
+#   JULIA_THREADS=8 ./scripts/vary.bash
+#   ANTS_RANGE=10,20,50,100 ITERATIONS=100 ./scripts/vary.bash
+#   ACO_RUNS=10 ./scripts/vary.bash             # 10 seeded ACO replicates per ant count
+#   RUN_PIVOT=1 ./scripts/vary.bash             # also run branch-and-pivot for optimum (slow)
+#   RESUME_FROM=13 ./scripts/vary.bash          # skip graphs 1–12; start at #13
+#   SKIP_EXISTING=1 ./scripts/vary.bash         # skip graphs whose *_ants.json already exists
+#
+# Then compare pivot time on ACO-beats-heuristic trials:
+#   PREFIX=konect-small ./scripts/compare-seeds.bash
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+# shellcheck source=common.bash
+source "$ROOT/scripts/common.bash"
 
 THREADS="${JULIA_THREADS:-8}"
 ANTS_RANGE="${ANTS_RANGE:-1,2,5,10,20,50,100}"
@@ -22,6 +29,8 @@ ACO_RUNS="${ACO_RUNS:-20}"
 SEED="${SEED:-1}"
 RESUME_FROM="${RESUME_FROM:-1}"
 RUN_PIVOT="${RUN_PIVOT:-0}"
+SKIP_EXISTING="${SKIP_EXISTING:-1}"
+PREFIX="$(normalize_prefix "${PREFIX:-}")"
 
 # Optional inject (same defaults as test.bash k2t5i). Set INJECT=0 to disable.
 INJECT="${INJECT:-1}"
@@ -41,16 +50,25 @@ if ! [[ "$ACO_RUNS" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
-OUT_DIR="vary_k${K}t${THETA}${INJECT_NAME}"
+DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
+OUT_DIR="${OUT_DIR:-vary_k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}}"
 mkdir -p "$OUT_DIR"
 
 echo "Discovering graphs (ascending by edges)…"
-mapfile -t DATASETS < <(julia order_graphs.jl --keys-only)
+if [[ -n "$PREFIX" ]]; then
+  echo "Prefix filter: $PREFIX"
+fi
+mapfile -t DATASETS < <(order_graph_keys "$PREFIX")
 n="${#DATASETS[@]}"
 echo "Found $n graphs"
 echo "ACO replicates per ant count: $ACO_RUNS"
 echo "Run pivot for optimum: $RUN_PIVOT"
+echo "Writing vary results under $OUT_DIR/"
 
+if (( n == 0 )); then
+  echo "No graphs to run." >&2
+  exit 1
+fi
 if (( RESUME_FROM > n )); then
   echo "RESUME_FROM=$RESUME_FROM is past the last graph ($n)" >&2
   exit 1
@@ -75,6 +93,7 @@ if [[ "$RUN_PIVOT" == "1" ]]; then
 fi
 
 i=0
+skipped_existing=0
 for key in "${DATASETS[@]}"; do
   i=$((i + 1))
   if (( i < RESUME_FROM )); then
@@ -87,6 +106,12 @@ for key in "${DATASETS[@]}"; do
   echo
   echo "[$i/$n] $key → $out"
 
+  if [[ "$SKIP_EXISTING" == "1" && -f "$out" ]]; then
+    echo "Skipping (exists): $out"
+    skipped_existing=$((skipped_existing + 1))
+    continue
+  fi
+
   julia -t "$THREADS" load.jl "$key" \
     --prefer-smaller-side=false \
     "${INJECT_ARGS[@]}" \
@@ -97,8 +122,12 @@ for key in "${DATASETS[@]}"; do
     --aco-runs="$ACO_RUNS" \
     "${PIVOT_ARGS[@]}" \
     "${SEED_ARGS[@]}" \
-    --save="${OUT_DIR}/${name}_ants.json"
+    --save="$out"
 done
 
 echo
 echo "Done. JSON results under ${OUT_DIR}/"
+if (( skipped_existing > 0 )); then
+  echo "Skipped existing: $skipped_existing"
+fi
+echo "Next: PREFIX=${PREFIX:-} ./scripts/compare-seeds.bash ${OUT_DIR}"
