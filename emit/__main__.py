@@ -5,22 +5,20 @@ Emit LaTeX figures and tables from ACO benchmark JSON.
 Modes
 -----
   quality
-      Vary.jl ant-count format → 1xN groupplot (N = panels with data):
-        - mean % deviation from optimum (feasible trials; omitted if none)
-        - mean % deviation from Cui θ-heuristic (feasible trials)
-        - % theta-feasible trials
-        - mean wall-clock time vs ant count
+      Vary.jl ant-count format → 2-column groupplot:
+        Top row: Cui θ-heuristic deviation | θ-feasibility rate
+        Bottom row: mean wall-clock time (optimum-quality panel if present)
 
   seed-compare
-      compare-seeds.jl (+ vary.jl) → figures:
-        - scatter: reduced vertices vs ACO edges saved (ACO beat θ only)
-        - scatter: ACO edges saved vs % pivot time savings (beat θ only)
-        - note: N graphs examined; M where ACO did not beat θ
-        - scatter: reduced vertices vs ACO search cost (no-beat only)
+      compare-seeds.jl (+ vary.jl) → table + figures:
+        - table: every dataset with graph/reduced nodes & edges, pivot
+          time saved ("--" if ACO did not beat θ), and percent reduction
+        - bar charts: pivot time saved (s) and percent reduction per
+          dataset (missing bar = ACO did not beat θ)
       Reads full pivot comparisons and beat_heuristic=false skip markers
       written by compare-seeds.jl. Pass --vary-dir (or rely on compare_* →
-      vary_* name mapping) for reduced graph sizes and datasets that still
-      lack a compare JSON.
+      vary_* name mapping / source_vary) for full graph sizes and datasets
+      that still lack a compare JSON.
 
   table
       Vary.jl ant-count JSON → paper-style LaTeX table.

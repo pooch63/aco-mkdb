@@ -1,10 +1,15 @@
 """
-quality mode — vary.jl ant-count format → 1xN groupplot:
+quality mode — vary.jl ant-count format → groupplot:
 
-  - mean % deviation from optimum (feasible trials; omitted if none)
+  Top row (side by side):
   - mean % deviation from Cui θ-heuristic (feasible trials)
   - % theta-feasible trials
+
+  Bottom row:
   - mean wall-clock time vs ant count
+
+  Optional: mean % deviation from optimum is included when present
+  (placed before the heuristic panel).
 """
 
 from __future__ import annotations
@@ -170,14 +175,19 @@ def build_combined_latex(
     time_series,
 ):
     """
-    Build a single 1xN groupplot from whichever panels have data:
+    Build a 2-column groupplot from whichever panels have data:
 
-      - Solution quality vs optimum (omitted when no feasible optimum data)
+      Top row (side by side):
       - Output compared to Cui Heuristic
       - Theta-feasibility rate
-      - Run time
 
-    The legend is emitted only once by the top panel and placed below
+      Bottom row:
+      - Run time (alone when present)
+
+      Optional optimum-quality panel is included when present and shares
+      the bottom row with runtime.
+
+    The legend is emitted only once by the first panel and placed below
     the complete figure using legend to name. Series order is the union
     of all panels so colors/markers stay consistent.
     """
@@ -206,26 +216,17 @@ def build_combined_latex(
         r"    legend style={draw=none, fill=white, font=\small},",
     ]
 
-    panels = []
-
-    if quality_series:
-        panels.append(
-            {
-                "lookup": quality_lookup,
-                "opts": [
-                    r"    ylabel={Dev. from optimum (\%)},",
-                    r"    ylabel style={align=center, font=\small},",
-                    r"    title={Solution quality (feasible trials only)},",
-                    r"    title style={font=\small},",
-                ],
-            }
-        )
+    # Top row: heuristic quality | feasibility. Bottom row: runtime.
+    # Optimum quality (rare) shares the bottom row with runtime when present.
+    top_panels = []
+    bottom_panels = []
 
     if heuristic_series:
-        panels.append(
+        top_panels.append(
             {
                 "lookup": heuristic_lookup,
                 "opts": [
+                    r"    xlabel={Number of ants},",
                     r"    ylabel={Dev. from Cui Heuristic (\%)},",
                     r"    ylabel style={align=center, font=\small},",
                     r"    title={Output compared to Cui Heuristic},",
@@ -235,10 +236,11 @@ def build_combined_latex(
         )
 
     if feasible_series:
-        panels.append(
+        top_panels.append(
             {
                 "lookup": feasible_lookup,
                 "opts": [
+                    r"    xlabel={Number of ants},",
                     r"    ylabel={Feasible trials (\%)},",
                     r"    ylabel style={align=center, font=\small},",
                     r"    title={$\theta$-feasibility rate},",
@@ -249,8 +251,22 @@ def build_combined_latex(
             }
         )
 
+    if quality_series:
+        bottom_panels.append(
+            {
+                "lookup": quality_lookup,
+                "opts": [
+                    r"    xlabel={Number of ants},",
+                    r"    ylabel={Dev. from optimum (\%)},",
+                    r"    ylabel style={align=center, font=\small},",
+                    r"    title={Solution quality (feasible trials only)},",
+                    r"    title style={font=\small},",
+                ],
+            }
+        )
+
     if time_series:
-        panels.append(
+        bottom_panels.append(
             {
                 "lookup": time_lookup,
                 "opts": [
@@ -264,17 +280,26 @@ def build_combined_latex(
             }
         )
 
+    panels = top_panels + bottom_panels
     if not panels:
         raise ValueError("No panels to plot")
 
-    panel_count = len(panels)
+    # Side-by-side top row whenever both heuristic and feasibility exist.
+    n_cols = 2 if len(top_panels) >= 2 else 1
+    n_rows = (len(panels) + n_cols - 1) // n_cols
+    width = 0.48 if n_cols == 2 else 0.75
+    height = 0.36 if n_rows >= 2 else 0.44
+
     lines = [
         r"\begin{tikzpicture}",
         r"\begin{groupplot}[",
-        rf"    group style={{group size=1 by {panel_count}, vertical sep=30pt, x descriptions at=edge bottom}},",
+        (
+            rf"    group style={{group size={n_cols} by {n_rows}, "
+            r"horizontal sep=24pt, vertical sep=40pt},"
+        ),
         r"    title style={yshift=-3pt},",
-        r"    width=0.75\textwidth,",
-        rf"    height={0.33 * 4 / panel_count:.4f}\textwidth,",
+        rf"    width={width:.2f}\textwidth,",
+        rf"    height={height:.2f}\textwidth,",
         r"    xmode=log,",
         r"    log basis x=2,",
         r"    grid=major,",

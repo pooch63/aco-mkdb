@@ -76,12 +76,95 @@ def resolve_path(path, relative_to=None):
 
 
 def infer_vary_dir(compare_dir):
-    """Map compare_k2t5i_… → vary_k2t5i_… next to the compare directory."""
-    base = os.path.basename(os.path.abspath(compare_dir.rstrip(os.sep)))
+    """Map compare_k2t5i_… → vary_k2t5i_… beside compare dir or under results/."""
+    abs_compare = os.path.abspath(compare_dir.rstrip(os.sep))
+    base = os.path.basename(abs_compare)
     if not base.startswith("compare_"):
         return None
-    sibling = os.path.join(
-        os.path.dirname(os.path.abspath(compare_dir)),
-        "vary_" + base[len("compare_"):],
-    )
-    return sibling if os.path.isdir(sibling) else None
+    vary_name = "vary_" + base[len("compare_"):]
+    parent = os.path.dirname(abs_compare)
+    candidates = [
+        os.path.join(parent, vary_name),
+        os.path.join(parent, "results", vary_name),
+        os.path.join(os.path.dirname(parent), "results", vary_name),
+    ]
+    for path in candidates:
+        if os.path.isdir(path):
+            return path
+    return None
+
+
+def select_best_trial_any(trials):
+    """Best trial by edges even if it did not beat the heuristic."""
+    usable = [t for t in trials if t.get("final_edges") is not None]
+    if not usable:
+        return None
+    best_edges = max(int(t["final_edges"]) for t in usable)
+    tied = [t for t in usable if int(t["final_edges"]) == best_edges]
+
+    def trial_time(t):
+        tb = t.get("time_to_best_s")
+        if tb is not None:
+            return float(tb)
+        wt = t.get("wall_time_s")
+        return float(wt) if wt is not None else float("inf")
+
+    return min(tied, key=trial_time)
+
+
+def aco_discovery_cost(trials, winning_trial, until_found=True):
+    """
+    Wall time spent at the winning ant count until the chosen replicate.
+
+    Sums full wall_time_s of same-ant runs with run < winning.run, then adds
+    time_to_best_s of the winning run (fallback: that run's wall_time_s).
+
+    If until_found is False (ACO never beat θ), sums wall_time_s of *all*
+    same-ant replicates — the full search budget at that ant count.
+    """
+    if winning_trial is None:
+        return None
+
+    ants = winning_trial.get("ants")
+    win_run = winning_trial.get("run")
+    if ants is None:
+        return None
+
+    same = [t for t in trials if t.get("ants") == ants]
+    if not same:
+        return None
+
+    if not until_found or win_run is None:
+        total = 0.0
+        any_time = False
+        for t in same:
+            wt = t.get("wall_time_s")
+            if wt is None:
+                continue
+            total += float(wt)
+            any_time = True
+        return total if any_time else None
+
+    win_run = int(win_run)
+    total = 0.0
+    saw_win = False
+    for t in same:
+        r = t.get("run")
+        if r is None:
+            continue
+        r = int(r)
+        if r < win_run:
+            wt = t.get("wall_time_s")
+            if wt is not None:
+                total += float(wt)
+        elif r == win_run:
+            saw_win = True
+            ttb = t.get("time_to_best_s")
+            if ttb is not None:
+                total += float(ttb)
+            else:
+                wt = t.get("wall_time_s")
+                if wt is not None:
+                    total += float(wt)
+
+    return total if saw_win else None
