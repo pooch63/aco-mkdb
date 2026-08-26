@@ -369,7 +369,6 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     "target_hit=$ou/$(length(target_compact.U)),$ov/$(length(target_compact.V))")
         end
 
-        invalid_ants = Set{Int}()
         ants = new_ants(compact_fg, num_ants, num_subspecies)
         seed_compact !== nothing && seed_ants_with_subgraph!(ants, compact_fg, k, seed_compact)
 

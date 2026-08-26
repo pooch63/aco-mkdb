@@ -13,6 +13,7 @@
 #   JULIA_THREADS=8 INJECT=1 ./scripts/compare-seeds.bash vary_k2t5i
 #   RESUME_FROM=3 ./scripts/compare-seeds.bash vary_k2t5i
 #   SKIP_EXISTING=1 PREFIX=konect-small ./scripts/compare-seeds.bash
+#   TIMEOUT=2000 ./scripts/compare-seeds.bash vary_k2t5i
 
 set -euo pipefail
 
@@ -25,6 +26,7 @@ THREADS="${JULIA_THREADS:-8}"
 SEED="${SEED:-1}"
 RESUME_FROM="${RESUME_FROM:-1}"
 SKIP_EXISTING="${SKIP_EXISTING:-1}"
+TIMEOUT="${TIMEOUT:-2000}"
 PREFIX="$(normalize_prefix "${PREFIX:-}")"
 
 INJECT="${INJECT:-1}"
@@ -37,6 +39,12 @@ INJECT_NAME=""
 
 if ! [[ "$RESUME_FROM" =~ ^[1-9][0-9]*$ ]]; then
   echo "RESUME_FROM must be a positive integer (got: $RESUME_FROM)" >&2
+  exit 1
+fi
+
+# Accept integer or decimal seconds (compare-seeds.jl --timeout=).
+if ! [[ "$TIMEOUT" =~ ^[0-9]+([.][0-9]+)?$ ]] || ! awk -v t="$TIMEOUT" 'BEGIN { exit !(t > 0) }'; then
+  echo "TIMEOUT must be a positive number of seconds (got: $TIMEOUT)" >&2
   exit 1
 fi
 
@@ -57,6 +65,7 @@ echo "Discovering vary JSONs (ascending by edges)…"
 if [[ -n "$PREFIX" ]]; then
   echo "Prefix filter: $PREFIX"
 fi
+echo "Pivot timeout: ${TIMEOUT}s"
 FILES=()
 while IFS= read -r key; do
   name="$(basename "$key")"
@@ -121,6 +130,7 @@ for path in "${FILES[@]}"; do
   julia -t "$THREADS" compare-seeds.jl "$path" \
       "${INJECT_ARGS[@]}" \
       --k="$K" --theta="$THETA" \
+      --timeout="$TIMEOUT" \
       "${SEED_ARGS[@]}" \
       --save="$out"
   status=$?

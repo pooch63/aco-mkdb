@@ -193,6 +193,7 @@ function graph_summary(data)
         return Dict{String,Any}(
             "nU" => json_get(g, "nU", nothing),
             "nV" => json_get(g, "nV", nothing),
+            "edges" => json_get(g, "edges", json_get(data, "edge_count", nothing)),
             "mutable_bytes" => json_get(g, "mutable_bytes", nothing),
             "frozen_bytes" => json_get(g, "frozen_bytes", nothing),
         )
@@ -301,6 +302,14 @@ function setup_compare_worker!(p::Integer)
         Timed pivot on a fresh deepcopy of `g`. Returns lightweight fields only
         (no SubGraph) so remotecall does not ship large solution sets back.
         """
+        function worker_warmup(k::Int, θ::Int, reduction_sym::Symbol)
+            reduction = worker_reduction_from_sym(reduction_sym)
+            aco_nt = (ACO_PHEREMONE, ACO_NUM_ANTS, ACO_NUM_ITERATIONS, ACO_EVAPORATION,
+                      ACO_NUM_SUBSPECIES)
+            warmup_benchmarks!(k, θ, reduction, aco_nt; targets=Set([:pivot, :heuristic]))
+            return nothing
+        end
+
         function worker_time_pivot_seeded(g, k::Int, θ::Int, reduction_sym::Symbol,
             use_heuristic::Bool, seed_U, seed_V)
             reduction = worker_reduction_from_sym(reduction_sym)
@@ -449,7 +458,8 @@ end
 
 function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
     dataset::AbstractString="", aco_meta=nothing,
-    timeout_seconds::Real=DEFAULT_PIVOT_TIMEOUT_SECONDS)
+    timeout_seconds::Real=DEFAULT_PIVOT_TIMEOUT_SECONDS,
+    edge_count=nothing)
     println()
     println("==================== COMPARE SEEDS ====================")
     println("dataset=$dataset  k=$k  θ=$θ  reduction=$reduction  timeout=$(timeout_seconds)s")
@@ -458,14 +468,12 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
 
     # Tiny synthetic graph only — JIT is type-based, so a full-instance warmup
     # would be two extra complete pivot solves (often as expensive as the timed runs).
-    # Warmup stays on the driver; timed pivots run on the timeout worker.
+    # Warm up on the timeout worker (where timed pivots actually run).
     println()
-    println("Warming up (tiny graph, excluded from timings)…")
-    aco_nt = (ACO_PHEREMONE, ACO_NUM_ANTS, ACO_NUM_ITERATIONS, ACO_EVAPORATION, ACO_NUM_SUBSPECIES)
-    warmup_benchmarks!(k, θ, reduction, aco_nt; targets=Set([:pivot, :heuristic]))
-
-    # Ensure the worker is ready before the first timed run (loads load.jl there).
+    println("Warming up (tiny graph on worker, excluded from timings)…")
     ensure_compare_worker!()
+    with_process_timeout(min(timeout_seconds, 120.0), :worker_warmup,
+        k, θ, reduction_to_sym(reduction))
 
     println()
     println("── Pivot seeded with θ-heuristic only ──")
@@ -473,6 +481,9 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
         use_heuristic=true, initial_seed=nothing, timeout_seconds=timeout_seconds)
     if theta_run.timed_out
         println("  timed out after $(format_seconds(timeout_seconds))s")
+        # Worker was killed and respawned cold — re-warm before the next timed run.
+        with_process_timeout(min(timeout_seconds, 120.0), :worker_warmup,
+            k, θ, reduction_to_sym(reduction))
     else
         print_metric_block("Pivot (θ seed)";
             wall_time_s = theta_run.time,
@@ -519,6 +530,7 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
         "graph" => Dict(
             "nU" => length(g.adjU),
             "nV" => length(g.adjV),
+            "edges" => edge_count,
         ),
         "aco_seed" => Dict(
             "U" => sort!(collect(aco_seed.U)),
@@ -663,9 +675,10 @@ function _compare_from_vary_json_loaded(vary_path, data, best, heur_edges, trial
             "edges=$(aco_meta["final_edges"]) time_to_best=$(aco_meta["time_to_best_s"])s " *
             "(θ-heur edges=$heur_edges)")
 
-    g, _edges = load_graph_for_compare(dataset, inject, k, seed)
+    g, edges = load_graph_for_compare(dataset, inject, k, seed)
     payload = run_seed_comparison!(g, k, θ, reduction, aco_seed;
-        dataset=dataset, aco_meta=aco_meta, timeout_seconds=timeout_seconds)
+        dataset=dataset, aco_meta=aco_meta, timeout_seconds=timeout_seconds,
+        edge_count=edges)
 
     if discovery_until !== nothing
         payload["aco_discovery_s"] = discovery_until
@@ -717,9 +730,9 @@ function _compare_from_seed_json_loaded(; dataset, seed_json_path, k, θ, seed, 
     (U === nothing || V === nothing) && error("seed JSON must contain U and V arrays: $seed_json_path")
 
     aco_seed = subgraph_from_uv(U, V)
-    g, _edges = load_graph_for_compare(dataset, inject, k, seed)
+    g, edges = load_graph_for_compare(dataset, inject, k, seed)
     payload = run_seed_comparison!(g, k, θ, reduction, aco_seed;
-        dataset=dataset, timeout_seconds=timeout_seconds)
+        dataset=dataset, timeout_seconds=timeout_seconds, edge_count=edges)
 
     if save_path !== nothing
         save_benchmark_json(resolve_benchmark_save_path(save_path), payload)

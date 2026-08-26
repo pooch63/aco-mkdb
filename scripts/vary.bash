@@ -23,9 +23,9 @@ cd "$ROOT"
 source "$ROOT/scripts/common.bash"
 
 THREADS="${JULIA_THREADS:-8}"
-ANTS_RANGE="${ANTS_RANGE:-1,2,5,10,20,50,100}"
-ITERATIONS="${ITERATIONS:-3}"
-ACO_RUNS="${ACO_RUNS:-20}"
+ANTS_RANGE="${ANTS_RANGE:-100}"
+ITERATIONS="${ITERATIONS:-5}"
+ACO_RUNS="${ACO_RUNS:-5}"
 SEED="${SEED:-1}"
 RESUME_FROM="${RESUME_FROM:-1}"
 RUN_PIVOT="${RUN_PIVOT:-0}"
@@ -114,6 +114,7 @@ for key in "${DATASETS[@]}"; do
 
   julia -t "$THREADS" load.jl "$key" \
     --prefer-smaller-side=false \
+    --reduce=lo \
     "${INJECT_ARGS[@]}" \
     --k="$K" --theta="$THETA" \
     --vary=ant-count \

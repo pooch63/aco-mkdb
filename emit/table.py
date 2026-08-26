@@ -4,19 +4,30 @@ table mode — vary.jl ant-count JSON → LaTeX table.
 Columns match the paper table:
 
     Dataset | |U_G| | |V_G| | |E_G| | |U_R| | |V_R| | |E_R|
-            | ACO: |E(D*)| Time ITB TTB | θ-Heuristic: |E(D*)| Time
+            | ACO: |U(D*)| |V(D*)| |E(D*)| Discovery ITB TTB
+            | θ-Heuristic: |U(D*)| |V(D*)| |E(D*)| Time
 
 |U_G| / |V_G| / |E_G| come from the original graph (`graph.nU` / `graph.nV`
 and top-level `edge_count`). |U_R| / |V_R| / |E_R| are the reduced graph
 sizes. ACO reports the best trial (max `final_edges`, then min
-`time_to_best_s`, then min `wall_time_s`).
+`time_to_best_s`, then min `wall_time_s`). Discovery is wall time from
+replicate 1 through that trial at the same ant count: sum of prior runs'
+`wall_time_s` plus the winning run's `time_to_best_s`. ITB / TTB are from
+that winning replicate only.
 """
 
 from __future__ import annotations
 
 import sys
 
-from .common import display_name, load_json, report_skipped, write_tex
+from .common import (
+    aco_discovery_cost,
+    display_name,
+    load_json,
+    report_skipped,
+    select_best_trial_any,
+    write_tex,
+)
 
 
 def fmt_int(value):
@@ -38,29 +49,11 @@ def fmt_itb(value):
     return str(int(value))
 
 
-def trial_sort_key(trial):
-    """Best trial: most edges, then fastest time-to-best, then fastest wall time."""
-    edges = trial.get("final_edges")
-    ttb = trial.get("time_to_best_s")
-    wall = trial.get("wall_time_s")
-    return (
-        -(int(edges) if edges is not None else -10**18),
-        float(ttb) if ttb is not None else float("inf"),
-        float(wall) if wall is not None else float("inf"),
-    )
-
-
 def select_best_trial(trials, ants=None):
-    candidates = []
-    for t in trials:
-        if t.get("final_edges") is None:
-            continue
-        if ants is not None and t.get("ants") != ants:
-            continue
-        candidates.append(t)
-    if not candidates:
-        return None
-    return min(candidates, key=trial_sort_key)
+    if ants is None:
+        return select_best_trial_any(trials)
+    candidates = [t for t in trials if t.get("final_edges") is not None and t.get("ants") == ants]
+    return select_best_trial_any(candidates)
 
 
 def summarize_file(data, ants=None):
@@ -77,6 +70,10 @@ def summarize_file(data, ants=None):
     if edge_count is None:
         edge_count = graph.get("edges")
 
+    discovery = data.get("aco_discovery_s")
+    if discovery is None and best is not None:
+        discovery = aco_discovery_cost(trials, best, until_found=True)
+
     return {
         "k": data.get("k"),
         "theta": data.get("theta"),
@@ -86,10 +83,14 @@ def summarize_file(data, ants=None):
         "reduced_nU": graph.get("reduced_nU"),
         "reduced_nV": graph.get("reduced_nV"),
         "reduced_edges": graph.get("reduced_edges"),
+        "aco_nU": None if best is None else best.get("nU"),
+        "aco_nV": None if best is None else best.get("nV"),
         "aco_edges": None if best is None else best.get("final_edges"),
-        "aco_time": None if best is None else best.get("wall_time_s"),
+        "aco_time": discovery,
         "aco_itb": None if best is None else best.get("iterations_to_best"),
         "aco_ttb": None if best is None else best.get("time_to_best_s"),
+        "heur_nU": heuristic.get("nU"),
+        "heur_nV": heuristic.get("nV"),
         "heur_edges": heuristic.get("final_edges"),
         "heur_time": heuristic.get("wall_time_s"),
     }
@@ -104,10 +105,14 @@ def row_tex(name, row):
         fmt_int(row["reduced_nU"]),
         fmt_int(row["reduced_nV"]),
         fmt_int(row["reduced_edges"]),
+        fmt_int(row["aco_nU"]),
+        fmt_int(row["aco_nV"]),
         fmt_int(row["aco_edges"]),
         fmt_time(row["aco_time"]),
         fmt_itb(row["aco_itb"]),
         fmt_time(row["aco_ttb"]),
+        fmt_int(row["heur_nU"]),
+        fmt_int(row["heur_nV"]),
         fmt_int(row["heur_edges"]),
         fmt_time(row["heur_time"]),
     ]
@@ -132,12 +137,13 @@ def build_table(named_rows):
         r"  \begin{adjustwidth}{-5cm}{-5cm}",
         r"  \centering",
         r"  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns",
-        r"  \begin{tabular}{l *{12}{r}} % 1 left-aligned column + 12 right-aligned columns",
+        r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
         r"    \toprule",
         r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
-        r" & \multicolumn{4}{c}{ACO} & \multicolumn{2}{c}{$\theta$-Heuristic} \\",
-        r"    \cmidrule(lr){8-11} \cmidrule(lr){12-13}",
-        r"    & & & & & & & $|E(D^*)|$ & Time & ITB & TTB & $|E(D^*)|$ & Time \\",
+        r" & \multicolumn{6}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
+        r"    \cmidrule(lr){8-13} \cmidrule(lr){14-17}",
+        r"    & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ITB & TTB"
+        r" & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\",
         r"    \midrule",
     ]
     for name, row in named_rows:
