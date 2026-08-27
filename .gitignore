@@ -1,5 +1,5 @@
 data/
-results/
+ignore/
 __pycache__/
 
 .specstory/
