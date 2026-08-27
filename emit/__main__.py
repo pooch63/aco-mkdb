@@ -29,6 +29,8 @@ Modes
         - reduced density vs |E(D*)|/nodes
         - reduced density vs ACO discovery time
         - θ·n+m vs θ-heuristic time
+        - linear: t(ACO-PN)/t(ACO|ACO-P|ACO-N) vs reduced density
+        - linear: |E(D*)| for ACO, ACO-P, ACO-N vs reduced density
       Pass a folder prefix such as vary_k2t5i_ to auto-load the four
       ACO flag settings: (none), N, P, and PN.
 
