@@ -65,20 +65,38 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
         θ_V = 0
 
         D = use_heuristic ? theta_based_heuristic(fg, k, θ; return_invalid=false) : SubGraph(Set(), Set())
+        D_edges = Subgraph.edge_count(g, D)
+
+        # θ_eff = min(θ_U, θ_V) is non-monotonic; peel each new θ_eff from the
+        # post-CNN base, then copy the result back into `g` for the return value.
+        g_base = deepcopy(g)
 
         iterations = 0
         reductions = 0
 
         while θ_U > θ
             iterations += 1
-            θ_V = max(θ, floor(Int, Subgraph.edge_count(g, D) / θ_U))
+            θ_V = max(θ, floor(Int, D_edges / θ_U))
             θ_U = max(θ, floor(Int, θ_U / 2))
 
             θ_eff = min(θ_U, θ_V)
             # Skip passes whose effective threshold matches the last reduce —
             # common when D is empty (θ_V ≡ θ) or θ_U halves but still ≥ last θ_eff.
             if θ_eff != last_θ_eff
-                reduce_graph!(g, k, θ_eff, num_U, num_V)
+                g_round = deepcopy(g_base)
+                reduce_graph!(g_round, k, θ_eff, num_U, num_V)
+                empty!(g.adjU)
+                empty!(g.adjV)
+                empty!(g.edge_data)
+                for (u, nbrs) in g_round.adjU
+                    g.adjU[u] = nbrs
+                end
+                for (v, nbrs) in g_round.adjV
+                    g.adjV[v] = nbrs
+                end
+                for (e, data) in g_round.edge_data
+                    g.edge_data[e] = data
+                end
                 last_θ_eff = θ_eff
                 reductions += 1
             end

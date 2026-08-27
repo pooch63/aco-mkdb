@@ -68,6 +68,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     pheromone_max::Union{Float64,Nothing}=nothing,
     tt::Int=2, tabu_patience::Int=3,
     prefer_smaller_side::Bool=false,
+    # When true, sample from last node's neighbors ∩ C when nonempty; else full C.
+    neighbor_scope_limit::Bool=true,
     elite_seed::Bool=true,
     elite_seed_ants::Int=3,
     elite_seed_remove::Int=2,
@@ -90,6 +92,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     fg = freeze(g)
 
     println("Prefer smaller side: $prefer_smaller_side")
+    println("Neighbor scope limit: $neighbor_scope_limit")
     println("Size of reduced graphs", length(fg.u_ids), " ", length(fg.v_ids))
 
     compact_fg, remapping = compact_frozen(fg)
@@ -234,7 +237,9 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 # 1. Spawn tasks for each chunk
                 tasks = map(Iterators.partition(active_ants, chunk_size)) do chunk
                     Threads.@spawn advance_ants!(compact_fg, pheromones, pheromone, ants, k, θ, chunk;
-                        prefer_smaller_side=prefer_smaller_side, trace_target=target_compact)
+                        prefer_smaller_side=prefer_smaller_side,
+                        neighbor_scope_limit=neighbor_scope_limit,
+                        trace_target=target_compact)
                 end
 
                 # 2. Wait for all threads to finish their step
@@ -243,7 +248,9 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 # Process all active ants sequentially on the main thread.
                 # Wrapped in an array to match the structure of multithreaded `results`.
                 results = [advance_ants!(compact_fg, pheromones, pheromone, ants, k, θ, active_ants;
-                    prefer_smaller_side=prefer_smaller_side, trace_target=target_compact)]
+                    prefer_smaller_side=prefer_smaller_side,
+                    neighbor_scope_limit=neighbor_scope_limit,
+                    trace_target=target_compact)]
             end
             
             # 3. Safely merge the results on the main thread

@@ -3,7 +3,8 @@
 # ordered by edge count ascending so smaller / easier graphs finish first.
 #
 # Usage:
-#   ./scripts/vary.bash
+#   ./scripts/vary.bash [OUT_DIR]
+#   ./scripts/vary.bash results/my-sweep
 #   PREFIX=konect-small ./scripts/vary.bash
 #   JULIA_THREADS=8 ./scripts/vary.bash
 #   ANTS_RANGE=10,20,50,100 ITERATIONS=100 ./scripts/vary.bash
@@ -11,6 +12,12 @@
 #   RUN_PIVOT=1 ./scripts/vary.bash             # also run branch-and-pivot for optimum (slow)
 #   RESUME_FROM=13 ./scripts/vary.bash          # skip graphs 1–12; start at #13
 #   SKIP_EXISTING=1 ./scripts/vary.bash         # skip graphs whose *_ants.json already exists
+#   DEBUG=false ./scripts/vary.bash             # skip post-reduction plant check
+#   ENABLE_NEIGHBOR_SCOPE_LIMIT=false ./scripts/vary.bash  # sample full C (not N∩C)
+#   PREFER_SMALLER_SIDE=false ./scripts/vary.bash          # disable smaller-side bias
+#
+# OUT_DIR: positional arg, else $OUT_DIR env, else vary_kKtTHETAi_{P?}{N?}
+# (P/N appended when that flag is true).
 #
 # Then compare pivot time on ACO-beats-heuristic trials:
 #   PREFIX=konect-small ./scripts/compare-seeds.bash
@@ -22,6 +29,12 @@ cd "$ROOT"
 # shellcheck source=common.bash
 source "$ROOT/scripts/common.bash"
 
+if (( $# > 1 )); then
+  echo "Usage: $0 [OUT_DIR]" >&2
+  exit 1
+fi
+OUT_DIR_ARG="${1:-}"
+
 THREADS="${JULIA_THREADS:-8}"
 ANTS_RANGE="${ANTS_RANGE:-100}"
 ITERATIONS="${ITERATIONS:-5}"
@@ -30,6 +43,13 @@ SEED="${SEED:-1}"
 RESUME_FROM="${RESUME_FROM:-1}"
 RUN_PIVOT="${RUN_PIVOT:-0}"
 SKIP_EXISTING="${SKIP_EXISTING:-1}"
+# When true, vary.jl verifies the planted biclique still exists after reduction.
+DEBUG="${DEBUG:-true}"
+export DEBUG
+# Prefer last-node neighbors ∩ C when nonempty (ACO default). Set false to always use full C.
+ENABLE_NEIGHBOR_SCOPE_LIMIT="${ENABLE_NEIGHBOR_SCOPE_LIMIT:-true}"
+# Bias ACO toward the smaller bipartition side (ACO default). Set false to disable.
+PREFER_SMALLER_SIDE="${PREFER_SMALLER_SIDE:-true}"
 PREFIX="$(normalize_prefix "${PREFIX:-}")"
 
 # Optional inject (same defaults as test.bash k2t5i). Set INJECT=0 to disable.
@@ -51,7 +71,15 @@ if ! [[ "$ACO_RUNS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
-OUT_DIR="${OUT_DIR:-vary_k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}}"
+# OUT_DIR: vary_kKtTHETAi_ then P if prefer-smaller-side, N if neighbor-scope-limit.
+FLAGS=""
+[[ "$PREFER_SMALLER_SIDE" == "true" ]] && FLAGS+="P"
+[[ "$ENABLE_NEIGHBOR_SCOPE_LIMIT" == "true" ]] && FLAGS+="N"
+if [[ -n "$OUT_DIR_ARG" ]]; then
+  OUT_DIR="$OUT_DIR_ARG"
+else
+  OUT_DIR="${OUT_DIR:-vary_k${K}t${THETA}${INJECT_NAME}_${FLAGS}${DIR_SUFFIX}}"
+fi
 mkdir -p "$OUT_DIR"
 
 echo "Discovering graphs (ascending by edges)…"
@@ -63,6 +91,9 @@ n="${#DATASETS[@]}"
 echo "Found $n graphs"
 echo "ACO replicates per ant count: $ACO_RUNS"
 echo "Run pivot for optimum: $RUN_PIVOT"
+echo "Neighbor scope limit: $ENABLE_NEIGHBOR_SCOPE_LIMIT"
+echo "Prefer smaller side: $PREFER_SMALLER_SIDE"
+echo "DEBUG (post-reduction plant check): $DEBUG"
 echo "Writing vary results under $OUT_DIR/"
 
 if (( n == 0 )); then
@@ -113,7 +144,8 @@ for key in "${DATASETS[@]}"; do
   fi
 
   julia -t "$THREADS" load.jl "$key" \
-    --prefer-smaller-side=false \
+    --prefer-smaller-side="$PREFER_SMALLER_SIDE" \
+    --neighbor-scope-limit="$ENABLE_NEIGHBOR_SCOPE_LIMIT" \
     --reduce=lo \
     "${INJECT_ARGS[@]}" \
     --k="$K" --theta="$THETA" \
