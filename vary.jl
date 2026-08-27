@@ -12,9 +12,11 @@ With `--aco-runs=N` (N>1), each ant count is repeated N times with a distinct
 seed derived from `--seed`, and every replicate is written into the JSON.
 Each trial also logs the returned subgraph vertex ids (`U` / `V`) so downstream
 tools (compare-seeds.jl) can re-seed branch-and-pivot.
-The JSON also records `best_trial` (max edges) and `aco_discovery_s`: wall
-time from replicate 1 through that trial at the same ant count (prior runs'
-full wall times plus the winning run's time-to-best).
+The JSON also records `best_trial` (max edges) and `aco_discovery_s`: sum of
+`wall_time_s` over every replicate at that trial's ant count (full budget,
+not truncated at the winning run).
+Top-level keys `prefer_smaller_side` and `neighbor_scope_limit` mirror the
+CLI flags used for the ACO trials.
 Pivot is off by default (it is too slow on large graphs); enable with
 `--vary-pivot=true` to supply an optimum edge count for quality comparison.
 The θ-heuristic also runs once (same reduced graph) and is logged in the JSON
@@ -24,6 +26,10 @@ Graph reduction is always common-neighbor (CNN / `ReductionMode.simple`).
 Progressive / `all_reductions` must not run as a one-shot peel here: that path
 tightens θ_eff without interleaved search and can delete the whole graph
 (e.g. kuwiki → 0×0) before ACO or the θ-heuristic run.
+
+When `DEBUG` is true (env; `scripts/vary.bash` defaults it on) and `--inject`
+planted a biclique, each run logs whether that plant still exists after the
+CNN reduction.
 =================================================================================
 =#
 
@@ -129,36 +135,20 @@ function select_best_trial_any(trials)
 end
 
 """
-Wall time at the winning ant count from replicate 1 through the winning run.
-
-Sums full `wall_time_s` of same-ant runs with run < winning.run, then adds
-`time_to_best_s` of the winning run (fallback: that run's `wall_time_s`).
+Full ACO wall time at the winning ant count: sum `wall_time_s` over every
+same-ants replicate (not truncated at the winning run / time-to-best).
 """
 function aco_discovery_until(trials, best)
     best === nothing && return nothing
     win_ants = best.num_ants
-    win_run = get(best, :run, nothing)
-    win_run === nothing && return nothing
     total = 0.0
-    saw = false
-    wr = Int(win_run)
+    n = 0
     for t in trials
         t.num_ants != win_ants && continue
-        r = get(t, :run, nothing)
-        r === nothing && continue
-        r = Int(r)
-        if r < wr
-            total += Float64(t.wall_time_s)
-        elseif r == wr
-            saw = true
-            if t.time_to_best_s !== nothing
-                total += Float64(t.time_to_best_s)
-            else
-                total += Float64(t.wall_time_s)
-            end
-        end
+        total += Float64(t.wall_time_s)
+        n += 1
     end
-    return saw ? total : nothing
+    return n > 0 ? total : nothing
 end
 
 function best_trial_summary_dict(t)
@@ -186,6 +176,7 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     reduction::ReductionMode.T=ReductionMode.none)
     pheremone, _na, num_iterations, evaporation, num_subspecies = aco_options
     prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
+    neighbor_scope_limit = get(aco_options, :neighbor_scope_limit, true)
     elite_seed = get(aco_options, :elite_seed, true)
     elite_seed_ants = get(aco_options, :elite_seed_ants, 3)
     elite_seed_remove = get(aco_options, :elite_seed_remove, 2)
@@ -198,6 +189,7 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             parallelize=false,
             force_gc=false,
             prefer_smaller_side=prefer_smaller_side,
+            neighbor_scope_limit=neighbor_scope_limit,
             elite_seed=elite_seed,
             elite_seed_ants=elite_seed_ants,
             elite_seed_remove=elite_seed_remove,
@@ -255,15 +247,51 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
 end
 
 """
+Whether terminal `DEBUG` is on (`true`/`1`/`yes`/`on`).
+`scripts/vary.bash` exports `DEBUG=true` by default.
+"""
+function vary_debug_enabled()
+    v = lowercase(get(ENV, "DEBUG", "true"))
+    return v in ("true", "1", "yes", "on")
+end
+
+"""
+After reduction, check that every planted U/V vertex still exists on `fg`.
+Logs present / absent (and which vertices were deleted when absent).
+"""
+function debug_check_plant_after_reduction!(fg::FrozenBipartite, plant;
+    dataset::AbstractString="")
+    plant === nothing && return nothing
+    plant_U = plant.U
+    plant_V = plant.V
+    gone_U = [u for u in plant_U if !haskey(fg.u_index, u)]
+    gone_V = [v for v in plant_V if !haskey(fg.v_index, v)]
+    present = isempty(gone_U) && isempty(gone_V)
+    label = isempty(dataset) ? "" : " dataset=$dataset"
+    if present
+        println("DEBUG: planted solution still in graph after reduction: yes$label")
+        println("  plant U=$(collect(plant_U))  V=$(collect(plant_V))")
+    else
+        println("DEBUG: planted solution still in graph after reduction: no$label")
+        println("  plant U=$(collect(plant_U))  V=$(collect(plant_V))")
+        !isempty(gone_U) && println("  deleted U: $gone_U")
+        !isempty(gone_V) && println("  deleted V: $gone_V")
+    end
+    return present
+end
+
+"""
 Sweep ant counts on an already-reduced graph.
 
 When `n_runs > 1`, each ant count is repeated with a distinct seed derived from
 `seed` (required). Every replicate is appended to `trials`.
+When `DEBUG` is set and `plant` is provided (from `--inject`), verifies the
+planted biclique vertices survive the one-shot CNN reduction and logs the result.
 """
 function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int,
     reduction::ReductionMode.T, aco_options; ant_counts::Vector{Int},
     run_pivot::Bool=false, seed=nothing, dataset::AbstractString="",
-    n_runs::Int=1)
+    n_runs::Int=1, plant=nothing)
     n_runs >= 1 || throw(ArgumentError("n_runs must be >= 1, got $n_runs"))
     _, _, num_iterations, _, _ = aco_options
 
@@ -277,11 +305,18 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     base_seed = seed === nothing ? UInt64(time_ns()) : UInt64(seed)
 
     println()
+    prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
+    neighbor_scope_limit = get(aco_options, :neighbor_scope_limit, true)
+
     println("==================== VARY ant-count ====================")
     println("dataset=$dataset  k=$k  θ=$θ  iterations=$num_iterations")
     println("ants-range=$(join(ant_counts, ","))  run_pivot=$run_pivot  aco_runs=$n_runs")
     println("base_seed=$base_seed")
+    println("prefer_smaller_side=$prefer_smaller_side  neighbor_scope_limit=$neighbor_scope_limit")
     println("reduction=$reduction (CNN / one-shot; progressive disabled)")
+    if vary_debug_enabled()
+        println("DEBUG=$(vary_debug_enabled())  plant_check=$(plant !== nothing)")
+    end
 
     println()
     println("Warming up (excluded from timings)…")
@@ -297,6 +332,13 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
         apply_graph_reductions!(g_reduced, k, θ, nothing, nothing, true, reduction)
     end
     fg = m_red.value
+    if vary_debug_enabled()
+        if plant === nothing
+            println("DEBUG: no planted solution to verify after reduction")
+        else
+            debug_check_plant_after_reduction!(fg, plant; dataset=dataset)
+        end
+    end
     frozen_bytes = Base.summarysize(fg)
     reduced_nU = length(fg.u_ids)
     reduced_nV = length(fg.v_ids)
@@ -426,12 +468,19 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     end
 
     return (; graph_stats, pivot_stats, heuristic_stats, trials, ant_counts, opt_edges,
-        n_runs, base_seed=string(base_seed), best_trial, aco_discovery_s)
+        n_runs, base_seed=string(base_seed), best_trial, aco_discovery_s,
+        prefer_smaller_side, neighbor_scope_limit)
 end
 
 function vary_results_to_dict(results; k::Int=0, θ::Int=0,
     dataset::AbstractString="", seed=nothing, reduction=nothing,
-    edge_count::Union{Nothing,Int}=nothing, run_pivot::Bool=false)
+    edge_count::Union{Nothing,Int}=nothing, run_pivot::Bool=false,
+    prefer_smaller_side::Union{Nothing,Bool}=nothing,
+    neighbor_scope_limit::Union{Nothing,Bool}=nothing)
+    pss = prefer_smaller_side === nothing ?
+        get(results, :prefer_smaller_side, nothing) : prefer_smaller_side
+    nsl = neighbor_scope_limit === nothing ?
+        get(results, :neighbor_scope_limit, nothing) : neighbor_scope_limit
     out = Dict{String,Any}(
         "vary" => "ant-count",
         "dataset" => String(dataset),
@@ -443,6 +492,8 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         "reduction" => reduction === nothing ? nothing : string(reduction),
         "edge_count" => edge_count,
         "run_pivot" => run_pivot,
+        "prefer_smaller_side" => pss,
+        "neighbor_scope_limit" => nsl,
         "ants_range" => results.ant_counts,
     )
 
