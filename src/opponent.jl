@@ -117,6 +117,14 @@ function branch_from_all_u!(fg::FrozenBipartite, best::SharedTopN, k::Int, θ::I
     mode::BranchMode.T, θ_U::Int, θ_V::Int, id_U::Int, id_V::Int)
     us = get_degree_order(fg, true, true)
 
+    # Position of each U vertex in the degree order. Used to form N²₊(u_i) =
+    # N²(u_i) ∩ {u_{i+1}, …, u_{|U|}} so each k-MDB is reached only from its
+    # earliest-order vertex (read-only after build; safe to share across threads).
+    rank = zeros(Int, id_U)
+    for (pos, u) in enumerate(us)
+        rank[u] = pos
+    end
+
     # Multithreading reduces the effectiveness of upper bounding techniques
     # We order degrees because finding those nodes first is likelier to speed the search
     # up, but running completely sequentially turns out to be slower than parallelizing,
@@ -129,17 +137,21 @@ function branch_from_all_u!(fg::FrozenBipartite, best::SharedTopN, k::Int, θ::I
     @threads for i in eachindex(us)
         S = SubGraph(Set(us[i]), Set())
 
-        # N²₊(u): U-nodes at distance 2 from us[i].
-        # neighbors_u(u) → V-nbrs; neighbors_v(v) → U-nbrs.
+        # N²₊(u): U-nodes at distance 2 from us[i] that appear *after* us[i]
+        # in the degree order. neighbors_u(u) → V-nbrs; neighbors_v(v) → U-nbrs.
+        # rank[_2u] > i also excludes us[i] itself (open neighborhood).
         _2_hop_neighbors = falses(id_U)
         for v in neighbors_u(fg, us[i])
             for _2u in neighbors_v(fg, v)
-                _2_hop_neighbors[_2u] = true
+                if rank[_2u] > i
+                    _2_hop_neighbors[_2u] = true
+                end
             end
         end
-        _2_hop_neighbors[us[i]] = false  # open neighborhood
 
-        # N³₊(u): V-nodes adjacent to those 2-hop U-nodes (includes N(u)).
+        # N³₊(u): ∪_{w ∈ N²₊(u)} N(w). A neighbor v ∈ N(u) appears here iff it
+        # also has some later-order U-neighbor (else any MDB with u and v that
+        # needs an earlier U-vertex is found from that earlier vertex instead).
         _3_hop_neighbors = falses(id_V)
         for u in eachindex(_2_hop_neighbors)
             if _2_hop_neighbors[u]
@@ -248,6 +260,12 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
         θ_U = maximum(u_degrees) + k
         last_θ_eff = θ
 
+        # θ_eff = min(θ_U, θ_V) is non-monotonic (θ_U↓ while θ_V↑). Peeling the
+        # same graph in place would keep a mid-loop high-θ_eff peel and delete
+        # vertices that a later lower-θ_eff round still needs (Lemma 7). Each
+        # new peel therefore starts from the post-CNN base graph.
+        g_base = deepcopy(g)
+
         iterations = 0
         reductions = 0
 
@@ -260,8 +278,9 @@ function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, 
             # Skip passes whose effective threshold matches the last reduce —
             # common when D is empty (θ_V ≡ θ) or θ_U halves but still ≥ last θ_eff.
             if θ_eff != last_θ_eff
-                reduce_graph!(g, k, θ_eff, num_U, num_V)
-                fg = freeze(g)
+                g_round = deepcopy(g_base)
+                reduce_graph!(g_round, k, θ_eff, num_U, num_V)
+                fg = freeze(g_round)
                 last_θ_eff = θ_eff
                 reductions += 1
                 id_U = original_id_span(fg.u_ids, num_U)
