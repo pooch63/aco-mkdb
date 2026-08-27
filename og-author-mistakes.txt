@@ -1,0 +1,3 @@
+MDBP:
+G^\prime should reduce just G, not G^\prime. If you constantly reduce the same copy, min(\theta_U, \theta_V)
+is nonmonotonic, so this could potentially remove nodes you shouldn't have removed.
