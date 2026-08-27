@@ -25,7 +25,30 @@ order_graph_keys() {
   if [[ -n "$prefix" ]]; then
     args+=(--prefix="$prefix")
   fi
-  julia order_graphs.jl "${args[@]}"
+  julia bin/order_graphs.jl "${args[@]}"
+}
+
+# Nest a bare directory name under results/ so sweeps don't litter the repo root.
+# Absolute paths and paths that already contain a slash are left unchanged.
+nest_under_results() {
+  local d="$1"
+  if [[ -z "$d" || "$d" == /* || "$d" == */* ]]; then
+    printf '%s' "$d"
+  else
+    printf 'results/%s' "$d"
+  fi
+}
+
+# Prefer an existing directory; if missing, also try results/<name>.
+resolve_data_dir() {
+  local d="$1"
+  if [[ -d "$d" ]]; then
+    printf '%s' "$d"
+  elif [[ "$d" != /* && "$d" != results/* && -d "results/$d" ]]; then
+    printf 'results/%s' "$d"
+  else
+    printf '%s' "$d"
+  fi
 }
 
 # Exit 0 → skip existing compare JSON; exit 1 → re-run.

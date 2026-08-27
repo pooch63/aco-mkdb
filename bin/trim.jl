@@ -11,12 +11,12 @@ It accepts either:
 
 How to Run from the Command Line:
   Format:
-    julia trim.jl <dataset_name_or_path> <max_lines> [--overwrite]
+    julia bin/trim.jl <dataset_name_or_path> <max_lines> [--overwrite]
 
   Examples:
-    julia trim.jl boxes 2000
-    julia trim.jl /path/to/indexed_interactions.csv 100
-    julia trim.jl boxes 2000 --overwrite
+    julia bin/trim.jl boxes 2000
+    julia bin/trim.jl /path/to/indexed_interactions.csv 100
+    julia bin/trim.jl boxes 2000 --overwrite
 
 When --overwrite is provided, the script rewrites the original CSV file in place
 with only the first max_lines data rows preserved.
@@ -88,7 +88,7 @@ end
 function main()
     if length(ARGS) < 2
         println(stderr, "Error: Missing arguments.")
-        println(stderr, "Usage: julia trim.jl <dataset_name_or_path> <max_lines> [--overwrite]")
+        println(stderr, "Usage: julia bin/trim.jl <dataset_name_or_path> <max_lines> [--overwrite]")
         exit(1)
     end
 

@@ -14,7 +14,7 @@ isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(@__DIR__, "..", "src",
 
 # index_dataset.jl has no guard constant; only include once.
 if !isdefined(@__MODULE__, :index_dataset)
-    include(joinpath(@__DIR__, "..", "index_dataset.jl"))
+    include(joinpath(@__DIR__, "..", "bin", "index_dataset.jl"))
 end
 
 """

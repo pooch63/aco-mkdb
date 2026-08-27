@@ -12,12 +12,16 @@
 # Usage:
 #   ./scripts/compare-seeds.bash
 #   PREFIX=konect-small ./scripts/compare-seeds.bash
-#   ./scripts/compare-seeds.bash vary_k2t5i
-#   JULIA_THREADS=8 INJECT=1 ./scripts/compare-seeds.bash vary_k2t5i
-#   RESUME_FROM=3 ./scripts/compare-seeds.bash vary_k2t5i
+#   ./scripts/compare-seeds.bash results/vary_k2t5i
+#   ./scripts/compare-seeds.bash vary_k2t5i          # also finds results/vary_k2t5i
+#   JULIA_THREADS=8 INJECT=1 ./scripts/compare-seeds.bash results/vary_k2t5i
+#   RESUME_FROM=3 ./scripts/compare-seeds.bash results/vary_k2t5i
 #   SKIP_EXISTING=1 PREFIX=konect-small ./scripts/compare-seeds.bash
-#   TIMEOUT=2000 ./scripts/compare-seeds.bash vary_k2t5i
-#   TIMEOUT=4000 ./scripts/compare-seeds.bash vary_k2t5i  # redo prior timeouts < 4000s
+#   TIMEOUT=2000 ./scripts/compare-seeds.bash results/vary_k2t5i
+#   TIMEOUT=4000 ./scripts/compare-seeds.bash results/vary_k2t5i  # redo prior timeouts < 4000s
+#
+# Defaults: VARY_DIR=results/vary_kKtTHETAi…  OUT_DIR=results/compare_kKtTHETAi…
+# Bare OUT_DIR names are nested under results/.
 
 set -euo pipefail
 
@@ -53,9 +57,9 @@ if ! [[ "$TIMEOUT" =~ ^[0-9]+([.][0-9]+)?$ ]] || ! awk -v t="$TIMEOUT" 'BEGIN { 
 fi
 
 DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
-DEFAULT_VARY="vary_k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}"
-VARY_DIR="${1:-$DEFAULT_VARY}"
-OUT_DIR="${OUT_DIR:-compare_k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}}"
+DEFAULT_VARY="results/vary_k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}"
+VARY_DIR="$(resolve_data_dir "${1:-$DEFAULT_VARY}")"
+OUT_DIR="$(nest_under_results "${OUT_DIR:-results/compare_k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}}")"
 
 if [[ ! -d "$VARY_DIR" ]]; then
   echo "Vary directory not found: $VARY_DIR" >&2
@@ -135,7 +139,7 @@ for path in "${FILES[@]}"; do
   echo "[$i/$n] $path → $out"
 
   set +e
-  julia -t "$THREADS" compare-seeds.jl "$path" \
+  julia -t "$THREADS" bin/compare-seeds.jl "$path" \
       "${INJECT_ARGS[@]}" \
       --k="$K" --theta="$THETA" \
       --timeout="$TIMEOUT" \

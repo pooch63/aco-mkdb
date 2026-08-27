@@ -3,13 +3,13 @@
 Paper / algorithm benchmarks for a single loaded graph.
 
 Invoked from load.jl via:
-  julia load.jl <dataset> --benchmark=aco,pivot
-  julia load.jl <dataset> --benchmark=pivot
-  julia load.jl <dataset> --benchmark=aco
-  julia load.jl <dataset> --benchmark=heuristic
-  julia load.jl <dataset> --benchmark=ga
-  julia load.jl <dataset> --benchmark=aco,pivot,heuristic,ga
-  julia load.jl <dataset> --benchmark=aco,ga --save=run.json
+  julia bin/load.jl <dataset> --benchmark=aco,pivot
+  julia bin/load.jl <dataset> --benchmark=pivot
+  julia bin/load.jl <dataset> --benchmark=aco
+  julia bin/load.jl <dataset> --benchmark=heuristic
+  julia bin/load.jl <dataset> --benchmark=ga
+  julia bin/load.jl <dataset> --benchmark=aco,pivot,heuristic,ga
+  julia bin/load.jl <dataset> --benchmark=aco,ga --save=run.json
 
 Reports:
   - shared graph-reduction wall time (reductions run once; solvers get
@@ -29,7 +29,7 @@ const __BENCHMARK_JL__ = true
 using Printf
 
 # Default directory for `--save=` filenames with no directory component.
-const BENCHMARK_RESULTS_DIR = joinpath(@__DIR__, "results")
+const BENCHMARK_RESULTS_DIR = joinpath(dirname(@__DIR__), "results")
 
 """
 Human-readable byte count (binary units).

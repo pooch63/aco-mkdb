@@ -7,7 +7,7 @@ Modes
 -----
 1. From a vary.jl ant-count JSON (batch helper for scripts/compare-seeds.bash):
 
-     julia -t 8 compare-seeds.jl vary_k2t5i/boxes_ants.json \
+     julia -t 8 bin/compare-seeds.jl vary_k2t5i/boxes_ants.json \
          --inject --u=5 --v=5 --save=compare_k2t5i/boxes.json
 
    Picks the ACO trial that beat the θ-heuristic with the most edges; on ties,
@@ -18,7 +18,7 @@ Modes
 
 2. Explicit seed subgraph JSON `{"U":[...],"V":[...]}`:
 
-     julia -t 8 compare-seeds.jl --dataset=amazon/boxes --k=2 --theta=5 \
+     julia -t 8 bin/compare-seeds.jl --dataset=amazon/boxes --k=2 --theta=5 \
          --seed-json=seed.json --inject --u=5 --v=5 --seed=1 \
          --save=compare_k2t5i/boxes.json
 
@@ -46,9 +46,9 @@ const DEFAULT_PIVOT_TIMEOUT_SECONDS = 2000.0
 function usage_and_exit()
     println(stderr, """
 Usage:
-  julia compare-seeds.jl <vary.json> [--inject --u=N --v=M] [--seed=S] [--save=out.json]
+  julia bin/compare-seeds.jl <vary.json> [--inject --u=N --v=M] [--seed=S] [--save=out.json]
       [--timeout=SECONDS]
-  julia compare-seeds.jl --dataset=KEY --seed-json=seed.json --k=K --theta=T
+  julia bin/compare-seeds.jl --dataset=KEY --seed-json=seed.json --k=K --theta=T
       [--inject --u=N --v=M] [--seed=S] [--save=out.json] [--reduce=hi|lo|none]
       [--timeout=SECONDS]
 """)

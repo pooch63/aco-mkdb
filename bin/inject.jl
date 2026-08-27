@@ -7,9 +7,9 @@ edge file by choosing p existing users and q existing items and inserting
 all edges between them except k missing edges.
 
 Usage:
-  julia inject.jl grocery --p=8 --q=7 --k=3
-  julia inject.jl amazon/boxes --p=8 --q=7 --k=3
-  julia inject.jl --file=data/grocery/indexed_interactions.csv --p=8 --q=7 --k=3
+  julia bin/inject.jl grocery --p=8 --q=7 --k=3
+  julia bin/inject.jl amazon/boxes --p=8 --q=7 --k=3
+  julia bin/inject.jl --file=data/grocery/indexed_interactions.csv --p=8 --q=7 --k=3
 
 Arguments:
   dataset_name    Dataset key under data/ (flat or nested, e.g. grocery or amazon/boxes)
@@ -27,7 +27,8 @@ The script appends new rows to the CSV file and preserves the original header.
 
 using Random
 
-isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(@__DIR__, "src", "paths.jl"))
+const ROOT = dirname(@__DIR__)
+isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(ROOT, "src", "paths.jl"))
 
 function parse_flag(arg::String)
     if startswith(arg, "--") && occursin('=', arg)
@@ -73,8 +74,8 @@ function parse_args()
 
     if p === nothing || q === nothing || k === nothing
         println(stderr, "Error: Missing required flags. --p, --q, and --k are required.")
-        println(stderr, "Usage: julia inject.jl [dataset_name] --p=N --q=M --k=K [--seed=S] [--attempts=N]")
-        println(stderr, "Example: julia inject.jl amazon/boxes --p=8 --q=7 --k=3")
+        println(stderr, "Usage: julia bin/inject.jl [dataset_name] --p=N --q=M --k=K [--seed=S] [--attempts=N]")
+        println(stderr, "Example: julia bin/inject.jl amazon/boxes --p=8 --q=7 --k=3")
         exit(1)
     end
 

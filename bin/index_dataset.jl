@@ -16,10 +16,10 @@ Prerequisites:
 
 How to Run from the Command Line:
   Format:
-    julia index_dataset.jl <input_csv> <output_csv> <output_mapping_dir>
+    julia bin/index_dataset.jl <input_csv> <output_csv> <output_mapping_dir>
 
   Example:
-    julia index_dataset.jl data/interactions.csv data/indexed_interactions.csv mappings/
+    julia bin/index_dataset.jl data/interactions.csv data/indexed_interactions.csv mappings/
 =================================================================================
 =#
 
@@ -85,7 +85,7 @@ end
 function main()
     if length(ARGS) < 3
         println(stderr, "Error: Missing arguments.")
-        println(stderr, "Usage: julia index_dataset.jl <input_csv> <output_csv> <output_mapping_dir>")
+        println(stderr, "Usage: julia bin/index_dataset.jl <input_csv> <output_csv> <output_mapping_dir>")
         exit(1)
     end
 

@@ -14,23 +14,24 @@ Output layout (nested names supported):
     mappings/                 # reverse maps + metadata
 
 How to Run:
-  julia process.jl <provider>/<dataset> --download
-  julia process.jl <provider>/<dataset> --source=/path/to/raw.file
-  julia process.jl <provider> <dataset> --download
+  julia bin/process.jl <provider>/<dataset> --download
+  julia bin/process.jl <provider>/<dataset> --source=/path/to/raw.file
+  julia bin/process.jl <provider> <dataset> --download
 
 Examples:
-  julia process.jl amazon/Appliances --download
-  julia process.jl amazon Appliances --download
-  julia process.jl amazon/boxes --source=data/subscription-boxes.jsonl
-  julia process.jl tcga/TCGA-BRCA --download
-  julia process.jl tcga/BRCA --download
+  julia bin/process.jl amazon/Appliances --download
+  julia bin/process.jl amazon Appliances --download
+  julia bin/process.jl amazon/boxes --source=data/subscription-boxes.jsonl
+  julia bin/process.jl tcga/TCGA-BRCA --download
+  julia bin/process.jl tcga/BRCA --download
 
 To add a new source, create providers/<name>.jl implementing download + convert,
 then include it from providers/registry.jl.
 =================================================================================
 =#
 
-include(joinpath(@__DIR__, "providers", "registry.jl"))
+const ROOT = dirname(@__DIR__)
+include(joinpath(ROOT, "providers", "registry.jl"))
 
 function parse_process_args(args)
     download = false
@@ -76,16 +77,16 @@ end
 
 function print_usage()
     println(stderr, "Usage:")
-    println(stderr, "  julia process.jl <provider>/<dataset> --download")
-    println(stderr, "  julia process.jl <provider>/<dataset> --source=/path/to/raw")
-    println(stderr, "  julia process.jl <provider> <dataset> --download")
+    println(stderr, "  julia bin/process.jl <provider>/<dataset> --download")
+    println(stderr, "  julia bin/process.jl <provider>/<dataset> --source=/path/to/raw")
+    println(stderr, "  julia bin/process.jl <provider> <dataset> --download")
     println(stderr, "")
     println(stderr, "Registered providers: $(join(list_providers(), ", "))")
     println(stderr, "")
     println(stderr, "Examples:")
-    println(stderr, "  julia process.jl amazon/Appliances --download")
-    println(stderr, "  julia process.jl amazon boxes --source=data/subscription-boxes.jsonl")
-    println(stderr, "  julia process.jl tcga/TCGA-BRCA --download")
+    println(stderr, "  julia bin/process.jl amazon/Appliances --download")
+    println(stderr, "  julia bin/process.jl amazon boxes --source=data/subscription-boxes.jsonl")
+    println(stderr, "  julia bin/process.jl tcga/TCGA-BRCA --download")
 end
 
 function main()

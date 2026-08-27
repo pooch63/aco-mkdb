@@ -72,25 +72,25 @@ Prerequisites:
 
 How to Run from the Command Line:
   Format:
-    julia load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--k=...] [--theta=...] [--inject --u=... --v=...] [--benchmark=...] [--save=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...] [--aco-reduce=...]
+    julia bin/load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--k=...] [--theta=...] [--inject --u=... --v=...] [--benchmark=...] [--save=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...] [--aco-reduce=...]
 
   Examples:
-    julia load.jl
-    julia load.jl amazon/boxes --binary
-    julia load.jl amazon/grocery --ga
-    julia load.jl amazon/grocery --ga --seed=12345
-    julia load.jl amazon/grocery --tabu
-    julia load.jl amazon/grocery --aco
-    julia load.jl amazon/grocery --aco --ants=20 --iterations=200 --evaporation=0.85
-    julia load.jl amazon/boxes --aco-reduce=true --ants=50 --iterations=3
-    julia load.jl amazon/grocery --heuristic
-    julia load.jl amazon/boxes --k=3 --theta=6
-    julia load.jl amazon/boxes --inject --u=8 --v=7 --k=3 --theta=6
-    julia load.jl amazon/boxes --benchmark=aco,pivot
-    julia load.jl amazon/boxes --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
-    julia load.jl amazon/boxes --benchmark=heuristic,ga,aco --save=boxes_compare.json
-    julia load.jl konect/bitcoin --vary=ant-count --ants-range=10,20,50,100 --save=bitcoin_ants.json
-    julia load.jl /path/to/indexed_interactions.csv --pivot
+    julia bin/load.jl
+    julia bin/load.jl amazon/boxes --binary
+    julia bin/load.jl amazon/grocery --ga
+    julia bin/load.jl amazon/grocery --ga --seed=12345
+    julia bin/load.jl amazon/grocery --tabu
+    julia bin/load.jl amazon/grocery --aco
+    julia bin/load.jl amazon/grocery --aco --ants=20 --iterations=200 --evaporation=0.85
+    julia bin/load.jl amazon/boxes --aco-reduce=true --ants=50 --iterations=3
+    julia bin/load.jl amazon/grocery --heuristic
+    julia bin/load.jl amazon/boxes --k=3 --theta=6
+    julia bin/load.jl amazon/boxes --inject --u=8 --v=7 --k=3 --theta=6
+    julia bin/load.jl amazon/boxes --benchmark=aco,pivot
+    julia bin/load.jl amazon/boxes --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
+    julia bin/load.jl amazon/boxes --benchmark=heuristic,ga,aco --save=boxes_compare.json
+    julia bin/load.jl konect/bitcoin --vary=ant-count --ants-range=10,20,50,100 --save=bitcoin_ants.json
+    julia bin/load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
 =#
 
@@ -99,7 +99,8 @@ using ProfileCanvas
 using Random
 using EnumX
 
-const SRC = joinpath(@__DIR__, "src")
+const ROOT = dirname(@__DIR__)
+const SRC = joinpath(ROOT, "src")
 isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(SRC, "paths.jl"))
 isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
 isdefined(@__MODULE__, :__IO_JL__) || include(joinpath(SRC, "io.jl"))
@@ -667,7 +668,7 @@ function main()
             end
 
             # Always write a stable HTML path; view() alone only opens a temp file.
-            out = joinpath(@__DIR__, "results", "profile_aco.html")
+            out = joinpath(ROOT, "results", "profile_aco.html")
             try
                 ProfileCanvas.html_file(out)
                 println("Wrote profile flamegraph to $out")

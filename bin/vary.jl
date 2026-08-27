@@ -3,7 +3,7 @@
 Parameter sweeps for load.jl.
 
 Invoked via:
-  julia load.jl <dataset> --vary=ant-count [--ants-range=5,10,20,50]
+  julia bin/load.jl <dataset> --vary=ant-count [--ants-range=5,10,20,50]
       [--aco-runs=N] [--save=...]
 
 For `--vary=ant-count`, runs ACO once per ant count (fixed iteration budget from

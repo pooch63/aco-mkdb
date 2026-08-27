@@ -31,7 +31,7 @@ INJECT_NAME=""
 [[ "$INJECT" == "1" ]] && INJECT_NAME="i"
 
 DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
-OUT_DIR="${OUT_DIR:-k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}}"
+OUT_DIR="$(nest_under_results "${OUT_DIR:-results/k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}}")"
 mkdir -p "$OUT_DIR"
 
 echo "Discovering graphs (ascending by edges)…"
@@ -75,7 +75,7 @@ run_one() {
     inject_args=(--inject --u="$u" --v="$v")
   fi
 
-  julia -t "$THREADS" load.jl "$key" \
+  julia -t "$THREADS" bin/load.jl "$key" \
     --prefer-smaller-side=false \
     "${inject_args[@]}" \
     --k="$k" --theta="$theta" \

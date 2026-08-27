@@ -102,7 +102,7 @@ for dir in "${DIRS[@]}"; do
     continue
   fi
 
-  julia -t "$THREADS" process.jl "${PROVIDER}/${name}" --source="$source_path"
+  julia -t "$THREADS" bin/process.jl "${PROVIDER}/${name}" --source="$source_path"
   ran=$((ran + 1))
 done
 

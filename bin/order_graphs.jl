@@ -3,16 +3,17 @@
 List indexed graphs under data/ ordered by edge count (ascending).
 
 Usage:
-  julia order_graphs.jl                         # print "edges\tkey" lines
-  julia order_graphs.jl --keys-only             # print dataset keys only (for bash loops)
-  julia order_graphs.jl --keys-only --prefix=konect-small
+  julia bin/order_graphs.jl                         # print "edges\tkey" lines
+  julia bin/order_graphs.jl --keys-only             # print dataset keys only (for bash loops)
+  julia bin/order_graphs.jl --keys-only --prefix=konect-small
 
 Used by vary.bash / compare-seeds.bash so easy (small) graphs run first.
 `--prefix=` is slash-bounded (konect ≠ konect-small). Comma-OR multiple prefixes.
 =================================================================================
 =#
 
-const SRC = joinpath(@__DIR__, "src")
+const ROOT = dirname(@__DIR__)
+const SRC = joinpath(ROOT, "src")
 isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(SRC, "paths.jl"))
 
 function parse_prefix_flag()
@@ -29,13 +30,13 @@ end
 function main()
     keys_only = "--keys-only" in ARGS
     prefix = parse_prefix_flag()
-    data_root = joinpath(@__DIR__, "data")
+    data_root = joinpath(ROOT, "data")
 
     entries = order_graphs_by_edges(; data_root=data_root, ascending=true, prefix=prefix)
     if isempty(entries)
         if prefix !== nothing && !isempty(strip(prefix))
             println(stderr, "No indexed graphs matching --prefix=$prefix under $data_root")
-            println(stderr, "Index them first, e.g. julia process.jl $prefix/<dataset> --source=...")
+            println(stderr, "Index them first, e.g. julia bin/process.jl $prefix/<dataset> --source=...")
         else
             println(stderr, "No indexed graphs found under $data_root")
         end

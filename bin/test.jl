@@ -7,8 +7,8 @@ Reads a JSON config listing datasets and options, runs the same benchmarks as
 (default 10^3 seconds), and writes aggregate results to a JSON file.
 
 Usage:
-  julia test.jl configs/suite.json
-  julia test.jl path/to/suite.json
+  julia bin/test.jl configs/suite.json
+  julia bin/test.jl path/to/suite.json
 
 Config schema (all fields except `datasets` are optional):
   {
@@ -38,7 +38,8 @@ using Dates
 using Random
 using JSON3
 
-const ROOT = @__DIR__
+const ROOT = dirname(@__DIR__)
+const BIN = @__DIR__
 const SRC = joinpath(ROOT, "src")
 const DEFAULT_TIMEOUT_SECONDS = 10^3
 
@@ -52,7 +53,7 @@ isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(SRC, "ga.jl"))
 isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
 isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco", "algorithm.jl"))
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
-isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(ROOT, "benchmark.jl"))
+isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(BIN, "benchmark.jl"))
 
 # ---- worker bootstrap -------------------------------------------------------
 
@@ -61,9 +62,11 @@ Load solver/benchmark code and named entry points onto process `p`.
 """
 function setup_worker!(p::Integer)
     root = ROOT
+    bin = BIN
     src = SRC
     @everywhere [p] begin
         ROOT = $root
+        BIN = $bin
         SRC = $src
         isdefined(Main, :__PATHS_JL__) || include(joinpath(SRC, "paths.jl"))
         isdefined(Main, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
@@ -73,7 +76,7 @@ function setup_worker!(p::Integer)
         isdefined(Main, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
         isdefined(Main, :__ACO_JL__) || include(joinpath(SRC, "aco", "algorithm.jl"))
         isdefined(Main, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
-        isdefined(Main, :__BENCHMARK_JL__) || include(joinpath(ROOT, "benchmark.jl"))
+        isdefined(Main, :__BENCHMARK_JL__) || include(joinpath(BIN, "benchmark.jl"))
 
         function worker_warmup(k, θ, reduction, aco_options, target_syms)
             targets = Set{Symbol}(Symbol(s) for s in target_syms)
@@ -447,7 +450,7 @@ end
 
 function main()
     if length(ARGS) < 1
-        println(stderr, "Usage: julia test.jl <path/to/suite.json>")
+        println(stderr, "Usage: julia bin/test.jl <path/to/suite.json>")
         exit(1)
     end
 

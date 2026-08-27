@@ -1,0 +1,9 @@
+# Datasets listed here are skipped by order_graphs / vary / evaluate / compare-seeds
+# discovery (same idea as .gitignore, paths relative to data/).
+#
+#   example       skip dataset key "example" (and any */example)
+#   ignore/       skip everything under data/ignore/
+#   amazon/music  skip one nested key
+#   raw/          already skipped by default; safe to repeat
+
+example

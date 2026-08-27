@@ -5,6 +5,7 @@
 # Usage:
 #   ./scripts/vary.bash [OUT_DIR]
 #   ./scripts/vary.bash results/my-sweep
+#   ./scripts/vary.bash my-sweep          # → results/my-sweep
 #   PREFIX=konect-small ./scripts/vary.bash
 #   JULIA_THREADS=8 ./scripts/vary.bash
 #   ANTS_RANGE=10,20,50,100 ITERATIONS=100 ./scripts/vary.bash
@@ -16,8 +17,8 @@
 #   ENABLE_NEIGHBOR_SCOPE_LIMIT=false ./scripts/vary.bash  # sample full C (not N∩C)
 #   PREFER_SMALLER_SIDE=false ./scripts/vary.bash          # disable smaller-side bias
 #
-# OUT_DIR: positional arg, else $OUT_DIR env, else vary_kKtTHETAi_{P?}{N?}
-# (P/N appended when that flag is true).
+# OUT_DIR: positional arg, else $OUT_DIR env, else results/vary_kKtTHETAi_{P?}{N?}
+# (P/N appended when that flag is true). Bare names are nested under results/.
 #
 # Then compare pivot time on ACO-beats-heuristic trials:
 #   PREFIX=konect-small ./scripts/compare-seeds.bash
@@ -71,15 +72,16 @@ if ! [[ "$ACO_RUNS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
-# OUT_DIR: vary_kKtTHETAi_ then P if prefer-smaller-side, N if neighbor-scope-limit.
+# OUT_DIR: results/vary_kKtTHETAi_ then P if prefer-smaller-side, N if neighbor-scope-limit.
 FLAGS=""
 [[ "$PREFER_SMALLER_SIDE" == "true" ]] && FLAGS+="P"
 [[ "$ENABLE_NEIGHBOR_SCOPE_LIMIT" == "true" ]] && FLAGS+="N"
 if [[ -n "$OUT_DIR_ARG" ]]; then
   OUT_DIR="$OUT_DIR_ARG"
 else
-  OUT_DIR="${OUT_DIR:-vary_k${K}t${THETA}${INJECT_NAME}_${FLAGS}${DIR_SUFFIX}}"
+  OUT_DIR="${OUT_DIR:-results/vary_k${K}t${THETA}${INJECT_NAME}_${FLAGS}${DIR_SUFFIX}}"
 fi
+OUT_DIR="$(nest_under_results "$OUT_DIR")"
 mkdir -p "$OUT_DIR"
 
 echo "Discovering graphs (ascending by edges)…"
@@ -143,7 +145,7 @@ for key in "${DATASETS[@]}"; do
     continue
   fi
 
-  julia -t "$THREADS" load.jl "$key" \
+  julia -t "$THREADS" bin/load.jl "$key" \
     --prefer-smaller-side="$PREFER_SMALLER_SIDE" \
     --neighbor-scope-limit="$ENABLE_NEIGHBOR_SCOPE_LIMIT" \
     --reduce=lo \

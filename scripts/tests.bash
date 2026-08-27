@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run vary.bash for all 4 (prefer-smaller-side × neighbor-scope-limit) settings.
-# Output dirs: vary_kKtTHETAi_{P?}{N?} (P/N appended when that flag is true).
+# Output dirs: results/vary_kKtTHETAi_{P?}{N?} (P/N appended when that flag is true).
 #
 # The 4 flag combos run in parallel (separate processes). Each still uses
 # JULIA_THREADS (default 8), so wall-clock needs ~4×JULIA_THREADS cores
@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 PARALLEL="${PARALLEL:-0}" # Set to true if you have 8 threads across 4 cores
-LOG_DIR="${LOG_DIR:-vary_tests_logs}"
+LOG_DIR="${LOG_DIR:-results/vary_tests_logs}"
 mkdir -p "$LOG_DIR"
 
 run_one() {

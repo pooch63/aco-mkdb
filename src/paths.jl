@@ -72,18 +72,105 @@ function count_indexed_edges(path::AbstractString)
 end
 
 """
-    discover_indexed_graphs(; data_root="data", skip=("raw",)) -> Vector{NamedTuple}
+    load_data_ignore_patterns(data_root="data"; extra=()) -> Vector{String}
+
+Read `data_root/.dataignore` (gitignore-style) plus `extra` patterns.
+Blank lines and `#` comments are ignored. A pattern ending in `/` matches that
+directory and everything under it. A pattern without `/` matches that path
+segment anywhere (e.g. `example` skips `example` and `foo/example`). A pattern
+containing `/` matches from the start of the dataset key. `*` matches within
+one path segment.
+
+Always includes `raw/` so download staging is never swept by default.
+"""
+function load_data_ignore_patterns(data_root::AbstractString="data";
+    extra=())
+    patterns = String["raw/"]
+    path = joinpath(data_root, ".dataignore")
+    if isfile(path)
+        for line in eachline(path)
+            s = strip(line)
+            isempty(s) && continue
+            startswith(s, '#') && continue
+            push!(patterns, replace(s, '\\' => '/'))
+        end
+    end
+    for s in extra
+        p = replace(strip(String(s)), '\\' => '/')
+        isempty(p) && continue
+        # Legacy skip=("raw",) names → directory patterns.
+        if !endswith(p, "/") && !occursin('/', p) && !occursin('*', p)
+            p = p * "/"
+        end
+        push!(patterns, p)
+    end
+    return patterns
+end
+
+"""
+    dataset_key_ignored(key, patterns) -> Bool
+
+True if dataset key `amazon/boxes`-style matches any `.dataignore` pattern.
+"""
+function dataset_key_ignored(key::AbstractString, patterns)
+    k = replace(String(key), '\\' => '/')
+    parts = split(k, '/'; keepempty=false)
+    for raw in patterns
+        p = rstrip(String(raw), '/')
+        isempty(p) && continue
+        dir_only = endswith(String(raw), '/')
+
+        if occursin('*', p)
+            # Segment-wise glob, optionally requiring a full-key prefix match
+            # when the pattern contains '/'.
+            if occursin('/', p)
+                _glob_match(k, p) && return true
+            else
+                any(_glob_match(seg, p) for seg in parts) && return true
+                _glob_match(k, p) && return true
+            end
+            continue
+        end
+
+        if occursin('/', p) || dir_only
+            (k == p || startswith(k, p * "/")) && return true
+        else
+            (k == p || startswith(k, p * "/") || p in parts) && return true
+        end
+    end
+    return false
+end
+
+function _glob_match(text::AbstractString, pattern::AbstractString)
+    buf = IOBuffer()
+    print(buf, '^')
+    for c in String(pattern)
+        if c == '*'
+            print(buf, "[^/]*")
+        elseif c in ('.', '+', '^', '$', '(', ')', '|', '{', '}', '[', ']', '\\')
+            print(buf, '\\', c)
+        else
+            print(buf, c)
+        end
+    end
+    print(buf, '\$')
+    return occursin(Regex(String(take!(buf))), String(text))
+end
+
+"""
+    discover_indexed_graphs(; data_root="data", skip=()) -> Vector{NamedTuple}
 
 Walk `data_root` for directories containing `indexed_interactions.csv`.
 Returns unsorted entries `(key, path, edges)` where `key` is the dataset path
 relative to `data_root` using `/` (e.g. `"amazon/boxes"`).
 
-Top-level directories named in `skip` (default: `raw`) are ignored.
+Skips keys matching `data_root/.dataignore` (see `load_data_ignore_patterns`).
+`skip` adds extra patterns (legacy: bare names like `"raw"` mean that directory).
 """
 function discover_indexed_graphs(; data_root::AbstractString="data",
-    skip=("raw",))
+    skip=())
     root = abspath(data_root)
-    skip_set = Set(String(s) for s in skip)
+    patterns = load_data_ignore_patterns(data_root; extra=skip)
     entries = NamedTuple{(:key, :path, :edges), Tuple{String,String,Int}}[]
 
     isdir(root) || return entries
@@ -94,10 +181,10 @@ function discover_indexed_graphs(; data_root::AbstractString="data",
         rel == "." && continue
         parts = split(replace(rel, '\\' => '/'), '/'; keepempty=false)
         isempty(parts) && continue
-        first(parts) in skip_set && continue
+        key = join(parts, "/")
+        dataset_key_ignored(key, patterns) && continue
 
         path = joinpath(dir, "indexed_interactions.csv")
-        key = join(parts, "/")
         edges = count_indexed_edges(path)
         push!(entries, (key=key, path=path, edges=edges))
     end
@@ -125,17 +212,18 @@ function dataset_key_matches_prefix(key::AbstractString, prefix::AbstractString)
 end
 
 """
-    order_graphs_by_edges(; data_root="data", skip=("raw",), ascending=true, prefix=nothing)
+    order_graphs_by_edges(; data_root="data", skip=(), ascending=true, prefix=nothing)
 
 Discover indexed graphs under `data_root` and return them sorted by edge count
 (ascending by default — smallest / easiest first).
 
+Honors `data_root/.dataignore` (and always skips `raw/`). `skip` adds patterns.
 `prefix` restricts to a provider or nested key (`"konect-small"`, `"amazon"`).
 Comma-separated values are OR'd. Path-prefix matching is slash-bounded, so
 `"konect"` does not match `"konect-small/..."`.
 """
 function order_graphs_by_edges(; data_root::AbstractString="data",
-    skip=("raw",), ascending::Bool=true, prefix::Union{Nothing,AbstractString}=nothing)
+    skip=(), ascending::Bool=true, prefix::Union{Nothing,AbstractString}=nothing)
     entries = discover_indexed_graphs(; data_root=data_root, skip=skip)
     if prefix !== nothing && !isempty(strip(String(prefix)))
         filter!(e -> dataset_key_matches_prefix(e.key, prefix), entries)
