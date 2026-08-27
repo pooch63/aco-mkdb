@@ -147,3 +147,15 @@ BIG BIG BIG BIG BIG BIG BIG IDEA
     can still be added with the maximum degree, with the prefer-nodes-on-one-side thing.
 
 Could we just run tabu search on the final solution?
+
+
+FREAKING PHENOMENAL IDEA:
+
+What if, if the intersection of the most recently visited node and the candidate set is null, we work backwards and
+try every past node, or at least the past M nodes, and only then do we default to the entire candidate set
+
+GREAT IDEA:
+
+What if we have fewer ants, but once they've exhausted the biclique and they can't add anything else, they can backtrack and probablistically choose at every branch of the tree
+whether to continue from that past point or keep going into the past? Then, instead of iterations, they just run for a damn long while, syncing information with pheromones so they can see what might work (or maybe not doing that, maybe instead,
+we just seed them each from different nodes). This way, they don't get stuck in a local optima. The intuition is, it's not like TSP - one bad node in a biclique can _devastate_ the maximum option.
