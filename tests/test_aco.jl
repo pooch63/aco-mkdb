@@ -14,6 +14,7 @@ const ACO_ITERATIONS = parse_int_flag("iterations", 10)
 const ACO_EVAPORATION = parse_float_flag("evaporation", 0.95)
 const ACO_SUBSPECIES = parse_int_flag("subspecies", 1)
 const ACO_PREFER_SMALLER_SIDE = parse_bool_flag("prefer-smaller-side", true)
+const ACO_NEIGHBOR_SCOPE_LIMIT = parse_bool_flag("neighbor-scope-limit", true)
 const ACO_ELITE_SEED = parse_bool_flag("elite-seed", true)
 const ACO_ELITE_SEED_ANTS = parse_int_flag("elite-seed-ants", 3)
 const ACO_ELITE_SEED_REMOVE = parse_int_flag("elite-seed-remove", 2)
@@ -48,6 +49,7 @@ function solve_aco(g::FrozenBipartite, k::Int, θ::Int)
     kwargs = (
         parallelize=PARALLELIZE,
         prefer_smaller_side=ACO_PREFER_SMALLER_SIDE,
+        neighbor_scope_limit=ACO_NEIGHBOR_SCOPE_LIMIT,
         elite_seed=ACO_ELITE_SEED,
         elite_seed_ants=ACO_ELITE_SEED_ANTS,
         elite_seed_remove=ACO_ELITE_SEED_REMOVE,
@@ -85,7 +87,7 @@ end
 
 println("ACO benchmark" * (PARALLELIZE ? " (parallel)" : " (sequential)"))
 println("  aco: ants=$(ACO_ANTS) iterations=$(ACO_ITERATIONS) pheromone=$(ACO_PHEROMONE) evaporation=$(ACO_EVAPORATION) subspecies=$(ACO_SUBSPECIES)")
-println("  prefer_smaller_side=$(ACO_PREFER_SMALLER_SIDE)  elite_seed=$(ACO_ELITE_SEED) (ants=$(ACO_ELITE_SEED_ANTS), remove=$(ACO_ELITE_SEED_REMOVE))")
+println("  prefer_smaller_side=$(ACO_PREFER_SMALLER_SIDE)  neighbor_scope_limit=$(ACO_NEIGHBOR_SCOPE_LIMIT)  elite_seed=$(ACO_ELITE_SEED) (ants=$(ACO_ELITE_SEED_ANTS), remove=$(ACO_ELITE_SEED_REMOVE))")
 println("  parallelize=$(PARALLELIZE)  threads=$(nthreads())")
 TIME_MODE && println("  timing enabled (--time)")
 

@@ -267,11 +267,12 @@ function aco_options_from(cfg::Dict{String,Any})
     evaporation = Float64(get(aco, "evaporation", 0.9))
     num_subspecies = Int(get(aco, "subspecies", 1))
     prefer_smaller_side = Bool(get(aco, "prefer_smaller_side", true))
+    neighbor_scope_limit = Bool(get(aco, "neighbor_scope_limit", true))
     elite_seed = Bool(get(aco, "elite_seed", true))
     elite_seed_ants = Int(get(aco, "elite_seed_ants", 3))
     elite_seed_remove = Int(get(aco, "elite_seed_remove", 2))
     return (; pheremone, num_ants, num_iterations, evaporation, num_subspecies,
-        prefer_smaller_side, elite_seed, elite_seed_ants, elite_seed_remove)
+        prefer_smaller_side, neighbor_scope_limit, elite_seed, elite_seed_ants, elite_seed_remove)
 end
 
 # ---- serialization ----------------------------------------------------------

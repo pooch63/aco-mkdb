@@ -57,6 +57,8 @@ ACO flags:
   --evaporation=X   pheromone evaporation rate in (0, 1] (default: 0.95)
   --subspecies=N    number of ant subspecies (default: 1)
   --prefer-smaller-side=true|false   bias adds onto the smaller side while min < θ (default: true)
+  --neighbor-scope-limit=true|false  sample from last-node neighbors ∩ C when nonempty;
+                                     when false, always sample the full candidate set (default: true)
   --elite-seed=true|false            seed some ants from best − nodes (default: true)
   --elite-seed-ants=N                ants seeded from elite each iteration (default: 3)
   --elite-seed-remove=N              nodes stripped from elite seed (default: 2)
@@ -109,7 +111,12 @@ isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl
 isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(@__DIR__, "benchmark.jl"))
 isdefined(@__MODULE__, :__VARY_JL__) || include(joinpath(@__DIR__, "vary.jl"))
 
-global const DEBUG = true
+# Terminal / env flag (vary.bash exports DEBUG=true by default; unset → true).
+function env_debug_enabled()
+    v = lowercase(get(ENV, "DEBUG", "true"))
+    return v in ("true", "1", "yes", "on")
+end
+global const DEBUG = env_debug_enabled()
 
 # Placeholder for ga()'s subgraph-split parameter until the GA is fully wired up.
 const GA_N = 10
@@ -217,6 +224,7 @@ function parse_aco_options()
     end
 
     prefer_smaller_side = parse_bool_eq("prefer-smaller-side", true)
+    neighbor_scope_limit = parse_bool_eq("neighbor-scope-limit", true)
     elite_seed = parse_bool_eq("elite-seed", true)
 
     if !(0.0 < evaporation <= 1.0)
@@ -234,7 +242,7 @@ function parse_aco_options()
 
     # NamedTuple: first five fields stay positionally destructurable.
     return (; pheremone, num_ants, num_iterations, evaporation, num_subspecies,
-        prefer_smaller_side, elite_seed, elite_seed_ants, elite_seed_remove)
+        prefer_smaller_side, neighbor_scope_limit, elite_seed, elite_seed_ants, elite_seed_remove)
 end
 
 function parse_benchmark()
@@ -331,7 +339,8 @@ function parse_args()
                startswith(arg, "--pheremone=") || startswith(arg, "--evaporation=") ||
                startswith(arg, "--subspecies=") || startswith(arg, "--benchmark=") ||
                startswith(arg, "--save=") ||
-               startswith(arg, "--prefer-smaller-side=") || startswith(arg, "--elite-seed=") ||
+               startswith(arg, "--prefer-smaller-side=") || startswith(arg, "--neighbor-scope-limit=") ||
+               startswith(arg, "--elite-seed=") ||
                startswith(arg, "--elite-seed-ants=") || startswith(arg, "--elite-seed-remove=") ||
                startswith(arg, "--aco-reduce=") ||
                startswith(arg, "--vary=") || startswith(arg, "--ants-range=") ||
@@ -425,21 +434,24 @@ end
 
 """
 Load the CSV graph and optionally plant a biclique in-memory (CSV unchanged).
+Returns `(g, edges, plant)` where `plant` is `nothing` or `(U, V)` vertex id vectors.
 """
 function load_graph_maybe_inject(graph_path::String, inject, k::Int, rng::AbstractRNG;
     max_lines::Union{Int,Nothing}=nothing)
     g, edges = load_bipartite_graph(graph_path; max_lines=max_lines)
+    plant = nothing
     if inject.enabled
         chosen_U, chosen_V, inserted, missing, existing =
             inject_biclique!(g, inject.nU, inject.nV, k, rng; attempts=inject.attempts)
         edges += inserted
+        plant = (U = chosen_U, V = chosen_V)
         println("Injected biclique: u=$(inject.nU) v=$(inject.nV) k=$k " *
                 "(existing=$existing inserted=$inserted missing=$(length(missing)))")
         println("  planted U: $chosen_U")
         println("  planted V: $chosen_V")
         println("  reserved missing: $(sort!(collect(missing)))")
     end
-    return g, edges
+    return g, edges, plant
 end
 
 """
@@ -460,6 +472,7 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
         remapped, _iterations, _times, _pheromones, _remapping = aco(g, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
             parallelize=false,
             prefer_smaller_side=aco_options.prefer_smaller_side,
+            neighbor_scope_limit=aco_options.neighbor_scope_limit,
             elite_seed=aco_options.elite_seed,
             elite_seed_ants=aco_options.elite_seed_ants,
             elite_seed_remove=aco_options.elite_seed_remove)
@@ -510,6 +523,7 @@ function run_aco_reduce!(g::BipartiteGraph, k::Int, θ::Int, reduction::Reductio
         g_aco, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
         parallelize=false,
         prefer_smaller_side=aco_options.prefer_smaller_side,
+        neighbor_scope_limit=aco_options.neighbor_scope_limit,
         elite_seed=aco_options.elite_seed,
         elite_seed_ants=aco_options.elite_seed_ants,
         elite_seed_remove=aco_options.elite_seed_remove,
@@ -606,24 +620,27 @@ function main()
 
     with_stacksize(2_000_000_000) do
         if aco_reduce
-            g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
+            g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             run_aco_reduce!(g, k, θ, reduction, aco_options)
         elseif vary == :ant_count
-            g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
+            g, edges, plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             results = run_vary_ant_count!(g, edges, k, θ, reduction, aco_options;
                 ant_counts=ants_range, run_pivot=vary_run_pivot,
-                seed=seed, dataset=String(dataset_name), n_runs=aco_runs)
+                seed=seed, dataset=String(dataset_name), n_runs=aco_runs,
+                plant=plant)
             if save_path !== nothing
                 payload = vary_results_to_dict(results;
                     k=k, θ=θ, dataset=String(dataset_name),
                     seed=seed, reduction=reduction, edge_count=edges,
-                    run_pivot=vary_run_pivot)
+                    run_pivot=vary_run_pivot,
+                    prefer_smaller_side=aco_options.prefer_smaller_side,
+                    neighbor_scope_limit=aco_options.neighbor_scope_limit)
                 save_vary_json(resolve_benchmark_save_path(save_path), payload)
             end
         elseif benchmark !== nothing
-            g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
+            g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             results = run_benchmarks!(g, edges, benchmark, k, θ, reduction, aco_options;
                 ga_options=ga_options)
@@ -641,7 +658,7 @@ function main()
             Dw = solve!(gw, solver, mode, k, θ, reduction, aco_options)
 
             # Load full graph for the actual profiled run
-            g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
+            g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
 
             println("Starting profiling run — this may take a while...")
             Profile.clear()
@@ -665,7 +682,7 @@ function main()
             end
             @show D
         else
-            g, edges = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
+            g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
 
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             
