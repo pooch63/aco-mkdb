@@ -14,9 +14,7 @@
 \usepackage{pgfplots}
 \usepgfplotslibrary{groupplots}
     \pgfplotsset{compat=1.18}
-\usepackage{changepage}
-
-
+\usepackage{pdflscape}
 
 \title{A Novel Application of Ant Colony Optimization to $k$-defective Maximum Edge Bicliques}
 \author{Kiyaan Pillai}
@@ -47,7 +45,7 @@
 \begin{document}
 \maketitle
 
-The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization. We adapt Ant Colony Optimization (ACO) to this problem and introduce a smaller side preference to outperform previously proposed heuristics. In some instances, ACO produces bicliques with 3-4x more edges. Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can reduce brute force search time by over $90\%$, though compute constaints limit the robustness of our test. This work examines a novel heuristic approach to the $k$-MDB problem while identifying several improvements for future heuristics.
+The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization. We adapt Ant Colony Optimization (ACO) to this problem and introduce a smaller side preference to outperform previously proposed heuristics. In some instances, ACO produces bicliques with 3-4x more edges than previously proposed heuristics. Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can reduce brute force search time by over $90\%$, though compute constraints limit the robustness of our test. This work examines a new heuristic approach to the $k$-MDB problem while identifying several improvements for future heuristics.
 
 \section{Introduction}
 
@@ -55,7 +53,7 @@ A bipartite graph is a common graph structure where one set of vertices is conne
 
 Real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique ($k$-DB), can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emerging field.
 
-The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm guaranteed to find the maximum solution that can run in polynomial time. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
+The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm that can run in polynomial time and is guaranteed to find the maximum solution. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
 
 Dorigo et al. [2] proposed a metaheuristic for exploring graphs known as Ant Colony Optimization (ACO). Initially used on identifying the shortest path in problems such as the Traveling Salesman Problem, ACO has been adapted to many graph problems, such as vehicle routing [5], quadratic assignment [6], graph coloring [7], and the maximum clique problem [8], the last of which is closely related to the k-MDB problem via the reduction discussed in Section 2.2. Several improvements have been proposed to the algorithm since its inception, most notably the MAX-MIN Ant System (MMAS) [4]. We adapt MMAS as a heuristic approach to identifying the $k$-MDB. We observe that it performs significantly faster than brute-force algorithms while still returning comparably large $k$-defective bicliques.
 
@@ -212,15 +210,18 @@ Finding the maximum $k$-MDB on a bipartite graph is an NP-hard optimization prob
 
 Cui et al. [1] proposed a brute-force approach to the $k$-MDB problem, as well as an initial heuristic designed to find a $k$-MDB with exactly $\theta$ nodes on one side of the graph.
 
-Dorigo et al. [2] proposed a metaheuristic for exploring graphs known as Ant Colony Optimization (ACO). Initially used on identifying the shortest path in problems such as the Traveling Salesman Problem, ACO has been adapted to many graph problems, such as 
+Concurrently, Wang et al. [11] studied a related but distinct formulation: the maximum $k$-defective biclique measured by vertex count rather than edge count, with a similar minimum vertex count on both sides. They develop an exact branch-and-bound algorithm with time complexity $\mathcal{O}^*(\gamma^{n + k})$, tightened to
+$\mathcal{O}^*(\gamma^{\alpha\delta^2 + k})$ by exploiting a diameter-three property of large defective bicliques, and propose an analogous construct-and-expand heuristic (greedy initial construction followed by one-sided greedy expansion) to seed their search.
+Because their objective differs from ours, we do not benchmark directly against their algorithm, but their diameter-three pruning and expansion-based seeding strategy are directly relevant to future extensions of this work (Section 6.1).
 
 \section{Methods}
 
 \subsection{ACO Algorithm}
 
-ACO traditionally has a set of ants that traverse a graph, leaving pheromone that attracts other ants to follow their path. As the ants explore the solution space, they all converge on one particular path as the quantity pheromones on that path becomes increasingly larger.
+ACO traditionally has a set of ants that traverse a graph, leaving pheromone that attracts other ants to follow their path. As the ants explore the solution space, they all converge on one particular path as the quantity of pheromones on that path becomes increasingly larger.
 
 We adapt the ACO algorithm to the $k$-MDB problem. A population of ants iteratively adds vertices from $G$ to a subgraph $S$, preferring nodes with higher $d_S$ and higher pheromone $\tau$. Here, $\sigma(x) = \frac{1}{1+e^{-x}}$ denotes the standard logistic sigmoid, used to dampen the impact of a node's degree with the entire graph as the size of the subgraph grows.
+Ants prefer to add nodes connected to the node they most recently visited. Intuitively, this reduces the number of nodes that an ant has to consider, and increases the likelihood that early on, an ant adds nodes that are properly connected to the subgraph.
 
 \begin{algorithm}[H]
 \caption{ACO}
@@ -238,20 +239,32 @@ We adapt the ACO algorithm to the $k$-MDB problem. A population of ants iterativ
         
         \While{$e < N_e$}
             \State $e \gets e + 1$
-            \State $S \gets$ $N_S$ empty subgraphs
+            \State $S \gets N_S$ empty subgraphs
             \State $\tau_C \gets \tau$
             
             \ForPar{$S_i \in S$}
-                \While{$|\bar{E}(S_i)|<k$}
-                    \State $next \gets \text{softmax}$ nodes in $\{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$ based on  $\Call{desirability}{u, S_i, \tau_C}$
+                \State $C \gets \{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$
+                \While{$|C| > 0$}
+                    \State $L \gets$ the last node that was appended to $S$
+                    \State $C_L \gets d_L$
+
+                    \If{$|C \cap C_L| > 0$}
+                        \State $search \gets C \cap C_L$
+                    \Else
+                        \State $search \gets C$
+                    \EndIf
+
+                    \State $next \gets \text{linear sample of } u \in search$ based on  $\Call{desirability}{u, S_i, \tau_C}$
                     \State add $next$ to $S_i$
                     \State $\tau_C(u) \gets \tau_C(u) + T$
+
+                    \State $C \gets \{u \in G \mid k \geq |\bar{E}(S \cup \{u\})|\}$
                 \EndWhile
             \EndForPar
 
-            \State $S_B \gets \text{argmax}_{S_i \in S}{\Call{InstanceFitness}{S_i}}$
+            \State $S_B \gets \text{argmax}_{S_i \in S}{\Call{InstanceFitness}{S_i}}$ \Comment{$S_B$ is guaranteed to have at least one node}
 
-            \If{$\Call{InstanceFitness}{S_B} > \Call{InstanceFitness}{B}$}
+            \If{$B = \emptyset$ or $\Call{InstanceFitness}{S_B} > \Call{InstanceFitness}{B}$}
                 \State $B \gets S_B$
             \EndIf
 
@@ -335,9 +348,18 @@ The paper proposes several novel optimization techniques as well. These techniqu
 
 \subsection{Time Complexity}
 
-Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine $n - 1$ nodes, and then $n - 2$ nodes, etc. Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = \frac{n(n + 1)}{2}$. Additionally, at each step, an ant generates a candidate set of nodes that could still be added to its subgraph. This pass is optimized to be $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large, the upper time complexity would therefore be $\mathcal{O}(A \times I \times (n^2 + n))$ for $A$ ants advancing for $I$ iterations, but this would be dominated by $n^2$. In a parallelized implementation with $p$ processors, the true upper complexity bound is $\mathcal{O}(\lceil A / p \rceil \times I \times n^2))$.
+TO-DO: Review this and make sure it makes sense, but other than that... idk
 
-In practice, however, there are two factors limiting this complexity. First, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because smaller side preference encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, the candidate set is reduced as the ant's subgraph grows. Therefore, the time complexity rarely scales linearly with $n$.
+Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine $n - 1$ nodes, and then $n - 2$ nodes, etc.
+Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = n(n + 1)/2$. Additionally, at each step, an ant generates a candidate set of nodes that could
+still be added to its subgraph. This pass is optimized to be $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large,
+the upper time complexity would therefore be $\mathcal{O}(A \times I \times (n^2 + n))$ for $A$ ants advancing for $I$ iterations, but this would be dominated by $n^2$.
+In a parallelized implementation with $p$ processors, the true upper complexity bound is $\mathcal{O}(\lceil A / p \rceil \times I \times n^2)$.
+
+In practice, however, there are two factors limiting this complexity. First, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because smaller side preference
+encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of
+$\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, the candidate set is reduced as the ant's subgraph grows.
+ Therefore, the time complexity rarely scales linearly with $n$.
 
 The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$ [1].
 
@@ -364,6 +386,8 @@ subset of graphs:
         \bottomrule
     \end{tabular}
 \end{table}
+
+When testing ACO and the $\theta$-heuristic, a biclique with $k$ missing edges and $\theta$ vertices on each side was injected into the graph.
 
 \section{Results}
 
@@ -499,85 +523,72 @@ We also vary the number of ants and analyze the effect on run time as well as so
 \ref{sharedlegend}
 \end{center}
 
-We observe that a marginal increase in the initial upper bound of the subgraph for Branch and Pivot allows the algorithm to prune more branches, and can sometimes result in significant decreases in runtime. We summarize our results below.
+We observe that a marginal increase in the initial upper bound of the subgraph for Branch and Pivot allows the algorithm to prune more branches, and can sometimes result in significant decreases in runtime. ACO was run $5$ times, and the largest $k$-DB was used. If this $k$-DB had more edges than the $\theta$-heuristic output, the pivot algorithm was then run using only the $theta$-heuristic solution as a seed, and then using the ACO solution as a seed.
+We measure the difference between the pivot algorithm runtime, adding the time ACO took to run to its final pivot time. We summarize our results below.
 
-\begin{tikzpicture}
-    \begin{groupplot}[
-        group style={group size=1 by 2, vertical sep=55pt},
-        title style={yshift=-3pt},
-        width=0.85\textwidth,
-        height=0.38\textwidth,
-        grid=major,
-        x tick label style={font=\small},
-        yticklabel style={font=\small},
-    ]
-    \nextgroupplot[
-        xlabel={Reduced graph vertices $|U_R|+|V_R|$},
-        ylabel={ACO edges saved},
-        xlabel style={font=\small},
-        ylabel style={align=center, font=\small},
-        title={ACO quality gain vs reduced graph size},
-        title style={font=\small},
-        xmode=log,
-    ]
-    \addplot+[only marks, mark=*] coordinates {(778.000000,100.000000) (82.000000,75.000000) (215.000000,10.000000) (59.000000,9.000000) (408.000000,998.000000) (1434.000000,335.000000) (600.000000,5.000000) (408.000000,998.000000) (2162.000000,255.000000)};
-    \nextgroupplot[
-        xlabel={ACO edges saved},
-        ylabel={Pivot time savings (\%)},
-        xlabel style={font=\small},
-        ylabel style={align=center, font=\small},
-        title={Pivot speedup vs ACO quality gain},
-        title style={font=\small},
-    ]
-    \addplot+[only marks, mark=square*] coordinates {(100.000000,98.577600) (75.000000,14.301600) (10.000000,62.376000) (9.000000,91.949700)};
-    \end{groupplot}
-    \end{tikzpicture}
+\begin{table}[htbp]
+    \centering
+    \caption{Pivot seed comparison: ACO vs.\ $\theta$-heuristic}
+    \label{tab:seed-compare}
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{lrrrrrr}
+      \toprule
+      Dataset & Nodes & Edges & Reduced nodes & Reduced edges & Time saved (s) & Reduction (\%) \\
+      \midrule
+      Euroroad & -- & 1440 & 10 & -- & -0.17 & -- \\
+      Moreno & -- & 2300 & 25 & -- & -0.19 & -- \\
+      Facebook & -- & 3003 & 17 & -- & -0.19 & -- \\
+      Urwiki & 2160 & 4018 & 59 & -- & 1.07 & 91.95 \\
+      Kuwiki & -- & 4951 & 0 & -- & -0.07 & -- \\
+      Maayan Vidal & 4562 & 6749 & 215 & -- & 0.81 & 62.38 \\
+      Edit Zuwiktionary & -- & 7555 & 247 & -- & -6.49 & -- \\
+      Edit Srwikiquote & -- & 8695 & 235 & -- & -2.94 & -- \\
+      Edit Vewiki & 2075 & 11069 & 82 & -- & 0.62 & 14.30 \\
+      Edit Guwikiquote & 2641 & 11387 & 778 & -- & 746.57 & 98.58 \\
+      Dnc Corecipient & 1367 & 12108 & 408 & -- & -1.78 & -- \\
+      Nawiki & 1367 & 12108 & 408 & -- & -1.10 & -- \\
+      Moreno Health & 4754 & 12992 & 600 & -- & 2.30 & 64.04 \\
+      Edit Mrwiktionary & -- & 14375 & 75 & -- & -1.41 & -- \\
+      Petster Hamster & 4010 & 16654 & 2162 & -- & -0.84 & -- \\
+      Moreno Blogs & 2055 & 19048 & 1434 & -- & -3.73 & -- \\
+      P2P Gnutella09 & -- & 26036 & 561 & -- & -3.41 & -- \\
+      \bottomrule
+    \end{tabular}
+\end{table}
     
-    We examined $17$ graphs. On $8$ of them, ACO did not beat the $\theta$-heuristic and therefore did not yield a seed that could reduce pivot time. Even in those unsuccessful cases, however, the ACO search cost stays modest:
-    
-    \begin{tikzpicture}
-    \begin{axis}[
-        width=0.85\textwidth,
-        height=0.38\textwidth,
-        grid=major,
-        xmode=log,
-        xlabel={Reduced graph vertices $|U_R|+|V_R|$},
-        ylabel={ACO search cost (s)},
-        xlabel style={font=\small},
-        ylabel style={align=center, font=\small},
-        title={ACO overhead when it fails to beat $\theta$},
-        title style={font=\small},
-        x tick label style={font=\small},
-        yticklabel style={font=\small},
-    ]
-    \addplot+[only marks, mark=triangle*] coordinates {(235.000000,2.936600) (247.000000,6.487200) (10.000000,0.171200) (17.000000,0.185100) (25.000000,0.189500) (75.000000,1.409600) (561.000000,3.412200)};
-    \end{axis}
-    \end{tikzpicture}
-
-
-
-We ran ACO for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution. We measured time and performance for the $\theta$-Heuristic. In no trial did the $\theta$-heuristic find a $k$-DB with more edges than ACO. On several trials, ACO identifies a much larger $k$-MDB than the $\theta$-heuristic. Some representative trials are shown below.
-
+Finally, we compared ACO and the $\theta$-heuristic on 32 graphs for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution.
+We measured time and performance for the $\theta$-Heuristic. In 17 trials, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming in only 4 trials.
+In these trials, ACO took only up to a second longer than the $\theta$-heuristic, suggesting that it can feasibly be used on much larger graphs to reduce runtime as it can on smaller graphs.
 
 \section{Discussion}
 
 \subsection{Interpretation of Results}
 
-Across the tested graphs, ACO with smaller-side preference 
-- outperformed theta heuristic, suggesting theta restriction is too restrictive on real-world graphs.
-Small improvements in 
+On the tested graphs, ACO outperforms the $\theta$-heuristic on 17 out of 31 trials, and underperforms only 4 times. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
+it often finds solutions 3-4x larger. Additionally, in cases where ACO does outperform the $\theta$-heuristic, it results in significantly speed boosts to the brute-force algorithm.
+
+Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. For example, FINISH.
 
 \subsection{Limitations}
 
 Our evaluation of ACO-seeded branch-and-pivot was constrained to six small graphs (\texttt{euroroad}, \texttt{facebook}, \texttt{kuwiki}, \texttt{maayan-vidal}, \texttt{moreno}, and \texttt{urwiki}). Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{matter}, \texttt{dimacs-polblogs}) was not feasible on the hardware available for this study. As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to the graphs where ACO's advantage over the $\theta$-heuristic is largest (see Section~4).
 
+Additionally, we injected bicliques with $\theta$ vertices on both sides into the graphs. [1] states that their proposed $\theta$-heuristic was inspired by $k$-MDB with exactly $\theta$ vertices on one side and many more vertices on the other side. However, out of the 17 graphs where ACO beat the $\theta$-heuristic, on 8, the ACO solution had exactly $\theta$ nodes on one side. This suggests that, even on graphs where the solution meets the condition for which the $\theta$-heuristic was designed, ACO can outperform its solution quality in certain instances.
+
 \section{Conclusion}
+
+Ant Colony Optimization is a promising heuristic approach to identifying large $k$-DB. As an emergent field, there do not exist many tested heuristics for this problem. The $\theta$-heuristic, the only previously proposed heuristic we could identify, is significantly faster than our algorithm but often does not produce solutions as large. While ACO takes longer, it can also function as a much more effective upper bound for brute-force search algorithms,
+cutting search time by as much as $98\%$.
 
 \subsection{Future Work}
 
 The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{dblp-cite}, \texttt{ciaodvd}, and \texttt{matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~1). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
 
 Additionally, ACO could be adapted to have N subspecies that find N solutions in parallel by using a repulsion mechanism similar to that proposed for diversity in other ant colony variants [9], extending previous multi-colony parallelization strategies [10].
+
+
+
+Code is available on \url{https://github.com/pooch63/aco-kmdb}.
 
 \section{Works Cited}
 
@@ -613,61 +624,142 @@ C. Solnon and S. Fenet, “A Study of ACO Capabilities for Solving the Maximum C
 \
 
 [9] W. Tfaili and P. Siarry, “A New Charged Ant Colony Algorithm for Continuous Dynamic Optimization,” Applied Mathematics and Computation, vol. 197, no. 2, pp. 604–613, Apr. 2008, doi: 10.1016/j.amc.2007.08.087.
-
 \
 
 [10] M. Middendorf, F. Reischle, and H. Schmeck, “Multi Colony Ant Algorithms,” Journal of Heuristics, vol. 8, no. 3, pp. 305–320, May 2002, doi: 10.1023/a:1015057701750.
+\
 
-\section{Appendix A: ACO vs $\theta$-heuristic}
+[11] Z. Wang, L. Chang, and J. X. Yu, “Identifying Maximum Defective Bicliques in Large Bipartite Graphs,” 2025 IEEE 41st International Conference on Data Engineering (ICDE), pp. 3710–3723, May 2025, doi: 10.1109/icde65448.2025.00277.
 
-Below are the results of running ACO with 100 ants vs the $\theta$-heuristic on 10 different graphs.
+\section{Appendix}
 
-\begin{table}[htbp]
-  \centering
-  \caption{$k=2, \theta=5$}
+\appendix
 
-  \begin{adjustwidth}{-5cm}{-5cm}
-  \centering
-  \setlength{\tabcolsep}{5pt} % Reduced spacing between columns
+\section{ACO vs $\theta$-heuristic}
 
-  \begin{tabular}{l *{11}{r}} % 1 left-aligned column + 11 right-aligned columns
-    \toprule
-    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & \multicolumn{4}{c}{ACO} & \multicolumn{2}{c}{$\theta$-Heuristic} \\
-    \cmidrule(lr){7-10} \cmidrule(lr){11-12}
-    & & & & & & $|E(D^*)|$ & Time & ITB & TTB & $|E(D^*)|$ & Time \\
-    \midrule
-    Euroroad & -- & -- & 1440 & 5 & 5 & 23 & 0.0003 & 1 & 0.0001 & 23 & 0.0000 \\
-    Moreno & -- & -- & 2300 & 13 & 12 & 23 & 0.0003 & 3 & 0.0001 & 23 & 0.0001 \\
-    Facebook & -- & -- & 3003 & 9 & 8 & 23 & 0.0003 & 1 & 0.0001 & 23 & 0.0000 \\
-    Urwiki & -- & -- & 4018 & 14 & 45 & 76 & 0.0004 & 1 & 0.0001 & 14 & 0.0001 \\
-    Maayan Vidal & -- & -- & 6749 & 81 & 134 & 42 & 0.0009 & 1 & 0.0003 & 13 & 0.0003 \\
-    Dnc Corecipient & -- & -- & 12108 & 200 & 208 & 1426 & 0.0941 & 1 & 0.0299 & 428 & 0.0022 \\
-    Nawiki & -- & -- & 12108 & 200 & 208 & 1426 & 0.0729 & 1 & 0.0228 & 428 & 0.0023 \\
-    Boxes & -- & -- & 16239 & 14 & 14 & 23 & 0.0002 & 1 & 0.0001 & 23 & 0.0000 \\
-    Bitcoin & -- & -- & 24209 & 1003 & 1105 & 205 & 0.0076 & 1 & 0.0040 & 38 & 0.0039 \\
-    Pgp Arenas & -- & -- & 24339 & 574 & 744 & 198 & 0.0210 & 2 & 0.0042 & 133 & 0.0019 \\
-    Wiki Talk Nds & -- & -- & 27455 & 45 & 149 & 256 & 0.0009 & 1 & 0.0006 & 3 & 0.0004 \\
-    Openflights & -- & -- & 30523 & 459 & 458 & 334 & 0.0618 & 3 & 0.0589 & 333 & 0.0069 \\
-    Dimacs Polblogs & -- & -- & 33453 & 606 & 605 & 313 & 0.2467 & 3 & 0.2419 & 313 & 0.0061 \\
-    Gnutella & -- & -- & 40017 & 421 & 227 & 61 & 0.1732 & 2 & 0.1037 & 30 & 0.0012 \\
-    Ciaodvd & -- & -- & 40156 & 978 & 1593 & 213 & 0.0224 & 1 & 0.0148 & 63 & 0.0089 \\
-    Dblp Cite & -- & -- & 49782 & 1634 & 1442 & 360 & 0.0142 & 1 & 0.0098 & 88 & 0.0047 \\
-    Matter & -- & -- & 58618 & 2283 & 3276 & 46 & 1.0359 & 2 & 1.0275 & 18 & 0.0064 \\
-    Music & -- & -- & 130457 & 63 & 81 & 23 & 0.0003 & 2 & 0.0001 & 13 & 0.0002 \\
-    Appliances & -- & -- & 2128628 & 1289 & 421 & 132 & 0.0041 & 1 & 0.0022 & 13 & 0.0015 \\
-    Jawiki & -- & -- & 3100520 & 5 & 5 & 23 & 0.0002 & 1 & 0.0001 & 23 & 0.0000 \\
-    Eswiki & -- & -- & 4896779 & 5 & 5 & 23 & 0.0002 & 1 & 0.0001 & 23 & 0.0000 \\
-    \bottomrule
-  \end{tabular}
+Below are the results of running ACO ants vs the $\theta$-heuristic on 10 different graphs. $|U_G|$, $|V_G|$, and $|E_G|$ represent the total number of $U$ vertices, $V$ vertices, and edges in the original graph, respectively. $|U_R|$, $|V_R|$, and $|E_R|$ represent the total number of $U$ vertices, $V$ vertices, and edges in the reduced graph that both heuristics are run on, respectively.
 
-  \end{adjustwidth}
-  
-\end{table}
+ACO trials were run with 100 ants for a total of 5 iterations. \texttt{ITB} represents the number of iterations that were necessary for the ants to reach their largest solution. \texttt{TTB} represents the amount of time the ants required to finish their \texttt{ITB} -- that is, to first find their best solution.
+
+For both ACO and the $\theta$-heuristic, $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D^*)|$ represent the number of $U$ vertices, $V$ vertices, and edges in their identified solutions. Times for both are shown in milliseconds.
 
 
-\section{Appendix B: Branch and Pivot Pseudocode}
+ANALYSIS STILL LEFT TO DO: Show the graphs somehow of aco solution quality with different combiniations of prefer smaller side and neighbor reduction, as well as the time it took to get that done
+Vary k and theta, even just doing k = 3 theta = 6, to see if this holds up.
+Try pivot but with all these new graphs
 
-\begin{algorithm}
+OLD ACO, that doesn't use the candidate filtration method:
+\begin{landscape}
+    \begin{table}[htbp]
+      \centering
+      \caption{$k=2, \theta=5$}
+    
+      \centering
+      \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns
+      \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns
+        \toprule
+        Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$ & \multicolumn{6}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\
+        \cmidrule(lr){8-13} \cmidrule(lr){14-17}
+        & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ITB & TTB & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\
+        \midrule
+        Urwiki & 221 & 1939 & 4018 & 14 & 45 & 168 & 5 & 5 & 23 & 1.7 & 1 & 1.7 & 5 & 3 & 14 & 0.0 \\
+        Gnutella & 4935 & 10856 & 40017 & 421 & 227 & 2758 & 6 & 7 & 40 & 242.0 & 3 & 61.3 & 5 & 6 & 30 & 0.3 \\
+        Bitcoin & 3286 & 3754 & 24209 & 1003 & 1105 & 15395 & 13 & 5 & 63 & 1266.5 & 5 & 255.7 & 5 & 8 & 38 & 1.3 \\
+        Ciaodvd & 1438 & 4299 & 40156 & 978 & 1593 & 35082 & 26 & 5 & 128 & 1613.8 & 4 & 238.9 & 5 & 13 & 63 & 2.3 \\
+        Petster Hamster & 2244 & 1766 & 16654 & 1310 & 852 & 13608 & 31 & 5 & 153 & 8803.5 & 3 & 563.2 & 5 & 19 & 93 & 1.2 \\
+        Edit Guwikiquote & 963 & 1678 & 11387 & 129 & 649 & 3328 & 5 & 37 & 183 & 730.5 & 1 & 25.9 & 5 & 18 & 88 & 0.5 \\
+        Moreno Blogs & 1065 & 990 & 19048 & 809 & 625 & 18044 & 9 & 32 & 286 & 962.8 & 4 & 129.9 & 5 & 3 & 13 & 1.0 \\
+        Edit Vewiki & 543 & 1532 & 11069 & 104 & 274 & 3385 & 6 & 80 & 478 & 325.7 & 2 & 23.3 & 5 & 92 & 458 & 0.4 \\
+        Edit Zuwiktionary & 214 & 1404 & 7555 & 36 & 559 & 3142 & 5 & 118 & 588 & 467.7 & 1 & 24.9 & 5 & 49 & 243 & 0.5 \\
+        Dnc Corecipient & 653 & 714 & 12108 & 393 & 369 & 11379 & 35 & 41 & 1433 & 52.0 & 4 & 52.0 & 5 & 89 & 443 & 1.0 \\
+        Nawiki & 653 & 714 & 12108 & 393 & 369 & 11379 & 35 & 41 & 1433 & 53.2 & 4 & 53.2 & 5 & 89 & 443 & 1.5 \\
+        \midrule
+        P2P Gnutella09 & 3055 & 8038 & 26036 & 455 & 106 & 4056 & 4 & 4 & 14 & 14.1 & 2 & 14.1 & 5 & 5 & 23 & 0.3 \\
+        Dblp Cite & 3158 & 11566 & 49782 & 2466 & 2955 & 31279 & 5 & 6 & 28 & 5259.9 & 3 & 5259.9 & 5 & 18 & 88 & 2.6 \\
+        Moreno Health & 2313 & 2441 & 12992 & 325 & 275 & 1496 & 11 & 3 & 31 & 405.5 & 2 & 50.3 & 5 & 6 & 29 & 0.2 \\
+        Pgp Arenas & 5596 & 9657 & 24339 & 936 & 1247 & 9791 & 4 & 31 & 122 & 211.3 & 1 & 211.3 & 5 & 27 & 133 & 1.0 \\
+        Dimacs Polblogs & 1224 & 1224 & 33453 & 945 & 946 & 32524 & 10 & 23 & 228 & 586.7 & 4 & 212.7 & 5 & 76 & 378 & 2.8 \\
+        Openflights & 2918 & 2921 & 30523 & 1225 & 1222 & 25462 & 8 & 37 & 294 & 280.5 & 4 & 280.5 & 5 & 67 & 333 & 2.7 \\
+        \midrule
+        Matter & 16726 & 22015 & 58618 & 2283 & 3276 & 11825 & 2 & 5 & 8 & 24900.0 & 3 & 7906.6 & 5 & 4 & 18 & 1.3 \\
+        Music & 100952 & 70519 & 130457 & 63 & 81 & 298 & 4 & 4 & 14 & 32.5 & 2 & 3.7 & 5 & 3 & 13 & 0.1 \\
+        Wiki Talk Nds & 605 & 23094 & 27455 & 45 & 149 & 616 & 4 & 4 & 14 & 238.0 & 1 & 5.3 & 5 & 1 & 3 & 0.1 \\
+        Maayan Vidal & 1633 & 2929 & 6749 & 81 & 134 & 547 & 3 & 8 & 22 & 2.4 & 1 & 2.4 & 5 & 3 & 13 & 0.1 \\
+        Boxes & 15237 & 1128 & 16239 & 14 & 14 & 50 & 5 & 5 & 23 & 8.0 & 1 & 0.4 & 5 & 5 & 23 & 0.0 \\
+        Eswiki & 48972 & 4896756 & 4896779 & 5 & 5 & 23 & 5 & 5 & 23 & 13.6 & 1 & 0.3 & 5 & 5 & 23 & 0.0 \\
+        Euroroad & 891 & 1092 & 1440 & 5 & 5 & 23 & 5 & 5 & 23 & 7.2 & 1 & 0.3 & 5 & 5 & 23 & 0.0 \\
+        Facebook & 28 & 2885 & 3003 & 9 & 8 & 36 & 5 & 5 & 23 & 4.4 & 1 & 0.4 & 5 & 5 & 23 & 0.0 \\
+        Jawiki & 31009 & 3100497 & 3100520 & 5 & 5 & 23 & 5 & 5 & 23 & 6.8 & 1 & 0.3 & 5 & 5 & 23 & 0.0 \\
+        Moreno & 888 & 1597 & 2300 & 13 & 12 & 50 & 5 & 5 & 23 & 7.6 & 1 & 0.4 & 5 & 5 & 23 & 0.0 \\
+        Appliances & 1755732 & 104237 & 2128628 & 1289 & 421 & 4175 & 17 & 3 & 49 & 1811.6 & 2 & 425.1 & 5 & 3 & 13 & 0.4 \\
+        Edit Srwikiquote & 402 & 1823 & 8695 & 80 & 396 & 2637 & 5 & 25 & 123 & 448.2 & 1 & 11.2 & 5 & 25 & 123 & 0.4 \\
+        Kuwiki & 219 & 1094 & 4951 & 45 & 248 & 1668 & 5 & 58 & 288 & 219.6 & 1 & 6.8 & 5 & 58 & 288 & 0.3 \\
+        Edit Mrwiktionary & 281 & 3995 & 14375 & 46 & 1014 & 4630 & 5 & 94 & 468 & 1328.5 & 1 & 54.7 & 5 & 94 & 468 & 0.7 \\
+        \bottomrule
+      \end{tabular}
+    \end{table}
+    \end{landscape}
+    
+NEW ACO, that DOES use the candidate filtration method:
+\begin{landscape}
+    \begin{table}[htbp]
+      \centering
+      \caption{$k=2, \theta=5$}
+    
+      \centering
+      \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns
+      \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns
+        \toprule
+        Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$ & \multicolumn{6}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\
+        \cmidrule(lr){8-13} \cmidrule(lr){14-17}
+        & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ITB & TTB & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\
+        \midrule
+        Appliances & 1755732 & 104237 & 2128628 & 1289 & 421 & 4175 & 5 & 5 & 23 & 84.3 & 1 & 13.3 & 5 & 3 & 13 & 0.7 \\
+        Maayan Vidal & 1633 & 2929 & 6749 & 81 & 134 & 547 & 5 & 5 & 23 & 49.0 & 1 & 2.2 & 5 & 3 & 13 & 0.2 \\
+        Music & 100952 & 70519 & 130457 & 63 & 81 & 298 & 5 & 5 & 23 & 9.9 & 1 & 1.5 & 5 & 3 & 13 & 0.1 \\
+        Urwiki & 221 & 1939 & 4018 & 14 & 45 & 168 & 5 & 5 & 23 & 28.3 & 1 & 1.9 & 5 & 3 & 14 & 0.1 \\
+        Wiki Talk Nds & 605 & 23094 & 27455 & 45 & 149 & 616 & 5 & 7 & 33 & 10.7 & 1 & 10.7 & 5 & 1 & 3 & 0.2 \\
+        Moreno Health & 2313 & 2441 & 12992 & 325 & 275 & 1496 & 6 & 6 & 34 & 107.5 & 2 & 9.2 & 5 & 6 & 29 & 0.4 \\
+        Gnutella & 4935 & 10856 & 40017 & 421 & 227 & 2758 & 10 & 7 & 68 & 15.4 & 3 & 15.4 & 5 & 6 & 30 & 0.4 \\
+        Bitcoin & 3286 & 3754 & 24209 & 1003 & 1105 & 15395 & 11 & 7 & 75 & 102.2 & 5 & 102.2 & 5 & 8 & 38 & 2.1 \\
+        Matter & 16726 & 22015 & 58618 & 2283 & 3276 & 11825 & 9 & 9 & 79 & 363.0 & 2 & 88.5 & 5 & 4 & 18 & 2.3 \\
+        Ciaodvd & 1438 & 4299 & 40156 & 978 & 1593 & 35082 & 18 & 8 & 142 & 663.3 & 3 & 72.7 & 5 & 13 & 63 & 3.5 \\
+        Edit Nowikinews & 430 & 4060 & 16923 & 82 & 1192 & 5177 & 5 & 33 & 163 & 79.8 & 1 & 79.8 & 5 & 9 & 43 & 1.3 \\
+        Edit Guwikiquote & 963 & 1678 & 11387 & 129 & 649 & 3328 & 5 & 37 & 183 & 42.3 & 1 & 42.3 & 5 & 18 & 88 & 0.8 \\
+        Pgp Arenas & 5596 & 9657 & 24339 & 936 & 1247 & 9791 & 13 & 17 & 219 & 204.2 & 5 & 96.8 & 5 & 27 & 133 & 1.6 \\
+        Moreno Blogs & 1065 & 990 & 19048 & 809 & 625 & 18044 & 24 & 11 & 262 & 474.0 & 4 & 76.4 & 5 & 3 & 13 & 1.7 \\
+        Petster Hamster & 2244 & 1766 & 16654 & 1310 & 852 & 13608 & 70 & 5 & 348 & 17.1 & 1 & 17.1 & 5 & 19 & 93 & 2.0 \\
+        Edit Zuwiktionary & 214 & 1404 & 7555 & 36 & 559 & 3142 & 5 & 118 & 588 & 769.8 & 1 & 42.9 & 5 & 49 & 243 & 0.8 \\
+        Dnc Corecipient & 653 & 714 & 12108 & 393 & 369 & 11379 & 38 & 38 & 1442 & 66.2 & 4 & 66.2 & 5 & 89 & 443 & 1.7 \\
+        Nawiki & 653 & 714 & 12108 & 393 & 369 & 11379 & 38 & 38 & 1442 & 59.8 & 4 & 59.8 & 5 & 89 & 443 & 1.6 \\
+        Edit Jamwiki & 177 & 2741 & 17669 & 64 & 1484 & 8298 & 6 & 268 & 1606 & 3549.9 & 1 & 342.9 & 5 & 184 & 918 & 1.8 \\
+        \midrule
+        P2P Gnutella09 & 3055 & 8038 & 26036 & 455 & 106 & 4056 & 7 & 4 & 26 & 84.3 & 1 & 5.4 & 5 & 5 & 23 & 0.5 \\
+        Edit Rowikibooks & 443 & 4221 & 18549 & 69 & 425 & 1515 & 4 & 9 & 34 & 59.7 & 1 & 14.8 & 5 & 5 & 23 & 0.3 \\
+        Dimacs Polblogs & 1224 & 1224 & 33453 & 945 & 946 & 32524 & 16 & 17 & 270 & 356.2 & 5 & 116.9 & 5 & 76 & 378 & 4.3 \\
+        Openflights & 2918 & 2921 & 30523 & 1225 & 1222 & 25462 & 12 & 24 & 286 & 492.4 & 3 & 76.6 & 5 & 67 & 333 & 4.3 \\
+        Edit Vewiki & 543 & 1532 & 11069 & 104 & 274 & 3385 & 9 & 40 & 358 & 68.6 & 5 & 68.6 & 5 & 92 & 458 & 0.7 \\
+        \midrule
+        Boxes & 15237 & 1128 & 16239 & 14 & 14 & 50 & 5 & 5 & 23 & 4.0 & 1 & 0.6 & 5 & 5 & 23 & 0.0 \\
+        Eswiki & 48972 & 4896756 & 4896779 & 5 & 5 & 23 & 5 & 5 & 23 & 3.5 & 1 & 0.6 & 5 & 5 & 23 & 0.0 \\
+        Euroroad & 891 & 1092 & 1440 & 5 & 5 & 23 & 5 & 5 & 23 & 6.2 & 1 & 0.6 & 5 & 5 & 23 & 0.0 \\
+        Facebook & 28 & 2885 & 3003 & 9 & 8 & 36 & 5 & 5 & 23 & 6.8 & 1 & 0.6 & 5 & 5 & 23 & 0.0 \\
+        Jawiki & 31009 & 3100497 & 3100520 & 5 & 5 & 23 & 5 & 5 & 23 & 7.7 & 1 & 0.6 & 5 & 5 & 23 & 0.0 \\
+        Moreno & 888 & 1597 & 2300 & 13 & 12 & 50 & 5 & 5 & 23 & 7.4 & 1 & 0.7 & 5 & 5 & 23 & 0.0 \\
+        Edit Mkwikisource & 218 & 6635 & 13824 & 19 & 121 & 399 & 4 & 9 & 34 & 32.1 & 1 & 5.2 & 5 & 2 & 8 & 0.1 \\
+        Dblp Cite & 3158 & 11566 & 49782 & 2466 & 2955 & 31279 & 5 & 18 & 88 & 186.1 & 3 & 186.1 & 5 & 18 & 88 & 4.7 \\
+        Edit Srwikiquote & 402 & 1823 & 8695 & 80 & 396 & 2637 & 5 & 25 & 123 & 12.2 & 1 & 12.2 & 5 & 25 & 123 & 0.6 \\
+        Kuwiki & 219 & 1094 & 4951 & 45 & 248 & 1668 & 5 & 58 & 288 & 297.3 & 1 & 15.3 & 5 & 58 & 288 & 0.4 \\
+        Edit Mrwiktionary & 281 & 3995 & 14375 & 46 & 1014 & 4630 & 5 & 94 & 468 & 1261.7 & 1 & 94.6 & 5 & 94 & 468 & 1.1 \\
+        Edit Wowiktionary & 193 & 3646 & 17800 & 25 & 1257 & 7175 & 5 & 353 & 1763 & 3222.9 & 1 & 384.8 & 5 & 353 & 1763 & 1.9 \\
+        \bottomrule
+      \end{tabular}
+    \end{table}
+    \end{landscape}
+    
+\section{Branch and Pivot Pseudocode}
+
+\begin{algorithm}[H]
 \caption{Branch and Pivot}
 \begin{minipage}{\textwidth}
 \begin{algorithmic}
@@ -706,5 +798,79 @@ Below are the results of running ACO with 100 ants vs the $\theta$-heuristic on 
 \end{algorithm}
 
 $D^*$ is the $k$-MDB of the graph.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}
+    \begin{axis}[
+      width=0.72\textwidth,
+      height=0.42\textwidth,
+      xlabel={Edge density $|E|/(|U|\,|V|)$},
+      ylabel={Solution size $|E(D^*)|$},
+      xmode=log,
+      ymode=log,
+      grid=major,
+      legend style={font=\small, draw=none, fill=white,
+        at={(0.98,0.02)}, anchor=south east},
+      legend cell align=left,
+    ]
+  \addplot+[only marks] coordinates {(1.1631069e-05,13) (0.0019625242,38) (0.00094482356,23) (0.0064956724,63) (0.0013629409,88) (0.022329152,378) (0.025969346,443) (0.0070467859,88) (0.036419139,918) (0.0095573239,8) (0.012805152,468) (0.0096935502,43) (0.0099197659,23) (0.011864703,123) (0.01330607,458) (0.025295661,1763) (0.025145113,243) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,30) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,13) (0.00015919162,18) (0.0016218473,23) (0.018066107,13) (0.0023010847,29) (1.8325098e-05,13) (0.025969346,443) (0.0035810499,333) (0.0010602665,23) (0.0042024737,93) (0.00045038383,133) (0.0093764804,14) (0.0019650197,3)};
+  \addlegendentry{$\theta$-Heuristic}
+  \addplot+[only marks] coordinates {(1.1631069e-05,49) (0.0019625242,63) (0.00094482356,23) (0.0064956724,128) (0.0013629409,28) (0.022329152,228) (0.025969346,1433) (0.0070467859,183) (0.036419139,1883) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,478) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,40) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,22) (0.00015919162,8) (0.0016218473,23) (0.018066107,286) (0.0023010847,31) (1.8325098e-05,14) (0.025969346,1433) (0.0035810499,294) (0.0010602665,14) (0.0042024737,153) (0.00045038383,122) (0.0093764804,23) (0.0019650197,14)};
+  \addlegendentry{ACO}
+  \addplot+[only marks] coordinates {(1.1631069e-05,23) (0.0019625242,75) (0.00094482356,23) (0.0064956724,142) (0.0013629409,88) (0.022329152,270) (0.025969346,1442) (0.0070467859,183) (0.036419139,1606) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,358) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,68) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,23) (0.00015919162,79) (0.0016218473,23) (0.018066107,262) (0.0023010847,34) (1.8325098e-05,23) (0.025969346,1442) (0.0035810499,286) (0.0010602665,26) (0.0042024737,348) (0.00045038383,219) (0.0093764804,23) (0.0019650197,33)};
+  \addlegendentry{ACO-N}
+  \addplot+[only marks] coordinates {(1.1631069e-05,40) (0.0019625242,64) (0.00094482356,23) (0.0064956724,168) (0.0013629409,18) (0.022329152,229) (0.025969346,1374) (0.0070467859,183) (0.036419139,1883) (0.0095573239,103) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,411) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,34) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,16) (0.00015919162,13) (0.0016218473,23) (0.018066107,262) (0.0023010847,25) (1.8325098e-05,14) (0.025969346,1374) (0.0035810499,278) (0.0010602665,28) (0.0042024737,278) (0.00045038383,152) (0.0093764804,23) (0.0019650197,14)};
+  \addlegendentry{ACO-P}
+  \addplot+[only marks] coordinates {(1.1631069e-05,23) (0.0019625242,75) (0.00094482356,23) (0.0064956724,142) (0.0013629409,88) (0.022329152,270) (0.025969346,1442) (0.0070467859,183) (0.036419139,1606) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,358) (0.025295661,1763) (0.025145113,588) (0.0014800015,23) (0.037175043,23) (0.00074694313,68) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,23) (0.00015919162,79) (0.0016218473,23) (0.018066107,262) (0.0023010847,34) (1.8325098e-05,23) (0.025969346,1442) (0.0035810499,286) (0.0010602665,26) (0.0042024737,348) (0.00045038383,219) (0.0093764804,23) (0.0019650197,33)};
+  \addlegendentry{ACO-PN}
+    \end{axis}
+    \end{tikzpicture}
+    \caption{Solution size vs.\ graph edge density ($\theta$-heuristic and ACO flag settings).}
+    \label{fig:density-size}
+  \end{figure}
+  
+  \begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}
+    \begin{groupplot}[
+      group style={group size=2 by 1, horizontal sep=22pt,
+        vertical sep=0pt, x descriptions at=edge bottom,
+        y descriptions at=edge left},
+      width=0.40\textwidth,
+      height=0.30\textwidth,
+      xlabel={Edge density $|E|/(|U|\,|V|)$},
+      xmode=log,
+      ymode=log,
+      grid=major,
+      title style={font=\small},
+      legend style={font=\scriptsize, draw=none, fill=white,
+        at={(0.98,0.02)}, anchor=south east},
+      legend cell align=left,
+    ]
+    \nextgroupplot[
+      ylabel={Discovery time (s)},
+      title={ACO},
+    ]
+  \addplot+[only marks] coordinates {(1.1631069e-05,11.6898) (0.0019625242,4.2498) (0.00094482356,0.0198) (0.0064956724,6.0808) (0.0013629409,206.628) (0.022329152,4.611) (0.025969346,0.5147) (0.0070467859,5.7755) (0.036419139,33.2775) (0.0095573239,0.296) (0.012805152,9.6894) (0.0096935502,5.0569) (0.0099197659,2.9165) (0.011864703,0.7945) (0.01330607,0.5688) (0.025295661,30.9465) (0.025145113,3.7622) (2.0419928e-05,0.0278) (0.0014800015,0.0136) (0.037175043,0.0163) (0.00074694313,2.3724) (3.2248941e-05,0.0246) (0.020664813,1.036) (0.0014110223,0.1046) (0.00015919162,238.995) (0.0016218473,0.0186) (0.018066107,2.6358) (0.0023010847,1.7062) (1.8325098e-05,0.1336) (0.025969346,0.5038) (0.0035810499,3.2968) (0.0010602665,0.6663) (0.0042024737,15.9044) (0.00045038383,25.8427) (0.0093764804,0.0768) (0.0019650197,0.7575)};
+  \addlegendentry{ACO}
+  \addplot+[only marks] coordinates {(1.1631069e-05,0.6782) (0.0019625242,0.5165) (0.00094482356,0.0166) (0.0064956724,0.6919) (0.0013629409,1.3103) (0.022329152,0.5811) (0.025969346,0.4035) (0.0070467859,0.9854) (0.036419139,5.0466) (0.0095573239,0.1526) (0.012805152,2.6327) (0.0096935502,1.5138) (0.0099197659,0.238) (0.011864703,0.2762) (0.01330607,0.3531) (0.025295661,7.0366) (0.025145113,0.8516) (2.0419928e-05,0.0294) (0.0014800015,0.0142) (0.037175043,0.0157) (0.00074694313,0.1458) (3.2248941e-05,0.0367) (0.020664813,0.3429) (0.0014110223,0.0589) (0.00015919162,1.1174) (0.0016218473,0.0211) (0.018066107,0.4865) (0.0023010847,0.1313) (1.8325098e-05,0.047) (0.025969346,0.3949) (0.0035810499,0.6763) (0.0010602665,0.1312) (0.0042024737,0.4911) (0.00045038383,0.5037) (0.0093764804,0.0644) (0.0019650197,0.5189)};
+  \addlegendentry{ACO-N}
+  \addplot+[only marks] coordinates {(1.1631069e-05,0.0987) (0.0019625242,0.2603) (0.00094482356,0.0116) (0.0064956724,0.2793) (0.0013629409,15.7636) (0.022329152,0.184) (0.025969346,0.3572) (0.0070467859,0.7237) (0.036419139,17.2894) (0.0095573239,0.0606) (0.012805152,1.4069) (0.0096935502,2.257) (0.0099197659,1.971) (0.011864703,0.5259) (0.01330607,0.2946) (0.025295661,4.8024) (0.025145113,1.0376) (2.0419928e-05,0.0134) (0.0014800015,0.0025) (0.037175043,0.0005) (0.00074694313,0.2495) (3.2248941e-05,0.0184) (0.020664813,0.2392) (0.0014110223,0.0733) (0.00015919162,39.8631) (0.0016218473,0.006) (0.018066107,0.1404) (0.0023010847,0.4622) (1.8325098e-05,0.038) (0.025969346,0.354) (0.0035810499,0.574) (0.0010602665,0.1205) (0.0042024737,8.7631) (0.00045038383,1.4032) (0.0093764804,0.0017) (0.0019650197,0.3043)};
+  \addlegendentry{ACO-P}
+  \addplot+[only marks] coordinates {(1.1631069e-05,0.124) (0.0019625242,0.0814) (0.00094482356,0.0005) (0.0064956724,0.4932) (0.0013629409,0.1302) (0.022329152,0.2892) (0.025969346,0.0436) (0.0070467859,0.0317) (0.036419139,2.656) (0.0095573239,0.0234) (0.012805152,0.9195) (0.0096935502,0.0536) (0.0099197659,0.0428) (0.011864703,0.0082) (0.01330607,0.0513) (0.025295661,2.3458) (0.025145113,0.5332) (0.0014800015,0.0081) (0.037175043,0.0004) (0.00074694313,0.0112) (3.2248941e-05,0.0146) (0.020664813,0.2196) (0.0014110223,0.0016) (0.00015919162,0.2666) (0.0016218473,0.003) (0.018066107,0.3652) (0.0023010847,0.0617) (1.8325098e-05,0.0012) (0.025969346,0.0456) (0.0035810499,0.3896) (0.0010602665,0.0719) (0.0042024737,0.0147) (0.00045038383,0.16) (0.0093764804,0.0202) (0.0019650197,0.0079)};
+  \addlegendentry{ACO-PN}
+    \nextgroupplot[
+      ylabel={Time (s)},
+      title={$\theta$-Heuristic},
+    ]
+  \addplot+[only marks] coordinates {(1.1631069e-05,0.0011) (0.0019625242,0.0038) (0.0064956724,0.0073) (0.0013629409,0.0076) (0.022329152,0.0077) (0.025969346,0.0017) (0.0070467859,0.0008) (0.036419139,0.002) (0.0095573239,0.0001) (0.012805152,0.0013) (0.0096935502,0.0012) (0.0099197659,0.0003) (0.011864703,0.0006) (0.01330607,0.0007) (0.025295661,0.002) (0.025145113,0.0007) (0.00074694313,0.0007) (0.020664813,0.0004) (0.0014110223,0.0002) (0.00015919162,0.0034) (0.018066107,0.003) (0.0023010847,0.0004) (1.8325098e-05,0.0003) (0.025969346,0.0018) (0.0035810499,0.0069) (0.0010602665,0.0009) (0.0042024737,0.002) (0.00045038383,0.0029) (0.0093764804,0.0001) (0.0019650197,0.0003)};
+  \addlegendentry{$\theta$-Heuristic}
+    \end{groupplot}
+    \end{tikzpicture}
+    \caption{Solution time vs.\ graph edge density (ACO discovery cost by flag setting; $\theta$-heuristic wall time).}
+    \label{fig:density-time}
+  \end{figure}
+  
 
 \end{document}
