@@ -12,6 +12,9 @@ flags). Output:
     - reduced edge density vs |E(D*)| / (|U_R|+|V_R|)
     - reduced edge density vs ACO discovery time
     - θ·n + m vs θ-heuristic time (n = |U_R|+|V_R|, m = |E_R|)
+  ACO-PN comparisons (linear axes)
+    - reduced edge density vs t(ACO-PN) / t(ACO|ACO-P|ACO-N)
+    - reduced edge density vs |E(D*)| for ACO, ACO-P, ACO-N
 
 ACO points use the same best-trial / discovery rules as table mode.
 """
@@ -215,6 +218,8 @@ def _size_figure(
     ylabel=r"Solution size $|E(D^*)|$",
     width="0.88\\textwidth",
     height="0.52\\textwidth",
+    log_axes=True,
+    y_equals_one=False,
 ):
     lines = [
         r"\begin{figure}[htbp]",
@@ -225,10 +230,13 @@ def _size_figure(
         rf"    height={height},",
         rf"    xlabel={{{xlabel}}},",
         rf"    ylabel={{{ylabel}}},",
-        r"    xmode=log,",
-        r"    ymode=log,",
-        r"    grid=major,",
     ]
+    if log_axes:
+        lines += [
+            r"    xmode=log,",
+            r"    ymode=log,",
+        ]
+    lines.append(r"    grid=major,")
     if legend_name:
         lines += [
             rf"    legend to name={legend_name},",
@@ -244,6 +252,10 @@ def _size_figure(
     for lab in aco_order:
         lines += _addplot_scatter(
             lab, aco_size[lab], with_legend=bool(legend_name)
+        )
+    if y_equals_one:
+        lines.append(
+            r"\addplot[black, densely dashed, forget plot, domain=0:1] {1};"
         )
     lines += [
         r"  \end{axis}",
@@ -264,12 +276,76 @@ def _size_figure(
     return lines
 
 
+def _rows_by_name(named_rows):
+    """Map display name → summarize_file row (last wins on duplicates)."""
+    return {name: row for name, row in named_rows}
+
+
+def _pn_ratio_series(variant_rows, x_fn, *, y_pn_over_other):
+    """
+    Per-dataset ratios of ACO-PN vs ACO / ACO-P / ACO-N.
+
+    y_pn_over_other(pn_row, other_row) → float ratio, or None to skip.
+    Returns (compare_order, series) with series[label] = [(x, y), ...].
+    """
+    pn_label = ACO_LABELS["PN"]
+    compare_order = [
+        ACO_LABELS[s]
+        for s in ("", "P", "N")
+        if ACO_LABELS[s] in variant_rows
+    ]
+    if pn_label not in variant_rows or not compare_order:
+        return compare_order, {}
+
+    pn_by_name = _rows_by_name(variant_rows[pn_label])
+    series = {lab: [] for lab in compare_order}
+    for lab in compare_order:
+        for name, other in variant_rows[lab]:
+            pn = pn_by_name.get(name)
+            if pn is None:
+                continue
+            x = x_fn(pn)
+            if x is None:
+                x = x_fn(other)
+            if x is None:
+                continue
+            y = y_pn_over_other(pn, other)
+            if y is None:
+                continue
+            series[lab].append((x, y))
+    return compare_order, series
+
+
+def _time_ratio_pn_over_other(pn_row, other_row):
+    """t(ACO-PN) / t(other); None if either time is missing or non-positive."""
+    t_pn = pn_row.get("aco_time")
+    t_other = other_row.get("aco_time")
+    if t_pn is None or t_other is None:
+        return None
+    t_pn, t_other = float(t_pn), float(t_other)
+    if t_pn <= 0 or t_other <= 0:
+        return None
+    return t_pn / t_other
+
+
+def _quality_of_other(_pn_row, other_row):
+    """|E(other)| solution size; None if missing."""
+    e_other = other_row.get("aco_edges")
+    if e_other is None:
+        return None
+    e_other = float(e_other)
+    if e_other <= 0:
+        return None
+    return e_other
+
+
 def build_density_plots(variant_rows):
     """
     Build density scatters from {aco_label: [(name, row), ...]}.
 
     Full-graph density vs size, then reduced-graph density vs size/nodes,
-    ACO discovery time vs reduced density, and θ-heuristic time vs θ·n+m.
+    ACO discovery time vs reduced density, θ-heuristic time vs θ·n+m, and
+    linear ACO-PN time-ratio / solution-quality comparisons.
     """
     aco_order = [
         ACO_LABELS[s] for s in ACO_SUFFIXES if ACO_LABELS[s] in variant_rows
@@ -292,6 +368,17 @@ def build_density_plots(variant_rows):
     # θ-heuristic wall time vs θ·n + m.
     _unused_size2, _unused_time2, _unused_heur_size3, theta_heur_time = (
         _series_for_x(variant_rows, aco_order, theta_n_plus_m)
+    )
+    # Linear: t(ACO-PN) / t(other) and |E(D*)| for ACO / ACO-P / ACO-N.
+    time_cmp_order, time_ratio = _pn_ratio_series(
+        variant_rows,
+        reduced_edge_density,
+        y_pn_over_other=_time_ratio_pn_over_other,
+    )
+    qual_cmp_order, quality_pts = _pn_ratio_series(
+        variant_rows,
+        reduced_edge_density,
+        y_pn_over_other=_quality_of_other,
     )
 
     dens_x = r"Edge density $|E|/(|U|\,|V|)$"
@@ -354,6 +441,42 @@ def build_density_plots(variant_rows):
         width="0.72\\textwidth",
         height="0.48\\textwidth",
     )
+
+    if time_ratio and any(time_ratio[lab] for lab in time_cmp_order):
+        parts.append("")
+        parts += _size_figure(
+            aco_order=time_cmp_order,
+            aco_size=time_ratio,
+            heur_size=[],
+            xlabel=red_dens_x,
+            ylabel=r"ACO-PN time / other time",
+            legend_name="densityPnTimeRatioLegend",
+            caption=(
+                r"ACO-PN discovery time divided by ACO / ACO-P / ACO-N "
+                r"discovery time vs.\ reduced edge density "
+                r"(values $<1$ mean ACO-PN is faster)."
+            ),
+            label="fig:density-pn-time-ratio",
+            log_axes=False,
+            y_equals_one=True,
+        )
+
+    if quality_pts and any(quality_pts[lab] for lab in qual_cmp_order):
+        parts.append("")
+        parts += _size_figure(
+            aco_order=qual_cmp_order,
+            aco_size=quality_pts,
+            heur_size=[],
+            xlabel=red_dens_x,
+            ylabel=r"Solution size $|E(D^*)|$",
+            legend_name="densityPnQualityLegend",
+            caption=(
+                r"ACO / ACO-P / ACO-N solution quality vs.\ reduced edge "
+                r"density (linear axes)."
+            ),
+            label="fig:density-pn-quality",
+            log_axes=False,
+        )
 
     return "\n".join(parts)
 
