@@ -358,6 +358,7 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     reduction::ReductionMode.T=ReductionMode.all_reductions)
     pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
     prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
+    neighbor_scope_limit = get(aco_options, :neighbor_scope_limit, true)
     elite_seed = get(aco_options, :elite_seed, true)
     elite_seed_ants = get(aco_options, :elite_seed_ants, 3)
     elite_seed_remove = get(aco_options, :elite_seed_remove, 2)
@@ -365,7 +366,7 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     first_hit = Ref{Union{Nothing,Int}}(nothing)
 
     println()
-    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies prefer_smaller_side=$prefer_smaller_side elite_seed=$elite_seed)…")
+    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies prefer_smaller_side=$prefer_smaller_side neighbor_scope_limit=$neighbor_scope_limit elite_seed=$elite_seed)…")
 
     g_run = deepcopy(g)
     m = measure_call() do
@@ -373,6 +374,7 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             parallelize=false,
             force_gc=false,  # keep peak memory meaningful for the paper
             prefer_smaller_side=prefer_smaller_side,
+            neighbor_scope_limit=neighbor_scope_limit,
             elite_seed=elite_seed,
             elite_seed_ants=elite_seed_ants,
             elite_seed_remove=elite_seed_remove,

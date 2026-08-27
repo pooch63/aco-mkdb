@@ -29,7 +29,11 @@ only, (b) best of θ-heuristic and the external seed.
 
 Each timed pivot runs in a worker process with a hard timeout (default 2000s;
 override with --timeout=SECONDS). On timeout the worker is killed and the
-result is recorded with status="timeout" and wall_time_s equal to the limit.
+result is recorded with status="timeout", wall_time_s equal to the limit,
+pivot_timeout_s, any_timed_out, and timed_out_pivots naming which side(s)
+timed out (pivot_theta / pivot_aco_seed). With SKIP_EXISTING=1, a prior
+timeout result is only re-run when the new --timeout= is strictly larger
+than the previous pivot_timeout_s.
 =================================================================================
 =#
 
@@ -174,6 +178,26 @@ function aco_trial_time_stats(trials)
     return total, mean_wct, n_timed
 end
 
+"""
+Full ACO wall time at the winning ant count: sum `wall_time_s` over every
+same-ants replicate (not truncated at the winning run / time-to-best).
+"""
+function aco_discovery_full_budget(trials, best)
+    best === nothing && return nothing
+    win_ants = json_get(best, "ants", nothing)
+    win_ants === nothing && return nothing
+    total = 0.0
+    n = 0
+    for t in trials
+        json_get(t, "ants", nothing) == win_ants || continue
+        wt = json_get(t, "wall_time_s", nothing)
+        wt === nothing && continue
+        total += Float64(wt)
+        n += 1
+    end
+    return n > 0 ? total : nothing
+end
+
 function heuristic_summary(heur)
     heur === nothing && return nothing
     return Dict{String,Any}(
@@ -253,10 +277,83 @@ function save_compare_json_light(path::AbstractString, payload)
     return path
 end
 
-function maybe_skip_existing(save_path)
+function existing_result_timed_out(data)::Bool
+    any_to = json_get(data, "any_timed_out", nothing)
+    any_to === true && return true
+    any_to === false && return false
+    tops = json_get(data, "timed_out_pivots", nothing)
+    tops !== nothing && !isempty(tops) && return true
+    for key in ("pivot_theta", "pivot_aco_seed")
+        p = json_get(data, key, nothing)
+        p === nothing && continue
+        json_get(p, "timed_out", false) === true && return true
+        String(json_get(p, "status", "")) == "timeout" && return true
+    end
+    return false
+end
+
+function previous_pivot_timeout_s(data)
+    prev = json_get(data, "pivot_timeout_s", nothing)
+    prev !== nothing && return Float64(prev)
+    # Infer from timed-out pivot wall times (equal to the limit that fired).
+    best = nothing
+    for key in ("pivot_theta", "pivot_aco_seed")
+        p = json_get(data, key, nothing)
+        p === nothing && continue
+        timed = json_get(p, "timed_out", false) === true ||
+                String(json_get(p, "status", "")) == "timeout"
+        timed || continue
+        wt = json_get(p, "wall_time_s", nothing)
+        wt === nothing && continue
+        wtf = Float64(wt)
+        best = best === nothing ? wtf : max(best, wtf)
+    end
+    return best
+end
+
+"""
+Return true if we should skip re-running because `save_path` already has a
+usable result. Completed and no-beat marker JSONs are always skipped.
+Timeout results are skipped unless `timeout_seconds` is strictly larger than
+the previous `pivot_timeout_s`.
+"""
+function maybe_skip_existing(save_path, timeout_seconds::Real)
     save_path === nothing && return false
     get(ENV, "SKIP_EXISTING", "1") == "1" || return false
     isfile(save_path) || return false
+
+    local data
+    try
+        data = JSON3.read(read(save_path, String))
+    catch
+        println("Re-running (unreadable existing): $save_path")
+        return false
+    end
+
+    # Compact no-beat markers never ran pivots — always skip.
+    if json_get(data, "beat_heuristic", true) === false
+        println("Skipping (exists, no-beat marker): $save_path")
+        return true
+    end
+
+    if existing_result_timed_out(data)
+        prev = previous_pivot_timeout_s(data)
+        if prev !== nothing && Float64(timeout_seconds) > Float64(prev)
+            println("Re-running (previous timeout $(prev)s < new $(timeout_seconds)s): $save_path")
+            return false
+        end
+        which = json_get(data, "timed_out_pivots", nothing)
+        which_str = if which === nothing || isempty(which)
+            "timed out"
+        else
+            "timed out: $(join((String(x) for x in which), ", "))"
+        end
+        prev_str = prev === nothing ? "?" : string(prev)
+        println("Skipping (exists, $which_str; prior timeout=$(prev_str)s, " *
+                "need >$(prev_str)s to redo, got $(timeout_seconds)s): $save_path")
+        return true
+    end
+
     println("Skipping (exists): $save_path")
     return true
 end
@@ -325,13 +422,10 @@ function setup_compare_worker!(p::Integer)
             end
             sols = m.value
             sol = isempty(sols) ? SubGraph() : first(sols)
-            g_eval = deepcopy(g)
-            fg_eval = if reduction == ReductionMode.none
-                freeze(g_eval)
-            else
-                apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
-            end
-            edges = Subgraph.edge_count(fg_eval, sol)
+            # Score on the unmodified input graph. Re-applying progressive /
+            # all_reductions here (especially with only the θ-heuristic as D*)
+            # can peel vertices that belong to `sol` and undercount edges.
+            edges = Subgraph.edge_count(g, sol)
             return (
                 edges = edges,
                 time = m.time,
@@ -462,6 +556,7 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
     edge_count=nothing)
     println()
     println("==================== COMPARE SEEDS ====================")
+    println("threads=$(Threads.nthreads())")
     println("dataset=$dataset  k=$k  θ=$θ  reduction=$reduction  timeout=$(timeout_seconds)s")
     println("ACO seed: |U|=$(length(aco_seed.U)) |V|=$(length(aco_seed.V))  " *
             "U=$(sorted_str(aco_seed.U)) V=$(sorted_str(aco_seed.V))")
@@ -510,12 +605,19 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
     time_reduction_pct = theta_run.time > 0 ?
         100.0 * time_reduction_s / theta_run.time : 0.0
 
+    timed_out_pivots = String[]
+    theta_run.timed_out && push!(timed_out_pivots, "pivot_theta")
+    aco_run.timed_out && push!(timed_out_pivots, "pivot_aco_seed")
+
     println()
     println("==================== SUMMARY ======================")
     theta_label = theta_run.timed_out ? "TIMEOUT" : "$(format_seconds(theta_run.time))s  edges=$(theta_run.edges)"
     aco_label = aco_run.timed_out ? "TIMEOUT" : "$(format_seconds(aco_run.time))s  edges=$(aco_run.edges)"
     println("θ-seed pivot:     $theta_label")
     println("θ+ACO-seed pivot: $aco_label")
+    if !isempty(timed_out_pivots)
+        println("timed out:        $(join(timed_out_pivots, ", "))  (limit=$(timeout_seconds)s)")
+    end
     println("time reduction:   $(format_seconds(time_reduction_s))s  ($(round(time_reduction_pct; digits=2))%)")
     println("===================================================")
 
@@ -542,7 +644,8 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
         "pivot_aco_seed" => pivot_result_dict(aco_run),
         "time_reduction_s" => time_reduction_s,
         "time_reduction_pct" => time_reduction_pct,
-        "any_timed_out" => theta_run.timed_out || aco_run.timed_out,
+        "timed_out_pivots" => timed_out_pivots,
+        "any_timed_out" => !isempty(timed_out_pivots),
     )
 
     if aco_meta !== nothing
@@ -563,14 +666,14 @@ function load_graph_for_compare(dataset::AbstractString, inject, k::Int, seed)
     end
     rng = Random.default_rng()
     println("Loading graph from: $graph_path")
-    g, edges = load_graph_maybe_inject(graph_path, inject, k, rng)
+    g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, rng)
     println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$edges")
     return g, edges
 end
 
 function compare_from_vary_json(vary_path::AbstractString; inject_raw, seed_override,
     save_path, timeout_seconds)
-    if maybe_skip_existing(save_path)
+    if maybe_skip_existing(save_path, timeout_seconds)
         return Dict{String,Any}("compare" => "seeds", "skipped_existing" => true)
     end
 
@@ -628,35 +731,9 @@ function _compare_from_vary_json_loaded(vary_path, data, best, heur_edges, trial
 
     aco_seed = subgraph_from_uv(json_get(best, "U"), json_get(best, "V"))
     _discovery_all, mean_wct, _n_timed = aco_trial_time_stats(trials)
-    # Discovery until the winning replicate (same ants), not the full sweep.
-    win_ants = json_get(best, "ants", nothing)
-    win_run = json_get(best, "run", nothing)
-    discovery_until = nothing
-    if win_ants !== nothing && win_run !== nothing
-        total = 0.0
-        saw = false
-        for t in trials
-            json_get(t, "ants", nothing) == win_ants || continue
-            r = json_get(t, "run", nothing)
-            r === nothing && continue
-            r = Int(r)
-            wr = Int(win_run)
-            if r < wr
-                wt = json_get(t, "wall_time_s", nothing)
-                wt !== nothing && (total += Float64(wt))
-            elseif r == wr
-                saw = true
-                ttb = json_get(t, "time_to_best_s", nothing)
-                if ttb !== nothing
-                    total += Float64(ttb)
-                else
-                    wt = json_get(t, "wall_time_s", nothing)
-                    wt !== nothing && (total += Float64(wt))
-                end
-            end
-        end
-        discovery_until = saw ? total : nothing
-    end
+    # Full same-ants budget: every replicate's wall_time_s, even if the seed
+    # came from an earlier win (e.g. win on run 3 of 5 still charges all 5).
+    discovery_until = aco_discovery_full_budget(trials, best)
 
     aco_meta = Dict{String,Any}(
         "run" => json_get(best, "run", nothing),
@@ -702,7 +779,7 @@ end
 
 function compare_from_seed_json(; dataset, seed_json_path, k, θ, seed, save_path,
     timeout_seconds)
-    if maybe_skip_existing(save_path)
+    if maybe_skip_existing(save_path, timeout_seconds)
         return Dict{String,Any}("compare" => "seeds", "skipped_existing" => true)
     end
 
