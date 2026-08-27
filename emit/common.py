@@ -112,21 +112,21 @@ def select_best_trial_any(trials):
     return min(tied, key=trial_time)
 
 
-def aco_discovery_cost(trials, winning_trial, until_found=True):
+def aco_discovery_cost(trials, winning_trial, until_found=False):
     """
-    Wall time spent at the winning ant count until the chosen replicate.
+    Full ACO wall time at the winning ant count.
 
-    Sums full wall_time_s of same-ant runs with run < winning.run, then adds
-    time_to_best_s of the winning run (fallback: that run's wall_time_s).
+    Sums wall_time_s over every same-ant replicate — the full search budget
+    at that ant count, even if the seeded subgraph came from an earlier run.
 
-    If until_found is False (ACO never beat θ), sums wall_time_s of *all*
-    same-ant replicates — the full search budget at that ant count.
+    until_found is kept for call-site compatibility and ignored: discovery is
+    never truncated at the winning run / time-to-best.
     """
+    del until_found  # API compat; always charge the full same-ants budget.
     if winning_trial is None:
         return None
 
     ants = winning_trial.get("ants")
-    win_run = winning_trial.get("run")
     if ants is None:
         return None
 
@@ -134,37 +134,12 @@ def aco_discovery_cost(trials, winning_trial, until_found=True):
     if not same:
         return None
 
-    if not until_found or win_run is None:
-        total = 0.0
-        any_time = False
-        for t in same:
-            wt = t.get("wall_time_s")
-            if wt is None:
-                continue
-            total += float(wt)
-            any_time = True
-        return total if any_time else None
-
-    win_run = int(win_run)
     total = 0.0
-    saw_win = False
+    any_time = False
     for t in same:
-        r = t.get("run")
-        if r is None:
+        wt = t.get("wall_time_s")
+        if wt is None:
             continue
-        r = int(r)
-        if r < win_run:
-            wt = t.get("wall_time_s")
-            if wt is not None:
-                total += float(wt)
-        elif r == win_run:
-            saw_win = True
-            ttb = t.get("time_to_best_s")
-            if ttb is not None:
-                total += float(ttb)
-            else:
-                wt = t.get("wall_time_s")
-                if wt is not None:
-                    total += float(wt)
-
-    return total if saw_win else None
+        total += float(wt)
+        any_time = True
+    return total if any_time else None

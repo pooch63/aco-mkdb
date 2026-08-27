@@ -14,6 +14,15 @@ sizes. ACO reports the best trial (max `final_edges`, then min
 replicate 1 through that trial at the same ant count: sum of prior runs'
 `wall_time_s` plus the winning run's `time_to_best_s`. ITB / TTB are from
 that winning replicate only.
+
+Rows are grouped into three sections (each sorted ascending by ACO's
+|E(D*)|), separated by midrules:
+
+  1. ACO beat the θ-heuristic (θ-feasible ACO with strictly more edges,
+     or ACO θ-feasible while the heuristic is not)
+  2. θ-heuristic beat ACO (symmetric)
+  3. Tie, or both failed θ-feasibility (need ≥θ vertices on both sides;
+     more edges without θ on both sides still counts as a failure)
 """
 
 from __future__ import annotations
@@ -72,7 +81,7 @@ def summarize_file(data, ants=None):
 
     discovery = data.get("aco_discovery_s")
     if discovery is None and best is not None:
-        discovery = aco_discovery_cost(trials, best, until_found=True)
+        discovery = aco_discovery_cost(trials, best, until_found=False)
 
     return {
         "k": data.get("k"),
@@ -127,14 +136,76 @@ def caption_k_theta(rows):
     return rf"$k={k}, \theta={theta}$"
 
 
+def is_theta_feasible(nU, nV, theta):
+    """True iff both sides have at least θ vertices."""
+    if theta is None or nU is None or nV is None:
+        return False
+    return int(nU) >= int(theta) and int(nV) >= int(theta)
+
+
+# Section ids for outcome grouping (order is table order).
+SECTION_ACO = "aco"
+SECTION_HEUR = "heur"
+SECTION_TIE = "tie"
+
+
+def compare_section(row):
+    """
+    Which table section a row belongs to.
+
+    A side that lacks ≥θ vertices on both parts has failed, regardless of
+    edge count. Among θ-feasible solutions, more edges wins; equal edges
+    (or mutual failure) is a tie.
+    """
+    aco_ok = is_theta_feasible(row["aco_nU"], row["aco_nV"], row["theta"])
+    heur_ok = is_theta_feasible(row["heur_nU"], row["heur_nV"], row["theta"])
+
+    if aco_ok and not heur_ok:
+        return SECTION_ACO
+    if heur_ok and not aco_ok:
+        return SECTION_HEUR
+    if not aco_ok and not heur_ok:
+        return SECTION_TIE
+
+    aco_edges = int(row["aco_edges"] or 0)
+    heur_edges = int(row["heur_edges"] or 0)
+    if aco_edges > heur_edges:
+        return SECTION_ACO
+    if heur_edges > aco_edges:
+        return SECTION_HEUR
+    return SECTION_TIE
+
+
+def aco_edge_sort_key(named_row):
+    _, row = named_row
+    return (row["aco_edges"] is None, row["aco_edges"] or 0, named_row[0])
+
+
+def sectioned_rows(named_rows):
+    """Split into (aco-win, heur-win, tie/fail) lists, each sorted by ACO |E(D*)|."""
+    sections = {SECTION_ACO: [], SECTION_HEUR: [], SECTION_TIE: []}
+    for named in named_rows:
+        sections[compare_section(named[1])].append(named)
+    for key in sections:
+        sections[key].sort(key=aco_edge_sort_key)
+    return (
+        sections[SECTION_ACO],
+        sections[SECTION_HEUR],
+        sections[SECTION_TIE],
+    )
+
+
 def build_table(named_rows):
     caption = caption_k_theta([row for _, row in named_rows])
+    aco_rows, heur_rows, tie_rows = sectioned_rows(named_rows)
+    sections = [s for s in (aco_rows, heur_rows, tie_rows) if s]
+
     lines = [
+        r"\begin{landscape}",
         r"\begin{table}[htbp]",
         r"  \centering",
         rf"  \caption{{{caption}}}",
         r"",
-        r"  \begin{adjustwidth}{-5cm}{-5cm}",
         r"  \centering",
         r"  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns",
         r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
@@ -146,13 +217,18 @@ def build_table(named_rows):
         r" & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\",
         r"    \midrule",
     ]
-    for name, row in named_rows:
-        lines.append(row_tex(name, row))
+    for i, section in enumerate(sections):
+        for name, row in section:
+            lines.append(row_tex(name, row))
+        # Midrule at the bottom of each section; bottomrule after the last.
+        if i < len(sections) - 1:
+            lines.append(r"    \midrule")
+        else:
+            lines.append(r"    \bottomrule")
     lines += [
-        r"    \bottomrule",
         r"  \end{tabular}",
-        r"  \end{adjustwidth}",
         r"\end{table}",
+        r"\end{landscape}",
     ]
     return "\n".join(lines)
 
@@ -177,15 +253,14 @@ def run(json_paths, output, ants=None):
     if not named_rows:
         raise SystemExit("No usable vary JSON files -- nothing to dump.")
 
-    named_rows.sort(
-        key=lambda nr: (nr[1]["edge_count"] is None, nr[1]["edge_count"] or 0, nr[0])
-    )
-
+    aco_rows, heur_rows, tie_rows = sectioned_rows(named_rows)
     tex = build_table(named_rows)
     write_tex(tex, output)
 
     print(
         f"# table: {len(named_rows)} dataset(s)"
+        f" (aco-win={len(aco_rows)}, heur-win={len(heur_rows)}, "
+        f"tie/fail={len(tie_rows)})"
         + (f"; ants={ants}" if ants is not None else ""),
         file=sys.stderr,
     )

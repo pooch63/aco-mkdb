@@ -142,7 +142,7 @@ def _series_lookup(series_dicts):
     return {name: xy for name, xy in series_dicts}
 
 
-def _addplots(ordered_names, series_lookup, with_legend):
+def _addplots(ordered_names, series_lookup):
     """
     Emit one \\addplot per name in ordered_names so pgfplots cycle lists
     stay aligned across panels even when a series is missing from a panel.
@@ -159,13 +159,7 @@ def _addplots(ordered_names, series_lookup, with_legend):
 
         lines.append(r"\addplot coordinates {" + coords + "};")
 
-        if with_legend:
-            lines.append(r"\addlegendentry{" + name + "}")
-
     return lines
-
-
-LEGEND_COLUMNS = 3
 
 
 def build_combined_latex(
@@ -187,9 +181,8 @@ def build_combined_latex(
       Optional optimum-quality panel is included when present and shares
       the bottom row with runtime.
 
-    The legend is emitted only once by the first panel and placed below
-    the complete figure using legend to name. Series order is the union
-    of all panels so colors/markers stay consistent.
+    Series order is the union of all panels so colors/markers stay
+    consistent across panels.
     """
 
     ordered_names = []
@@ -209,12 +202,6 @@ def build_combined_latex(
     heuristic_lookup = _series_lookup(heuristic_series)
     feasible_lookup = _series_lookup(feasible_series)
     time_lookup = _series_lookup(time_series)
-
-    legend_opts = [
-        r"    legend to name=sharedlegend,",
-        rf"    legend columns={LEGEND_COLUMNS},",
-        r"    legend style={draw=none, fill=white, font=\small},",
-    ]
 
     # Top row: heuristic quality | feasibility. Bottom row: runtime.
     # Optimum quality (rare) shares the bottom row with runtime when present.
@@ -306,28 +293,15 @@ def build_combined_latex(
         r"]",
     ]
 
-    for index, panel in enumerate(panels):
-        panel_opts = list(panel["opts"])
-        if index == 0:
-            panel_opts.extend(legend_opts)
-
+    for panel in panels:
         lines.append(r"\nextgroupplot[")
-        lines.extend(panel_opts)
+        lines.extend(panel["opts"])
         lines.append(r"]")
-
-        lines += _addplots(
-            ordered_names,
-            panel["lookup"],
-            with_legend=(index == 0),
-        )
+        lines += _addplots(ordered_names, panel["lookup"])
 
     lines += [
         r"\end{groupplot}",
         r"\end{tikzpicture}",
-        r"",
-        r"\begin{center}",
-        r"\ref{sharedlegend}",
-        r"\end{center}",
     ]
 
     return "\n".join(lines)

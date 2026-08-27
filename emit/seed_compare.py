@@ -1,9 +1,12 @@
 """
-seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table + figures:
+seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table:
 
-  1. Table of every dataset: graph/reduced nodes & edges, pivot time saved
-     (or "--" when ACO did not beat θ), and percent reduction
-  2. Bar chart of every dataset: pivot time saved (s) and percent reduction
+  Table of every dataset: graph/reduced nodes & edges, pivot time saved
+  (or -ACO discovery cost when ACO did not beat θ / saved no pivot time),
+  and percent reduction (negative when ACO wasted time).
+
+  Rows are split by a \\midrule: positive time-saved first, then waste,
+  each section sorted by ascending |time saved|.
 
 Reads full pivot comparisons and beat_heuristic=false skip markers from
 compare-seeds.jl. Pass --vary-dir (or rely on compare_* → vary_* name
@@ -276,7 +279,7 @@ def summarize_seed_compare(data, compare_path=None, vary_data=None):
                 "time_to_best_s": trial.get("time_to_best_s"),
                 "wall_time_s": trial.get("wall_time_s"),
             }
-        discovery_s = aco_discovery_cost(trials, winning, until_found=True)
+        discovery_s = aco_discovery_cost(trials, winning, until_found=False)
 
     if discovery_s is None and trial.get("time_to_best_s") is not None:
         # No vary file: at least count time-to-best of the seeded trial.
@@ -334,7 +337,7 @@ def summarize_from_vary_only(data):
     best_beat = select_best_beating_trial(trials)
 
     if best_beat is not None:
-        discovery_s = aco_discovery_cost(trials, best_beat, until_found=True)
+        discovery_s = aco_discovery_cost(trials, best_beat, until_found=False)
         # Pivot not timed yet: discovery is sunk cost with unknown benefit.
         inclusive_s = -float(discovery_s) if discovery_s is not None else None
         return {
@@ -417,24 +420,98 @@ def fmt_nodes(nU, nV, total=None):
     return "--"
 
 
+def _aco_overhead_s(row):
+    """Signed ACO search cost (negative = time spent with no pivot savings)."""
+    discovery = row.get("aco_discovery_s")
+    if discovery is not None:
+        return -float(discovery)
+    inclusive = row.get("inclusive_reduction_s")
+    if inclusive is not None:
+        return float(inclusive)
+    return None
+
+
+def time_saved_s(row):
+    """
+    Signed seconds for the Time saved column, or None if unknown.
+
+    Positive: pivot wall-time reduction (θ seed − ACO seed).
+    Non-positive / no-beat: −ACO discovery cost (time wasted).
+    """
+    if row.get("beat_heuristic"):
+        value = row.get("time_reduction_s")
+        if value is not None and float(value) > 0:
+            return float(value)
+        if value is None:
+            return None
+        # value <= 0: fall through to overhead
+    return _aco_overhead_s(row)
+
+
 def fmt_saved_s(row):
-    """Pivot time saved (s), or -- when ACO did not beat θ."""
-    if not row.get("beat_heuristic"):
-        return "--"
-    value = row.get("time_reduction_s")
+    """
+    Pivot time saved (s).
+
+    When ACO did not beat θ, or beat on edges but saved no pivot time
+    (e.g. both sides timed out), report -ACO discovery cost instead of
+    0.00 / --.
+    """
+    value = time_saved_s(row)
     if value is None:
         return "--"
-    return f"{float(value):.2f}"
+    return f"{value:.2f}"
 
 
 def fmt_pct(row):
-    """Pivot percent reduction, or -- when ACO did not beat θ."""
-    if not row.get("beat_heuristic"):
+    """
+    Percent reduction matching Time saved.
+
+    Positive when ACO cut pivot time. When ACO saved no pivot time, report
+    a negative percentage of θ pivot time (inclusive net change when that
+    baseline exists; callers may fill inclusive_reduction_pct for no-beat
+    rows using a shared timeout baseline).
+    """
+    saved = time_saved_s(row)
+    if saved is None:
         return "--"
-    value = row.get("time_reduction_pct")
-    if value is None:
+    if saved > 0:
+        value = row.get("time_reduction_pct")
+        if value is None:
+            return "--"
+        return f"{float(value):.2f}"
+
+    pct = row.get("inclusive_reduction_pct")
+    if pct is None:
+        theta = row.get("theta_wall_time_s")
+        if theta is not None and float(theta) > 0:
+            pct = 100.0 * float(saved) / float(theta)
+    if pct is None:
         return "--"
-    return f"{float(value):.2f}"
+    return f"{float(pct):.2f}"
+
+
+def fill_waste_reduction_pct(rows):
+    """
+    For waste rows lacking a θ pivot baseline (ACO never beat θ), set
+    inclusive_reduction_pct using the largest θ wall time in the batch
+    (typically the pivot timeout) so Reduction (%) stays on one scale.
+    """
+    baselines = [
+        float(r["theta_wall_time_s"])
+        for r in rows
+        if r.get("theta_wall_time_s") is not None and float(r["theta_wall_time_s"]) > 0
+    ]
+    if not baselines:
+        return rows
+    baseline = max(baselines)
+    for r in rows:
+        if r.get("inclusive_reduction_pct") is not None:
+            continue
+        saved = time_saved_s(r)
+        if saved is None or float(saved) > 0:
+            continue
+        r["inclusive_reduction_pct"] = 100.0 * float(saved) / baseline
+    return rows
 
 
 def _tex_escape_label(label):
@@ -448,17 +525,41 @@ def _tex_escape_label(label):
     )
 
 
-def _symbolic_coord(label):
-    """pgfplots symbolic x coord: hyphenated, no braces/commas."""
-    return str(label).replace(" ", "-").replace("_", "-").replace(",", "")
+def _abs_saved_sort_key(row):
+    """Ascending |time saved|; unknown values sort last."""
+    saved = time_saved_s(row)
+    if saved is None:
+        return (1, 0.0, row.get("display_name") or row.get("name") or "")
+    return (0, abs(float(saved)), row.get("display_name") or row.get("name") or "")
+
+
+def order_seed_compare_rows(rows):
+    """
+    Saved-time rows first, then a waste section — each sorted by ascending
+    |time saved|.
+    """
+    saved, waste = [], []
+    for row in rows:
+        value = time_saved_s(row)
+        if value is not None and float(value) > 0:
+            saved.append(row)
+        else:
+            waste.append(row)
+    saved.sort(key=_abs_saved_sort_key)
+    waste.sort(key=_abs_saved_sort_key)
+    return saved, waste
 
 
 def build_seed_compare_table(rows):
     """
     LaTeX table: every dataset with graph/reduced sizes and pivot savings.
 
-    Pivot time saved and percent reduction are "--" when ACO did not beat θ.
+    Rows with positive pivot time saved come first (ascending |saved|), then
+    a \\midrule, then rows where ACO wasted time (ascending |overhead|).
+    Reduction (%) is negative in the waste section.
     """
+    saved_rows, waste_rows = order_seed_compare_rows(rows)
+
     lines = [
         r"\begin{table}[htbp]",
         r"  \centering",
@@ -471,17 +572,27 @@ def build_seed_compare_table(rows):
         r" & Time saved (s) & Reduction (\%) \\",
         r"    \midrule",
     ]
-    for r in rows:
-        cells = [
-            _tex_escape_label(r.get("display_name") or r.get("name") or ""),
-            fmt_nodes(r.get("nU"), r.get("nV"), r.get("full_vertex_count")),
-            fmt_int(r.get("graph_edges")),
-            fmt_nodes(r.get("reduced_nU"), r.get("reduced_nV"), r.get("vertex_count")),
-            fmt_int(r.get("reduced_edges")),
-            fmt_saved_s(r),
-            fmt_pct(r),
-        ]
-        lines.append("    " + " & ".join(cells) + r" \\")
+
+    def append_rows(section):
+        for r in section:
+            cells = [
+                _tex_escape_label(r.get("display_name") or r.get("name") or ""),
+                fmt_nodes(r.get("nU"), r.get("nV"), r.get("full_vertex_count")),
+                fmt_int(r.get("graph_edges")),
+                fmt_nodes(
+                    r.get("reduced_nU"), r.get("reduced_nV"), r.get("vertex_count")
+                ),
+                fmt_int(r.get("reduced_edges")),
+                fmt_saved_s(r),
+                fmt_pct(r),
+            ]
+            lines.append("    " + " & ".join(cells) + r" \\")
+
+    append_rows(saved_rows)
+    if saved_rows and waste_rows:
+        lines.append(r"    \midrule")
+    append_rows(waste_rows)
+
     lines += [
         r"    \bottomrule",
         r"  \end{tabular}",
@@ -490,128 +601,27 @@ def build_seed_compare_table(rows):
     return "\n".join(lines)
 
 
-def build_seed_compare_bars(rows):
-    """
-    Bar charts for every dataset: pivot time saved (s) and percent reduction.
-
-    No-beat rows are omitted from the y coordinates (no bar) but remain on
-    the symbolic x-axis so every example is visible.
-    """
-    if not rows:
-        return ""
-
-    symbols = [_symbolic_coord(r.get("display_name") or r.get("name") or f"d{i}")
-               for i, r in enumerate(rows)]
-    # Ensure uniqueness for pgfplots symbolic coords.
-    seen = {}
-    unique_symbols = []
-    for s in symbols:
-        n = seen.get(s, 0)
-        seen[s] = n + 1
-        unique_symbols.append(s if n == 0 else f"{s}-{n + 1}")
-
-    time_coords = []
-    pct_coords = []
-    for r, sym in zip(rows, unique_symbols):
-        if not r.get("beat_heuristic"):
-            continue
-        ts = r.get("time_reduction_s")
-        pct = r.get("time_reduction_pct")
-        if ts is not None:
-            time_coords.append(f"({sym},{float(ts):.6f})")
-        if pct is not None:
-            pct_coords.append(f"({sym},{float(pct):.6f})")
-
-    sym_list = ",".join(unique_symbols)
-    n = len(rows)
-    # Widen a bit when there are many datasets so labels remain readable.
-    width = "0.95\\textwidth" if n <= 12 else "1.15\\textwidth"
-
-    lines = [
-        r"\begin{tikzpicture}",
-        r"\begin{groupplot}[",
-        r"    group style={group size=1 by 2, vertical sep=70pt},",
-        rf"    width={width},",
-        r"    height=0.38\textwidth,",
-        r"    ybar,",
-        r"    bar width=6pt,",
-        r"    grid=major,",
-        rf"    symbolic x coords={{{sym_list}}},",
-        # Explicit xtick so no-beat datasets still appear (empty slot).
-        rf"    xtick={{{sym_list}}},",
-        r"    x tick label style={rotate=60, anchor=east, font=\scriptsize},",
-        r"    yticklabel style={font=\small},",
-        r"    enlarge x limits=0.06,",
-        r"]",
-
-        r"\nextgroupplot[",
-        r"    ylabel={Pivot time saved (s)},",
-        r"    ylabel style={align=center, font=\small},",
-        r"    title={Pivot time saved per dataset "
-        r"(no bar $=$ ACO did not beat $\theta$)},",
-        r"    title style={font=\small},",
-        r"]",
-    ]
-    if time_coords:
-        lines.append(
-            r"\addplot+[fill=black!55, draw=black] coordinates {"
-            + " ".join(time_coords)
-            + r"};"
-        )
-
-    lines += [
-        r"\nextgroupplot[",
-        r"    ylabel={Pivot time savings (\%)},",
-        r"    ylabel style={align=center, font=\small},",
-        r"    title={Percent pivot reduction per dataset},",
-        r"    title style={font=\small},",
-        r"]",
-    ]
-    if pct_coords:
-        lines.append(
-            r"\addplot+[fill=black!35, draw=black] coordinates {"
-            + " ".join(pct_coords)
-            + r"};"
-        )
-
-    lines += [
-        r"\end{groupplot}",
-        r"\end{tikzpicture}",
-    ]
-    return "\n".join(lines)
-
-
 def build_seed_compare_latex(rows):
-    """
-    Build seed-compare LaTeX: per-example table + per-example bar charts.
-    """
+    """Build seed-compare LaTeX: per-example table only."""
     if not rows:
         raise ValueError("No seed-compare rows to plot")
 
-    # Stable order: fewer edges first (matches table mode), then name.
-    ordered = sorted(
-        rows,
-        key=lambda r: (
-            r.get("graph_edges") is None,
-            r.get("graph_edges") or 0,
-            r.get("display_name") or r.get("name") or "",
-        ),
-    )
+    fill_waste_reduction_pct(rows)
+    saved_rows, waste_rows = order_seed_compare_rows(rows)
+    ordered = saved_rows + waste_rows
 
     n_total = len(ordered)
-    n_fail = sum(1 for r in ordered if not r.get("beat_heuristic"))
+    n_waste = len(waste_rows)
     note = (
-        rf"We examined ${n_total}$ graphs. On ${n_fail}$ of them, ACO did "
-        r"not beat the $\theta$-heuristic and therefore did not yield a "
-        r"seed that could reduce pivot time (shown as ``--'' / missing bars)."
+        rf"We examined ${n_total}$ graphs. On ${n_waste}$ of them, ACO did "
+        r"not reduce pivot time (time saved reports the negated ACO "
+        r"discovery cost; reduction is negative)."
     )
 
     parts = [
-        build_seed_compare_table(ordered),
+        build_seed_compare_table(rows),
         "",
         note,
-        "",
-        build_seed_compare_bars(ordered),
     ]
     return "\n".join(parts)
 

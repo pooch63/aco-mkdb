@@ -4,9 +4,9 @@ Inspect a vary.jl ant-count JSON: θ-heuristic vs ACO (ants=100 by default).
 
 Reports:
   - θ-heuristic result
-  - first ants=N trial that beats the heuristic (trial # + discovery time
-    from run 1 through that trial's time-to-best)
-  - best ants=N trial (trial # + discovery time from run 1 through that trial)
+  - first ants=N trial that beats the heuristic (trial # + full same-ants
+    wall-time budget across all replicates)
+  - best ants=N trial (trial # + same full same-ants wall-time budget)
 
 Usage:
     python3 scripts/inspect-vary.py results/vary_k2t5i/foo_ants.json
@@ -62,41 +62,27 @@ def select_first_beating(trials):
 
 def discovery_cost(trials, winning_trial):
     """
-    Time from run 1 to the winning replicate (same ant count).
-
-    Sums full wall_time_s of runs with run < winning.run, then adds
-    time_to_best_s of the winning run (fallback: that run's wall_time_s).
-    Matches emit/seed_compare.aco_discovery_cost / compare-seeds.jl.
+    Full same-ants wall-time budget (every replicate), matching
+    emit.common.aco_discovery_cost / compare-seeds.jl.
     """
     if winning_trial is None:
         return None
 
-    win_run = winning_trial.get("run")
-    if win_run is None:
+    ants = winning_trial.get("ants")
+    if ants is None:
         return None
-    win_run = int(win_run)
 
     total = 0.0
-    saw_win = False
+    any_time = False
     for t in trials:
-        r = t.get("run")
-        if r is None:
+        if t.get("ants") != ants:
             continue
-        r = int(r)
-        if r < win_run:
-            wt = t.get("wall_time_s")
-            if wt is not None:
-                total += float(wt)
-        elif r == win_run:
-            saw_win = True
-            ttb = t.get("time_to_best_s")
-            if ttb is not None:
-                total += float(ttb)
-            else:
-                wt = t.get("wall_time_s")
-                if wt is not None:
-                    total += float(wt)
-    return total if saw_win else None
+        wt = t.get("wall_time_s")
+        if wt is None:
+            continue
+        total += float(wt)
+        any_time = True
+    return total if any_time else None
 
 
 def fmt_time(seconds):
@@ -225,11 +211,11 @@ def inspect_file(path, ants=DEFAULT_ANTS, show_uv=False):
             print(f"\n  best vs heuristic: {delta:+d} edges")
 
     if first_beat is not None and first_disc is not None:
-        print(f"  first-beat discovery (run 1→trial {first_beat.get('run')}): "
-              f"{fmt_time(first_disc)}")
+        print(f"  first-beat discovery (full ants={ants} budget; win run "
+              f"{first_beat.get('run')}): {fmt_time(first_disc)}")
     if best is not None and best_disc is not None:
-        print(f"  best-trial discovery (run 1→trial {best.get('run')}): "
-              f"{fmt_time(best_disc)}")
+        print(f"  best-trial discovery (full ants={ants} budget; win run "
+              f"{best.get('run')}): {fmt_time(best_disc)}")
 
     if show_uv:
         print()
