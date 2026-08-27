@@ -223,6 +223,7 @@ ACO traditionally has a set of ants that traverse a graph, leaving pheromone tha
 We adapt the ACO algorithm to the $k$-MDB problem. A population of ants iteratively adds vertices from $G$ to a subgraph $S$, preferring nodes with higher $d_S$ and higher pheromone $\tau$. Here, $\sigma(x) = \frac{1}{1+e^{-x}}$ denotes the standard logistic sigmoid, used to dampen the impact of a node's degree with the entire graph as the size of the subgraph grows.
 Ants prefer to add nodes connected to the node they most recently visited. Intuitively, this reduces the number of nodes that an ant has to consider, and increases the likelihood that early on, an ant adds nodes that are properly connected to the subgraph.
 
+
 \begin{algorithm}[H]
 \caption{ACO}
 \begin{minipage}{\textwidth}
@@ -350,7 +351,7 @@ The paper proposes several novel optimization techniques as well. These techniqu
 
 TO-DO: Review this and make sure it makes sense, but other than that... idk
 
-Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine $n - 1$ nodes, and then $n - 2$ nodes, etc.
+Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine a maximum of $n - 1$ nodes, and then $n - 2$ nodes, etc.
 Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = n(n + 1)/2$. Additionally, at each step, an ant generates a candidate set of nodes that could
 still be added to its subgraph. This pass is optimized to be $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large,
 the upper time complexity would therefore be $\mathcal{O}(A \times I \times (n^2 + n))$ for $A$ ants advancing for $I$ iterations, but this would be dominated by $n^2$.
@@ -358,8 +359,7 @@ In a parallelized implementation with $p$ processors, the true upper complexity 
 
 In practice, however, there are two factors limiting this complexity. First, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because smaller side preference
 encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of
-$\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, the candidate set is reduced as the ant's subgraph grows.
- Therefore, the time complexity rarely scales linearly with $n$.
+$\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, let $L$ be the last node an ant visited. An ant prefers to visit only the intersection of $d_L$ and its candidate set, so it often only visits $d_L$ or fewer nodes. Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (n + \max_{v \in G}d_v)$. Because $\max_{v \in G}d_v$ is necessarily lower than $n$ and almost always lower than $\min(|U_G|, |V_G|)$, ACO's complexity practically does not scale linearly with $n$ after the first iteration.
 
 The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$ [1].
 
@@ -573,6 +573,8 @@ Small improvements in ACO solutions can meaningfully reduce the time that Branch
 
 Our evaluation of ACO-seeded branch-and-pivot was constrained to six small graphs (\texttt{euroroad}, \texttt{facebook}, \texttt{kuwiki}, \texttt{maayan-vidal}, \texttt{moreno}, and \texttt{urwiki}). Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{matter}, \texttt{dimacs-polblogs}) was not feasible on the hardware available for this study. As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to the graphs where ACO's advantage over the $\theta$-heuristic is largest (see Section~4).
 
+However, it is likely that ACO seeding will scale to larger graphs. ACO's measured runtime scales polynomially with graph size, and thus does not .
+
 Additionally, we injected bicliques with $\theta$ vertices on both sides into the graphs. [1] states that their proposed $\theta$-heuristic was inspired by $k$-MDB with exactly $\theta$ vertices on one side and many more vertices on the other side. However, out of the 17 graphs where ACO beat the $\theta$-heuristic, on 8, the ACO solution had exactly $\theta$ nodes on one side. This suggests that, even on graphs where the solution meets the condition for which the $\theta$-heuristic was designed, ACO can outperform its solution quality in certain instances.
 
 \section{Conclusion}
@@ -641,7 +643,7 @@ Below are the results of running ACO ants vs the $\theta$-heuristic on 10 differ
 
 ACO trials were run with 100 ants for a total of 5 iterations. \texttt{ITB} represents the number of iterations that were necessary for the ants to reach their largest solution. \texttt{TTB} represents the amount of time the ants required to finish their \texttt{ITB} -- that is, to first find their best solution.
 
-For both ACO and the $\theta$-heuristic, $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D^*)|$ represent the number of $U$ vertices, $V$ vertices, and edges in their identified solutions. Times for both are shown in milliseconds.
+For both ACO and the $\theta$-heuristic, $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D*)|$ represent the number of $U$ vertices, $V$ vertices, and edges in their identified solutions. Times for both are shown in milliseconds.
 
 
 ANALYSIS STILL LEFT TO DO: Show the graphs somehow of aco solution quality with different combiniations of prefer smaller side and neighbor reduction, as well as the time it took to get that done
@@ -798,79 +800,5 @@ NEW ACO, that DOES use the candidate filtration method:
 \end{algorithm}
 
 $D^*$ is the $k$-MDB of the graph.
-
-\begin{figure}[htbp]
-    \centering
-    \begin{tikzpicture}
-    \begin{axis}[
-      width=0.72\textwidth,
-      height=0.42\textwidth,
-      xlabel={Edge density $|E|/(|U|\,|V|)$},
-      ylabel={Solution size $|E(D^*)|$},
-      xmode=log,
-      ymode=log,
-      grid=major,
-      legend style={font=\small, draw=none, fill=white,
-        at={(0.98,0.02)}, anchor=south east},
-      legend cell align=left,
-    ]
-  \addplot+[only marks] coordinates {(1.1631069e-05,13) (0.0019625242,38) (0.00094482356,23) (0.0064956724,63) (0.0013629409,88) (0.022329152,378) (0.025969346,443) (0.0070467859,88) (0.036419139,918) (0.0095573239,8) (0.012805152,468) (0.0096935502,43) (0.0099197659,23) (0.011864703,123) (0.01330607,458) (0.025295661,1763) (0.025145113,243) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,30) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,13) (0.00015919162,18) (0.0016218473,23) (0.018066107,13) (0.0023010847,29) (1.8325098e-05,13) (0.025969346,443) (0.0035810499,333) (0.0010602665,23) (0.0042024737,93) (0.00045038383,133) (0.0093764804,14) (0.0019650197,3)};
-  \addlegendentry{$\theta$-Heuristic}
-  \addplot+[only marks] coordinates {(1.1631069e-05,49) (0.0019625242,63) (0.00094482356,23) (0.0064956724,128) (0.0013629409,28) (0.022329152,228) (0.025969346,1433) (0.0070467859,183) (0.036419139,1883) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,478) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,40) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,22) (0.00015919162,8) (0.0016218473,23) (0.018066107,286) (0.0023010847,31) (1.8325098e-05,14) (0.025969346,1433) (0.0035810499,294) (0.0010602665,14) (0.0042024737,153) (0.00045038383,122) (0.0093764804,23) (0.0019650197,14)};
-  \addlegendentry{ACO}
-  \addplot+[only marks] coordinates {(1.1631069e-05,23) (0.0019625242,75) (0.00094482356,23) (0.0064956724,142) (0.0013629409,88) (0.022329152,270) (0.025969346,1442) (0.0070467859,183) (0.036419139,1606) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,358) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,68) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,23) (0.00015919162,79) (0.0016218473,23) (0.018066107,262) (0.0023010847,34) (1.8325098e-05,23) (0.025969346,1442) (0.0035810499,286) (0.0010602665,26) (0.0042024737,348) (0.00045038383,219) (0.0093764804,23) (0.0019650197,33)};
-  \addlegendentry{ACO-N}
-  \addplot+[only marks] coordinates {(1.1631069e-05,40) (0.0019625242,64) (0.00094482356,23) (0.0064956724,168) (0.0013629409,18) (0.022329152,229) (0.025969346,1374) (0.0070467859,183) (0.036419139,1883) (0.0095573239,103) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,411) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,34) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,16) (0.00015919162,13) (0.0016218473,23) (0.018066107,262) (0.0023010847,25) (1.8325098e-05,14) (0.025969346,1374) (0.0035810499,278) (0.0010602665,28) (0.0042024737,278) (0.00045038383,152) (0.0093764804,23) (0.0019650197,14)};
-  \addlegendentry{ACO-P}
-  \addplot+[only marks] coordinates {(1.1631069e-05,23) (0.0019625242,75) (0.00094482356,23) (0.0064956724,142) (0.0013629409,88) (0.022329152,270) (0.025969346,1442) (0.0070467859,183) (0.036419139,1606) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,358) (0.025295661,1763) (0.025145113,588) (0.0014800015,23) (0.037175043,23) (0.00074694313,68) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,23) (0.00015919162,79) (0.0016218473,23) (0.018066107,262) (0.0023010847,34) (1.8325098e-05,23) (0.025969346,1442) (0.0035810499,286) (0.0010602665,26) (0.0042024737,348) (0.00045038383,219) (0.0093764804,23) (0.0019650197,33)};
-  \addlegendentry{ACO-PN}
-    \end{axis}
-    \end{tikzpicture}
-    \caption{Solution size vs.\ graph edge density ($\theta$-heuristic and ACO flag settings).}
-    \label{fig:density-size}
-  \end{figure}
-  
-  \begin{figure}[htbp]
-    \centering
-    \begin{tikzpicture}
-    \begin{groupplot}[
-      group style={group size=2 by 1, horizontal sep=22pt,
-        vertical sep=0pt, x descriptions at=edge bottom,
-        y descriptions at=edge left},
-      width=0.40\textwidth,
-      height=0.30\textwidth,
-      xlabel={Edge density $|E|/(|U|\,|V|)$},
-      xmode=log,
-      ymode=log,
-      grid=major,
-      title style={font=\small},
-      legend style={font=\scriptsize, draw=none, fill=white,
-        at={(0.98,0.02)}, anchor=south east},
-      legend cell align=left,
-    ]
-    \nextgroupplot[
-      ylabel={Discovery time (s)},
-      title={ACO},
-    ]
-  \addplot+[only marks] coordinates {(1.1631069e-05,11.6898) (0.0019625242,4.2498) (0.00094482356,0.0198) (0.0064956724,6.0808) (0.0013629409,206.628) (0.022329152,4.611) (0.025969346,0.5147) (0.0070467859,5.7755) (0.036419139,33.2775) (0.0095573239,0.296) (0.012805152,9.6894) (0.0096935502,5.0569) (0.0099197659,2.9165) (0.011864703,0.7945) (0.01330607,0.5688) (0.025295661,30.9465) (0.025145113,3.7622) (2.0419928e-05,0.0278) (0.0014800015,0.0136) (0.037175043,0.0163) (0.00074694313,2.3724) (3.2248941e-05,0.0246) (0.020664813,1.036) (0.0014110223,0.1046) (0.00015919162,238.995) (0.0016218473,0.0186) (0.018066107,2.6358) (0.0023010847,1.7062) (1.8325098e-05,0.1336) (0.025969346,0.5038) (0.0035810499,3.2968) (0.0010602665,0.6663) (0.0042024737,15.9044) (0.00045038383,25.8427) (0.0093764804,0.0768) (0.0019650197,0.7575)};
-  \addlegendentry{ACO}
-  \addplot+[only marks] coordinates {(1.1631069e-05,0.6782) (0.0019625242,0.5165) (0.00094482356,0.0166) (0.0064956724,0.6919) (0.0013629409,1.3103) (0.022329152,0.5811) (0.025969346,0.4035) (0.0070467859,0.9854) (0.036419139,5.0466) (0.0095573239,0.1526) (0.012805152,2.6327) (0.0096935502,1.5138) (0.0099197659,0.238) (0.011864703,0.2762) (0.01330607,0.3531) (0.025295661,7.0366) (0.025145113,0.8516) (2.0419928e-05,0.0294) (0.0014800015,0.0142) (0.037175043,0.0157) (0.00074694313,0.1458) (3.2248941e-05,0.0367) (0.020664813,0.3429) (0.0014110223,0.0589) (0.00015919162,1.1174) (0.0016218473,0.0211) (0.018066107,0.4865) (0.0023010847,0.1313) (1.8325098e-05,0.047) (0.025969346,0.3949) (0.0035810499,0.6763) (0.0010602665,0.1312) (0.0042024737,0.4911) (0.00045038383,0.5037) (0.0093764804,0.0644) (0.0019650197,0.5189)};
-  \addlegendentry{ACO-N}
-  \addplot+[only marks] coordinates {(1.1631069e-05,0.0987) (0.0019625242,0.2603) (0.00094482356,0.0116) (0.0064956724,0.2793) (0.0013629409,15.7636) (0.022329152,0.184) (0.025969346,0.3572) (0.0070467859,0.7237) (0.036419139,17.2894) (0.0095573239,0.0606) (0.012805152,1.4069) (0.0096935502,2.257) (0.0099197659,1.971) (0.011864703,0.5259) (0.01330607,0.2946) (0.025295661,4.8024) (0.025145113,1.0376) (2.0419928e-05,0.0134) (0.0014800015,0.0025) (0.037175043,0.0005) (0.00074694313,0.2495) (3.2248941e-05,0.0184) (0.020664813,0.2392) (0.0014110223,0.0733) (0.00015919162,39.8631) (0.0016218473,0.006) (0.018066107,0.1404) (0.0023010847,0.4622) (1.8325098e-05,0.038) (0.025969346,0.354) (0.0035810499,0.574) (0.0010602665,0.1205) (0.0042024737,8.7631) (0.00045038383,1.4032) (0.0093764804,0.0017) (0.0019650197,0.3043)};
-  \addlegendentry{ACO-P}
-  \addplot+[only marks] coordinates {(1.1631069e-05,0.124) (0.0019625242,0.0814) (0.00094482356,0.0005) (0.0064956724,0.4932) (0.0013629409,0.1302) (0.022329152,0.2892) (0.025969346,0.0436) (0.0070467859,0.0317) (0.036419139,2.656) (0.0095573239,0.0234) (0.012805152,0.9195) (0.0096935502,0.0536) (0.0099197659,0.0428) (0.011864703,0.0082) (0.01330607,0.0513) (0.025295661,2.3458) (0.025145113,0.5332) (0.0014800015,0.0081) (0.037175043,0.0004) (0.00074694313,0.0112) (3.2248941e-05,0.0146) (0.020664813,0.2196) (0.0014110223,0.0016) (0.00015919162,0.2666) (0.0016218473,0.003) (0.018066107,0.3652) (0.0023010847,0.0617) (1.8325098e-05,0.0012) (0.025969346,0.0456) (0.0035810499,0.3896) (0.0010602665,0.0719) (0.0042024737,0.0147) (0.00045038383,0.16) (0.0093764804,0.0202) (0.0019650197,0.0079)};
-  \addlegendentry{ACO-PN}
-    \nextgroupplot[
-      ylabel={Time (s)},
-      title={$\theta$-Heuristic},
-    ]
-  \addplot+[only marks] coordinates {(1.1631069e-05,0.0011) (0.0019625242,0.0038) (0.0064956724,0.0073) (0.0013629409,0.0076) (0.022329152,0.0077) (0.025969346,0.0017) (0.0070467859,0.0008) (0.036419139,0.002) (0.0095573239,0.0001) (0.012805152,0.0013) (0.0096935502,0.0012) (0.0099197659,0.0003) (0.011864703,0.0006) (0.01330607,0.0007) (0.025295661,0.002) (0.025145113,0.0007) (0.00074694313,0.0007) (0.020664813,0.0004) (0.0014110223,0.0002) (0.00015919162,0.0034) (0.018066107,0.003) (0.0023010847,0.0004) (1.8325098e-05,0.0003) (0.025969346,0.0018) (0.0035810499,0.0069) (0.0010602665,0.0009) (0.0042024737,0.002) (0.00045038383,0.0029) (0.0093764804,0.0001) (0.0019650197,0.0003)};
-  \addlegendentry{$\theta$-Heuristic}
-    \end{groupplot}
-    \end{tikzpicture}
-    \caption{Solution time vs.\ graph edge density (ACO discovery cost by flag setting; $\theta$-heuristic wall time).}
-    \label{fig:density-time}
-  \end{figure}
-  
 
 \end{document}
