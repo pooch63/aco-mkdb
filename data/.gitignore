@@ -1,3 +1,5 @@
 *
 !.gitignore
 !.dataignore
+!list_datasets.sh
+!datasets.txt
