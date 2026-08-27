@@ -1,0 +1,183 @@
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=2 by 2, horizontal sep=24pt, vertical sep=40pt},
+    title style={yshift=-3pt},
+    width=0.48\textwidth,
+    height=0.36\textwidth,
+    xmode=log,
+    log basis x=2,
+    grid=major,
+]
+\nextgroupplot[
+    xlabel={Number of ants},
+    ylabel={Dev. from Cui Heuristic (\%)},
+    ylabel style={align=center, font=\small},
+    title={Output compared to Cui Heuristic},
+    title style={font=\small},
+    legend to name=sharedlegend,
+    legend columns=3,
+    legend style={draw=none, fill=white, font=\small},
+]
+\addplot coordinates {(100,76.9231)};
+\addlegendentry{appliances}
+\addplot coordinates {(100,72.1053)};
+\addlegendentry{bitcoin}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{boxes}
+\addplot coordinates {(100,109.2063)};
+\addlegendentry{ciaodvd}
+\addplot coordinates {(100,-19.3182)};
+\addlegendentry{dblp-cite}
+\addplot coordinates {(100,-35.7672)};
+\addlegendentry{dimacs-polblogs}
+\addplot coordinates {(100,173.7698)};
+\addlegendentry{dnc-corecipient}
+\addplot coordinates {(100,50.0000)};
+\addlegendentry{edit-guwikiquote}
+\addplot coordinates {(100,74.8148)};
+\addlegendentry{edit-jamwiki}
+\addplot coordinates {(100,200.0000)};
+\addlegendentry{edit-mkwikisource}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{edit-mrwiktionary}
+\addplot coordinates {(100,279.0698)};
+\addlegendentry{edit-nowikinews}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{edit-rowikibooks}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{edit-srwikiquote}
+\addplot coordinates {(100,-27.0306)};
+\addlegendentry{edit-vewiki}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{edit-wowiktionary}
+\addplot coordinates {(100,141.9753)};
+\addlegendentry{edit-zuwiktionary}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{euroroad}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{facebook}
+\addplot coordinates {(100,114.0000)};
+\addlegendentry{gnutella}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{jawiki}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{kuwiki}
+\addplot coordinates {(100,76.9231)};
+\addlegendentry{maayan-vidal}
+\addplot coordinates {(100,338.8889)};
+\addlegendentry{matter}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{moreno}
+\addplot coordinates {(100,1775.3846)};
+\addlegendentry{moreno-blogs}
+\addplot coordinates {(100,17.2414)};
+\addlegendentry{moreno-health}
+\addplot coordinates {(100,76.9231)};
+\addlegendentry{music}
+\addplot coordinates {(100,173.7698)};
+\addlegendentry{nawiki}
+\addplot coordinates {(100,-22.0420)};
+\addlegendentry{openflights}
+\addplot coordinates {(100,0.0000)};
+\addlegendentry{p2p-Gnutella09}
+\addplot coordinates {(100,220.2151)};
+\addlegendentry{petster-hamster}
+\addplot coordinates {(100,53.8346)};
+\addlegendentry{pgp-arenas}
+\addplot coordinates {(100,64.2857)};
+\addlegendentry{urwiki}
+\addplot coordinates {(100,833.3333)};
+\addlegendentry{wiki-talk-nds}
+\nextgroupplot[
+    xlabel={Number of ants},
+    ylabel={Feasible trials (\%)},
+    ylabel style={align=center, font=\small},
+    title={$\theta$-feasibility rate},
+    title style={font=\small},
+    ymin=0,
+    ymax=100,
+]
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,40.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,80.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,60.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,100.0000)};
+\addplot coordinates {(100,80.0000)};
+\nextgroupplot[
+    xlabel={Number of ants},
+    ylabel={Mean WCT (s)},
+    ylabel style={align=center, font=\small},
+    title={Run time},
+    title style={font=\small},
+    ymode=log,
+]
+\addplot coordinates {(100,0.0548)};
+\addplot coordinates {(100,0.0776)};
+\addplot coordinates {(100,0.0030)};
+\addplot coordinates {(100,0.1080)};
+\addplot coordinates {(100,0.2039)};
+\addplot coordinates {(100,0.0923)};
+\addplot coordinates {(100,0.0586)};
+\addplot coordinates {(100,0.1419)};
+\addplot coordinates {(100,0.7493)};
+\addplot coordinates {(100,0.0205)};
+\addplot coordinates {(100,0.4013)};
+\addplot coordinates {(100,0.2235)};
+\addplot coordinates {(100,0.0362)};
+\addplot coordinates {(100,0.0424)};
+\addplot coordinates {(100,0.0527)};
+\addplot coordinates {(100,1.0013)};
+\addplot coordinates {(100,0.1241)};
+\addplot coordinates {(100,0.0019)};
+\addplot coordinates {(100,0.0023)};
+\addplot coordinates {(100,0.0206)};
+\addplot coordinates {(100,0.0035)};
+\addplot coordinates {(100,0.0521)};
+\addplot coordinates {(100,0.0088)};
+\addplot coordinates {(100,0.1819)};
+\addplot coordinates {(100,0.0025)};
+\addplot coordinates {(100,0.0764)};
+\addplot coordinates {(100,0.0184)};
+\addplot coordinates {(100,0.0064)};
+\addplot coordinates {(100,0.0598)};
+\addplot coordinates {(100,0.1066)};
+\addplot coordinates {(100,0.0226)};
+\addplot coordinates {(100,0.0807)};
+\addplot coordinates {(100,0.0799)};
+\addplot coordinates {(100,0.0097)};
+\addplot coordinates {(100,0.0832)};
+\end{groupplot}
+\end{tikzpicture}
+
+\begin{center}
+\ref{sharedlegend}
+\end{center}
