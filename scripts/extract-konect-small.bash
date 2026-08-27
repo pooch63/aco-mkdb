@@ -1,6 +1,9 @@
 #!/bin/bash
-# Convert every extracted KONECT download under data/raw/download.tsv.* into
+# Convert every KONECT download under data/raw/download.tsv.* into
 # indexed graphs under data/konect-small/<name>/ via process.jl.
+#
+# If download.tsv.*.tar.bz2 (or .bz2) archives are present, extracts them
+# with tar -xf first, then processes the resulting folders.
 #
 # Layout expected per download:
 #   data/raw/download.tsv.<name>/<name>/out.*
@@ -21,7 +24,41 @@ RAW_ROOT="${RAW_ROOT:-data/raw}"
 PROVIDER="${PROVIDER:-konect-small}"
 
 shopt -s nullglob
-DIRS=("$RAW_ROOT"/download.tsv.*)
+
+# Extract any download.tsv.*.tar.bz2 (or *.bz2) archives first, then process folders.
+ARCHIVES=("$RAW_ROOT"/download.tsv.*.tar.bz2 "$RAW_ROOT"/download.tsv.*.bz2)
+# Deduplicate: *.bz2 also matches *.tar.bz2; keep unique paths.
+declare -A seen_archive=()
+UNIQUE_ARCHIVES=()
+for archive in "${ARCHIVES[@]}"; do
+  [[ -f "$archive" ]] || continue
+  [[ -n "${seen_archive[$archive]+x}" ]] && continue
+  seen_archive[$archive]=1
+  UNIQUE_ARCHIVES+=("$archive")
+done
+
+if (( ${#UNIQUE_ARCHIVES[@]} > 0 )); then
+  echo "Found ${#UNIQUE_ARCHIVES[@]} .bz2 archive(s) under $RAW_ROOT/; extracting with tar -xf"
+  for archive in "${UNIQUE_ARCHIVES[@]}"; do
+    base="$(basename "$archive")"
+    # download.tsv.<name>.tar.bz2 → download.tsv.<name>
+    if [[ "$base" == *.tar.bz2 ]]; then
+      dest_name="${base%.tar.bz2}"
+    else
+      dest_name="${base%.bz2}"
+    fi
+    dest="$RAW_ROOT/$dest_name"
+    mkdir -p "$dest"
+    echo "  tar -xf $archive → $dest/"
+    tar -xf "$archive" -C "$dest"
+  done
+fi
+
+DIRS=()
+for path in "$RAW_ROOT"/download.tsv.*; do
+  [[ -d "$path" ]] || continue
+  DIRS+=("$path")
+done
 n="${#DIRS[@]}"
 
 echo "Found $n download.tsv.* folder(s) under $RAW_ROOT/"
@@ -34,7 +71,6 @@ i=0
 ran=0
 skipped_existing=0
 for dir in "${DIRS[@]}"; do
-  [[ -d "$dir" ]] || continue
   i=$((i + 1))
 
   mapfile -t inners < <(find "$dir" -mindepth 1 -maxdepth 1 -type d | sort)

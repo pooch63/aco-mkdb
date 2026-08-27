@@ -4,7 +4,10 @@
 # min time_to_best on ties) as an extra branch-and-pivot seed and records the
 # wall-time reduction. When ACO never beat θ, still writes a compact marker JSON
 # (beat_heuristic=false) so SKIP_EXISTING can skip without re-parsing the vary
-# file. Graphs are ordered by edge count ascending (same as vary.bash).
+# file. Pivot timeouts are written into the compare JSON (timed_out_pivots +
+# pivot_timeout_s); SKIP_EXISTING re-runs a timeout result only when TIMEOUT is
+# strictly larger than the previous limit. Graphs are ordered by edge count
+# ascending (same as vary.bash).
 #
 # Usage:
 #   ./scripts/compare-seeds.bash
@@ -14,6 +17,7 @@
 #   RESUME_FROM=3 ./scripts/compare-seeds.bash vary_k2t5i
 #   SKIP_EXISTING=1 PREFIX=konect-small ./scripts/compare-seeds.bash
 #   TIMEOUT=2000 ./scripts/compare-seeds.bash vary_k2t5i
+#   TIMEOUT=4000 ./scripts/compare-seeds.bash vary_k2t5i  # redo prior timeouts < 4000s
 
 set -euo pipefail
 
@@ -115,12 +119,16 @@ for path in "${FILES[@]}"; do
   out="${OUT_DIR}/${name}.json"
 
   # Check exists *before* any Julia startup / vary-JSON parse.
+  # Timeout results are re-run only when TIMEOUT > prior pivot_timeout_s.
   if [[ "$SKIP_EXISTING" == "1" && -f "$out" ]]; then
     echo
     echo "[$i/$n] $path → $out"
-    echo "Skipping (exists): $out"
-    skipped_existing=$((skipped_existing + 1))
-    continue
+    if should_skip_existing_compare "$out" "$TIMEOUT"; then
+      echo "Skipping (exists): $out"
+      skipped_existing=$((skipped_existing + 1))
+      continue
+    fi
+    echo "Re-running (larger timeout than prior timeout result): $out"
   fi
 
   echo
