@@ -272,7 +272,7 @@ Ants prefer to add nodes connected to the node they most recently visited. Intui
             \State $\tau \gets \tau_C$
 
             \ForAll{$u \in G$}
-                \State $\tau(u) \gets \tau(u) \times \rho$
+                \State $\tau(u) \gets \tau(u) \times (1 - \rho)$
             \EndFor
         \EndWhile
         
@@ -376,7 +376,7 @@ subset of graphs:
         \toprule
         Parameter & Value \\
         \midrule
-        Evaporation rate ($\rho$) & 0.95 \\
+        Evaporation rate ($\rho$) & 0.05 \\
         Pheromone deposit ($T$) & 1 \\
         Number of epochs ($N_e$) & 5 \\
         Number of ants ($N_S$) & varied, 1--100 (see below) \\
@@ -398,130 +398,188 @@ All tests were run with 8 threads on a computer with Ubuntu, an Intel(R) Core(TM
 We also vary the number of ants and analyze the effect on run time as well as solution quality. We compare ACO results to $\theta$-heuristic results. Finally, because Branch and Pivot can prune more branches with a larger initial $D^*$, we demonstrate the speed increase from using ACO as the heuristic seeding method in cases where ACO outperformed the $\theta$-heuristic. Ant count $N_S$ is varied across $\{1, 2, 5, 10, 20, 50, 100\}$.
 
 \begin{tikzpicture}
-\begin{groupplot}[
-    group style={group size=1 by 3, vertical sep=30pt, x descriptions at=edge bottom},
-    title style={yshift=-3pt},
-    width=0.75\textwidth,
-    height=0.4400\textwidth,
-    xmode=log,
-    log basis x=2,
-    grid=major,
-]
-\nextgroupplot[
-    ylabel={Dev. from Cui Heuristic (\%)},
-    ylabel style={align=center, font=\small},
-    title={Output compared to Cui Heuristic},
-    title style={font=\small},
-    legend to name=sharedlegend,
-    legend columns=3,
-    legend style={draw=none, fill=white, font=\small},
-]
-\addplot coordinates {(5,-10.5263) (10,-7.4163) (20,-10.0478) (50,18.2749) (100,17.6316)};
-\addlegendentry{bitcoin}
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{boxes}
-\addplot coordinates {(1,-47.6190) (5,-31.7460) (10,-28.9242) (20,6.1508) (50,21.2197) (100,51.1111)};
-\addlegendentry{ciaodvd}
-\addplot coordinates {(1,-100.0000) (100,-63.0682)};
-\addlegendentry{dblp-cite}
-\addplot coordinates {(1,-84.6645) (5,-57.9553) (10,-62.2627) (20,-42.8451) (50,-36.4217) (100,-34.7764)};
-\addlegendentry{dimacs-polblogs}
-\addplot coordinates {(1,-35.3583) (2,-30.2570) (5,-0.4556) (10,30.8645) (20,73.8435) (50,86.0631) (100,109.3575)};
-\addlegendentry{dnc-corecipient}
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{wikipedia/eswiki}
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{euroroad}
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{facebook}
-\addplot coordinates {(10,-23.3333) (20,14.4444) (50,36.6667) (100,44.2857)};
-\addlegendentry{gnutella}
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{wikipedia/jawiki}
-\addplot coordinates {(1,76.9231)};
-\addlegendentry{maayan-vidal}
-\addplot coordinates {(1,-100.0000) (5,27.7778) (10,27.7778) (20,61.1111)};
-\addlegendentry{matter}
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addlegendentry{moreno}
-\addplot coordinates {(1,-11.5385) (2,76.9231) (5,76.9231) (20,76.9231) (50,76.9231) (100,76.9231)};
-\addlegendentry{music}
-\addplot coordinates {(1,-35.3583) (2,-30.2570) (5,-0.4556) (10,30.8645) (20,73.8435) (50,86.0631) (100,109.3575)};
-\addlegendentry{nawiki}
-\addplot coordinates {(1,-80.7057) (2,-71.8468) (5,-59.7998) (10,-54.5796) (20,-42.6877) (50,-40.5556) (100,-32.7628)};
-\addlegendentry{openflights}
-\addplot coordinates {(1,-65.4135) (5,16.2907) (10,-28.5714) (20,4.8120) (50,-18.4962) (100,-4.2607)};
-\addlegendentry{pgp-arenas}
-\addplot coordinates {(1,64.2857) (10,64.2857) (20,64.2857) (50,64.2857) (100,64.2857)};
-\addlegendentry{urwiki}
-\addplot coordinates {(2,666.6667) (5,833.3333) (50,666.6667) (100,833.3333)};
-\addlegendentry{wiki-talk-nds}
-\addplot coordinates {};
-\addlegendentry{appliances}
-\nextgroupplot[
-    ylabel={Feasible trials (\%)},
-    ylabel style={align=center, font=\small},
-    title={Theta-feasibility rate},
-    title style={font=\small},
-    ymin=0,
-    ymax=100,
-]
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,5.0000) (10,55.0000) (20,55.0000) (50,90.0000) (100,100.0000)};
-\addplot coordinates {(1,30.0000) (2,45.0000) (5,75.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,5.0000) (2,0.0000) (5,15.0000) (10,45.0000) (20,80.0000) (50,95.0000) (100,100.0000)};
-\addplot coordinates {(1,5.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,30.0000)};
-\addplot coordinates {(1,5.0000) (2,0.0000) (5,50.0000) (10,85.0000) (20,95.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,30.0000) (2,70.0000) (5,100.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,100.0000) (2,100.0000) (5,100.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,100.0000) (2,100.0000) (5,100.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,35.0000) (2,60.0000) (5,100.0000) (10,95.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,5.0000) (20,15.0000) (50,10.0000) (100,35.0000)};
-\addplot coordinates {(1,100.0000) (2,100.0000) (5,100.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,5.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\addplot coordinates {(1,5.0000) (2,0.0000) (5,5.0000) (10,5.0000) (20,5.0000) (50,0.0000) (100,0.0000)};
-\addplot coordinates {(1,35.0000) (2,55.0000) (5,65.0000) (10,90.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,10.0000) (2,5.0000) (5,10.0000) (10,0.0000) (20,5.0000) (50,5.0000) (100,5.0000)};
-\addplot coordinates {(1,30.0000) (2,70.0000) (5,100.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,20.0000) (2,20.0000) (5,75.0000) (10,100.0000) (20,100.0000) (50,100.0000) (100,100.0000)};
-\addplot coordinates {(1,5.0000) (2,0.0000) (5,15.0000) (10,20.0000) (20,25.0000) (50,50.0000) (100,90.0000)};
-\addplot coordinates {(1,5.0000) (2,0.0000) (5,0.0000) (10,10.0000) (20,5.0000) (50,5.0000) (100,10.0000)};
-\addplot coordinates {(1,0.0000) (2,5.0000) (5,5.0000) (10,0.0000) (20,0.0000) (50,5.0000) (100,5.0000)};
-\addplot coordinates {(1,0.0000) (2,0.0000) (5,0.0000) (10,0.0000) (20,0.0000) (50,0.0000) (100,0.0000)};
-\nextgroupplot[
-    xlabel={Number of ants},
-    ylabel={Mean WCT (s)},
-    ylabel style={align=center, font=\small},
-    title={Run time},
-    title style={font=\small},
-    ymode=log,
-]
-\addplot coordinates {(1,0.0185) (2,0.0175) (5,0.0460) (10,0.0832) (20,0.1257) (50,0.3735) (100,0.4976)};
-\addplot coordinates {(1,0.0003) (2,0.0002) (5,0.0004) (10,0.0005) (20,0.0009) (50,0.0020) (100,0.0037)};
-\addplot coordinates {(1,0.0206) (2,0.0395) (5,0.0969) (10,0.1082) (20,0.4490) (50,0.9487) (100,1.1457)};
-\addplot coordinates {(1,0.0475) (2,0.0598) (5,0.1946) (10,0.6344) (20,0.7971) (50,3.1016) (100,4.8108)};
-\addplot coordinates {(1,0.0083) (2,0.0094) (5,0.0213) (10,0.0376) (20,0.0698) (50,0.1446) (100,0.2652)};
-\addplot coordinates {(1,0.0024) (2,0.0032) (5,0.0071) (10,0.0107) (20,0.0184) (50,0.0527) (100,0.1014)};
-\addplot coordinates {(1,0.0002) (2,0.0002) (5,0.0004) (10,0.0007) (20,0.0008) (50,0.0017) (100,0.0030)};
-\addplot coordinates {(1,0.0005) (2,0.0004) (5,0.0006) (10,0.0007) (20,0.0010) (50,0.0018) (100,0.0036)};
-\addplot coordinates {(1,0.0005) (2,0.0004) (5,0.0007) (10,0.0007) (20,0.0013) (50,0.0022) (100,0.0036)};
-\addplot coordinates {(1,0.0028) (2,0.0048) (5,0.0113) (10,0.0358) (20,0.0406) (50,0.1085) (100,0.1623)};
-\addplot coordinates {(1,0.0002) (2,0.0003) (5,0.0003) (10,0.0005) (20,0.0007) (50,0.0017) (100,0.0027)};
-\addplot coordinates {(1,0.0011) (2,0.0011) (5,0.0023) (10,0.0038) (20,0.0063) (50,0.0124) (100,0.0214)};
-\addplot coordinates {(1,0.2505) (2,0.5307) (5,1.3059) (10,2.3524) (20,5.9945) (50,13.2460) (100,25.2096)};
-\addplot coordinates {(1,0.0005) (2,0.0006) (5,0.0006) (10,0.0007) (20,0.0011) (50,0.0021) (100,0.0038)};
-\addplot coordinates {(1,0.0006) (2,0.0005) (5,0.0019) (10,0.0033) (20,0.0037) (50,0.0100) (100,0.0213)};
-\addplot coordinates {(1,0.0030) (2,0.0031) (5,0.0051) (10,0.0085) (20,0.0149) (50,0.0362) (100,0.0642)};
-\addplot coordinates {(1,0.0039) (2,0.0053) (5,0.0109) (10,0.0189) (20,0.0343) (50,0.0792) (100,0.1221)};
-\addplot coordinates {(1,0.0100) (2,0.0113) (5,0.0379) (10,0.0545) (20,0.1557) (50,0.3385) (100,0.5873)};
-\addplot coordinates {(1,0.0005) (2,0.0006) (5,0.0011) (10,0.0020) (20,0.0038) (50,0.0105) (100,0.0176)};
-\addplot coordinates {(1,0.0008) (2,0.0013) (5,0.0032) (10,0.0072) (20,0.0175) (50,0.0434) (100,0.0939)};
-\addplot coordinates {(1,0.0084) (2,0.0196) (5,0.0682) (10,0.3335) (20,0.2470) (50,0.6923) (100,0.7485)};
-\end{groupplot}
-\end{tikzpicture}
-
-\begin{center}
-\ref{sharedlegend}
-\end{center}
+    \begin{groupplot}[
+        group style={group size=2 by 2, horizontal sep=24pt, vertical sep=40pt},
+        title style={yshift=-3pt},
+        width=0.48\textwidth,
+        height=0.36\textwidth,
+        xmode=log,
+        log basis x=2,
+        grid=major,
+    ]
+    \nextgroupplot[
+        xlabel={Number of ants},
+        ylabel={Dev. from Cui Heuristic (\%)},
+        ylabel style={align=center, font=\small},
+        title={Output compared to Cui Heuristic},
+        title style={font=\small},
+        legend to name=sharedlegend,
+        legend columns=3,
+        legend style={draw=none, fill=white, font=\small},
+    ]
+    \addplot coordinates {(100,76.9231)};
+    \addlegendentry{appliances}
+    \addplot coordinates {(100,72.1053)};
+    \addlegendentry{bitcoin}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{boxes}
+    \addplot coordinates {(100,109.2063)};
+    \addlegendentry{ciaodvd}
+    \addplot coordinates {(100,-19.3182)};
+    \addlegendentry{dblp-cite}
+    \addplot coordinates {(100,-35.7672)};
+    \addlegendentry{dimacs-polblogs}
+    \addplot coordinates {(100,173.7698)};
+    \addlegendentry{dnc-corecipient}
+    \addplot coordinates {(100,50.0000)};
+    \addlegendentry{edit-guwikiquote}
+    \addplot coordinates {(100,74.8148)};
+    \addlegendentry{edit-jamwiki}
+    \addplot coordinates {(100,200.0000)};
+    \addlegendentry{edit-mkwikisource}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{edit-mrwiktionary}
+    \addplot coordinates {(100,279.0698)};
+    \addlegendentry{edit-nowikinews}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{edit-rowikibooks}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{edit-srwikiquote}
+    \addplot coordinates {(100,-27.0306)};
+    \addlegendentry{edit-vewiki}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{edit-wowiktionary}
+    \addplot coordinates {(100,141.9753)};
+    \addlegendentry{edit-zuwiktionary}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{euroroad}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{facebook}
+    \addplot coordinates {(100,114.0000)};
+    \addlegendentry{gnutella}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{jawiki}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{kuwiki}
+    \addplot coordinates {(100,76.9231)};
+    \addlegendentry{maayan-vidal}
+    \addplot coordinates {(100,338.8889)};
+    \addlegendentry{matter}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{moreno}
+    \addplot coordinates {(100,1775.3846)};
+    \addlegendentry{moreno-blogs}
+    \addplot coordinates {(100,17.2414)};
+    \addlegendentry{moreno-health}
+    \addplot coordinates {(100,76.9231)};
+    \addlegendentry{music}
+    \addplot coordinates {(100,173.7698)};
+    \addlegendentry{nawiki}
+    \addplot coordinates {(100,-22.0420)};
+    \addlegendentry{openflights}
+    \addplot coordinates {(100,0.0000)};
+    \addlegendentry{p2p-Gnutella09}
+    \addplot coordinates {(100,220.2151)};
+    \addlegendentry{petster-hamster}
+    \addplot coordinates {(100,53.8346)};
+    \addlegendentry{pgp-arenas}
+    \addplot coordinates {(100,64.2857)};
+    \addlegendentry{urwiki}
+    \addplot coordinates {(100,833.3333)};
+    \addlegendentry{wiki-talk-nds}
+    \nextgroupplot[
+        xlabel={Number of ants},
+        ylabel={Feasible trials (\%)},
+        ylabel style={align=center, font=\small},
+        title={$\theta$-feasibility rate},
+        title style={font=\small},
+        ymin=0,
+        ymax=100,
+    ]
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,40.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,80.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,60.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,100.0000)};
+    \addplot coordinates {(100,80.0000)};
+    \nextgroupplot[
+        xlabel={Number of ants},
+        ylabel={Mean WCT (s)},
+        ylabel style={align=center, font=\small},
+        title={Run time},
+        title style={font=\small},
+        ymode=log,
+    ]
+    \addplot coordinates {(100,0.0548)};
+    \addplot coordinates {(100,0.0776)};
+    \addplot coordinates {(100,0.0030)};
+    \addplot coordinates {(100,0.1080)};
+    \addplot coordinates {(100,0.2039)};
+    \addplot coordinates {(100,0.0923)};
+    \addplot coordinates {(100,0.0586)};
+    \addplot coordinates {(100,0.1419)};
+    \addplot coordinates {(100,0.7493)};
+    \addplot coordinates {(100,0.0205)};
+    \addplot coordinates {(100,0.4013)};
+    \addplot coordinates {(100,0.2235)};
+    \addplot coordinates {(100,0.0362)};
+    \addplot coordinates {(100,0.0424)};
+    \addplot coordinates {(100,0.0527)};
+    \addplot coordinates {(100,1.0013)};
+    \addplot coordinates {(100,0.1241)};
+    \addplot coordinates {(100,0.0019)};
+    \addplot coordinates {(100,0.0023)};
+    \addplot coordinates {(100,0.0206)};
+    \addplot coordinates {(100,0.0035)};
+    \addplot coordinates {(100,0.0521)};
+    \addplot coordinates {(100,0.0088)};
+    \addplot coordinates {(100,0.1819)};
+    \addplot coordinates {(100,0.0025)};
+    \addplot coordinates {(100,0.0764)};
+    \addplot coordinates {(100,0.0184)};
+    \addplot coordinates {(100,0.0064)};
+    \addplot coordinates {(100,0.0598)};
+    \addplot coordinates {(100,0.1066)};
+    \addplot coordinates {(100,0.0226)};
+    \addplot coordinates {(100,0.0807)};
+    \addplot coordinates {(100,0.0799)};
+    \addplot coordinates {(100,0.0097)};
+    \addplot coordinates {(100,0.0832)};
+    \end{groupplot}
+    \end{tikzpicture}
+    
+    \begin{center}
+    \ref{sharedlegend}
+    \end{center}    
 
 We observe that a marginal increase in the initial upper bound of the subgraph for Branch and Pivot allows the algorithm to prune more branches, and can sometimes result in significant decreases in runtime. ACO was run $5$ times, and the largest $k$-DB was used. If this $k$-DB had more edges than the $\theta$-heuristic output, the pivot algorithm was then run using only the $theta$-heuristic solution as a seed, and then using the ACO solution as a seed.
 We measure the difference between the pivot algorithm runtime, adding the time ACO took to run to its final pivot time. We summarize our results below.
@@ -535,27 +593,27 @@ We measure the difference between the pivot algorithm runtime, adding the time A
       \toprule
       Dataset & Nodes & Edges & Reduced nodes & Reduced edges & Time saved (s) & Reduction (\%) \\
       \midrule
-      Euroroad & -- & 1440 & 10 & -- & -0.17 & -- \\
-      Moreno & -- & 2300 & 25 & -- & -0.19 & -- \\
-      Facebook & -- & 3003 & 17 & -- & -0.19 & -- \\
-      Urwiki & 2160 & 4018 & 59 & -- & 1.07 & 91.95 \\
-      Kuwiki & -- & 4951 & 0 & -- & -0.07 & -- \\
-      Maayan Vidal & 4562 & 6749 & 215 & -- & 0.81 & 62.38 \\
-      Edit Zuwiktionary & -- & 7555 & 247 & -- & -6.49 & -- \\
-      Edit Srwikiquote & -- & 8695 & 235 & -- & -2.94 & -- \\
-      Edit Vewiki & 2075 & 11069 & 82 & -- & 0.62 & 14.30 \\
-      Edit Guwikiquote & 2641 & 11387 & 778 & -- & 746.57 & 98.58 \\
-      Dnc Corecipient & 1367 & 12108 & 408 & -- & -1.78 & -- \\
-      Nawiki & 1367 & 12108 & 408 & -- & -1.10 & -- \\
-      Moreno Health & 4754 & 12992 & 600 & -- & 2.30 & 64.04 \\
-      Edit Mrwiktionary & -- & 14375 & 75 & -- & -1.41 & -- \\
-      Petster Hamster & 4010 & 16654 & 2162 & -- & -0.84 & -- \\
-      Moreno Blogs & 2055 & 19048 & 1434 & -- & -3.73 & -- \\
-      P2P Gnutella09 & -- & 26036 & 561 & -- & -3.41 & -- \\
+      Maayan Vidal & 4562 & 6749 & 215 & -- & 1.10 & 85.08 \\
+      Urwiki & 2160 & 4018 & 59 & -- & 1.15 & 96.63 \\
+      Moreno Health & 4754 & 12992 & 600 & -- & 1.29 & 79.30 \\
+      Edit Mkwikisource & 6853 & 13824 & 140 & 399 & 1.33 & 68.45 \\
+      Edit Zuwiktionary & 1618 & 7555 & 247 & -- & 52.76 & 50.28 \\
+      Edit Guwikiquote & 2641 & 11387 & 778 & -- & 251.16 & 54.79 \\
+      \midrule
+      Euroroad & 1983 & 1440 & 10 & -- & -0.01 & -0.00 \\
+      Facebook & 2913 & 3003 & 17 & -- & -0.02 & -0.00 \\
+      Moreno & 2485 & 2300 & 25 & -- & -0.02 & -0.00 \\
+      Nawiki & 1367 & 12108 & 408 & -- & -0.05 & -0.00 \\
+      Dnc Corecipient & 1367 & 12108 & 408 & -- & -0.07 & -0.00 \\
+      Edit Srwikiquote & 2225 & 8695 & 235 & -- & -0.21 & -0.01 \\
+      Kuwiki & 1313 & 4951 & 0 & -- & -0.26 & -0.01 \\
+      Edit Vewiki & 2075 & 11069 & 82 & -- & -0.26 & -0.01 \\
+      Edit Mrwiktionary & 4276 & 14375 & 75 & -- & -2.01 & -0.10 \\
+      P2P Gnutella09 & -- & 26036 & 561 & -- & -3.41 & -0.17 \\
       \bottomrule
     \end{tabular}
-\end{table}
-    
+  \end{table}
+  
 Finally, we compared ACO and the $\theta$-heuristic on 32 graphs for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution.
 We measured time and performance for the $\theta$-Heuristic. In 17 trials, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming in only 4 trials.
 In these trials, ACO took only up to a second longer than the $\theta$-heuristic, suggesting that it can feasibly be used on much larger graphs to reduce runtime as it can on smaller graphs.
@@ -565,13 +623,13 @@ In these trials, ACO took only up to a second longer than the $\theta$-heuristic
 \subsection{Interpretation of Results}
 
 On the tested graphs, ACO outperforms the $\theta$-heuristic on 17 out of 31 trials, and underperforms only 4 times. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
-it often finds solutions 3-4x larger. Additionally, in cases where ACO does outperform the $\theta$-heuristic, it results in significantly speed boosts to the brute-force algorithm.
+it often finds solutions 3-4x larger -- for example, \texttt{DNC corecipient}, \texttt{moreno}, \texttt{nowikinews}, \texttt{matter}, and \texttt{wikitalknds}. Additionally, in cases where ACO does outperform the $\theta$-heuristic, it results in significantly speed boosts to the brute-force algorithm.
 
 Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. For example, FINISH.
 
 \subsection{Limitations}
 
-Our evaluation of ACO-seeded branch-and-pivot was constrained to six small graphs (\texttt{euroroad}, \texttt{facebook}, \texttt{kuwiki}, \texttt{maayan-vidal}, \texttt{moreno}, and \texttt{urwiki}). Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{matter}, \texttt{dimacs-polblogs}) was not feasible on the hardware available for this study. As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to the graphs where ACO's advantage over the $\theta$-heuristic is largest (see Section~4).
+Our evaluation of ACO-seeded branch-and-pivot was constrained to 16 small graphs. Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{matter}, \texttt{dimacs-polblogs}) was not feasible on the hardware available for this study. As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to the graphs where ACO's advantage over the $\theta$-heuristic is largest (see Section~4).
 
 However, it is likely that ACO seeding will scale to larger graphs. ACO's measured runtime scales polynomially with graph size, and thus does not .
 
@@ -587,7 +645,6 @@ cutting search time by as much as $98\%$.
 The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{dblp-cite}, \texttt{ciaodvd}, and \texttt{matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~1). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
 
 Additionally, ACO could be adapted to have N subspecies that find N solutions in parallel by using a repulsion mechanism similar to that proposed for diversity in other ant colony variants [9], extending previous multi-colony parallelization strategies [10].
-
 
 
 Code is available on \url{https://github.com/pooch63/aco-kmdb}.
@@ -646,8 +703,7 @@ ACO trials were run with 100 ants for a total of 5 iterations. \texttt{ITB} repr
 For both ACO and the $\theta$-heuristic, $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D*)|$ represent the number of $U$ vertices, $V$ vertices, and edges in their identified solutions. Times for both are shown in milliseconds.
 
 
-ANALYSIS STILL LEFT TO DO: Show the graphs somehow of aco solution quality with different combiniations of prefer smaller side and neighbor reduction, as well as the time it took to get that done
-Vary k and theta, even just doing k = 3 theta = 6, to see if this holds up.
+ANALYSIS STILL LEFT TO DO: Vary k and theta, even just doing k = 3 theta = 6, to see if this holds up.
 Try pivot but with all these new graphs
 
 OLD ACO, that doesn't use the candidate filtration method:
@@ -800,5 +856,132 @@ NEW ACO, that DOES use the candidate filtration method:
 \end{algorithm}
 
 $D^*$ is the $k$-MDB of the graph.
+
+We varied ACO configurations across two settings: whether an ant prefers the smaller side (P), and whether it restricts its search to
+just the neighbors of its most recently visited node (N). We find that ACO-PN outperforms all other configurations on runtime, and does not meaningfully sacrifice solution quality.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+  \begin{axis}[
+    width=0.88\textwidth,
+    height=0.52\textwidth,
+    xlabel={Edge density $|E|/(|U|\,|V|)$},
+    ylabel={Solution size $|E(D^*)|$},
+    xmode=log,
+    ymode=log,
+    grid=major,
+    legend to name=densitySizeLegend,
+    legend columns=3,
+    legend style={draw=none, fill=white, font=\small},
+    legend cell align=left,
+  ]
+\addplot+[only marks] coordinates {(1.1631069e-05,49) (0.0019625242,63) (0.00094482356,23) (0.0064956724,128) (0.0013629409,28) (0.022329152,228) (0.025969346,1433) (0.0070467859,183) (0.036419139,1883) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,478) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,40) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,22) (0.00015919162,8) (0.0016218473,23) (0.018066107,286) (0.0023010847,31) (1.8325098e-05,14) (0.025969346,1433) (0.0035810499,294) (0.0010602665,14) (0.0042024737,153) (0.00045038383,122) (0.0093764804,23) (0.0019650197,14)};
+\addlegendentry{ACO}
+\addplot+[only marks] coordinates {(1.1631069e-05,23) (0.0019625242,75) (0.00094482356,23) (0.0064956724,142) (0.0013629409,88) (0.022329152,270) (0.025969346,1442) (0.0070467859,183) (0.036419139,1606) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,358) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,68) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,23) (0.00015919162,79) (0.0016218473,23) (0.018066107,262) (0.0023010847,34) (1.8325098e-05,23) (0.025969346,1442) (0.0035810499,286) (0.0010602665,26) (0.0042024737,348) (0.00045038383,219) (0.0093764804,23) (0.0019650197,33)};
+\addlegendentry{ACO-N}
+\addplot+[only marks] coordinates {(1.1631069e-05,40) (0.0019625242,64) (0.00094482356,23) (0.0064956724,168) (0.0013629409,18) (0.022329152,229) (0.025969346,1374) (0.0070467859,183) (0.036419139,1883) (0.0095573239,103) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,411) (0.025295661,1763) (0.025145113,588) (2.0419928e-05,23) (0.0014800015,23) (0.037175043,23) (0.00074694313,34) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,16) (0.00015919162,13) (0.0016218473,23) (0.018066107,262) (0.0023010847,25) (1.8325098e-05,14) (0.025969346,1374) (0.0035810499,278) (0.0010602665,28) (0.0042024737,278) (0.00045038383,152) (0.0093764804,23) (0.0019650197,14)};
+\addlegendentry{ACO-P}
+\addplot+[only marks] coordinates {(1.1631069e-05,23) (0.0019625242,75) (0.00094482356,23) (0.0064956724,142) (0.0013629409,88) (0.022329152,270) (0.025969346,1442) (0.0070467859,183) (0.036419139,1606) (0.0095573239,34) (0.012805152,468) (0.0096935502,163) (0.0099197659,34) (0.011864703,123) (0.01330607,358) (0.025295661,1763) (0.025145113,588) (0.0014800015,23) (0.037175043,23) (0.00074694313,68) (3.2248941e-05,23) (0.020664813,288) (0.0014110223,23) (0.00015919162,79) (0.0016218473,23) (0.018066107,262) (0.0023010847,34) (1.8325098e-05,23) (0.025969346,1442) (0.0035810499,286) (0.0010602665,26) (0.0042024737,348) (0.00045038383,219) (0.0093764804,23) (0.0019650197,33)};
+\addlegendentry{ACO-PN}
+  \end{axis}
+  \end{tikzpicture}
+
+  \begin{center}
+  \ref{densitySizeLegend}
+  \end{center}
+  \caption{ACO solution size vs.\ graph edge density (flag settings).}
+  \label{fig:density-size}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+  \begin{axis}[
+    width=0.88\textwidth,
+    height=0.52\textwidth,
+    xlabel={Reduced edge density $|E_R|/(|U_R|\,|V_R|)$},
+    ylabel={Solution size / reduced nodes $|E(D^*)|/(|U_R|+|V_R|)$},
+    xmode=log,
+    ymode=log,
+    grid=major,
+    legend to name=densityRedNdSizeLegend,
+    legend columns=3,
+    legend style={draw=none, fill=white, font=\small},
+    legend cell align=left,
+  ]
+\addplot+[only marks] coordinates {(0.0076934559,0.0076023392) (0.013890455,0.018026565) (0.25510204,0.82142857) (0.022517995,0.024504084) (0.0042924209,0.016233167) (0.036381534,0.19989424) (0.078466663,0.58136483) (0.039751078,0.11311054) (0.087369441,0.59302326) (0.17355372,0.057142857) (0.099262499,0.44150943) (0.052964888,0.033751962) (0.051662404,0.046558704) (0.083238636,0.25840336) (0.1187886,1.2116402) (0.2283214,1.375195) (0.15613198,0.40840336) (0.92,2.3) (0.92,2.3) (0.5,1.3529412) (0.028859334,0.046296296) (0.92,2.3) (0.14946237,0.98293515) (0.050396167,0.060465116) (0.0015810709,0.0032379924) (0.32051282,0.92) (0.035686527,0.0090655509) (0.016738462,0.048333333) (0.058397021,0.090277778) (0.078466663,0.58136483) (0.017009252,0.136085) (0.084097035,0.040998217) (0.012192237,0.043015726) (0.0083885085,0.060925332) (0.26666667,0.23728814) (0.091871738,0.015463918)};
+\addlegendentry{$\theta$-Heuristic}
+\addplot+[only marks] coordinates {(0.0076934559,0.028654971) (0.013890455,0.029886148) (0.25510204,0.82142857) (0.022517995,0.049786075) (0.0042924209,0.0051650987) (0.036381534,0.12057113) (0.078466663,1.8805774) (0.039751078,0.23521851) (0.087369441,1.2164083) (0.17355372,0.24285714) (0.099262499,0.44150943) (0.052964888,0.12794349) (0.051662404,0.068825911) (0.083238636,0.25840336) (0.1187886,1.2645503) (0.2283214,1.375195) (0.15613198,0.98823529) (0.92,2.3) (0.92,2.3) (0.5,1.3529412) (0.028859334,0.061728395) (0.92,2.3) (0.14946237,0.98293515) (0.050396167,0.10232558) (0.0015810709,0.0014391078) (0.32051282,0.92) (0.035686527,0.19944212) (0.016738462,0.051666667) (0.058397021,0.097222222) (0.078466663,1.8805774) (0.017009252,0.12014712) (0.084097035,0.024955437) (0.012192237,0.070767808) (0.0083885085,0.055886395) (0.26666667,0.38983051) (0.091871738,0.072164948)};
+\addlegendentry{ACO}
+\addplot+[only marks] coordinates {(0.0076934559,0.013450292) (0.013890455,0.035578748) (0.25510204,0.82142857) (0.022517995,0.055231427) (0.0042924209,0.016233167) (0.036381534,0.1427816) (0.078466663,1.8923885) (0.039751078,0.23521851) (0.087369441,1.0374677) (0.17355372,0.24285714) (0.099262499,0.44150943) (0.052964888,0.12794349) (0.051662404,0.068825911) (0.083238636,0.25840336) (0.1187886,0.94708995) (0.2283214,1.375195) (0.15613198,0.98823529) (0.92,2.3) (0.92,2.3) (0.5,1.3529412) (0.028859334,0.10493827) (0.92,2.3) (0.14946237,0.98293515) (0.050396167,0.10697674) (0.0015810709,0.014211189) (0.32051282,0.92) (0.035686527,0.18270572) (0.016738462,0.056666667) (0.058397021,0.15972222) (0.078466663,1.8923885) (0.017009252,0.11687781) (0.084097035,0.046345811) (0.012192237,0.16096207) (0.0083885085,0.10032066) (0.26666667,0.38983051) (0.091871738,0.17010309)};
+\addlegendentry{ACO-N}
+\addplot+[only marks] coordinates {(0.0076934559,0.023391813) (0.013890455,0.030360531) (0.25510204,0.82142857) (0.022517995,0.065344224) (0.0042924209,0.0033204206) (0.036381534,0.12109995) (0.078466663,1.8031496) (0.039751078,0.23521851) (0.087369441,1.2164083) (0.17355372,0.73571429) (0.099262499,0.44150943) (0.052964888,0.12794349) (0.051662404,0.068825911) (0.083238636,0.25840336) (0.1187886,1.0873016) (0.2283214,1.375195) (0.15613198,0.98823529) (0.92,2.3) (0.92,2.3) (0.5,1.3529412) (0.028859334,0.052469136) (0.92,2.3) (0.14946237,0.98293515) (0.050396167,0.074418605) (0.0015810709,0.0023385501) (0.32051282,0.92) (0.035686527,0.18270572) (0.016738462,0.041666667) (0.058397021,0.097222222) (0.078466663,1.8031496) (0.017009252,0.1136085) (0.084097035,0.049910873) (0.012192237,0.12858464) (0.0083885085,0.069628951) (0.26666667,0.38983051) (0.091871738,0.072164948)};
+\addlegendentry{ACO-P}
+\addplot+[only marks] coordinates {(0.0076934559,0.013450292) (0.013890455,0.035578748) (0.25510204,0.82142857) (0.022517995,0.055231427) (0.0042924209,0.016233167) (0.036381534,0.1427816) (0.078466663,1.8923885) (0.039751078,0.23521851) (0.087369441,1.0374677) (0.17355372,0.24285714) (0.099262499,0.44150943) (0.052964888,0.12794349) (0.051662404,0.068825911) (0.083238636,0.25840336) (0.1187886,0.94708995) (0.2283214,1.375195) (0.15613198,0.98823529) (0.92,2.3) (0.5,1.3529412) (0.028859334,0.10493827) (0.92,2.3) (0.14946237,0.98293515) (0.050396167,0.10697674) (0.0015810709,0.014211189) (0.32051282,0.92) (0.035686527,0.18270572) (0.016738462,0.056666667) (0.058397021,0.15972222) (0.078466663,1.8923885) (0.017009252,0.11687781) (0.084097035,0.046345811) (0.012192237,0.16096207) (0.0083885085,0.10032066) (0.26666667,0.38983051) (0.091871738,0.17010309)};
+\addlegendentry{ACO-PN}
+  \end{axis}
+  \end{tikzpicture}
+
+  \begin{center}
+  \ref{densityRedNdSizeLegend}
+  \end{center}
+  \caption{Solution size per reduced node vs.\ reduced edge density ($\theta$-heuristic and ACO flag settings).}
+  \label{fig:density-red-nd-size}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+  \begin{axis}[
+    width=0.88\textwidth,
+    height=0.52\textwidth,
+    xlabel={Reduced edge density $|E_R|/(|U_R|\,|V_R|)$},
+    ylabel={Discovery time (s)},
+    xmode=log,
+    ymode=log,
+    grid=major,
+    legend to name=densityRedDensTimeLegend,
+    legend columns=3,
+    legend style={draw=none, fill=white, font=\small},
+    legend cell align=left,
+  ]
+\addplot+[only marks] coordinates {(0.0076934559,11.6898) (0.013890455,4.2498) (0.25510204,0.0198) (0.022517995,6.0808) (0.0042924209,206.628) (0.036381534,4.611) (0.078466663,0.5147) (0.039751078,5.7755) (0.087369441,33.2775) (0.17355372,0.296) (0.099262499,9.6894) (0.052964888,5.0569) (0.051662404,2.9165) (0.083238636,0.7945) (0.1187886,0.5688) (0.2283214,30.9465) (0.15613198,3.7622) (0.92,0.0278) (0.92,0.0136) (0.5,0.0163) (0.028859334,2.3724) (0.92,0.0246) (0.14946237,1.036) (0.050396167,0.1046) (0.0015810709,238.995) (0.32051282,0.0186) (0.035686527,2.6358) (0.016738462,1.7062) (0.058397021,0.1336) (0.078466663,0.5038) (0.017009252,3.2968) (0.084097035,0.6663) (0.012192237,15.9044) (0.0083885085,25.8427) (0.26666667,0.0768) (0.091871738,0.7575)};
+\addlegendentry{ACO}
+\addplot+[only marks] coordinates {(0.0076934559,0.6782) (0.013890455,0.5165) (0.25510204,0.0166) (0.022517995,0.6919) (0.0042924209,1.3103) (0.036381534,0.5811) (0.078466663,0.4035) (0.039751078,0.9854) (0.087369441,5.0466) (0.17355372,0.1526) (0.099262499,2.6327) (0.052964888,1.5138) (0.051662404,0.238) (0.083238636,0.2762) (0.1187886,0.3531) (0.2283214,7.0366) (0.15613198,0.8516) (0.92,0.0294) (0.92,0.0142) (0.5,0.0157) (0.028859334,0.1458) (0.92,0.0367) (0.14946237,0.3429) (0.050396167,0.0589) (0.0015810709,1.1174) (0.32051282,0.0211) (0.035686527,0.4865) (0.016738462,0.1313) (0.058397021,0.047) (0.078466663,0.3949) (0.017009252,0.6763) (0.084097035,0.1312) (0.012192237,0.4911) (0.0083885085,0.5037) (0.26666667,0.0644) (0.091871738,0.5189)};
+\addlegendentry{ACO-N}
+\addplot+[only marks] coordinates {(0.0076934559,0.0987) (0.013890455,0.2603) (0.25510204,0.0116) (0.022517995,0.2793) (0.0042924209,15.7636) (0.036381534,0.184) (0.078466663,0.3572) (0.039751078,0.7237) (0.087369441,17.2894) (0.17355372,0.0606) (0.099262499,1.4069) (0.052964888,2.257) (0.051662404,1.971) (0.083238636,0.5259) (0.1187886,0.2946) (0.2283214,4.8024) (0.15613198,1.0376) (0.92,0.0134) (0.92,0.0025) (0.5,0.0005) (0.028859334,0.2495) (0.92,0.0184) (0.14946237,0.2392) (0.050396167,0.0733) (0.0015810709,39.8631) (0.32051282,0.006) (0.035686527,0.1404) (0.016738462,0.4622) (0.058397021,0.038) (0.078466663,0.354) (0.017009252,0.574) (0.084097035,0.1205) (0.012192237,8.7631) (0.0083885085,1.4032) (0.26666667,0.0017) (0.091871738,0.3043)};
+\addlegendentry{ACO-P}
+\addplot+[only marks] coordinates {(0.0076934559,0.124) (0.013890455,0.0814) (0.25510204,0.0005) (0.022517995,0.4932) (0.0042924209,0.1302) (0.036381534,0.2892) (0.078466663,0.0436) (0.039751078,0.0317) (0.087369441,2.656) (0.17355372,0.0234) (0.099262499,0.9195) (0.052964888,0.0536) (0.051662404,0.0428) (0.083238636,0.0082) (0.1187886,0.0513) (0.2283214,2.3458) (0.15613198,0.5332) (0.92,0.0081) (0.5,0.0004) (0.028859334,0.0112) (0.92,0.0146) (0.14946237,0.2196) (0.050396167,0.0016) (0.0015810709,0.2666) (0.32051282,0.003) (0.035686527,0.3652) (0.016738462,0.0617) (0.058397021,0.0012) (0.078466663,0.0456) (0.017009252,0.3896) (0.084097035,0.0719) (0.012192237,0.0147) (0.0083885085,0.16) (0.26666667,0.0202) (0.091871738,0.0079)};
+\addlegendentry{ACO-PN}
+  \end{axis}
+  \end{tikzpicture}
+
+  \begin{center}
+  \ref{densityRedDensTimeLegend}
+  \end{center}
+  \caption{ACO discovery time vs.\ reduced edge density (flag settings).}
+  \label{fig:density-red-dens-time}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+  \begin{axis}[
+    width=0.72\textwidth,
+    height=0.48\textwidth,
+    xlabel={$\theta(|U_R|+|V_R|)+|E_R|$},
+    ylabel={Time (s)},
+    xmode=log,
+    ymode=log,
+    grid=major,
+  ]
+\addplot+[only marks] coordinates {(12725,0.0011) (25935,0.0038) (47937,0.0073) (58384,0.0076) (41979,0.0077) (15189,0.0017) (7218,0.0008) (16038,0.002) (1099,0.0001) (9930,0.0013) (11547,0.0012) (3985,0.0003) (5017,0.0006) (5275,0.0007) (13585,0.002) (6117,0.0007) (5998,0.0007) (3133,0.0004) (1622,0.0002) (39620,0.0034) (25214,0.003) (4496,0.0004) (1018,0.0003) (15189,0.0018) (37697,0.0069) (6861,0.0009) (24418,0.002) (20706,0.0029) (463,0.0001) (1586,0.0003)};
+  \end{axis}
+  \end{tikzpicture}
+
+  \caption{$\theta$-heuristic wall time vs.\ $\theta(|U_R|+|V_R|)+|E_R|$.}
+  \label{fig:density-theta-nm-time}
+\end{figure}
 
 \end{document}
