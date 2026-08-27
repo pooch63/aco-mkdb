@@ -1,5 +1,0 @@
-{
-    "scripts": {
-        "benchmark": "JITTER=2; julia tests/test_aco.jl --jitter=$JITTER --seed=67 --N=100 --no-optimum --save=results/aco.json ; julia tests/test_theta_heuristic.jl --seed=67 --jitter=$JITTER --N=100 --no-optimum --save=results/theta_heuristic.json ; julia tests/compare.jl results/aco.json results/theta_heuristic.json"
-    }
-}
