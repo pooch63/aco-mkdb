@@ -16,7 +16,7 @@ replicate 1 through that trial at the same ant count: sum of prior runs'
 that winning replicate only.
 
 Rows are grouped into three sections (each sorted ascending by ACO's
-|E(D*)|), separated by midrules:
+|E(D*)|), separated by midrules in one landscape table:
 
   1. ACO beat the θ-heuristic (θ-feasible ACO with strictly more edges,
      or ACO θ-feasible while the heuristic is not)
@@ -92,6 +92,8 @@ def summarize_file(data, ants=None):
         "reduced_nU": graph.get("reduced_nU"),
         "reduced_nV": graph.get("reduced_nV"),
         "reduced_edges": graph.get("reduced_edges"),
+        "reduced_max_degree": graph.get("reduced_max_degree"),
+        "reduced_avg_degree": graph.get("reduced_avg_degree"),
         "aco_nU": None if best is None else best.get("nU"),
         "aco_nV": None if best is None else best.get("nV"),
         "aco_edges": None if best is None else best.get("final_edges"),
@@ -195,18 +197,8 @@ def sectioned_rows(named_rows):
     )
 
 
-def build_table(named_rows):
-    caption = caption_k_theta([row for _, row in named_rows])
-    aco_rows, heur_rows, tie_rows = sectioned_rows(named_rows)
-    sections = [s for s in (aco_rows, heur_rows, tie_rows) if s]
-
-    lines = [
-        r"\begin{landscape}",
-        r"\begin{table}[htbp]",
-        r"  \centering",
-        rf"  \caption{{{caption}}}",
-        r"",
-        r"  \centering",
+def tabular_header_lines():
+    return [
         r"  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns",
         r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
         r"    \toprule",
@@ -217,20 +209,45 @@ def build_table(named_rows):
         r" & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\",
         r"    \midrule",
     ]
+
+
+def tabular_body_lines(sections):
+    """Render one or more row sections; midrule between sections, bottomrule at end."""
+    lines = []
     for i, section in enumerate(sections):
         for name, row in section:
             lines.append(row_tex(name, row))
-        # Midrule at the bottom of each section; bottomrule after the last.
         if i < len(sections) - 1:
             lines.append(r"    \midrule")
         else:
             lines.append(r"    \bottomrule")
+    return lines
+
+
+def build_landscape_table(caption, sections):
+    lines = [
+        r"\begin{landscape}",
+        r"\landscapetabletop",
+        r"\begin{table}[htbp]",
+        r"  \centering",
+        rf"  \caption{{{caption}}}",
+        r"",
+    ]
+    lines += tabular_header_lines()
+    lines += tabular_body_lines(sections)
     lines += [
         r"  \end{tabular}",
         r"\end{table}",
         r"\end{landscape}",
     ]
     return "\n".join(lines)
+
+
+def build_table(named_rows):
+    caption = caption_k_theta([row for _, row in named_rows])
+    aco_rows, heur_rows, tie_rows = sectioned_rows(named_rows)
+    sections = [s for s in (aco_rows, heur_rows, tie_rows) if s]
+    return build_landscape_table(caption, sections)
 
 
 def run(json_paths, output, ants=None):
