@@ -31,5 +31,5 @@ konect/dblp_cite
 konect/matter
 amazon/music
 amazon/appliances
-wikipedia/jawiki
-wikipedia/eswiki
+konect/jawiki
+konect/eswiki
