@@ -1,1 +1,241 @@
-{"run_pivot":false,"ants_range":[100],"aco_runs":5,"k":2,"edge_count":4896779,"base_seed":"1","best_trial":{"final_edges":23,"beats_heuristic":false,"iterations_to_best":1,"run":2,"time_to_best_s":0.0005,"ants":100,"theta_feasible":true,"seed":"2","nV":5,"nU":5,"wall_time_s":0.0027},"dataset":"wikipedia/eswiki","neighbor_scope_limit":false,"theta":5,"trials":[{"final_edges":23,"V":[233828,939069,2282717,2347889,3483484],"allocated_bytes":3052184,"beats_heuristic":false,"iterations_to_optimal":null,"time_to_best_s":0.0006,"rss_delta_bytes":0,"wall_time_s":0.0027,"missing":2,"matched_optimal":false,"U":[9698,9805,14050,30894,34074],"iterations_to_best":1,"run":1,"optimal_edges":null,"ants":100,"iterations_budget":5,"theta_feasible":true,"seed":"1","nV":5,"nU":5},{"final_edges":23,"V":[233828,939069,2282717,2347889,3483484],"allocated_bytes":3052520,"beats_heuristic":false,"iterations_to_optimal":null,"time_to_best_s":0.0005,"rss_delta_bytes":0,"wall_time_s":0.0027,"missing":2,"matched_optimal":false,"U":[9698,9805,14050,30894,34074],"iterations_to_best":1,"run":2,"optimal_edges":null,"ants":100,"iterations_budget":5,"theta_feasible":true,"seed":"2","nV":5,"nU":5},{"final_edges":23,"V":[233828,939069,2282717,2347889,3483484],"allocated_bytes":3052216,"beats_heuristic":false,"iterations_to_optimal":null,"time_to_best_s":0.0006,"rss_delta_bytes":0,"wall_time_s":0.0027,"missing":2,"matched_optimal":false,"U":[9698,9805,14050,30894,34074],"iterations_to_best":1,"run":3,"optimal_edges":null,"ants":100,"iterations_budget":5,"theta_feasible":true,"seed":"3","nV":5,"nU":5},{"final_edges":23,"V":[233828,939069,2282717,2347889,3483484],"allocated_bytes":3052280,"beats_heuristic":false,"iterations_to_optimal":null,"time_to_best_s":0.0006,"rss_delta_bytes":0,"wall_time_s":0.0027,"missing":2,"matched_optimal":false,"U":[9698,9805,14050,30894,34074],"iterations_to_best":1,"run":4,"optimal_edges":null,"ants":100,"iterations_budget":5,"theta_feasible":true,"seed":"4","nV":5,"nU":5},{"final_edges":23,"V":[233828,939069,2282717,2347889,3483484],"allocated_bytes":3052136,"beats_heuristic":false,"iterations_to_optimal":null,"time_to_best_s":0.0005,"rss_delta_bytes":0,"wall_time_s":0.0026,"missing":2,"matched_optimal":false,"U":[9698,9805,14050,30894,34074],"iterations_to_best":1,"run":5,"optimal_edges":null,"ants":100,"iterations_budget":5,"theta_feasible":true,"seed":"5","nV":5,"nU":5}],"vary":"ant-count","heuristic":{"final_edges":23,"V":[233828,939069,2282717,2347889,3483484],"allocated_bytes":3856,"rss_delta_bytes":0,"wall_time_s":0.0000,"missing":2,"matched_optimal":false,"U":[9698,9805,14050,30894,34074],"optimal_edges":null,"theta_feasible":true,"nV":5,"nU":5},"aco_discovery_s":0.0134,"seed":"1","prefer_smaller_side":true,"graph":{"reduced_nV":5,"reduced_edges":23,"reduction_time_s":2.2743,"frozen_bytes":1712,"reduced_nU":5,"nV":4896756,"mutable_bytes":1519257912,"nU":48972,"edges":4896779},"reduction":"simple"}
+{
+  "run_pivot": false,
+  "ants_range": [
+    100
+  ],
+  "aco_runs": 5,
+  "k": 2,
+  "edge_count": 4896779,
+  "base_seed": "1",
+  "best_trial": {
+    "final_edges": 23,
+    "beats_heuristic": false,
+    "iterations_to_best": 1,
+    "run": 2,
+    "time_to_best_s": 0.0005,
+    "ants": 100,
+    "theta_feasible": true,
+    "seed": "2",
+    "nV": 5,
+    "nU": 5,
+    "wall_time_s": 0.0027
+  },
+  "dataset": "wikipedia/eswiki",
+  "neighbor_scope_limit": false,
+  "theta": 5,
+  "trials": [
+    {
+      "final_edges": 23,
+      "V": [
+        233828,
+        939069,
+        2282717,
+        2347889,
+        3483484
+      ],
+      "allocated_bytes": 3052184,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0006,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0027,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        9698,
+        9805,
+        14050,
+        30894,
+        34074
+      ],
+      "iterations_to_best": 1,
+      "run": 1,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": true,
+      "seed": "1",
+      "nV": 5,
+      "nU": 5
+    },
+    {
+      "final_edges": 23,
+      "V": [
+        233828,
+        939069,
+        2282717,
+        2347889,
+        3483484
+      ],
+      "allocated_bytes": 3052520,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0005,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0027,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        9698,
+        9805,
+        14050,
+        30894,
+        34074
+      ],
+      "iterations_to_best": 1,
+      "run": 2,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": true,
+      "seed": "2",
+      "nV": 5,
+      "nU": 5
+    },
+    {
+      "final_edges": 23,
+      "V": [
+        233828,
+        939069,
+        2282717,
+        2347889,
+        3483484
+      ],
+      "allocated_bytes": 3052216,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0006,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0027,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        9698,
+        9805,
+        14050,
+        30894,
+        34074
+      ],
+      "iterations_to_best": 1,
+      "run": 3,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": true,
+      "seed": "3",
+      "nV": 5,
+      "nU": 5
+    },
+    {
+      "final_edges": 23,
+      "V": [
+        233828,
+        939069,
+        2282717,
+        2347889,
+        3483484
+      ],
+      "allocated_bytes": 3052280,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0006,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0027,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        9698,
+        9805,
+        14050,
+        30894,
+        34074
+      ],
+      "iterations_to_best": 1,
+      "run": 4,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": true,
+      "seed": "4",
+      "nV": 5,
+      "nU": 5
+    },
+    {
+      "final_edges": 23,
+      "V": [
+        233828,
+        939069,
+        2282717,
+        2347889,
+        3483484
+      ],
+      "allocated_bytes": 3052136,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0005,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0026,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        9698,
+        9805,
+        14050,
+        30894,
+        34074
+      ],
+      "iterations_to_best": 1,
+      "run": 5,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": true,
+      "seed": "5",
+      "nV": 5,
+      "nU": 5
+    }
+  ],
+  "vary": "ant-count",
+  "heuristic": {
+    "final_edges": 23,
+    "V": [
+      233828,
+      939069,
+      2282717,
+      2347889,
+      3483484
+    ],
+    "allocated_bytes": 3856,
+    "rss_delta_bytes": 0,
+    "wall_time_s": 0.0,
+    "missing": 2,
+    "matched_optimal": false,
+    "U": [
+      9698,
+      9805,
+      14050,
+      30894,
+      34074
+    ],
+    "optimal_edges": null,
+    "theta_feasible": true,
+    "nV": 5,
+    "nU": 5
+  },
+  "aco_discovery_s": 0.0134,
+  "seed": "1",
+  "prefer_smaller_side": true,
+  "graph": {
+    "reduced_nV": 5,
+    "reduced_edges": 23,
+    "reduction_time_s": 2.2743,
+    "frozen_bytes": 1712,
+    "reduced_nU": 5,
+    "nV": 4896756,
+    "mutable_bytes": 1519257912,
+    "nU": 48972,
+    "edges": 4896779,
+    "reduced_avg_degree": 4.6
+  },
+  "reduction": "simple"
+}
