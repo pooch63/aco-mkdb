@@ -123,6 +123,24 @@ function vary_run_seed(base_seed::UInt64, ant_index::Int, run::Int, n_runs::Int)
     return base_seed + offset
 end
 
+"""
+Max and mean degree over all vertices in a reduced frozen bipartite graph.
+Average is `2|E|/(|U|+|V|)` (each edge contributes to one U and one V degree).
+"""
+function reduced_degree_stats(fg::FrozenBipartite)
+    n = length(fg.u_ids) + length(fg.v_ids)
+    n == 0 && return (0, 0.0)
+    max_deg = 0
+    for u in fg.u_ids
+        max_deg = max(max_deg, degree_u(fg, u))
+    end
+    for v in fg.v_ids
+        max_deg = max(max_deg, degree_v(fg, v))
+    end
+    avg_deg = (2 * length(fg.v_adj)) / n
+    return (max_deg, avg_deg)
+end
+
 """Best trial by edges even if it did not beat the heuristic."""
 function select_best_trial_any(trials)
     usable = [t for t in trials if t.final_edges !== nothing]
@@ -343,12 +361,15 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     reduced_nU = length(fg.u_ids)
     reduced_nV = length(fg.v_ids)
     reduced_edges = length(fg.v_adj)
+    reduced_max_degree, reduced_avg_degree = reduced_degree_stats(fg)
     print_metric_block("Graph reduction";
         wall_time_s = m_red.time,
         allocated_bytes = m_red.allocated,
         reduced_nU,
         reduced_nV,
         reduced_edges,
+        reduced_max_degree,
+        reduced_avg_degree,
     )
     print_metric_block("Graph structure";
         nU,
@@ -357,11 +378,14 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
         reduced_nU,
         reduced_nV,
         reduced_edges,
+        reduced_max_degree,
+        reduced_avg_degree,
         mutable_graph_bytes = mutable_bytes,
         frozen_after_reduction_bytes = frozen_bytes,
     )
     graph_stats = (; nU, nV, edges = edge_count,
         reduced_nU, reduced_nV, reduced_edges,
+        reduced_max_degree, reduced_avg_degree,
         mutable_bytes, frozen_bytes, fg,
         reduction_time = m_red.time, reduction_allocated = m_red.allocated,
         reduction_rss_delta = m_red.rss_delta)
@@ -505,6 +529,8 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         "reduced_nU" => get(gs, :reduced_nU, length(gs.fg.u_ids)),
         "reduced_nV" => get(gs, :reduced_nV, length(gs.fg.v_ids)),
         "reduced_edges" => get(gs, :reduced_edges, length(gs.fg.v_adj)),
+        "reduced_max_degree" => get(gs, :reduced_max_degree, nothing),
+        "reduced_avg_degree" => get(gs, :reduced_avg_degree, nothing),
         "mutable_bytes" => gs.mutable_bytes,
         "frozen_bytes" => gs.frozen_bytes,
         "reduction_time_s" => gs.reduction_time,
