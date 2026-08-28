@@ -1,0 +1,30 @@
+{
+  "source": "main.tex",
+  "output": "build.tex",
+  "generated_dir": "generated",
+  "pdf": "build.pdf",
+  "fragments": {
+    "QUALITY": {
+      "emit": "quality",
+      "input": "../results/vary_k2t5i_PN",
+      "file": "quality.tex"
+    },
+    "SEED_COMPARE": {
+      "emit": "seed-compare",
+      "input": "../results/compare_k2t5i_konect-small",
+      "vary_dir": "../results/vary_k2t5i_PN",
+      "file": "seed-compare.tex"
+    },
+    "TABLE": {
+      "emit": "table",
+      "input": "../results/vary_k2t5i_PN",
+      "ants": 100,
+      "file": "table.tex"
+    },
+    "DENSITY": {
+      "emit": "density",
+      "input": "../results/vary_k2t5i_",
+      "file": "density.tex"
+    }
+  }
+}
