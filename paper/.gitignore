@@ -4,3 +4,8 @@
 *.log
 *.synctex.gz
 *.out
+
+# Paper build outputs (source of truth is main.tex + results/)
+build.tex
+build.pdf
+generated/
