@@ -16,8 +16,14 @@
     \pgfplotsset{compat=1.18}
 \usepackage{pdflscape}
 \usepackage[margin=1in]{geometry}
-% pdflscape leaves a full portrait top margin at the rotated top; pull tables up.
-\newcommand{\landscapetabletop}{\vspace*{-2.4cm}}
+% Wide appendix tables: landscape PDF pages via pdflscape.
+\newenvironment{landscapetable}{%
+  \clearpage
+  \begin{landscape}%
+}{%
+  \end{landscape}%
+  \clearpage
+}
 
 \title{A Novel Application of Ant Colony Optimization to $k$-defective Maximum Edge Bicliques}
 \author{Kiyaan Pillai}
@@ -26,7 +32,6 @@
 % --- Custom "parallel for each" block, wired into algpseudocodex's
 %     internal indent/highlight hooks (bare \algdef breaks the package's
 %     block tracking and throws \endcsname errors) ---
-% (Written by Claude)
 \makeatletter
 \algdef{SE}[FORPAR]{ForPar}{EndForPar}[1]%
   {\algpx@startIndent\algpx@startCodeCommand\textbf{parallel for each}\ #1\ \algorithmicdo}%
@@ -48,7 +53,13 @@
 \begin{document}
 \maketitle
 
-The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization. We adapt Ant Colony Optimization (ACO) to this problem and introduce a smaller side preference to outperform previously proposed heuristics. In some instances, ACO produces bicliques with 3-4x more edges than previously proposed heuristics. Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can reduce brute force search time by over $90\%$, though compute constraints limit the robustness of our test. This work examines a new heuristic approach to the $k$-MDB problem while identifying several improvements for future heuristics.
+\begin{abstract}
+The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization.
+We adapt Ant Colony Optimization (ACO) to this problem and introduce a smaller side preference to outperform previously proposed heuristics.
+In some instances, ACO produces bicliques with 3-4x more edges than previously proposed heuristics.
+Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can reduce brute force search time by up to $98\%$, though compute constraints limit the robustness of our test.
+This work examines a new heuristic approach to the $k$-MDB problem while identifying several improvements for future heuristics.
+\end{abstract}
 
 \section{Introduction}
 
@@ -201,7 +212,7 @@ Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two d
     \label{fig:k-defective-biclique}
 \end{figure}
 
-Define the neighbors of a node $u$ in a subgraph $S$ as $N_S(u) = \{v \in S \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \in S \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
+Define the neighbors of a node $u$ in a subgraph $S$ as $n_S(u) = \{v \in S \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a node as $\bar{N}_S(u) = \{v \in S \mid (u, v) \not\in E(S)\}$. Define the degree of a node as $d_S(u) = |n_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
 
 Define a maximal $k$-MDB as a subgraph $S$ that cannot be expanded. That is, for any node $u \not\in S$, $|\bar{E}(S \cup \{u\})| > k$. Define the maximum $k$-MDB as the largest maximal $k$-MDB in a graph $G$. Let $\theta$ be a user-defined limitation on the solution space. The algorithms proposed in this paper seek to find the maximum $k$-MDB where both sides have at least $\theta$ vertices. This is because, on real-world graphs, $k$-defective bicliques can be formed with many edges but disproportionate vertex counts, where one side has very few vertices while the other has many [1]. Without the $\theta$ term, the utility of the algorithm is limited.
 
@@ -233,17 +244,17 @@ Ants prefer to add nodes connected to the node they most recently visited. Intui
 \begin{algorithmic}
     \Ensure a subset of vertices $S$ such that $G(S)$ is a $k$-MDB
 
-    \Function{ACO}{$G$, $N_e$, $N_S$, $\rho$, $T$}
-        \ForAll{$u \in G$}
+    \Function{ACO}{$G$, $n_E$, $n_S$, $N$, $\rho$, $T$}
+        \ForAll{$u \in G$} 
             \State $\tau(u) \gets 1$
         \EndFor
         \State $e \gets 0$
 
         \State $B \gets \{\}$
         
-        \While{$e < N_e$}
+        \While{$e < n_E$}
             \State $e \gets e + 1$
-            \State $S \gets N_S$ empty subgraphs
+            \State $S \gets n_S$ empty subgraphs
             \State $\tau_C \gets \tau$
             
             \ForPar{$S_i \in S$}
@@ -252,7 +263,7 @@ Ants prefer to add nodes connected to the node they most recently visited. Intui
                     \State $L \gets$ the last node that was appended to $S$
                     \State $C_L \gets d_L$
 
-                    \If{$|C \cap C_L| > 0$}
+                    \If{$|C \cap C_L| > 0$ and $N$}
                         \State $search \gets C \cap C_L$
                     \Else
                         \State $search \gets C$
@@ -347,12 +358,9 @@ Finally, we implement the approach proposed by Cui et al. These authors observe 
 
 They then propose a branch-and-pivot algorithm that takes advantage of this initial heuristic upper bound. The algorithm checks combinations of $S = (U_S, V_S)$ by maintaining a candidate set $C = (U_C, V_C)$ of all remaining nodes $u \in G \mathrel{\text{s.t.}} |\bar{E}(S \cup \{u\})| \leq k$ that could still be added to $S$. It recursively chooses a node $u \in C$ and branches on $(S^\prime = S \cup \{u\}, C^\prime = \text{candidate set of } S^\prime)$ and $(S^\prime = S, C^\prime = C \setminus \{u\})$. Several optimizations are added to make this algorithm faster than a naive brute-force approach. Its time complexity is $O(m\beta_k^n)$, where $\beta$ is the largest real root of the equation $x^{2k + 5} - 2x^{2k + 4} +  x^{k + 3} - 2x + 2 = 0$. See Appendix B for full pseudocode. 
 
-The paper proposes several novel optimization techniques as well. These techniques are beyond the scope of this paper but were implemented during testing. These optimizations include several graph reduction techniques that remove nodes provably not part of a $k$-MDB.
-
+The paper proposes a graph reduction technique called common neighbor reduction. Common neighbor reduction prunes edges between nodes $n_1$ and $n_2$ if $n_1$ has fewer than $\theta - k$ common neighbors with $n_2$, and prunes nodes with fewer than $\theta - k$ edges.
 
 \subsection{Time Complexity}
-
-TO-DO: Review this and make sure it makes sense, but other than that... idk
 
 Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine a maximum of $n - 1$ nodes, and then $n - 2$ nodes, etc.
 Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = n(n + 1)/2$. Additionally, at each step, an ant generates a candidate set of nodes that could
@@ -365,6 +373,10 @@ encourages subgraphs with $\theta$ nodes on each side, an ant will empirically v
 $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, let $L$ be the last node an ant visited. An ant prefers to visit only the intersection of $d_L$ and its candidate set, so it often only visits $d_L$ or fewer nodes. Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (n + \max_{v \in G}d_v)$. Because $\max_{v \in G}d_v$ is necessarily lower than $n$ and almost always lower than $\min(|U_G|, |V_G|)$, ACO's complexity practically does not scale linearly with $n$ after the first iteration.
 
 The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$ [1].
+
+%%COMPARE:theta-time%%
+
+%%COMPARE:deg-size-time%%
 
 \subsection{Experimental Setup}
 
@@ -381,8 +393,7 @@ subset of graphs:
         \midrule
         Evaporation rate ($\rho$) & 0.05 \\
         Pheromone deposit ($T$) & 1 \\
-        Number of epochs ($N_e$) & 5 \\
-        Number of ants ($N_S$) & varied, 1--100 (see below) \\
+        Number of epochs ($n_E$) & 5 \\
         Smaller-side preference factor ($P$) & 2 \\
         k & 2 \\
         $\theta$ & 5 \\
@@ -390,40 +401,60 @@ subset of graphs:
     \end{tabular}
 \end{table}
 
-When testing ACO and the $\theta$-heuristic, a biclique with $k$ missing edges and $\theta$ vertices on each side was injected into the graph.
+$\rho$, $T$, $n_E$ and $P$ were determined empirically as maximizing solution quality while not unnecessarily increasing time.
 
-\section{Results}
+When testing ACO and the $\theta$-heuristic, a biclique with $k$ missing edges and $\theta$ vertices on each side was injected into the graph to make graphs without a naturally occuring $k$-DB usable for tests. Sometimes, graphs may have bicliques larger than the injection.
 
-We use several graphs from \url{konect.cc}, a registry of bipartite graphs. We first applied the reductions proposed by Cui et al., and then ran both ACO and the $\theta$-heuristic.
+We test on 36 different graphs, consisting of 33 graphs from \url{konect.cc} and 3 graphs from \url{2023-amazon-reviews.github.io}. For the pivoting test, we test on a subset of 21 graphs. On the other 15 graphs, ACO was able to beat the $\theta$-heuristic but the branch-and-pivot approach took longer than a timeout of 2000 seconds for both the traditional $\theta$-heuristic and ACO seeded runs, making a time comparison on our current hardware.
+
+First, ants were varied across $\{1, 2, 5, 10, 20, 50, 100\}$. Solution quality was measured, both in terms of edge count and the percentage of ant solutions that had more than $\theta$ nodes on both sides (referred to as $\theta$ feasibility rate). Wall clock time is also shown to scale linearly with the number of ants. We aim to examine tradeoffs between ant count and results.
+
+Second, we hypothesize that ACO can provide a larger initial lower bound on the maximum solution than the $\theta$-heuristic and significantly reduce branch and pivot execution time.
+
+Finally, we propose two optimizations to traditional ACO. First, we propose an ACO algorithm that weights nodes on the smaller side of its subgraph higher, called prefer smaller side, or P. We also propose an optimization that only allows an ant to travel to a neighbor of its most recently visited node, called neighbor scope limit, or N. ACO, ACO-P, ACO-N, and ACO-PN, to denote traditional ACO, ACO with P, ACO with N, and ACO with P and N, respectively, were tested on the suite of 36 graphs.
+We show that neighbor scope limit improves solution quality, and prefer smaller side decreases execution time.
 
 All tests were run with 8 threads on a computer with Ubuntu, an Intel(R) Core(TM) Ultra 7 258V, and 32 gigabytes of RAM.
 
-We also vary the number of ants and analyze the effect on run time as well as solution quality. We compare ACO results to $\theta$-heuristic results. Finally, because Branch and Pivot can prune more branches with a larger initial $D^*$, we demonstrate the speed increase from using ACO as the heuristic seeding method in cases where ACO outperformed the $\theta$-heuristic. Ant count $N_S$ is varied across $\{1, 2, 5, 10, 20, 50, 100\}$.
+TO-DO: Same number of ants, varying number of iterations
+
+NOTE to self: Mention how on those small graphs, ACO is likely to tie with the theta heuristic, so it's precisely on the graphs that we can test on that ACO is least likely to demonstrate promising results.
+
+\section{Results}
+
+We also vary the number of ants and analyze the effect on run time as well as solution quality. We compare ACO results to $\theta$-heuristic results. Finally, because Branch and Pivot can prune more branches with a larger initial $D^*$, we demonstrate the speed increase from using ACO as the heuristic seeding method in cases where ACO outperformed the $\theta$-heuristic. Ant count $n_S$ is varied across $\{1, 2, 5, 10, 20, 50, 100\}$.
 
 %%QUALITY%%
     
-We observe that a marginal increase in the initial upper bound of the subgraph for Branch and Pivot allows the algorithm to prune more branches, and can sometimes result in significant decreases in runtime. ACO was run $5$ times, and the largest $k$-DB was used. If this $k$-DB had more edges than the $\theta$-heuristic output, the pivot algorithm was then run using only the $theta$-heuristic solution as a seed, and then using the ACO solution as a seed.
+We observe that a marginal increase in the initial upper bound of the subgraph for Branch and Pivot allows the algorithm to prune more branches, and can sometimes result in significant decreases in runtime. ACO was run $5$ times, and the largest $k$-DB was used. If this $k$-DB had more edges than the $\theta$-heuristic output, the pivot algorithm was then run using only the $\theta$-heuristic solution as a seed, and then using the ACO solution as a seed.
 We measure the difference between the pivot algorithm runtime, adding the time ACO took to run to its final pivot time. We summarize our results below.
 
 %%SEED_COMPARE%%
-Finally, we compared ACO and the $\theta$-heuristic on 32 graphs for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution.
-We measured time and performance for the $\theta$-Heuristic. In 17 trials, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming in only 4 trials.
+Finally, we compared ACO and the $\theta$-heuristic on the 36 graphs for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution.
+We measured time and performance for the $\theta$-Heuristic. In 17 trials, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming in only 5 trials and tying in 11.
 In these trials, ACO took only up to a second longer than the $\theta$-heuristic, suggesting that it can feasibly be used on much larger graphs to reduce runtime as it can on smaller graphs.
+
+%%COMPARE:pn%%
 
 \section{Discussion}
 
 \subsection{Interpretation of Results}
 
-On the tested graphs, ACO outperforms the $\theta$-heuristic on 17 out of 31 trials, and underperforms only 4 times. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
+On the tested graphs, ACO outperforms the $\theta$-heuristic on 17 out of 31 trials, and underperforms only 5 times while tying 11. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
 it often finds solutions 3-4x larger -- for example, \texttt{DNC corecipient}, \texttt{moreno}, \texttt{nowikinews}, \texttt{matter}, and \texttt{wikitalknds}. Additionally, in cases where ACO does outperform the $\theta$-heuristic, it results in significantly speed boosts to the brute-force algorithm.
 
-Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. For example, FINISH.
+Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. On the 6 graphs where ACO beat the $\theta$-heuristic and ACO-seeded run reduces runtime between $54\%$ and $98\%$.
+
+ACO-N has significantly better solution quality than traditional ACO and ACO-P. We hypothesize this is because, when allowing an ant to add any node possible, in the early stages, an ant takes a subgraph of two nodes that are not connected.
+By requiring any future additions to share an edge with the most recently visited neighbor, ants are discouraged from creating initial subgraphs with few connections. Indeed, we find that with ACO-N, the average number of missing edges after a subgraph has reached
+5 vertices is \_\_, much smaller than the average of \_\_ edges using plain ACO.
 
 \subsection{Limitations}
 
-Our evaluation of ACO-seeded branch-and-pivot was constrained to 16 small graphs. Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{matter}, \texttt{dimacs-polblogs}) was not feasible on the hardware available for this study. As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to the graphs where ACO's advantage over the $\theta$-heuristic is largest (see Section~4).
-
-However, it is likely that ACO seeding will scale to larger graphs. ACO's measured runtime scales polynomially with graph size, and thus does not .
+Our evaluation of ACO-seeded branch-and-pivot was constrained to 21 small graphs.
+Branch-and-pivot's runtime grows exponentially with graph size even under a tight bound, and running it to completion on our larger test graphs (e.g., \texttt{matter}, \texttt{dimacs-polblogs}) was not feasible on the hardware available for this study.
+As a result, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to larger instances.
+However, it is likely that ACO seeding will scale to larger graphs. We examined all 16 graphs in which ACO tied or lost to the $\theta$-heurstic but only 6 of the 17 graphs in which it won.
 
 Additionally, we injected bicliques with $\theta$ vertices on both sides into the graphs. [1] states that their proposed $\theta$-heuristic was inspired by $k$-MDB with exactly $\theta$ vertices on one side and many more vertices on the other side. However, out of the 17 graphs where ACO beat the $\theta$-heuristic, on 8, the ACO solution had exactly $\theta$ nodes on one side. This suggests that, even on graphs where the solution meets the condition for which the $\theta$-heuristic was designed, ACO can outperform its solution quality in certain instances.
 
@@ -498,79 +529,7 @@ For both ACO and the $\theta$-heuristic, $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D*)|$
 ANALYSIS STILL LEFT TO DO: Vary k and theta, even just doing k = 3 theta = 6, to see if this holds up.
 Try pivot but with all these new graphs
 
-OLD ACO, that doesn't use the candidate filtration method:
-\begin{landscape}
-\landscapetabletop
-    \begin{table}[htbp]
-      \centering
-      \caption{$k=2, \theta=5$: ACO and $\theta$-heuristic wins}
-    
-      \centering
-      \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns
-      \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns
-        \toprule
-        Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$ & \multicolumn{6}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\
-        \cmidrule(lr){8-13} \cmidrule(lr){14-17}
-        & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ITB & TTB & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\
-        \midrule
-        Urwiki & 221 & 1939 & 4018 & 14 & 45 & 168 & 5 & 5 & 23 & 1.7 & 1 & 1.7 & 5 & 3 & 14 & 0.0 \\
-        Gnutella & 4935 & 10856 & 40017 & 421 & 227 & 2758 & 6 & 7 & 40 & 242.0 & 3 & 61.3 & 5 & 6 & 30 & 0.3 \\
-        Bitcoin & 3286 & 3754 & 24209 & 1003 & 1105 & 15395 & 13 & 5 & 63 & 1266.5 & 5 & 255.7 & 5 & 8 & 38 & 1.3 \\
-        Ciaodvd & 1438 & 4299 & 40156 & 978 & 1593 & 35082 & 26 & 5 & 128 & 1613.8 & 4 & 238.9 & 5 & 13 & 63 & 2.3 \\
-        Petster Hamster & 2244 & 1766 & 16654 & 1310 & 852 & 13608 & 31 & 5 & 153 & 8803.5 & 3 & 563.2 & 5 & 19 & 93 & 1.2 \\
-        Edit Guwikiquote & 963 & 1678 & 11387 & 129 & 649 & 3328 & 5 & 37 & 183 & 730.5 & 1 & 25.9 & 5 & 18 & 88 & 0.5 \\
-        Moreno Blogs & 1065 & 990 & 19048 & 809 & 625 & 18044 & 9 & 32 & 286 & 962.8 & 4 & 129.9 & 5 & 3 & 13 & 1.0 \\
-        Edit Vewiki & 543 & 1532 & 11069 & 104 & 274 & 3385 & 6 & 80 & 478 & 325.7 & 2 & 23.3 & 5 & 92 & 458 & 0.4 \\
-        Edit Zuwiktionary & 214 & 1404 & 7555 & 36 & 559 & 3142 & 5 & 118 & 588 & 467.7 & 1 & 24.9 & 5 & 49 & 243 & 0.5 \\
-        Dnc Corecipient & 653 & 714 & 12108 & 393 & 369 & 11379 & 35 & 41 & 1433 & 52.0 & 4 & 52.0 & 5 & 89 & 443 & 1.0 \\
-        Nawiki & 653 & 714 & 12108 & 393 & 369 & 11379 & 35 & 41 & 1433 & 53.2 & 4 & 53.2 & 5 & 89 & 443 & 1.5 \\
-        \midrule
-        P2P Gnutella09 & 3055 & 8038 & 26036 & 455 & 106 & 4056 & 4 & 4 & 14 & 14.1 & 2 & 14.1 & 5 & 5 & 23 & 0.3 \\
-        Dblp Cite & 3158 & 11566 & 49782 & 2466 & 2955 & 31279 & 5 & 6 & 28 & 5259.9 & 3 & 5259.9 & 5 & 18 & 88 & 2.6 \\
-        Moreno Health & 2313 & 2441 & 12992 & 325 & 275 & 1496 & 11 & 3 & 31 & 405.5 & 2 & 50.3 & 5 & 6 & 29 & 0.2 \\
-        Pgp Arenas & 5596 & 9657 & 24339 & 936 & 1247 & 9791 & 4 & 31 & 122 & 211.3 & 1 & 211.3 & 5 & 27 & 133 & 1.0 \\
-        Dimacs Polblogs & 1224 & 1224 & 33453 & 945 & 946 & 32524 & 10 & 23 & 228 & 586.7 & 4 & 212.7 & 5 & 76 & 378 & 2.8 \\
-        Openflights & 2918 & 2921 & 30523 & 1225 & 1222 & 25462 & 8 & 37 & 294 & 280.5 & 4 & 280.5 & 5 & 67 & 333 & 2.7 \\
-        \bottomrule
-      \end{tabular}
-    \end{table}
-    \end{landscape}
-
-\begin{landscape}
-\landscapetabletop
-    \begin{table}[htbp]
-      \centering
-      \caption{$k=2, \theta=5$: ties and mutual $\theta$-infeasibility}
-    
-      \centering
-      \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns
-      \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns
-        \toprule
-        Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$ & \multicolumn{6}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\
-        \cmidrule(lr){8-13} \cmidrule(lr){14-17}
-        & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ITB & TTB & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\
-        \midrule
-        Matter & 16726 & 22015 & 58618 & 2283 & 3276 & 11825 & 2 & 5 & 8 & 24900.0 & 3 & 7906.6 & 5 & 4 & 18 & 1.3 \\
-        Music & 100952 & 70519 & 130457 & 63 & 81 & 298 & 4 & 4 & 14 & 32.5 & 2 & 3.7 & 5 & 3 & 13 & 0.1 \\
-        Wiki Talk Nds & 605 & 23094 & 27455 & 45 & 149 & 616 & 4 & 4 & 14 & 238.0 & 1 & 5.3 & 5 & 1 & 3 & 0.1 \\
-        Maayan Vidal & 1633 & 2929 & 6749 & 81 & 134 & 547 & 3 & 8 & 22 & 2.4 & 1 & 2.4 & 5 & 3 & 13 & 0.1 \\
-        Boxes & 15237 & 1128 & 16239 & 14 & 14 & 50 & 5 & 5 & 23 & 8.0 & 1 & 0.4 & 5 & 5 & 23 & 0.0 \\
-        Eswiki & 48972 & 4896756 & 4896779 & 5 & 5 & 23 & 5 & 5 & 23 & 13.6 & 1 & 0.3 & 5 & 5 & 23 & 0.0 \\
-        Euroroad & 891 & 1092 & 1440 & 5 & 5 & 23 & 5 & 5 & 23 & 7.2 & 1 & 0.3 & 5 & 5 & 23 & 0.0 \\
-        Facebook & 28 & 2885 & 3003 & 9 & 8 & 36 & 5 & 5 & 23 & 4.4 & 1 & 0.4 & 5 & 5 & 23 & 0.0 \\
-        Jawiki & 31009 & 3100497 & 3100520 & 5 & 5 & 23 & 5 & 5 & 23 & 6.8 & 1 & 0.3 & 5 & 5 & 23 & 0.0 \\
-        Moreno & 888 & 1597 & 2300 & 13 & 12 & 50 & 5 & 5 & 23 & 7.6 & 1 & 0.4 & 5 & 5 & 23 & 0.0 \\
-        Appliances & 1755732 & 104237 & 2128628 & 1289 & 421 & 4175 & 17 & 3 & 49 & 1811.6 & 2 & 425.1 & 5 & 3 & 13 & 0.4 \\
-        Edit Srwikiquote & 402 & 1823 & 8695 & 80 & 396 & 2637 & 5 & 25 & 123 & 448.2 & 1 & 11.2 & 5 & 25 & 123 & 0.4 \\
-        Kuwiki & 219 & 1094 & 4951 & 45 & 248 & 1668 & 5 & 58 & 288 & 219.6 & 1 & 6.8 & 5 & 58 & 288 & 0.3 \\
-        Edit Mrwiktionary & 281 & 3995 & 14375 & 46 & 1014 & 4630 & 5 & 94 & 468 & 1328.5 & 1 & 54.7 & 5 & 94 & 468 & 0.7 \\
-        \bottomrule
-      \end{tabular}
-    \end{table}
-    \end{landscape}
-    
-NEW ACO, that DOES use the candidate filtration method:
-%%TABLE%%
+%%TABLE:PN%%
 
 \section{Branch and Pivot Pseudocode}
 
@@ -613,9 +572,5 @@ NEW ACO, that DOES use the candidate filtration method:
 \end{algorithm}
 
 $D^*$ is the $k$-MDB of the graph.
-
-We varied ACO configurations across two settings: whether an ant prefers the smaller side (P), and whether it restricts its search to
-just the neighbors of its most recently visited node (N). We find that ACO-PN outperforms all other configurations on runtime, and does not meaningfully sacrifice solution quality.
-%%DENSITY%%
 
 \end{document}
