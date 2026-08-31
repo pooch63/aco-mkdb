@@ -2,4 +2,4 @@
 
 __all__ = ["MODES"]
 
-MODES = ("quality", "seed-compare", "table", "density")
+MODES = ("quality", "seed-compare", "table", "compare", "statistics")

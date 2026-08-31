@@ -65,7 +65,9 @@ This work examines a new heuristic approach to the $k$-MDB problem while identif
 
 A bipartite graph is a common graph structure where one set of vertices is connected solely to another. Bipartite graphs can model user-product behavior, person-place interaction, and more. A biclique is a set of vertices on a bipartite graph such that each vertex on one side is connected to each vertex on the other.  The maximum edge biclique problem aims to identify the biclique with the most edges on a bipartite graph.  The problem has applications in online recommendation systems, fraud detection, and community detection [1].
 
-Real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique ($k$-DB), can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emerging field.
+Consider an e-commerce platform that models buyers and products as a bipartite graph. A coordinated fraud ring may produce a block of accounts that purchase overlapping sets of items, yielding a subgraph that is almost fully connected across the two sides; requiring a perfect biclique would discard this signal whenever a few transactions are omitted deliberately or lost to incomplete logging. A similar pattern arises in recommendation, where a large set of users who rated nearly the same catalog of movies still indicates a meaningful community worth surfacing, even when a handful of ratings are missing. In both settings, what matters is not perfect completeness but a dense, near-bipartite structure that remains interpretable under small amounts of noise.
+
+More generally, real-world data often introduces noise to graphs, and structures with relatively few missing connections may still be relevant. A biclique that is allowed up to $k$ missing edges, or $k$-defective biclique ($k$-DB), can overcome this real-world noise. Identifying the maximum $k$-defective edge biclique ($k$-MDB) remains an emerging field.
 
 The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm that can run in polynomial time and is guaranteed to find the maximum solution. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
 
@@ -222,11 +224,15 @@ Finding the maximum $k$-MDB on a bipartite graph is an NP-hard optimization prob
 
 \subsection{Previous Work}
 
+Related dense subgraph models provide context for the $k$-MDB formulation. In unipartite graphs, \emph{defective cliques}---subgraphs missing at most a bounded number of edges---were introduced to recover nearly complete structure from noisy biological interaction networks [12]. Subsequent exact algorithms for the maximum $k$-defective clique problem have primarily used branch-and-bound frameworks with graph reduction and upper-bound pruning [13], [14]. On bipartite graphs, relaxed models include $k$-biplexes, which permit each vertex a fixed number of cross-side non-neighbors and can proliferate as $k$ grows [15], and $k$-defective bicliques, which bound missing edges globally and generalize bicliques when $k = 0$ [1], [11]. Across both settings, the dominant algorithmic toolkit combines exact search, aggressive graph reduction, and construct-and-expand heuristics to obtain strong initial bounds.
+
 Cui et al. [1] proposed a brute-force approach to the $k$-MDB problem, as well as an initial heuristic designed to find a $k$-MDB with exactly $\theta$ nodes on one side of the graph.
 
 Concurrently, Wang et al. [11] studied a related but distinct formulation: the maximum $k$-defective biclique measured by vertex count rather than edge count, with a similar minimum vertex count on both sides. They develop an exact branch-and-bound algorithm with time complexity $\mathcal{O}^*(\gamma^{n + k})$, tightened to
 $\mathcal{O}^*(\gamma^{\alpha\delta^2 + k})$ by exploiting a diameter-three property of large defective bicliques, and propose an analogous construct-and-expand heuristic (greedy initial construction followed by one-sided greedy expansion) to seed their search.
 Because their objective differs from ours, we do not benchmark directly against their algorithm, but their diameter-three pruning and expansion-based seeding strategy are directly relevant to future extensions of this work (Section 6.1).
+
+Ant Colony Optimization is a natural metaheuristic for problems where high-quality solutions are built incrementally by adding vertices under local feasibility constraints. In the maximum clique problem, ACO algorithms construct cliques greedily while using pheromone to reinforce vertices that appear in large solutions [8]. The $k$-MDB problem has similar structure: an ant can grow a near-biclique vertex by vertex, checking at each step whether the defect budget permits another addition. By contrast, population-based encodings such as genetic algorithms must represent membership across both partitions simultaneously; in our experiments, a GA adapted from the GCLIQUE framework [3] underperformed both ACO and the $\theta$-heuristic, likely because crossover and mutation on such a high-dimensional bitmask struggle to preserve the global density constraint across two vertex sets. Simulated annealing and other single-solution perturbation methods face a related difficulty: maintaining feasibility under the global edge-missing budget while exploring diverse vertex sets requires problem-specific move operators that are less direct than ACO's constructive expansion. These considerations motivate our choice of MMAS [4] over alternative metaheuristics for seeding exact search on $k$-MDB instances.
 
 \section{Methods}
 
@@ -326,6 +332,22 @@ We observe that ACO has trouble generating graphs with at least $\theta$ nodes b
 
 We attempted an elitist approach to lay additional pheromone on subgraphs with higher fitnesses according to a fitness function, as well as implementing local tabu search on ant subgraphs to prioritize solutions that are more likely to grow. We implemented the MAX-MIN Ant System as well. Finally, we attempted a genetic algorithm approach adapted from Shah's GCLIQUE framework [3], but found it underperformed both ACO and the $\theta$-heuristic, likely due to the high dimensionality of the encoding required to represent biclique membership across both vertex sets. 
 
+\subsection{Time Complexity}
+
+Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine a maximum of $n - 1$ nodes, and then $n - 2$ nodes, etc.
+Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = n(n + 1)/2$. Additionally, at each step, an ant generates a candidate set of nodes that could
+still be added to its subgraph. This pass is optimized to be $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large,
+the upper time complexity would therefore be $\mathcal{O}(A \times I \times (n^2 + n))$ for $A$ ants advancing for $I$ iterations, but this would be dominated by $n^2$.
+In a parallelized implementation with $p$ processors, the true upper complexity bound is $\mathcal{O}(\lceil A / p \rceil \times I \times n^2)$.
+
+In practice, however, there are two factors limiting this complexity. First, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because smaller side preference
+encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of
+$\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, let $L$ be the last node an ant visited. An ant prefers to visit only the intersection of $d_L$ and its candidate set, so it often only visits $d_L$ or fewer nodes. Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (n + \max_{v \in G}d_v)$. Because $\max_{v \in G}d_v$ is necessarily lower than $n$ and almost always lower than $\min(|U_G|, |V_G|)$, ACO's complexity practically does not scale linearly with $n$ after the first iteration.
+
+%%COMPARE:theta-time%%
+
+%%COMPARE:deg-size-time%%
+
 \subsection{Brute Force Approach}
 
 Finally, we implement the approach proposed by Cui et al. These authors observe that many $k$-MDB have one side with exactly $\theta$ vertices and propose a heuristic that removes nodes from one side while adding nodes to another until there are $\theta$ nodes on that side. We summarize their algorithm below.
@@ -360,23 +382,7 @@ They then propose a branch-and-pivot algorithm that takes advantage of this init
 
 The paper proposes a graph reduction technique called common neighbor reduction. Common neighbor reduction prunes edges between nodes $n_1$ and $n_2$ if $n_1$ has fewer than $\theta - k$ common neighbors with $n_2$, and prunes nodes with fewer than $\theta - k$ edges.
 
-\subsection{Time Complexity}
-
-Let $n = |U_G| + |V_G|$ and $m = |E_G|$. For each ant, it must first examine $n$ nodes. At the next step, it will examine a maximum of $n - 1$ nodes, and then $n - 2$ nodes, etc.
-Therefore, an ant will examine at most $n + (n - 1) + (n - 2) \ldots = n(n + 1)/2$. Additionally, at each step, an ant generates a candidate set of nodes that could
-still be added to its subgraph. This pass is optimized to be $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large,
-the upper time complexity would therefore be $\mathcal{O}(A \times I \times (n^2 + n))$ for $A$ ants advancing for $I$ iterations, but this would be dominated by $n^2$.
-In a parallelized implementation with $p$ processors, the true upper complexity bound is $\mathcal{O}(\lceil A / p \rceil \times I \times n^2)$.
-
-In practice, however, there are two factors limiting this complexity. First, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because smaller side preference
-encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of
-$\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, let $L$ be the last node an ant visited. An ant prefers to visit only the intersection of $d_L$ and its candidate set, so it often only visits $d_L$ or fewer nodes. Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (n + \max_{v \in G}d_v)$. Because $\max_{v \in G}d_v$ is necessarily lower than $n$ and almost always lower than $\min(|U_G|, |V_G|)$, ACO's complexity practically does not scale linearly with $n$ after the first iteration.
-
 The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$ [1].
-
-%%COMPARE:theta-time%%
-
-%%COMPARE:deg-size-time%%
 
 \subsection{Experimental Setup}
 
@@ -401,13 +407,15 @@ subset of graphs:
     \end{tabular}
 \end{table}
 
-$\rho$, $T$, $n_E$ and $P$ were determined empirically as maximizing solution quality while not unnecessarily increasing time.
+$\rho$ was tuned manually by observing convergence behavior on a small subset of graphs; $T$, $n_E$, and $P$ were set to reasonable fixed values without a formal search. A more systematic hyperparameter study is left to future work.
 
 When testing ACO and the $\theta$-heuristic, a biclique with $k$ missing edges and $\theta$ vertices on each side was injected into the graph to make graphs without a naturally occuring $k$-DB usable for tests. Sometimes, graphs may have bicliques larger than the injection.
 
-We test on 36 different graphs, consisting of 33 graphs from \url{konect.cc} and 3 graphs from \url{2023-amazon-reviews.github.io}. For the pivoting test, we test on a subset of 21 graphs. On the other 15 graphs, ACO was able to beat the $\theta$-heuristic but the branch-and-pivot approach took longer than a timeout of 2000 seconds for both the traditional $\theta$-heuristic and ACO seeded runs, making a time comparison on our current hardware.
+We test on 36 graphs from two public collections: 33 from KONECT (\url{konect.cc}), a standard repository of real-world bipartite networks, and 3 from Amazon Reviews 2023 (\url{2023-amazon-reviews.github.io}), user-product review graphs in selected product categories.
 
-First, ants were varied across $\{1, 2, 5, 10, 20, 50, 100\}$. Solution quality was measured, both in terms of edge count and the percentage of ant solutions that had more than $\theta$ nodes on both sides (referred to as $\theta$ feasibility rate). Wall clock time is also shown to scale linearly with the number of ants. We aim to examine tradeoffs between ant count and results.
+For the pivoting test, we test on a subset of 21 graphs. On the other 15 graphs, ACO was able to beat the $\theta$-heuristic but the branch-and-pivot approach took longer than a timeout of 2000 seconds for both the traditional $\theta$-heuristic and ACO seeded runs, making a time comparison on our current hardware.
+
+First, ants were varied across $\{2, 5, 10, 20, 50, 100, 200\}$. Solution quality was measured, both in terms of edge count and the percentage of ant solutions that had more than $\theta$ nodes on both sides (referred to as $\theta$ feasibility rate). Wall clock time is also shown to scale linearly with the number of ants. We aim to examine tradeoffs between ant count and results.
 
 Second, we hypothesize that ACO can provide a larger initial lower bound on the maximum solution than the $\theta$-heuristic and significantly reduce branch and pivot execution time.
 
@@ -418,20 +426,20 @@ All tests were run with 8 threads on a computer with Ubuntu, an Intel(R) Core(TM
 
 TO-DO: Same number of ants, varying number of iterations
 
-NOTE to self: Mention how on those small graphs, ACO is likely to tie with the theta heuristic, so it's precisely on the graphs that we can test on that ACO is least likely to demonstrate promising results.
-
 \section{Results}
 
-We also vary the number of ants and analyze the effect on run time as well as solution quality. We compare ACO results to $\theta$-heuristic results. Finally, because Branch and Pivot can prune more branches with a larger initial $D^*$, we demonstrate the speed increase from using ACO as the heuristic seeding method in cases where ACO outperformed the $\theta$-heuristic. Ant count $n_S$ is varied across $\{1, 2, 5, 10, 20, 50, 100\}$.
+With our algorithms and experimental protocol established, we report empirical results below. We vary the number of ants and analyze the effect on run time as well as solution quality. We compare ACO results to $\theta$-heuristic results. Finally, because Branch and Pivot can prune more branches with a larger initial $D^*$, we demonstrate the speed increase from using ACO as the heuristic seeding method in cases where ACO outperformed the $\theta$-heuristic. Ant count $n_S$ is varied across $\{2, 5, 10, 20, 50, 100, 200\}$.
 
 %%QUALITY%%
     
 We observe that a marginal increase in the initial upper bound of the subgraph for Branch and Pivot allows the algorithm to prune more branches, and can sometimes result in significant decreases in runtime. ACO was run $5$ times, and the largest $k$-DB was used. If this $k$-DB had more edges than the $\theta$-heuristic output, the pivot algorithm was then run using only the $\theta$-heuristic solution as a seed, and then using the ACO solution as a seed.
 We measure the difference between the pivot algorithm runtime, adding the time ACO took to run to its final pivot time. We summarize our results below.
 
+Table~\ref{tab:seed-compare} groups datasets into three blocks separated by horizontal rules: instances where ACO seeding improved pivot runtime (top), instances with no pivot savings or net ACO overhead (middle), and instances where pivot comparison was unavailable because both seeds timed out or were not run (bottom).
+
 %%SEED_COMPARE%%
 Finally, we compared ACO and the $\theta$-heuristic on the 36 graphs for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution.
-We measured time and performance for the $\theta$-Heuristic. In 17 trials, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming in only 5 trials and tying in 11.
+We measured time and performance for the $\theta$-heuristic. On %%STATISTICS:aco-wins%% of %%STATISTICS:n-graphs%% graphs, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming on %%STATISTICS:heur-wins%% and tying on %%STATISTICS:ties%%. %%STATISTICS:variance%% %%STATISTICS:wilcoxon%%
 In these trials, ACO took only up to a second longer than the $\theta$-heuristic, suggesting that it can feasibly be used on much larger graphs to reduce runtime as it can on smaller graphs.
 
 %%COMPARE:pn%%
@@ -440,14 +448,14 @@ In these trials, ACO took only up to a second longer than the $\theta$-heuristic
 
 \subsection{Interpretation of Results}
 
-On the tested graphs, ACO outperforms the $\theta$-heuristic on 17 out of 31 trials, and underperforms only 5 times while tying 11. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
+On the tested graphs, ACO outperforms the $\theta$-heuristic on %%STATISTICS:aco-wins%% of %%STATISTICS:n-graphs%% graphs, and underperforms only %%STATISTICS:heur-wins%% times while tying %%STATISTICS:ties%%. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
 it often finds solutions 3-4x larger -- for example, \texttt{DNC corecipient}, \texttt{moreno}, \texttt{nowikinews}, \texttt{matter}, and \texttt{wikitalknds}. Additionally, in cases where ACO does outperform the $\theta$-heuristic, it results in significantly speed boosts to the brute-force algorithm.
 
 Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. On the 6 graphs where ACO beat the $\theta$-heuristic and ACO-seeded run reduces runtime between $54\%$ and $98\%$.
 
 ACO-N has significantly better solution quality than traditional ACO and ACO-P. We hypothesize this is because, when allowing an ant to add any node possible, in the early stages, an ant takes a subgraph of two nodes that are not connected.
 By requiring any future additions to share an edge with the most recently visited neighbor, ants are discouraged from creating initial subgraphs with few connections. Indeed, we find that with ACO-N, the average number of missing edges after a subgraph has reached
-5 vertices is \_\_, much smaller than the average of \_\_ edges using plain ACO.
+5 vertices is %%STATISTICS:aco-n-missing-at-5%%, much smaller than the average of %%STATISTICS:aco-missing-at-5%% edges using plain ACO.
 
 \subsection{Limitations}
 
@@ -465,7 +473,7 @@ cutting search time by as much as $98\%$.
 
 \subsection{Future Work}
 
-The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{dblp-cite}, \texttt{ciaodvd}, and \texttt{matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~1). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
+The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{dblp-cite}, \texttt{ciaodvd}, and \texttt{matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~\ref{tab:seed-compare}). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
 
 Additionally, ACO could be adapted to have N subspecies that find N solutions in parallel by using a repulsion mechanism similar to that proposed for diversity in other ant colony variants [9], extending previous multi-colony parallelization strategies [10].
 
@@ -512,6 +520,18 @@ C. Solnon and S. Fenet, “A Study of ACO Capabilities for Solving the Maximum C
 \
 
 [11] Z. Wang, L. Chang, and J. X. Yu, “Identifying Maximum Defective Bicliques in Large Bipartite Graphs,” 2025 IEEE 41st International Conference on Data Engineering (ICDE), pp. 3710–3723, May 2025, doi: 10.1109/icde65448.2025.00277.
+\
+
+[12] H. Yu, A. Paccanaro, V. Trifonov, and M. Gerstein, “Predicting interactions in protein networks by completing defective cliques,” Bioinformatics, vol. 22, no. 7, pp. 823–829, Apr. 2006, doi: 10.1093/bioinformatics/btl014.
+\
+
+[13] X. Chen, Y. Zhou, J.-K. Hao, and M. Xiao, “Computing maximum $k$-defective cliques in massive graphs,” Computers \& Operations Research, vol. 127, p. 105131, 2021, doi: 10.1016/j.cor.2020.105131.
+\
+
+[14] L. Chang, “Efficient Maximum $k$-Defective Clique Computation with Improved Time Complexity,” Proc. ACM Manag. Data, vol. 1, no. 3, Art. 209, Sep. 2023, doi: 10.1145/3617313.
+\
+
+[15] K. Yu and C. Long, “Maximum $k$-Biplex Search on Bipartite Graphs: A Symmetric-BK Branching Approach,” Proc. ACM Manag. Data, vol. 1, no. 1, Art. 49, Mar. 2023, doi: 10.1145/3588729.
 
 \section{Appendix}
 

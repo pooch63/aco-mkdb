@@ -4,6 +4,10 @@ mutable struct Ant
     species::Int
     candidates::Vector{DegreeNode}
     missing::Int
+    # Compact-id nodes in the order each ant appended them during construction.
+    addition_order::Vector{Tuple{Bool,Int}}
+    # First observed missing-edge count when |S| reaches each size (via advance_ant!).
+    missing_at_size::Dict{Int,Int}
 end
 
 """Candidate set for an empty S: every vertex with deg_S = 0 (nondegree is always 0)."""
@@ -22,8 +26,25 @@ end
 
 function new_ants(fg::FrozenBipartite, num_ants::Int, num_subspecies::Int)
     template = empty_subgraph_candidates(fg)
-    return [Ant(SubGraph(), Node(), mod1(i, num_subspecies), copy(template), 0)
+    return [Ant(SubGraph(), Node(), mod1(i, num_subspecies), copy(template), 0,
+                Tuple{Bool,Int}[], Dict{Int,Int}())
             for i in 1:num_ants]
+end
+
+"""Record a vertex append and the missing-edge count at the new subgraph size."""
+function record_ant_addition!(ant::Ant, next::Node)
+    push!(ant.addition_order, (next.is_u, next.id))
+    depth = Subgraph.vertex_count(ant.explored)
+    if !haskey(ant.missing_at_size, depth)
+        ant.missing_at_size[depth] = ant.missing
+    end
+    return ant
+end
+
+function reset_ant_construction_trace!(ant::Ant)
+    empty!(ant.addition_order)
+    empty!(ant.missing_at_size)
+    return ant
 end
 
 """
@@ -46,6 +67,7 @@ function seed_ants_with_subgraph!(ants::Vector{Ant}, fg::FrozenBipartite, k::Int
         ant.last_visited = last
         ant.missing = Subgraph.missing_edges(fg, sg)
         ant.candidates = candidate_set_with_nondegrees(fg, sg, k)
+        reset_ant_construction_trace!(ant)
     end
     return ants
 end
@@ -314,6 +336,7 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     Subgraph.add_node!(ant.explored, fg, next.is_u, next.id)
     ant.missing = missing + cost
     ant.last_visited = next
+    record_ant_addition!(ant, next)
 
     if ACO_TRACE
         true_missing = Subgraph.missing_edges(fg, ant.explored)
@@ -365,7 +388,8 @@ function seed_ants_from_elites!(ants::Vector{Ant}, best_subgraphs::Vector{SubGra
         end
         missing = Subgraph.missing_edges(fg, seeded)
         cands = candidate_set_with_nondegrees(fg, seeded, k)
-        ants[i] = Ant(seeded, last, s, cands, missing)
+        ants[i] = Ant(seeded, last, s, cands, missing,
+            Tuple{Bool,Int}[], Dict{Int,Int}())
     end
 end
 

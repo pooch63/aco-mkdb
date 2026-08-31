@@ -186,6 +186,36 @@ function best_trial_summary_dict(t)
     )
 end
 
+"""Map a compact-id addition trace to original vertex ids for JSON export."""
+function remap_addition_order(remapping::GraphRemapping, order::Vector{Tuple{Bool,Int}})
+    uo, vo = remapping.u_original, remapping.v_original
+    return [
+        is_u ? ["u", uo[id]] : ["v", vo[id]]
+        for (is_u, id) in order
+    ]
+end
+
+function construction_stats_dict(stats, remapping::GraphRemapping)
+    stats === nothing && return nothing
+    missing_at_size = Dict{String,Any}()
+    for (size, samples) in stats.missing_at_size
+        n = length(samples)
+        missing_at_size[string(size)] = Dict{String,Any}(
+            "mean" => n > 0 ? sum(samples) / n : nothing,
+            "n" => n,
+            "samples" => samples,
+        )
+    end
+    orders = [
+        remap_addition_order(remapping, order)
+        for order in stats.last_iteration_orders
+    ]
+    return Dict{String,Any}(
+        "missing_at_size" => missing_at_size,
+        "last_iteration_orders" => orders,
+    )
+end
+
 """
 Run ACO for a single ant count; return metrics without verbose printing.
 """
@@ -200,6 +230,7 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     elite_seed_remove = get(aco_options, :elite_seed_remove, 2)
 
     first_hit = Ref{Union{Nothing,Int}}(nothing)
+    construction_stats = Ref{Any}(nothing)
 
     g_run = deepcopy(g)
     m = measure_call() do
@@ -212,6 +243,7 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             elite_seed_ants=elite_seed_ants,
             elite_seed_remove=elite_seed_remove,
             reduction=reduction,
+            construction_stats=construction_stats,
             iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
                 if opt_edges === nothing || first_hit[] !== nothing
                     return true
@@ -227,7 +259,7 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             end)
     end
 
-    sols, best_iterations, best_times, _pheromones, _remapping = m.value
+    sols, best_iterations, best_times, _pheromones, remapping = m.value
     g_eval = deepcopy(g)
     fg_eval = if reduction == ReductionMode.none
         freeze(g_eval)
@@ -261,7 +293,8 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
         U = sort!(collect(sol.U)),
         V = sort!(collect(sol.V)),
         missing,
-        theta_feasible = θ_feasible)
+        theta_feasible = θ_feasible,
+        construction = construction_stats_dict(construction_stats[], remapping))
 end
 
 """
@@ -584,6 +617,7 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
             "V" => get(t, :V, Int[]),
             "missing" => t.missing,
             "theta_feasible" => t.theta_feasible,
+            "construction" => get(t, :construction, nothing),
         ) for t in results.trials
     ]
 

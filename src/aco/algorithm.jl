@@ -77,7 +77,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     trace_target::Union{Nothing,SubGraph}=nothing,
     # Original-id nodes to plant into every ant at the start of each construction.
     # Experimental default for the known pair under test; pass `nothing` to disable.
-    seed_nodes::Union{Nothing,SubGraph}=SubGraph(Set(), Set()))
+    seed_nodes::Union{Nothing,SubGraph}=SubGraph(Set(), Set()),
+    construction_stats::Union{Nothing,Base.RefValue}=nothing)
     num_subspecies >= 1 || throw(ArgumentError("num_subspecies must be >= 1, got $num_subspecies"))
     elite_seed_ants >= 0 || throw(ArgumentError("elite_seed_ants must be >= 0, got $elite_seed_ants"))
     elite_seed_remove >= 0 || throw(ArgumentError("elite_seed_remove must be >= 0, got $elite_seed_remove"))
@@ -197,6 +198,9 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     invalid_ants = Set{Int}()
 
     explored_ants = [ant for ant in ants]
+
+    pooled_missing_at_size = Dict{Int, Vector{Int}}()
+    last_iteration_orders = Vector{Tuple{Bool,Int}}[]
 
     # Wall-clock origin for time-to-best (excludes reduction / MMAS setup).
     t0 = time_ns()
@@ -376,6 +380,15 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     "target_hit=$ou/$(length(target_compact.U)),$ov/$(length(target_compact.V))")
         end
 
+        if construction_stats !== nothing
+            for ant in ants
+                for (size, missing_count) in ant.missing_at_size
+                    push!(get!(pooled_missing_at_size, size, Int[]), missing_count)
+                end
+            end
+            last_iteration_orders = [copy(ant.addition_order) for ant in ants]
+        end
+
         ants = new_ants(compact_fg, num_ants, num_subspecies)
         seed_compact !== nothing && seed_ants_with_subgraph!(ants, compact_fg, k, seed_compact)
 
@@ -423,6 +436,12 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     end
     println("ACO global best found at iteration $best_iteration " *
             "(t=$(round(best_time; digits=4))s, score=$best_score)$src")
+    if construction_stats !== nothing
+        construction_stats[] = (;
+            missing_at_size=pooled_missing_at_size,
+            last_iteration_orders=last_iteration_orders,
+        )
+    end
     return remapped, best_iterations, best_times, pheromones, remapping
 end
 

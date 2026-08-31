@@ -173,6 +173,22 @@ def load_vary_for_compare(data, compare_path, vary_by_leaf=None):
     return None
 
 
+def pivot_timed_out(pivot):
+    """True when a pivot_theta / pivot_aco_seed block hit the time limit."""
+    if not pivot:
+        return False
+    if pivot.get("timed_out") in (True, 1):
+        return True
+    return pivot.get("status") == "timeout"
+
+
+def both_pivots_timed_out(data):
+    """True when both the θ-heuristic and ACO-seed pivots timed out."""
+    theta = data.get("pivot_theta") or {}
+    aco = data.get("pivot_aco_seed") or {}
+    return pivot_timed_out(theta) and pivot_timed_out(aco)
+
+
 def summarize_no_beat_marker(data, vary_data=None):
     """
     Summarize a compare-seeds.jl skip marker (beat_heuristic=false).
@@ -533,32 +549,51 @@ def _abs_saved_sort_key(row):
     return (0, abs(float(saved)), row.get("display_name") or row.get("name") or "")
 
 
+def seed_compare_section(row):
+    """
+    Table section for a seed-compare row.
+
+    improved — pivot wall time decreased with an ACO seed
+    neutral — no pivot savings (negative time saved is discovery overhead)
+    unavailable — pivot comparison not run or both seeds timed out
+    """
+    saved = time_saved_s(row)
+    if saved is None:
+        return "unavailable"
+    if float(saved) > 0:
+        return "improved"
+    return "neutral"
+
+
 def order_seed_compare_rows(rows):
     """
-    Saved-time rows first, then a waste section — each sorted by ascending
-    |time saved|.
+    Three table blocks — improved, neutral, unavailable — each sorted by
+    ascending |time saved|.
     """
-    saved, waste = [], []
+    improved, neutral, unavailable = [], [], []
     for row in rows:
-        value = time_saved_s(row)
-        if value is not None and float(value) > 0:
-            saved.append(row)
+        section = seed_compare_section(row)
+        if section == "improved":
+            improved.append(row)
+        elif section == "neutral":
+            neutral.append(row)
         else:
-            waste.append(row)
-    saved.sort(key=_abs_saved_sort_key)
-    waste.sort(key=_abs_saved_sort_key)
-    return saved, waste
+            unavailable.append(row)
+    for bucket in (improved, neutral, unavailable):
+        bucket.sort(key=_abs_saved_sort_key)
+    return improved, neutral, unavailable
 
 
 def build_seed_compare_table(rows):
     """
     LaTeX table: every dataset with graph/reduced sizes and pivot savings.
 
-    Rows with positive pivot time saved come first (ascending |saved|), then
-    a \\midrule, then rows where ACO wasted time (ascending |overhead|).
-    Reduction (%) is negative in the waste section.
+    Three blocks separated by \\midrule: pivot time improved (ascending
+    |saved|), no pivot savings / net overhead, then pivot comparison
+    unavailable (timed out or not run).
     """
-    saved_rows, waste_rows = order_seed_compare_rows(rows)
+    improved_rows, neutral_rows, unavailable_rows = order_seed_compare_rows(rows)
+    sections = [s for s in (improved_rows, neutral_rows, unavailable_rows) if s]
 
     lines = [
         r"\begin{table}[htbp]",
@@ -573,7 +608,7 @@ def build_seed_compare_table(rows):
         r"    \midrule",
     ]
 
-    def append_rows(section):
+    for i, section in enumerate(sections):
         for r in section:
             cells = [
                 _tex_escape_label(r.get("display_name") or r.get("name") or ""),
@@ -587,11 +622,8 @@ def build_seed_compare_table(rows):
                 fmt_pct(r),
             ]
             lines.append("    " + " & ".join(cells) + r" \\")
-
-    append_rows(saved_rows)
-    if saved_rows and waste_rows:
-        lines.append(r"    \midrule")
-    append_rows(waste_rows)
+        if i < len(sections) - 1:
+            lines.append(r"    \midrule")
 
     lines += [
         r"    \bottomrule",
@@ -607,13 +639,13 @@ def build_seed_compare_latex(rows):
         raise ValueError("No seed-compare rows to plot")
 
     fill_waste_reduction_pct(rows)
-    saved_rows, waste_rows = order_seed_compare_rows(rows)
-    ordered = saved_rows + waste_rows
+    improved_rows, neutral_rows, unavailable_rows = order_seed_compare_rows(rows)
+    ordered = improved_rows + neutral_rows + unavailable_rows
 
     n_total = len(ordered)
-    n_waste = len(waste_rows)
+    n_no_gain = len(neutral_rows) + len(unavailable_rows)
     note = (
-        rf"We examined ${n_total}$ graphs. On ${n_waste}$ of them, ACO did "
+        rf"We examined ${n_total}$ graphs. On ${n_no_gain}$ of them, ACO did "
         r"not reduce pivot time (time saved reports the negated ACO "
         r"discovery cost; reduction is negative)."
     )
@@ -649,6 +681,14 @@ def run(json_paths, output, vary_dir=None):
             continue
 
         leaf = os.path.splitext(os.path.basename(path))[0]
+        name = series_name(path, data)
+
+        if data.get("compare") == "seeds" and both_pivots_timed_out(data):
+            skipped.append((path, "both pivots timed out"))
+            seen_names.add(leaf)
+            seen_names.add(name)
+            continue
+
         vary_data = load_vary_for_compare(data, path, vary_by_leaf=vary_by_leaf)
 
         summary = summarize_seed_compare(
@@ -659,7 +699,6 @@ def run(json_paths, output, vary_dir=None):
             continue
 
         attach_size_metrics(summary, data=data, vary_data=vary_data)
-        name = series_name(path, data)
         rows.append({
             "name": name,
             "display_name": display_name(path, data),

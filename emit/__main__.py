@@ -23,16 +23,18 @@ Modes
   table
       Vary.jl ant-count JSON → paper-style LaTeX table.
 
-  density
-      Vary.jl ant-count JSON → edge-density / reduced-graph scatters:
-        - full-graph density vs |E(D*)|
-        - θ·n+m vs θ-heuristic time
-        - max reduced degree vs ACO discovery time
-        - (max degree + nodes)·|E(D*)| vs ACO discovery time
-        - (avg degree + nodes)·|E(D*)| vs ACO discovery time
-        - linear: t(ACO|ACO-P|ACO-N)/t(ACO-PN) vs reduced density
+  compare
+      Vary.jl ant-count JSON → complexity / flag-setting figures.
+      Plot groups (pass comma-separated via --plots):
+        theta-time, deg-size-time, density-size, max-deg-time, pn
       Pass a folder prefix such as vary_k2t5i_ to auto-load the four
       ACO flag settings: (none), N, P, and PN.
+
+  statistics
+      Vary.jl ant-count JSON → inline LaTeX for %%STATISTICS:field%%
+      placeholders (win/loss counts, cross-run variance, Wilcoxon test,
+      construction missing-at-size means). Fields: aco-wins, heur-wins,
+      ties, n-graphs, variance, wilcoxon, aco-missing-at-5, aco-n-missing-at-5
 
 Usage:
     python -m emit quality /path/to/json/dir -o plot.tex
@@ -40,7 +42,8 @@ Usage:
     python -m emit seed-compare compare_k2t5i --vary-dir=vary_k2t5i -o seed.tex
     python -m emit table vary_k2t5i -o table.tex
     python -m emit table vary_k2t5i --ants=50
-    python -m emit density vary_k2t5i_ -o density.tex
+    python -m emit compare vary_k2t5i_ -o compare.tex
+    python -m emit compare vary_k2t5i_ --plots=theta-time,deg-size-time -o complexity.tex
 """
 
 from __future__ import annotations
@@ -60,11 +63,11 @@ def main(argv=None):
     parser.add_argument(
         "mode",
         choices=MODES,
-        help="quality | seed-compare | table | density",
+        help="quality | seed-compare | table | compare",
     )
     parser.add_argument(
         "directory",
-        help="JSON directory, or (density mode) vary folder prefix "
+        help="JSON directory, or (compare mode) vary folder prefix "
              "such as vary_k2t5i_ for ACO / N / P / PN",
     )
     parser.add_argument(
@@ -84,7 +87,26 @@ def main(argv=None):
         type=int,
         default=None,
         help="Only consider ACO trials with this ant count "
-             "(table / density modes)",
+             "(table / compare modes)",
+    )
+    parser.add_argument(
+        "--plots",
+        default=None,
+        help="compare mode: comma-separated plot groups "
+             "(theta-time, deg-size-time, density-size, max-deg-time, pn)",
+    )
+    parser.add_argument(
+        "--field",
+        default=None,
+        help="statistics mode: output field "
+             "(aco-wins, heur-wins, ties, n-graphs, variance, wilcoxon, "
+             "missing-at-5, aco-missing-at-5, aco-n-missing-at-5)",
+    )
+    parser.add_argument(
+        "--vary-base",
+        default=None,
+        help="statistics mode: vary folder prefix for ACO flag directories "
+             "(e.g. ../results/vary_k2t5i_)",
     )
 
     args = parser.parse_args(argv)
@@ -111,9 +133,27 @@ def main(argv=None):
         from . import table
         table.run(json_paths, args.output, ants=args.ants)
 
-    elif args.mode == "density":
-        from . import density
-        density.run(args.directory, args.output, ants=args.ants)
+    elif args.mode == "compare":
+        from . import compare
+        compare.run(
+            args.directory,
+            args.output,
+            ants=args.ants,
+            plots=args.plots,
+        )
+
+    elif args.mode == "statistics":
+        json_paths = list_json_paths(args.directory)
+        if not json_paths:
+            raise SystemExit(f"No .json files found in {args.directory}")
+        from . import statistics
+        statistics.run(
+            json_paths,
+            args.output,
+            ants=args.ants,
+            field=args.field,
+            vary_base=args.vary_base,
+        )
 
     else:
         raise SystemExit(f"Unknown mode: {args.mode}")

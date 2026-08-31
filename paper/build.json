@@ -3,6 +3,7 @@
   "output": "build.tex",
   "generated_dir": "generated",
   "pdf": "build.pdf",
+  "vary_base": "../results/vary_k2t5i_",
   "fragments": {
     "QUALITY": {
       "emit": "quality",
@@ -17,14 +18,17 @@
     },
     "TABLE": {
       "emit": "table",
-      "input": "../results/vary_k2t5i_PN",
       "ants": 100,
       "file": "table.tex"
     },
-    "DENSITY": {
-      "emit": "density",
-      "input": "../results/vary_k2t5i_",
-      "file": "density.tex"
+    "COMPARE": {
+      "emit": "compare",
+      "input": "../results/vary_k2t5i_"
+    },
+    "STATISTICS": {
+      "emit": "statistics",
+      "input": "../results/vary_k2t5i_PN",
+      "ants": 100
     }
   }
 }

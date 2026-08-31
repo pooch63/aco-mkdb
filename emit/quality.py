@@ -278,6 +278,8 @@ def build_combined_latex(
     height = 0.36 if n_rows >= 2 else 0.44
 
     lines = [
+        r"\begin{figure}[htbp]",
+        r"  \centering",
         r"\begin{tikzpicture}",
         r"\begin{groupplot}[",
         (
@@ -302,6 +304,10 @@ def build_combined_latex(
     lines += [
         r"\end{groupplot}",
         r"\end{tikzpicture}",
+        r"  \caption{ACO solution quality vs.\ the Cui $\theta$-heuristic, "
+        r"$\theta$-feasibility rate, and mean wall-clock time vs.\ ant count.}",
+        r"  \label{fig:quality-groupplot}",
+        r"\end{figure}",
     ]
 
     return "\n".join(lines)

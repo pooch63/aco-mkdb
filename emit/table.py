@@ -199,7 +199,9 @@ def sectioned_rows(named_rows):
 
 def tabular_header_lines():
     return [
-        r"  \setlength{\tabcolsep}{3.5pt} % Reduced spacing between columns",
+        r"  \small",
+        r"  \setlength{\tabcolsep}{2.5pt}",
+        r"  \resizebox{\linewidth}{!}{%",
         r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
         r"    \toprule",
         r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
@@ -226,9 +228,8 @@ def tabular_body_lines(sections):
 
 def build_landscape_table(caption, sections):
     lines = [
-        r"\begin{landscape}",
-        r"\landscapetabletop",
-        r"\begin{table}[htbp]",
+        r"\begin{landscapetable}",
+        r"\begin{table}[p]",
         r"  \centering",
         rf"  \caption{{{caption}}}",
         r"",
@@ -237,8 +238,9 @@ def build_landscape_table(caption, sections):
     lines += tabular_body_lines(sections)
     lines += [
         r"  \end{tabular}",
+        r"  }",
         r"\end{table}",
-        r"\end{landscape}",
+        r"\end{landscapetable}",
     ]
     return "\n".join(lines)
 
