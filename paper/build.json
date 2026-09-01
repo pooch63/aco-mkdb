@@ -24,12 +24,19 @@
     "COMPARE": {
       "emit": "compare",
       "input": "../results/vary_k2t5i_PN",
-      "ants": 100
+      "ants": 100,
+      "flag_dirs": {
+        "ACO": "../results/vary_k2t5i_100_",
+        "ACO-P": "../results/vary_k2t5i_P",
+        "ACO-N": "../results/vary_k2t5i_100_N",
+        "ACO-PN": "../results/vary_k2t5i_PN"
+      }
     },
     "STATISTICS": {
       "emit": "statistics",
       "input": "../results/vary_k2t5i_PN",
-      "ants": 100
+      "ants": 100,
+      "missing_at_base": "../results/vary_k2t5i_100_"
     }
   }
 }
