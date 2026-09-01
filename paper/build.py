@@ -12,6 +12,9 @@ Use --keep-tex to retain build.tex after compiling.
 
 Placeholders in main.tex use the form %%QUALITY%%, %%COMPARE:theta-time%%, etc.
 Paths in build.json are relative to this directory (paper/).
+
+STATISTICS missing-at-5 fields use missing_at_base (plain ACO dir; ACO-N is
+that path + "N"). Falls back to vary_base if missing_at_base is omitted.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -101,6 +105,9 @@ def run_emit(cfg: dict) -> None:
             cmd.append(f"--plots={plots}")
         if frag.get("ants") is not None:
             cmd.append(f"--ants={frag['ants']}")
+        if frag.get("flag_dirs"):
+            for label, path in frag["flag_dirs"].items():
+                cmd.append(f"--flag-dir={label}={resolve(path)}")
         if name == "STATISTICS" and args:
             cmd.append(f"--field={args}")
         if name == "STATISTICS" and args in (
@@ -108,9 +115,14 @@ def run_emit(cfg: dict) -> None:
             "aco-missing-at-5",
             "aco-n-missing-at-5",
         ):
-            vary_base = frag.get("vary_base") or cfg.get("vary_base")
-            if vary_base:
-                cmd.append(f"--vary-base={resolve(vary_base)}")
+            missing_at_base = (
+                frag.get("missing_at_base")
+                or frag.get("vary_base")
+                or cfg.get("missing_at_base")
+                or cfg.get("vary_base")
+            )
+            if missing_at_base:
+                cmd.append(f"--vary-base={resolve(missing_at_base)}")
 
         label = name if not args else f"{name}:{args}"
         print(f"# emit {label} → {out_path.relative_to(PAPER_DIR)}", file=sys.stderr)
@@ -163,6 +175,11 @@ def assemble(cfg: dict) -> Path:
         )
 
     output.write_text(built, encoding="utf-8")
+    if "fig:compare-bound-ratio" not in built and "%%COMPARE:deg-size-time%%" in text:
+        raise SystemExit(
+            "assemble: bound-ratio figure missing from build.tex; "
+            "run: python3 paper/build.py emit"
+        )
     print(f"# assembled {output.relative_to(PAPER_DIR)}", file=sys.stderr)
     return output
 
@@ -221,6 +238,57 @@ def remove_build_tex(cfg: dict, tex_path: Path | None = None) -> None:
         print(f"# removed {tex.relative_to(PAPER_DIR)}", file=sys.stderr)
 
 
+def verify_pdf(cfg: dict, tex_path: Path | None = None) -> None:
+    """Fail loudly if the bound-ratio complexity figure did not make it into the PDF."""
+    tex = tex_path or (PAPER_DIR / cfg["output"])
+    pdf_path = PAPER_DIR / cfg.get("pdf", tex.with_suffix(".pdf").name)
+    if not pdf_path.is_file():
+        raise SystemExit(f"PDF not found after compile: {pdf_path}")
+
+    probe = subprocess.run(
+        ["pdftotext", str(pdf_path), "-"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if probe.returncode != 0:
+        print(
+            "# warning: pdftotext unavailable; skipped bound-ratio PDF check",
+            file=sys.stderr,
+        )
+        return
+
+    text = probe.stdout
+    required = (
+        "Ratio of ACO-PN discovery time to each candidate complexity bound",
+        "Time / bound",
+    )
+    missing = [phrase for phrase in required if phrase not in text]
+    if missing:
+        raise SystemExit(
+            "PDF is missing the bound-ratio complexity figure "
+            f"({', '.join(missing)}). "
+            "Close and reopen paper/build.pdf in your viewer, or run: "
+            "python3 paper/build.py all"
+        )
+
+    print(
+        "# verified bound-ratio figure in "
+        f"{pdf_path.relative_to(PAPER_DIR)} (section 3.2, fig:compare-bound-ratio)",
+        file=sys.stderr,
+    )
+
+
+def publish_pdf(cfg: dict, tex_path: Path | None = None) -> None:
+    """Copy build.pdf to main.pdf so IDE viewers have an obvious target."""
+    tex = tex_path or (PAPER_DIR / cfg["output"])
+    src = PAPER_DIR / cfg.get("pdf", tex.with_suffix(".pdf").name)
+    dst = PAPER_DIR / "main.pdf"
+    if src.is_file():
+        shutil.copy2(src, dst)
+        print(f"# wrote {dst.relative_to(PAPER_DIR)}", file=sys.stderr)
+
+
 def compile_pdf(
     cfg: dict,
     tex_path: Path | None = None,
@@ -229,6 +297,7 @@ def compile_pdf(
 ) -> None:
     tex = tex_path or (PAPER_DIR / cfg["output"])
     pdf_name = cfg.get("pdf", tex.with_suffix(".pdf").name)
+    tex.touch()
     for tool in ("latexmk", "pdflatex"):
         if subprocess.run(["which", tool], capture_output=True).returncode == 0:
             break
@@ -239,6 +308,7 @@ def compile_pdf(
         cmd = [
             "latexmk",
             "-silent",
+            "-g",
             "-pdf",
             "-interaction=nonstopmode",
             "-file-line-error",
@@ -289,10 +359,10 @@ def main(argv: list[str] | None = None) -> None:
         tex_path = assemble(cfg)
     if args.step in ("all", "pdf"):
         if tex_path is None:
-            tex_path = PAPER_DIR / cfg["output"]
-            if not tex_path.is_file():
-                tex_path = assemble(cfg)
+            tex_path = assemble(cfg)
         compile_pdf(cfg, tex_path, keep_aux=args.keep_aux)
+        verify_pdf(cfg, tex_path)
+        publish_pdf(cfg, tex_path)
         if not args.keep_tex:
             remove_build_tex(cfg, tex_path)
 
