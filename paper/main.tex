@@ -4,6 +4,7 @@
 \usepackage{algorithm}
 \usepackage{algpseudocodex}
 \usepackage{float}
+\usepackage{placeins}
 \usepackage{etoolbox}
 \usepackage{amssymb}
 \usepackage{hyperref}
@@ -331,6 +332,8 @@ We observe that ACO has trouble generating graphs with at least $\theta$ nodes b
 \end{minipage}
 \end{algorithm}
 
+We refer to the prefer-smaller-side weighting as flag \textbf{P} and the neighbor-scope restriction in Algorithm~1 as flag \textbf{N}. \textbf{ACO-PN} denotes ACO with both flags enabled; this is the default configuration for our complexity-validation plots and main experiments unless noted otherwise. The variants ACO, ACO-P, and ACO-N omit P, N, or both, respectively.
+
 We attempted an elitist approach to lay additional pheromone on subgraphs with higher fitnesses according to a fitness function, as well as implementing local tabu search on ant subgraphs to prioritize solutions that are more likely to grow. We implemented the MAX-MIN Ant System as well. Finally, we attempted a genetic algorithm approach adapted from Shah's GCLIQUE framework [3], but found it underperformed both ACO and the $\theta$-heuristic, likely due to the high dimensionality of the encoding required to represent biclique membership across both vertex sets. 
 
 \subsection{Time Complexity}
@@ -345,15 +348,15 @@ In practice, however, there are two factors limiting this complexity. First, ant
 encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of
 $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, let $L$ be the last node an ant visited. An ant prefers to visit only the intersection of $d_L$ and its candidate set, so it often only visits $d_L$ or fewer nodes. Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (n + \max_{v \in G}d_v)$. Because $\max_{v \in G}d_v$ is necessarily lower than $n$ and almost always lower than $\min(|U_G|, |V_G|)$, ACO's complexity practically does not scale linearly with $n$ after the first iteration.
 
-%%COMPARE:theta-time%%
+To check that observed runtimes track these bounds, we plot ACO-PN discovery time on the benchmark graphs against each complexity proxy. Figure~\ref{fig:compare-reduced-nodes-sq-time} tests the worst-case $\mathcal{O}(\lceil A / p \rceil \times I \times n^2)$ bound from the per-ant triangle-sum analysis, plotting discovery time against $(|U_R|+|V_R|)^2$ on the reduced graph. The log--log trend is steeper than slope~$1$, consistent with the bound being valid but loose on sparse instances. Figure~\ref{fig:compare-max-deg-nodes-time} tests the tighter practical bound $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (\Delta(G_R)+n))$, plotting time against $(\Delta(G_R)+|U_R|+|V_R|)\cdot(|U_D|+|V_D|)$ using the returned biclique size $|U_D|+|V_D|$ in place of the worst-case $n$. Empirical runtime tracks this proxy much more closely, with a near-unit log--log slope.
 
 %%COMPARE:deg-size-time%%
 
+\FloatBarrier
 \subsection{Brute Force Approach}
 
 Finally, we implement the approach proposed by Cui et al. These authors observe that many $k$-MDB have one side with exactly $\theta$ vertices and propose a heuristic that removes nodes from one side while adding nodes to another until there are $\theta$ nodes on that side. We summarize their algorithm below.
 
-\
 \begin{algorithm}[H]
 \caption{$\theta$-Heuristic}
 \begin{minipage}{\textwidth}
@@ -383,8 +386,11 @@ They then propose a branch-and-pivot algorithm that takes advantage of this init
 
 The paper proposes a graph reduction technique called common neighbor reduction. Common neighbor reduction prunes edges between nodes $n_1$ and $n_2$ if $n_1$ has fewer than $\theta - k$ common neighbors with $n_2$, and prunes nodes with fewer than $\theta - k$ edges.
 
-The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$ [1].
+The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$ [1]. Figure~\ref{fig:compare-theta-nm-time} plots wall-clock time against the proxy $\theta(|U_R|+|V_R|)+|E_R|$ on the reduced graph; the near-linear log--log trend confirms that empirical cost scales with the stated bound.
 
+%%COMPARE:theta-time%%
+
+\FloatBarrier
 \subsection{Experimental Setup}
 
 Unless otherwise noted, all ACO experiments use the following
@@ -422,7 +428,7 @@ Second, we hypothesize that ACO can provide a larger initial lower bound on the 
 
 Third, we compare ACO-PN directly against the $\theta$-heuristic on the full benchmark suite, measuring solution quality, $\theta$-feasibility, and wall-clock time.
 
-Finally, we ablate two optimizations to traditional ACO. Prefer smaller side (P) weights nodes on the smaller side of an ant's subgraph higher; neighbor scope limit (N) restricts an ant to travel only to neighbors of its most recently visited node. ACO, ACO-P, ACO-N, and ACO-PN denote traditional ACO, ACO with P, ACO with N, and ACO with both flags, respectively. We hypothesize that N improves solution quality and that P decreases execution time.
+Finally, we ablate the P and N flags defined in Section~3.1 on plain ACO, ACO-P, ACO-N, and ACO-PN at 100 ants. We hypothesize that N improves solution quality and that P decreases execution time.
 
 All tests were run with 8 threads on a computer with Ubuntu, an Intel(R) Core(TM) Ultra 7 258V, and 32 gigabytes of RAM.
 

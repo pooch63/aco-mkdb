@@ -173,14 +173,36 @@ def job_stem(cfg: dict, tex_path: Path | None = None) -> str:
     return Path(pdf_name).stem
 
 
+def run_quiet(
+    cmd: list[str],
+    *,
+    cwd: Path,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command; print its output only when it fails."""
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if check and result.returncode != 0:
+        if result.stdout:
+            sys.stderr.write(result.stdout)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            cmd,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return result
+
+
 def clean_aux_files(cfg: dict, tex_path: Path | None = None) -> None:
     """Remove LaTeX auxiliary files; keeps the PDF."""
     tex = tex_path or (PAPER_DIR / cfg["output"])
     stem = job_stem(cfg, tex)
 
     if subprocess.run(["which", "latexmk"], capture_output=True).returncode == 0:
-        subprocess.run(
-            ["latexmk", "-c", f"-jobname={stem}", tex.name],
+        run_quiet(
+            ["latexmk", "-silent", "-c", f"-jobname={stem}", tex.name],
             cwd=PAPER_DIR,
             check=False,
         )
@@ -216,6 +238,7 @@ def compile_pdf(
     if tool == "latexmk":
         cmd = [
             "latexmk",
+            "-silent",
             "-pdf",
             "-interaction=nonstopmode",
             "-file-line-error",
@@ -224,14 +247,14 @@ def compile_pdf(
         ]
     else:
         cmd = ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex.name]
-        subprocess.run(cmd, cwd=PAPER_DIR, check=True)
-        subprocess.run(cmd, cwd=PAPER_DIR, check=True)
+        run_quiet(cmd, cwd=PAPER_DIR)
+        run_quiet(cmd, cwd=PAPER_DIR)
         print(f"# wrote {pdf_name}", file=sys.stderr)
         if not keep_aux:
             clean_aux_files(cfg, tex)
         return
 
-    subprocess.run(cmd, cwd=PAPER_DIR, check=True)
+    run_quiet(cmd, cwd=PAPER_DIR)
     print(f"# wrote {pdf_name}", file=sys.stderr)
     if not keep_aux:
         clean_aux_files(cfg, tex)
