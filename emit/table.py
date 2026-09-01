@@ -232,6 +232,7 @@ def build_landscape_table(caption, sections):
         r"\begin{table}[p]",
         r"  \centering",
         rf"  \caption{{{caption}}}",
+        r"  \label{tab:aco-heur-pn}",
         r"",
     ]
     lines += tabular_header_lines()

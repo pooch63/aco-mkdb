@@ -15,9 +15,13 @@ quality mode — vary.jl ant-count format → groupplot:
 from __future__ import annotations
 
 import statistics
+import sys
 from collections import defaultdict
 
 from .common import load_json, report_skipped, series_name, write_tex
+
+# Tukey fence multiplier for heuristic-panel outlier detection.
+HEURISTIC_OUTLIER_IQR_K = 1.5
 
 
 def pct_deviation(final_edges, baseline_edges):
@@ -50,6 +54,26 @@ def heuristic_baseline(data):
     return heuristic.get("final_edges")
 
 
+def aco_runs_per_ant(data):
+    """Replicates per ant count (1 when vary.jl ran each count once)."""
+    n = data.get("aco_runs")
+    if n is not None:
+        return int(n)
+    runs = [
+        int(t["run"])
+        for t in data.get("trials", [])
+        if t.get("run") is not None
+    ]
+    return max(runs) if runs else 1
+
+
+def include_trial_in_timing(t, data):
+    """Skip run 1 when replicates exist — it pays Julia JIT on the real graph."""
+    if aco_runs_per_ant(data) <= 1:
+        return True
+    return int(t.get("run", 1)) != 1
+
+
 def summarize_file(data):
     """
     Returns
@@ -65,8 +89,9 @@ def summarize_file(data):
                            theta_feasible == True}, over trials that had
                            either a usable optimum or a heuristic baseline.
 
-    time_by_ants: {ants: mean wall_time_s}, over the same trial set as
-                  feasible_pct_by_ants.
+    time_by_ants: {ants: mean wall_time_s}, over trials with usable quality
+                  baselines. When aco_runs > 1, run 1 at each ant count is
+                  omitted (Julia JIT on the first measured replicate).
     """
     trials = data.get("trials", [])
     file_level_opt = file_level_optimal(data)
@@ -105,9 +130,10 @@ def summarize_file(data):
         if feasible and heur_pct is not None:
             heur_pct_vals[ants].append(heur_pct)
 
-        wall_time = t.get("wall_time_s")
-        if wall_time is not None:
-            time_vals[ants].append(wall_time)
+        if include_trial_in_timing(t, data):
+            wall_time = t.get("wall_time_s")
+            if wall_time is not None:
+                time_vals[ants].append(wall_time)
 
     if not any_usable:
         return None
@@ -142,6 +168,101 @@ def _series_lookup(series_dicts):
     return {name: xy for name, xy in series_dicts}
 
 
+def _heuristic_series_max_pct(name_xy):
+    """Largest mean % deviation from the Cui heuristic for one graph."""
+    _, xy = name_xy
+    if not xy:
+        return None
+    return max(xy.values())
+
+
+def detect_heuristic_outliers(heuristic_series, *, iqr_k=HEURISTIC_OUTLIER_IQR_K):
+    """
+    Flag graphs whose peak Cui-heuristic deviation is a Tukey upper outlier.
+
+    Uses the maximum mean deviation (over ant counts) per graph. Returns
+    [(name, max_pct), ...] sorted by descending max_pct.
+    """
+    scored = []
+    for name_xy in heuristic_series:
+        peak = _heuristic_series_max_pct(name_xy)
+        if peak is not None:
+            scored.append((name_xy[0], peak))
+
+    if len(scored) < 4:
+        return []
+
+    peaks = sorted(p for _, p in scored)
+    q1, _, q3 = statistics.quantiles(peaks, n=4, method="exclusive")
+    upper = q3 + iqr_k * (q3 - q1)
+
+    outliers = [(name, peak) for name, peak in scored if peak > upper]
+    outliers.sort(key=lambda item: item[1], reverse=True)
+    return outliers
+
+
+def filter_outlier_series(series, outlier_names):
+    """Drop named series from a (name, data) list."""
+    if not outlier_names:
+        return series
+    return [(name, data) for name, data in series if name not in outlier_names]
+
+
+def _tex_escape_name(name):
+    return (
+        str(name)
+        .replace("\\", "\\textbackslash{}")
+        .replace("_", "\\_")
+        .replace("&", "\\&")
+        .replace("%", "\\%")
+        .replace("#", "\\#")
+    )
+
+
+def fmt_outlier_pct(value):
+    """Format a deviation percentage for LaTeX prose."""
+    if abs(value) >= 100:
+        return f"{value:.0f}\\%"
+    return f"{value:.1f}\\%"
+
+
+def build_outlier_note(outliers):
+    """
+    LaTeX note listing graphs omitted from the quality groupplot.
+
+    outliers: [(name, max_pct), ...] from detect_heuristic_outliers.
+    """
+    if not outliers:
+        return None
+
+    if len(outliers) == 1:
+        name, peak = outliers[0]
+        names_part = rf"\texttt{{{_tex_escape_name(name)}}}"
+        values_part = fmt_outlier_pct(peak)
+    else:
+        parts = [
+            rf"\texttt{{{_tex_escape_name(name)}}} ({fmt_outlier_pct(peak)})"
+            for name, peak in outliers
+        ]
+        names_part = ", ".join(parts[:-1]) + ", and " + parts[-1]
+        values_part = None
+
+    if values_part is not None:
+        body = (
+            rf"{names_part} was omitted from all panels because its deviation "
+            rf"from the Cui $\theta$-heuristic ({values_part}) was a statistical "
+            rf"outlier (Tukey upper fence, $k={HEURISTIC_OUTLIER_IQR_K:g}$)."
+        )
+    else:
+        body = (
+            rf"{names_part} were omitted from all panels because their "
+            rf"deviations from the Cui $\theta$-heuristic were statistical "
+            rf"outliers (Tukey upper fence, $k={HEURISTIC_OUTLIER_IQR_K:g}$)."
+        )
+
+    return rf"\small\textit{{Note: {body}}}"
+
+
 def _addplots(ordered_names, series_lookup):
     """
     Emit one \\addplot per name in ordered_names so pgfplots cycle lists
@@ -167,6 +288,8 @@ def build_combined_latex(
     heuristic_series,
     feasible_series,
     time_series,
+    *,
+    outlier_note=None,
 ):
     """
     Build a 2-column groupplot from whichever panels have data:
@@ -305,10 +428,13 @@ def build_combined_latex(
         r"\end{groupplot}",
         r"\end{tikzpicture}",
         r"  \caption{ACO solution quality vs.\ the Cui $\theta$-heuristic, "
-        r"$\theta$-feasibility rate, and mean wall-clock time vs.\ ant count.}",
+        r"$\theta$-feasibility rate, and mean wall-clock time vs.\ ant count "
+        r"(first replicate omitted per ant count when multiple runs were recorded).}",
         r"  \label{fig:quality-groupplot}",
-        r"\end{figure}",
     ]
+    if outlier_note:
+        lines += ["  \\medskip", f"  {outlier_note}"]
+    lines.append(r"\end{figure}")
 
     return "\n".join(lines)
 
@@ -362,12 +488,29 @@ def run(json_paths, output):
             "No files had a usable optimum or heuristic -- nothing to plot."
         )
 
+    outliers = detect_heuristic_outliers(heuristic_series)
+    outlier_names = {name for name, _ in outliers}
+    if outlier_names:
+        quality_series = filter_outlier_series(quality_series, outlier_names)
+        heuristic_series = filter_outlier_series(heuristic_series, outlier_names)
+        feasible_series = filter_outlier_series(feasible_series, outlier_names)
+        time_series = filter_outlier_series(time_series, outlier_names)
+
     combined_tex = build_combined_latex(
         quality_series,
         heuristic_series,
         feasible_series,
         time_series,
+        outlier_note=build_outlier_note(outliers),
     )
 
     write_tex(combined_tex, output)
+    if outliers:
+        removed = ", ".join(
+            f"{name} ({peak:.1f}%)" for name, peak in outliers
+        )
+        print(
+            f"# quality: omitted {len(outliers)} heuristic outlier(s): {removed}",
+            file=sys.stderr,
+        )
     report_skipped(skipped)

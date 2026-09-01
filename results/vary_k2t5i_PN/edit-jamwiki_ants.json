@@ -1733,7 +1733,16 @@
     "mutable_bytes": 1349160,
     "nU": 177,
     "edges": 17669,
-    "reduced_avg_degree": 10.720930232558139
+    "reduced_avg_degree": 10.720930232558139,
+    "reduced_max_degree": 1382
   },
-  "reduction": "simple"
+  "reduction": "simple",
+  "missing_at_size": {
+    "100": {
+      "5": {
+        "mean": 0.37,
+        "n": 100
+      }
+    }
+  }
 }

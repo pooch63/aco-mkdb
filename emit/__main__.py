@@ -24,11 +24,10 @@ Modes
       Vary.jl ant-count JSON → paper-style LaTeX table.
 
   compare
-      Vary.jl ant-count JSON → complexity / flag-setting figures.
+      Vary.jl ant-count JSON → complexity figures (ACO-PN).
       Plot groups (pass comma-separated via --plots):
-        theta-time, deg-size-time, density-size, max-deg-time, pn
-      Pass a folder prefix such as vary_k2t5i_ to auto-load the four
-      ACO flag settings: (none), N, P, and PN.
+        theta-time, deg-size-time, density-size, max-deg-time
+      Pass a single results directory, e.g. vary_k2t5i_PN.
 
   statistics
       Vary.jl ant-count JSON → inline LaTeX for %%STATISTICS:field%%
@@ -36,14 +35,16 @@ Modes
       construction missing-at-size means). Fields: aco-wins, heur-wins,
       ties, n-graphs, variance, wilcoxon, aco-missing-at-5, aco-n-missing-at-5
 
+      missing-at-5 fields read pre-recorded JSON only (no Julia at build time).
+
 Usage:
     python -m emit quality /path/to/json/dir -o plot.tex
     python -m emit seed-compare /path/to/json/dir -o seed.tex
     python -m emit seed-compare compare_k2t5i --vary-dir=vary_k2t5i -o seed.tex
     python -m emit table vary_k2t5i -o table.tex
     python -m emit table vary_k2t5i --ants=50
-    python -m emit compare vary_k2t5i_ -o compare.tex
-    python -m emit compare vary_k2t5i_ --plots=theta-time,deg-size-time -o complexity.tex
+    python -m emit compare vary_k2t5i_PN -o compare.tex
+    python -m emit compare vary_k2t5i_PN --plots=theta-time,deg-size-time -o complexity.tex
 """
 
 from __future__ import annotations
@@ -67,8 +68,8 @@ def main(argv=None):
     )
     parser.add_argument(
         "directory",
-        help="JSON directory, or (compare mode) vary folder prefix "
-             "such as vary_k2t5i_ for ACO / N / P / PN",
+        help="JSON directory (compare / quality / table / statistics) "
+             "or compare-seeds directory (seed-compare)",
     )
     parser.add_argument(
         "-o",
@@ -93,7 +94,7 @@ def main(argv=None):
         "--plots",
         default=None,
         help="compare mode: comma-separated plot groups "
-             "(theta-time, deg-size-time, density-size, max-deg-time, pn)",
+             "(theta-time, deg-size-time, density-size, max-deg-time)",
     )
     parser.add_argument(
         "--field",
@@ -134,9 +135,12 @@ def main(argv=None):
         table.run(json_paths, args.output, ants=args.ants)
 
     elif args.mode == "compare":
+        json_paths = list_json_paths(args.directory)
+        if not json_paths:
+            raise SystemExit(f"No .json files found in {args.directory}")
         from . import compare
         compare.run(
-            args.directory,
+            json_paths,
             args.output,
             ants=args.ants,
             plots=args.plots,

@@ -1,25 +1,21 @@
 """
-compare mode — vary.jl ant-count JSON → complexity / flag-setting figures.
+compare mode — vary.jl ant-count JSON → complexity figures.
 
-Pass a folder *prefix* such as ``vary_k2t5i_`` to load ACO settings
-``""``, ``N``, ``P``, and ``PN`` (prefer-smaller-side / neighbor-limit
-flags). Select plot groups with ``--plots`` (comma-separated):
+Pass a single results directory (e.g. ``vary_k2t5i_PN``), like table or
+statistics mode. Select plot groups with ``--plots`` (comma-separated):
 
   theta-time
     - θ-heuristic wall time vs θ(|U_R|+|V_R|)+|E_R|
 
   deg-size-time
-    - ACO discovery time vs (avg degree + |U_R|+|V_R|)·|E(D*)|
+    - ACO-PN discovery time vs (|U_R|+|V_R|)^2
+    - same vs (max degree + |U_R|+|V_R|)·(|U_D|+|V_D|)
 
   density-size
     - edge density vs |E(D*)|
 
   max-deg-time
-    - max reduced degree vs ACO discovery time
-
-  pn
-    - stacked bar: % instances where ACO-PN is worse / equal / better
-    - summary table of size ratios vs ACO-PN
+    - max reduced degree vs ACO-PN discovery time
 
 ACO points use the same best-trial / discovery rules as table mode.
 """
@@ -28,16 +24,15 @@ from __future__ import annotations
 
 import math
 import os
-import statistics
 import sys
 
 from .common import (
     display_name,
-    list_json_paths,
     load_json,
     report_skipped,
     write_tex,
 )
+from .result_fields import validate_compare_directory
 from .table import summarize_file
 
 PLOT_GROUPS = (
@@ -45,47 +40,10 @@ PLOT_GROUPS = (
     "deg-size-time",
     "density-size",
     "max-deg-time",
-    "pn",
 )
 
-# Flag suffixes written by scripts/vary.bash (P = prefer, N = neighbor).
-ACO_SUFFIXES = ("", "N", "P", "PN")
-ACO_LABELS = {
-    "": "ACO",
-    "N": "ACO-N",
-    "P": "ACO-P",
-    "PN": "ACO-PN",
-}
+ACO_LABEL = "ACO-PN"
 HEUR_LABEL = r"$\theta$-Heuristic"
-
-
-def _symbolic_coord(label):
-    """Brace-wrap pgfplots symbolic coords that contain hyphens."""
-    if "-" in label:
-        return "{" + label + "}"
-    return label
-
-
-def resolve_aco_dirs(directory):
-    """
-    Expand a vary folder prefix into ACO flag directories.
-
-    ``vary_k2t5i_`` → ``vary_k2t5i_``, ``vary_k2t5i_N``, ``vary_k2t5i_P``,
-    ``vary_k2t5i_PN`` (whichever exist). A bare existing directory also
-    works as a single-setting input.
-    """
-    prefix = os.path.abspath(directory.rstrip(os.sep))
-    found = []
-    for suffix in ACO_SUFFIXES:
-        path = prefix + suffix
-        if os.path.isdir(path):
-            found.append((ACO_LABELS[suffix], path))
-    if found:
-        return found
-    raise SystemExit(
-        f"No ACO result directories found for prefix {directory!r} "
-        f"(tried suffixes {list(ACO_SUFFIXES)})"
-    )
 
 
 def edge_density(row):
@@ -105,6 +63,15 @@ def reduced_node_count(row):
     if nU is None or nV is None:
         return None
     return int(nU) + int(nV)
+
+
+def reduced_nodes_squared(row):
+    """(|U_R| + |V_R|)^2."""
+    nodes = reduced_node_count(row)
+    if nodes is None:
+        return None
+    n = float(nodes)
+    return n * n
 
 
 def reduced_edge_density(row):
@@ -135,7 +102,9 @@ def theta_n_plus_m(row):
 def reduced_max_degree(row):
     """Maximum degree over vertices in the reduced graph."""
     d = row.get("reduced_max_degree")
-    return None if d is None else float(d)
+    if d is None:
+        return None
+    return float(d)
 
 
 def reduced_avg_degree(row):
@@ -151,13 +120,21 @@ def reduced_avg_degree(row):
     return (2.0 * float(edges)) / float(nodes)
 
 
-def _deg_plus_nodes_times_size(deg_fn):
-    """(degree + |U_R|+|V_R|) · |E(D*)| using ACO best-trial size."""
+def solution_node_count(row):
+    """|U_D| + |V_D| from the ACO best trial."""
+    nU, nV = row.get("aco_nU"), row.get("aco_nV")
+    if nU is None or nV is None:
+        return None
+    return int(nU) + int(nV)
+
+
+def _deg_plus_nodes_times(deg_fn, size_fn):
+    """(degree + |U_R|+|V_R|) · size_fn(row) for reduced-graph degree proxies."""
 
     def x_fn(row):
         deg = deg_fn(row)
         nodes = reduced_node_count(row)
-        size = row.get("aco_edges")
+        size = size_fn(row)
         if deg is None or nodes is None or size is None:
             return None
         return (float(deg) + float(nodes)) * float(size)
@@ -247,22 +224,6 @@ def _addplot_trendline(points, *, color=None, alpha=0.85):
         opts.append(color)
     return [rf"\addplot+[{', '.join(opts)}] coordinates {{{coord_str}}};"]
 
-
-def collect_variant_rows(directory, ants=None):
-    """Load named summarize_file rows from one vary directory."""
-    named_rows = []
-    skipped = []
-    for path in list_json_paths(directory):
-        data = load_json(path)
-        if data is None:
-            skipped.append((path, "unreadable"))
-            continue
-        row = summarize_file(data, ants=ants)
-        if row is None:
-            skipped.append((path, "not a vary.jl ant-count result"))
-            continue
-        named_rows.append((display_name(path, data), row))
-    return named_rows, skipped
 
 
 def _series_for_x(variant_rows, aco_order, x_fn, *, size_y_fn=None):
@@ -409,213 +370,6 @@ def _size_figure(
     return lines
 
 
-def _rows_by_name(named_rows):
-    """Map display name → summarize_file row (last wins on duplicates)."""
-    return {name: row for name, row in named_rows}
-
-
-def _compare_order(variant_rows):
-    """ACO / ACO-P / ACO-N labels present alongside ACO-PN."""
-    pn_label = ACO_LABELS["PN"]
-    order = [
-        ACO_LABELS[s]
-        for s in ("", "P", "N")
-        if ACO_LABELS[s] in variant_rows
-    ]
-    if pn_label not in variant_rows or not order:
-        return []
-    return order
-
-
-def _matched_rows_by_name(variant_rows):
-    """
-    Per-dataset rows for ACO-PN vs ACO / ACO-P / ACO-N.
-
-    Returns (compare_order, {dataset_name: {label: row, ...}}).
-    """
-    compare_order = _compare_order(variant_rows)
-    if not compare_order:
-        return compare_order, {}
-
-    pn_label = ACO_LABELS["PN"]
-    pn_by_name = _rows_by_name(variant_rows[pn_label])
-    matched = {}
-    for name, pn_row in pn_by_name.items():
-        entry = {pn_label: pn_row}
-        for lab in compare_order:
-            other = _rows_by_name(variant_rows[lab]).get(name)
-            if other is None:
-                break
-            entry[lab] = other
-        else:
-            matched[name] = entry
-    return compare_order, matched
-
-
-def _size_ratio_other_over_pn(pn_row, other_row):
-    """|E(D*)|(other) / |E(D*)|(ACO-PN); None if PN size is missing or zero."""
-    e_pn = pn_row.get("aco_edges")
-    e_other = other_row.get("aco_edges")
-    if e_pn is None or e_other is None:
-        return None
-    e_pn, e_other = float(e_pn), float(e_other)
-    if e_pn <= 0:
-        return None
-    return e_other / e_pn
-
-
-def _quality_outcome(pn_row, other_row):
-    """
-    Compare ACO-PN vs another variant on solution size.
-
-    Returns ``"worse"`` (PN smaller), ``"equal"``, or ``"better"`` (PN larger).
-    """
-    e_pn = pn_row.get("aco_edges")
-    e_other = other_row.get("aco_edges")
-    if e_pn is None or e_other is None:
-        return None
-    e_pn, e_other = int(e_pn), int(e_other)
-    if e_pn > e_other:
-        return "better"
-    if e_pn < e_other:
-        return "worse"
-    return "equal"
-
-
-def _collect_quality_stats(matched, compare_order):
-    """
-    Per compare-label quality breakdown and size-ratio summaries vs ACO-PN.
-    """
-    pn_label = ACO_LABELS["PN"]
-    stats = {}
-    for lab in compare_order:
-        outcomes = {"worse": 0, "equal": 0, "better": 0}
-        ratios = []
-        for rows in matched.values():
-            outcome = _quality_outcome(rows[pn_label], rows[lab])
-            if outcome is None:
-                continue
-            outcomes[outcome] += 1
-            ratio = _size_ratio_other_over_pn(rows[pn_label], rows[lab])
-            if ratio is not None:
-                ratios.append(ratio)
-        total = sum(outcomes.values())
-        if total == 0:
-            continue
-        stats[lab] = {
-            "outcomes": outcomes,
-            "total": total,
-            "ratios": ratios,
-            "pct_worse": 100.0 * outcomes["worse"] / total,
-            "pct_equal": 100.0 * outcomes["equal"] / total,
-            "pct_better": 100.0 * outcomes["better"] / total,
-        }
-    return stats
-
-
-def _quality_stacked_bar_figure(*, compare_order, quality_stats):
-    """Stacked bar: percent worse / equal / better for ACO-PN vs each other variant."""
-    labels = [lab for lab in compare_order if lab in quality_stats]
-    if not labels:
-        return []
-
-    xpos = list(range(1, len(labels) + 1))
-    tick = ",".join(str(i) for i in xpos)
-    tick_labels = ",".join(_symbolic_coord(label) for label in labels)
-
-    def _coords(key):
-        return " ".join(
-            f"({xi},{quality_stats[lab][key]:.6g})"
-            for xi, lab in zip(xpos, labels)
-        )
-
-    lines = [
-        r"\begin{figure}[htbp]",
-        r"  \centering",
-        r"  \begin{tikzpicture}",
-        r"  \begin{axis}[",
-        r"    width=0.72\textwidth,",
-        r"    height=0.48\textwidth,",
-        r"    ybar stacked,",
-        r"    bar width=0.55,",
-        r"    ymin=0, ymax=100,",
-        r"    ylabel={Instances (\%)},",
-        r"    xtick={" + tick + "},",
-        r"    xticklabels={" + tick_labels + "},",
-        r"    legend style={draw=none, fill=white, font=\small},",
-        r"    legend cell align=left,",
-        r"    legend columns=3,",
-        r"  ]",
-        r"\addplot+[fill=red!60] coordinates {" + _coords("pct_worse") + "};",
-        r"\addlegendentry{ACO-PN worse}",
-        r"\addplot+[fill=gray!45] coordinates {" + _coords("pct_equal") + "};",
-        r"\addlegendentry{Equal}",
-        r"\addplot+[fill=green!50!black] coordinates {"
-        + _coords("pct_better")
-        + "};",
-        r"\addlegendentry{ACO-PN better}",
-        r"  \end{axis}",
-        r"  \end{tikzpicture}",
-        r"  \caption{Solution quality of ACO-PN vs.\ other flag settings "
-        r"(by $|E(D^*)|$ on matched instances).}",
-        r"  \label{fig:compare-pn-quality-bar}",
-        r"\end{figure}",
-    ]
-    return lines
-
-
-def _fmt_pct(value):
-    return f"{value:.1f}\\%"
-
-
-def _fmt_ratio(value):
-    return f"{value:.3f}"
-
-
-def _quality_summary_table(*, compare_order, quality_stats):
-    """LaTeX table: size-ratio mean/median and outcome percentages."""
-    rows = []
-    for lab in compare_order:
-        st = quality_stats.get(lab)
-        if not st:
-            continue
-        ratios = st["ratios"]
-        mean_r = statistics.mean(ratios) if ratios else None
-        med_r = statistics.median(ratios) if ratios else None
-        rows.append(
-            "    "
-            + " & ".join(
-                [
-                    lab,
-                    "--" if mean_r is None else _fmt_ratio(mean_r),
-                    "--" if med_r is None else _fmt_ratio(med_r),
-                    _fmt_pct(st["pct_equal"]),
-                    _fmt_pct(st["pct_better"]),
-                    _fmt_pct(st["pct_worse"]),
-                ]
-            )
-            + r" \\"
-        )
-    if not rows:
-        return []
-
-    return [
-        r"\begin{table}[htbp]",
-        r"  \centering",
-        r"  \caption{Solution-quality comparison vs.\ ACO-PN "
-        r"(Other $|E(D^*)|$ / ACO-PN $|E(D^*)|$; outcome percentages).}",
-        r"  \label{tab:compare-pn-quality}",
-        r"  \begin{tabular}{lrrrrr}",
-        r"    \toprule",
-        r"    Method & Mean ratio & Median ratio & \% equal & \% PN better & \% PN worse \\",
-        r"    \midrule",
-        *rows,
-        r"    \bottomrule",
-        r"  \end{tabular}",
-        r"\end{table}",
-    ]
-
-
 def _parse_plots(plots):
     """Validate and normalize a comma-separated plot-group list."""
     if plots is None:
@@ -637,20 +391,62 @@ def _parse_plots(plots):
     return selected
 
 
-def build_compare_plots(variant_rows, plots=None):
+def _deg_size_time_figures(
+    *,
+    aco_order,
+    ctx,
+    reduced_nodes_sq_x,
+    max_deg_nodes_x,
+    disc_y,
+):
+    """Discovery time vs reduced-node count and max-degree complexity proxies."""
+    fig_nodes_sq = _size_figure(
+        aco_order=aco_order,
+        aco_size=ctx["reduced_nodes_sq_time"],
+        heur_size=[],
+        xlabel=reduced_nodes_sq_x,
+        ylabel=disc_y,
+        legend_name="compareReducedNodesSqTimeLegend",
+        caption=(
+            r"ACO-PN discovery time vs.\ "
+            r"$(|U_R|+|V_R|)^2$ "
+            r"(dashed line shows a log--log trend)."
+        ),
+        label="fig:compare-reduced-nodes-sq-time",
+        mark_alpha=0.5,
+        trend_lines=True,
+    )
+    fig_nodes = _size_figure(
+        aco_order=aco_order,
+        aco_size=ctx["max_deg_nodes_time"],
+        heur_size=[],
+        xlabel=max_deg_nodes_x,
+        ylabel=disc_y,
+        legend_name="compareMaxDegNodesTimeLegend",
+        caption=(
+            r"ACO-PN discovery time vs.\ "
+            r"$(\Delta(G_R)+|U_R|+|V_R|)\cdot(|U_D|+|V_D|)$ "
+            r"(dashed line shows a log--log trend)."
+        ),
+        label="fig:compare-max-deg-nodes-time",
+        mark_alpha=0.5,
+        trend_lines=True,
+    )
+    return fig_nodes_sq + [""] + fig_nodes
+
+
+def build_compare_plots(named_rows, plots=None):
     """
-    Build selected compare figures from {aco_label: [(name, row), ...]}.
+    Build selected compare figures from [(name, row), ...].
 
     Plot groups are listed in ``PLOT_GROUPS``; pass ``plots`` as a
     comma-separated subset (e.g. ``theta-time,deg-size-time``).
     """
     selected = _parse_plots(plots)
-    aco_order = [
-        ACO_LABELS[s] for s in ACO_SUFFIXES if ACO_LABELS[s] in variant_rows
-    ]
+    variant_rows = {ACO_LABEL: named_rows}
+    aco_order = [ACO_LABEL]
 
     ctx = {}
-    need_pn = "pn" in selected
     need_density = "density-size" in selected
     need_theta = "theta-time" in selected
     need_max_deg = "max-deg-time" in selected
@@ -675,26 +471,23 @@ def build_compare_plots(variant_rows, plots=None):
         ctx["max_deg_time"] = max_deg_time
 
     if need_deg_size:
-        _u9, avg_deg_size_time, _u10, _u11 = _series_for_x(
-            variant_rows, aco_order, _deg_plus_nodes_times_size(reduced_avg_degree)
+        max_deg_nodes_x = _deg_plus_nodes_times(
+            reduced_max_degree, solution_node_count
         )
-        ctx["avg_deg_size_time"] = avg_deg_size_time
-
-    if need_pn:
-        compare_order, matched = _matched_rows_by_name(variant_rows)
-        quality_stats = _collect_quality_stats(matched, compare_order)
-        ctx.update(
-            {
-                "aco_order": aco_order,
-                "compare_order": compare_order,
-                "quality_stats": quality_stats,
-            }
+        _u9, reduced_nodes_sq_time, _u10, _u11 = _series_for_x(
+            variant_rows, aco_order, reduced_nodes_squared
         )
+        _u12, max_deg_nodes_time, _u13, _u14 = _series_for_x(
+            variant_rows, aco_order, max_deg_nodes_x
+        )
+        ctx["reduced_nodes_sq_time"] = reduced_nodes_sq_time
+        ctx["max_deg_nodes_time"] = max_deg_nodes_time
 
     dens_x = r"Edge density $|E|/(|U|\,|V|)$"
     theta_nm_x = r"$\theta(|U_R|+|V_R|)+|E_R|$"
     max_deg_x = r"Maximum reduced degree $\Delta(G_R)$"
-    avg_deg_size_x = r"$(\bar{d}(G_R)+|U_R|+|V_R|)\cdot|E(D^*)|$"
+    reduced_nodes_sq_x = r"$(|U_R|+|V_R|)^2$"
+    max_deg_nodes_x = r"$(\Delta(G_R)+|U_R|+|V_R|)\cdot(|U_D|+|V_D|)$"
     disc_y = r"Discovery time (s)"
 
     group_builders = {
@@ -705,8 +498,7 @@ def build_compare_plots(variant_rows, plots=None):
             xlabel=dens_x,
             legend_name="compareSizeLegend",
             caption=(
-                r"ACO solution size vs.\ graph edge density "
-                r"(flag settings)."
+                r"ACO-PN solution size vs.\ graph edge density."
             ),
             label="fig:compare-density-size",
         ),
@@ -732,28 +524,17 @@ def build_compare_plots(variant_rows, plots=None):
             ylabel=disc_y,
             legend_name="compareMaxDegTimeLegend",
             caption=(
-                r"ACO discovery time vs.\ maximum degree in the reduced graph "
-                r"(flag settings)."
+                r"ACO-PN discovery time vs.\ maximum degree in the reduced graph."
             ),
             label="fig:compare-max-deg-time",
         ),
-        "deg-size-time": lambda: _size_figure(
+        "deg-size-time": lambda: _deg_size_time_figures(
             aco_order=aco_order,
-            aco_size=ctx["avg_deg_size_time"],
-            heur_size=[],
-            xlabel=avg_deg_size_x,
-            ylabel=disc_y,
-            legend_name="compareAvgDegSizeTimeLegend",
-            caption=(
-                r"ACO discovery time vs.\ "
-                r"$(\bar{d}(G_R)+|U_R|+|V_R|)\cdot|E(D^*)|$ "
-                r"(flag settings; dashed lines show log--log trends)."
-            ),
-            label="fig:compare-avg-deg-size-time",
-            mark_alpha=0.5,
-            trend_lines=True,
+            ctx=ctx,
+            reduced_nodes_sq_x=reduced_nodes_sq_x,
+            max_deg_nodes_x=max_deg_nodes_x,
+            disc_y=disc_y,
         ),
-        "pn": lambda: _pn_figures(ctx),
     }
 
     parts = []
@@ -768,50 +549,32 @@ def build_compare_plots(variant_rows, plots=None):
     return "\n".join(parts)
 
 
-def _pn_figures(ctx):
-    """ACO-PN comparison figures and quality summary table."""
-    compare_order = ctx["compare_order"]
-    quality_stats = ctx["quality_stats"]
-
-    pn_figures = [
-        _quality_stacked_bar_figure(
-            compare_order=compare_order,
-            quality_stats=quality_stats,
-        ),
-        _quality_summary_table(
-            compare_order=compare_order,
-            quality_stats=quality_stats,
-        ),
-    ]
-    parts = []
-    for fig in pn_figures:
-        if fig:
-            if parts:
-                parts.append("")
-            parts += fig
-    return parts
-
-
-def run(directory, output, ants=None, plots=None):
-    dirs = resolve_aco_dirs(directory)
-    variant_rows = {}
+def run(json_paths, output, ants=None, plots=None):
+    named_rows = []
     skipped = []
 
-    for label, path in dirs:
-        named_rows, skip = collect_variant_rows(path, ants=ants)
-        skipped.extend(skip)
-        if not named_rows:
-            print(f"# warning: no usable rows in {path}", file=sys.stderr)
+    for path in json_paths:
+        data = load_json(path)
+        if data is None:
+            skipped.append((path, "unreadable"))
             continue
-        variant_rows[label] = named_rows
-        print(
-            f"# compare [{label}]: {len(named_rows)} dataset(s)"
-            + (f"; ants={ants}" if ants is not None else ""),
-            file=sys.stderr,
-        )
+        row = summarize_file(data, ants=ants)
+        if row is None:
+            skipped.append((path, "not a vary.jl ant-count result"))
+            continue
+        named_rows.append((display_name(path, data), row))
 
-    if not variant_rows:
+    if not named_rows:
         raise SystemExit("No usable vary JSON files -- nothing to plot.")
 
-    write_tex(build_compare_plots(variant_rows, plots=plots), output)
+    selected = _parse_plots(plots) if plots else list(PLOT_GROUPS)
+    validate_compare_directory(json_paths, selected)
+
+    print(
+        f"# compare: {len(named_rows)} dataset(s)"
+        + (f"; ants={ants}" if ants is not None else ""),
+        file=sys.stderr,
+    )
+
+    write_tex(build_compare_plots(named_rows, plots=plots), output)
     report_skipped(skipped)

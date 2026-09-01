@@ -241,7 +241,8 @@
     "mutable_bytes": 1665672,
     "nU": 443,
     "edges": 18549,
-    "reduced_avg_degree": 6.133603238866397
+    "reduced_avg_degree": 6.133603238866397,
+    "reduced_max_degree": 328
   },
   "reduction": "simple"
 }

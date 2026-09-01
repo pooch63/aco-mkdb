@@ -27,6 +27,11 @@ Progressive / `all_reductions` must not run as a one-shot peel here: that path
 tightens θ_eff without interleaved search and can delete the whole graph
 (e.g. kuwiki → 0×0) before ACO or the θ-heuristic run.
 
+Reduced-graph degree stats (`reduced_max_degree`, `reduced_avg_degree`, etc.)
+are cached per dataset in `data/<dataset>/graph_structure.json` (tracked in
+git). vary.jl reads that file and only computes + writes when the entry for
+the current (k, θ, reduction, inject) setup is missing.
+
 When `DEBUG` is true (env; `scripts/vary.bash` defaults it on) and `--inject`
 planted a biclique, each run logs whether that plant still exists after the
 CNN reduction.
@@ -123,24 +128,6 @@ function vary_run_seed(base_seed::UInt64, ant_index::Int, run::Int, n_runs::Int)
     return base_seed + offset
 end
 
-"""
-Max and mean degree over all vertices in a reduced frozen bipartite graph.
-Average is `2|E|/(|U|+|V|)` (each edge contributes to one U and one V degree).
-"""
-function reduced_degree_stats(fg::FrozenBipartite)
-    n = length(fg.u_ids) + length(fg.v_ids)
-    n == 0 && return (0, 0.0)
-    max_deg = 0
-    for u in fg.u_ids
-        max_deg = max(max_deg, degree_u(fg, u))
-    end
-    for v in fg.v_ids
-        max_deg = max(max_deg, degree_v(fg, v))
-    end
-    avg_deg = (2 * length(fg.v_adj)) / n
-    return (max_deg, avg_deg)
-end
-
 """Best trial by edges even if it did not beat the heuristic."""
 function select_best_trial_any(trials)
     usable = [t for t in trials if t.final_edges !== nothing]
@@ -195,25 +182,73 @@ function remap_addition_order(remapping::GraphRemapping, order::Vector{Tuple{Boo
     ]
 end
 
+function _env_flag(name::AbstractString, default::Bool=false)
+    v = lowercase(get(ENV, name, default ? "true" : "false"))
+    return v in ("true", "1", "yes", "on")
+end
+
+"""Include per-ant raw samples in JSON (large). Default: summary mean/n only."""
+record_construction_samples() = _env_flag("RECORD_CONSTRUCTION_SAMPLES", false)
+
+"""Include last-iteration vertex addition traces in JSON (very large)."""
+record_construction_orders() = _env_flag("RECORD_CONSTRUCTION_ORDERS", false)
+
 function construction_stats_dict(stats, remapping::GraphRemapping)
     stats === nothing && return nothing
     missing_at_size = Dict{String,Any}()
     for (size, samples) in stats.missing_at_size
         n = length(samples)
-        missing_at_size[string(size)] = Dict{String,Any}(
+        entry = Dict{String,Any}(
             "mean" => n > 0 ? sum(samples) / n : nothing,
             "n" => n,
-            "samples" => samples,
         )
+        record_construction_samples() && (entry["samples"] = samples)
+        missing_at_size[string(size)] = entry
     end
-    orders = [
-        remap_addition_order(remapping, order)
-        for order in stats.last_iteration_orders
-    ]
-    return Dict{String,Any}(
-        "missing_at_size" => missing_at_size,
-        "last_iteration_orders" => orders,
-    )
+    out = Dict{String,Any}("missing_at_size" => missing_at_size)
+    if record_construction_orders()
+        orders = [
+            remap_addition_order(remapping, order)
+            for order in stats.last_iteration_orders
+        ]
+        out["last_iteration_orders"] = orders
+    end
+    return out
+end
+
+"""Pooled missing-at-size means across trials, keyed by ant count then |S|."""
+function pool_missing_at_size_summary(trials)
+    pooled_n = Dict{String, Dict{String, Int}}()
+    pooled_sum = Dict{String, Dict{String, Float64}}()
+    for t in trials
+        c = get(t, :construction, nothing)
+        c === nothing && continue
+        mas = get(c, "missing_at_size", nothing)
+        mas === nothing && continue
+        ants_key = string(t.num_ants)
+        n_bucket = get!(pooled_n, ants_key, Dict{String, Int}())
+        s_bucket = get!(pooled_sum, ants_key, Dict{String, Float64}())
+        for (size_str, entry) in mas
+            n = Int(get(entry, "n", 0))
+            mean = get(entry, "mean", nothing)
+            n == 0 || mean === nothing && continue
+            n_bucket[size_str] = get(n_bucket, size_str, 0) + n
+            s_bucket[size_str] = get(s_bucket, size_str, 0.0) + Float64(mean) * n
+        end
+    end
+    out = Dict{String, Any}()
+    for (ants_key, sizes) in pooled_n
+        size_out = Dict{String, Any}()
+        for (size_str, n) in sizes
+            n == 0 && continue
+            size_out[size_str] = Dict(
+                "mean" => pooled_sum[ants_key][size_str] / n,
+                "n" => n,
+            )
+        end
+        isempty(size_out) || (out[ants_key] = size_out)
+    end
+    return out
 end
 
 """
@@ -342,7 +377,7 @@ planted biclique vertices survive the one-shot CNN reduction and logs the result
 function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int,
     reduction::ReductionMode.T, aco_options; ant_counts::Vector{Int},
     run_pivot::Bool=false, seed=nothing, dataset::AbstractString="",
-    n_runs::Int=1, plant=nothing)
+    n_runs::Int=1, plant=nothing, inject=nothing)
     n_runs >= 1 || throw(ArgumentError("n_runs must be >= 1, got $n_runs"))
     _, _, num_iterations, _, _ = aco_options
 
@@ -394,7 +429,10 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     reduced_nU = length(fg.u_ids)
     reduced_nV = length(fg.v_ids)
     reduced_edges = length(fg.v_adj)
-    reduced_max_degree, reduced_avg_degree = reduced_degree_stats(fg)
+    inject_cfg = inject === nothing ? (; enabled=false, nU=0, nV=0, attempts=0) : inject
+    structure_key = graph_structure_cache_key(k, θ, reduction, inject_cfg; seed=seed)
+    reduced_max_degree, reduced_avg_degree = resolve_reduced_degree_stats!(
+        dataset, structure_key, nU, nV, edge_count, fg)
     print_metric_block("Graph reduction";
         wall_time_s = m_red.time,
         allocated_bytes = m_red.allocated,
@@ -626,6 +664,9 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         out["best_trial"] = best_trial_summary_dict(best)
         out["aco_discovery_s"] = get(results, :aco_discovery_s, nothing)
     end
+
+    mas_summary = pool_missing_at_size_summary(results.trials)
+    isempty(mas_summary) || (out["missing_at_size"] = mas_summary)
 
     return out
 end

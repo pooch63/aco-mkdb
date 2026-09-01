@@ -5,8 +5,9 @@ seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table:
   (or -ACO discovery cost when ACO did not beat θ / saved no pivot time),
   and percent reduction (negative when ACO wasted time).
 
-  Rows are split by a \\midrule: positive time-saved first, then waste,
-  each section sorted by ascending |time saved|.
+  Rows with undefined time saved or reduction are omitted. Remaining rows
+  are split by a \\midrule: positive time-saved first, then waste, each
+  section sorted by ascending |time saved|.
 
 Reads full pivot comparisons and beat_heuristic=false skip markers from
 compare-seeds.jl. Pass --vary-dir (or rely on compare_* → vary_* name
@@ -449,29 +450,32 @@ def _aco_overhead_s(row):
 
 def time_saved_s(row):
     """
-    Signed seconds for the Time saved column, or None if unknown.
+    Signed seconds for the Time saved column (net end-to-end).
 
-    Positive: pivot wall-time reduction (θ seed − ACO seed).
-    Non-positive / no-beat: −ACO discovery cost (time wasted).
+    When both pivots ran: T_pivot(θ) − T_discovery − T_pivot(ACO), i.e. θ-only
+    branch-and-pivot versus running ACO first and then pivoting on the ACO seed.
+    When ACO did not beat θ (or no θ pivot baseline): −T_discovery.
     """
+    inclusive = row.get("inclusive_reduction_s")
+    if inclusive is not None:
+        return float(inclusive)
+
+    theta = row.get("theta_wall_time_s")
+    aco = row.get("aco_seed_wall_time_s")
+    discovery = row.get("aco_discovery_s")
+    if theta is not None and aco is not None:
+        return float(theta) - float(discovery or 0.0) - float(aco)
+
     if row.get("beat_heuristic"):
         value = row.get("time_reduction_s")
-        if value is not None and float(value) > 0:
+        if value is not None:
             return float(value)
-        if value is None:
-            return None
-        # value <= 0: fall through to overhead
+
     return _aco_overhead_s(row)
 
 
 def fmt_saved_s(row):
-    """
-    Pivot time saved (s).
-
-    When ACO did not beat θ, or beat on edges but saved no pivot time
-    (e.g. both sides timed out), report -ACO discovery cost instead of
-    0.00 / --.
-    """
+    """Net time saved (s); negative when ACO search had no compensating pivot gain."""
     value = time_saved_s(row)
     if value is None:
         return "--"
@@ -480,21 +484,15 @@ def fmt_saved_s(row):
 
 def fmt_pct(row):
     """
-    Percent reduction matching Time saved.
+    Percent reduction matching net Time saved.
 
-    Positive when ACO cut pivot time. When ACO saved no pivot time, report
-    a negative percentage of θ pivot time (inclusive net change when that
-    baseline exists; callers may fill inclusive_reduction_pct for no-beat
-    rows using a shared timeout baseline).
+    100 × Time saved / T_pivot(θ) when a θ-seeded pivot baseline exists;
+    for no-beat rows without a per-graph baseline, callers may fill
+    inclusive_reduction_pct using a shared timeout baseline.
     """
     saved = time_saved_s(row)
     if saved is None:
         return "--"
-    if saved > 0:
-        value = row.get("time_reduction_pct")
-        if value is None:
-            return "--"
-        return f"{float(value):.2f}"
 
     pct = row.get("inclusive_reduction_pct")
     if pct is None:
@@ -549,51 +547,56 @@ def _abs_saved_sort_key(row):
     return (0, abs(float(saved)), row.get("display_name") or row.get("name") or "")
 
 
+def row_has_table_metrics(row):
+    """True when both Time saved and Reduction (%) are defined for the table."""
+    return fmt_saved_s(row) != "--" and fmt_pct(row) != "--"
+
+
+def table_rows(rows):
+    """Drop rows lacking time saved or reduction before building the table."""
+    return [r for r in rows if row_has_table_metrics(r)]
+
+
 def seed_compare_section(row):
     """
     Table section for a seed-compare row.
 
-    improved — pivot wall time decreased with an ACO seed
-    neutral — no pivot savings (negative time saved is discovery overhead)
-    unavailable — pivot comparison not run or both seeds timed out
+    improved — net end-to-end time decreased (ACO + ACO-seeded pivot beats θ pivot)
+    neutral — no net savings (negative time saved is discovery overhead)
     """
     saved = time_saved_s(row)
-    if saved is None:
-        return "unavailable"
-    if float(saved) > 0:
+    if saved is not None and float(saved) > 0:
         return "improved"
     return "neutral"
 
 
 def order_seed_compare_rows(rows):
     """
-    Three table blocks — improved, neutral, unavailable — each sorted by
-    ascending |time saved|.
+    Two table blocks — improved, neutral — each sorted by ascending
+    |time saved|. Rows with undefined metrics are omitted.
     """
-    improved, neutral, unavailable = [], [], []
-    for row in rows:
+    improved, neutral = [], []
+    for row in table_rows(rows):
         section = seed_compare_section(row)
         if section == "improved":
             improved.append(row)
-        elif section == "neutral":
-            neutral.append(row)
         else:
-            unavailable.append(row)
-    for bucket in (improved, neutral, unavailable):
+            neutral.append(row)
+    for bucket in (improved, neutral):
         bucket.sort(key=_abs_saved_sort_key)
-    return improved, neutral, unavailable
+    return improved, neutral
 
 
 def build_seed_compare_table(rows):
     """
-    LaTeX table: every dataset with graph/reduced sizes and pivot savings.
+    LaTeX table: datasets with graph/reduced sizes and defined pivot savings.
 
-    Three blocks separated by \\midrule: pivot time improved (ascending
-    |saved|), no pivot savings / net overhead, then pivot comparison
-    unavailable (timed out or not run).
+    Two blocks separated by \\midrule: net end-to-end time improved (ascending
+    |saved|), then no net savings / overhead. Rows with undefined time saved or
+    reduction are omitted.
     """
-    improved_rows, neutral_rows, unavailable_rows = order_seed_compare_rows(rows)
-    sections = [s for s in (improved_rows, neutral_rows, unavailable_rows) if s]
+    improved_rows, neutral_rows = order_seed_compare_rows(rows)
+    sections = [s for s in (improved_rows, neutral_rows) if s]
 
     lines = [
         r"\begin{table}[htbp]",
@@ -603,7 +606,7 @@ def build_seed_compare_table(rows):
         r"  \setlength{\tabcolsep}{4pt}",
         r"  \begin{tabular}{lrrrrrr}",
         r"    \toprule",
-        r"    Dataset & Nodes & Edges & Reduced nodes & Reduced edges"
+        r"    Dataset & $|U_G|+|V_G|$ & $|E_G|$ & $|U_R|+|V_R|$ & $|E_R|$"
         r" & Time saved (s) & Reduction (\%) \\",
         r"    \midrule",
     ]
@@ -639,23 +642,12 @@ def build_seed_compare_latex(rows):
         raise ValueError("No seed-compare rows to plot")
 
     fill_waste_reduction_pct(rows)
-    improved_rows, neutral_rows, unavailable_rows = order_seed_compare_rows(rows)
-    ordered = improved_rows + neutral_rows + unavailable_rows
+    improved_rows, neutral_rows = order_seed_compare_rows(rows)
 
-    n_total = len(ordered)
-    n_no_gain = len(neutral_rows) + len(unavailable_rows)
-    note = (
-        rf"We examined ${n_total}$ graphs. On ${n_no_gain}$ of them, ACO did "
-        r"not reduce pivot time (time saved reports the negated ACO "
-        r"discovery cost; reduction is negative)."
-    )
+    if not improved_rows and not neutral_rows:
+        raise ValueError("No seed-compare rows with defined time saved and reduction")
 
-    parts = [
-        build_seed_compare_table(rows),
-        "",
-        note,
-    ]
-    return "\n".join(parts)
+    return build_seed_compare_table(rows)
 
 
 def run(json_paths, output, vary_dir=None):

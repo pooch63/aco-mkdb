@@ -57,7 +57,7 @@
 The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization.
 We adapt Ant Colony Optimization (ACO) to this problem and introduce a smaller side preference to outperform previously proposed heuristics.
 In some instances, ACO produces bicliques with 3-4x more edges than previously proposed heuristics.
-Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can reduce brute force search time by up to $98\%$, though compute constraints limit the robustness of our test.
+Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can reduce brute force search time by up to $95\%$ on net end-to-end time (including ACO search cost), though compute constraints limit the robustness of our test.
 This work examines a new heuristic approach to the $k$-MDB problem while identifying several improvements for future heuristics.
 \end{abstract}
 
@@ -232,7 +232,8 @@ Concurrently, Wang et al. [11] studied a related but distinct formulation: the m
 $\mathcal{O}^*(\gamma^{\alpha\delta^2 + k})$ by exploiting a diameter-three property of large defective bicliques, and propose an analogous construct-and-expand heuristic (greedy initial construction followed by one-sided greedy expansion) to seed their search.
 Because their objective differs from ours, we do not benchmark directly against their algorithm, but their diameter-three pruning and expansion-based seeding strategy are directly relevant to future extensions of this work (Section 6.1).
 
-Ant Colony Optimization is a natural metaheuristic for problems where high-quality solutions are built incrementally by adding vertices under local feasibility constraints. In the maximum clique problem, ACO algorithms construct cliques greedily while using pheromone to reinforce vertices that appear in large solutions [8]. The $k$-MDB problem has similar structure: an ant can grow a near-biclique vertex by vertex, checking at each step whether the defect budget permits another addition. By contrast, population-based encodings such as genetic algorithms must represent membership across both partitions simultaneously; in our experiments, a GA adapted from the GCLIQUE framework [3] underperformed both ACO and the $\theta$-heuristic, likely because crossover and mutation on such a high-dimensional bitmask struggle to preserve the global density constraint across two vertex sets. Simulated annealing and other single-solution perturbation methods face a related difficulty: maintaining feasibility under the global edge-missing budget while exploring diverse vertex sets requires problem-specific move operators that are less direct than ACO's constructive expansion. These considerations motivate our choice of MMAS [4] over alternative metaheuristics for seeding exact search on $k$-MDB instances.
+Ant Colony Optimization is a natural metaheuristic for problems where high-quality solutions are built incrementally by adding vertices under local feasibility constraints. In the maximum clique problem, ACO algorithms construct cliques greedily while using pheromone to reinforce vertices that appear in large solutions [8]. The $k$-MDB problem has similar structure: an ant can grow a near-biclique vertex by vertex, checking at each step whether the defect budget permits another addition. By contrast, population-based encodings such as genetic algorithms must represent membership across both partitions simultaneously; in our experiments, a GA adapted from the GCLIQUE framework [3] underperformed both ACO and the $\theta$-heuristic, likely because crossover and mutation on such a high-dimensional bitmask struggle to preserve the global density constraint across two vertex sets.
+These considerations motivate our choice of MMAS [4] over alternative metaheuristics for seeding exact search on $k$-MDB instances.
 
 \section{Methods}
 
@@ -419,8 +420,9 @@ First, ants were varied across $\{2, 5, 10, 20, 50, 100, 200\}$. Solution qualit
 
 Second, we hypothesize that ACO can provide a larger initial lower bound on the maximum solution than the $\theta$-heuristic and significantly reduce branch and pivot execution time.
 
-Finally, we propose two optimizations to traditional ACO. First, we propose an ACO algorithm that weights nodes on the smaller side of its subgraph higher, called prefer smaller side, or P. We also propose an optimization that only allows an ant to travel to a neighbor of its most recently visited node, called neighbor scope limit, or N. ACO, ACO-P, ACO-N, and ACO-PN, to denote traditional ACO, ACO with P, ACO with N, and ACO with P and N, respectively, were tested on the suite of 36 graphs.
-We show that neighbor scope limit improves solution quality, and prefer smaller side decreases execution time.
+Third, we compare ACO-PN directly against the $\theta$-heuristic on the full benchmark suite, measuring solution quality, $\theta$-feasibility, and wall-clock time.
+
+Finally, we ablate two optimizations to traditional ACO. Prefer smaller side (P) weights nodes on the smaller side of an ant's subgraph higher; neighbor scope limit (N) restricts an ant to travel only to neighbors of its most recently visited node. ACO, ACO-P, ACO-N, and ACO-PN denote traditional ACO, ACO with P, ACO with N, and ACO with both flags, respectively. We hypothesize that N improves solution quality and that P decreases execution time.
 
 All tests were run with 8 threads on a computer with Ubuntu, an Intel(R) Core(TM) Ultra 7 258V, and 32 gigabytes of RAM.
 
@@ -428,21 +430,32 @@ TO-DO: Same number of ants, varying number of iterations
 
 \section{Results}
 
-With our algorithms and experimental protocol established, we report empirical results below. We vary the number of ants and analyze the effect on run time as well as solution quality. We compare ACO results to $\theta$-heuristic results. Finally, because Branch and Pivot can prune more branches with a larger initial $D^*$, we demonstrate the speed increase from using ACO as the heuristic seeding method in cases where ACO outperformed the $\theta$-heuristic. Ant count $n_S$ is varied across $\{2, 5, 10, 20, 50, 100, 200\}$.
+We report empirical results in four parts: the effect of ant count on solution quality and runtime; the benefit of ACO-seeded branch-and-pivot; a head-to-head comparison of ACO-PN against the $\theta$-heuristic; and an ablation of the prefer-smaller-side (P) and neighbor-scope-limit (N) flags.
+
+\subsection{Effect of ant count}
+
+We varied ant count $n_S$ across $\{2, 5, 10, 20, 50, 100, 200\}$ using ACO-PN on the full benchmark suite. Figure~\ref{fig:quality-groupplot} plots, for each graph, mean percent deviation from the Cui $\theta$-heuristic (among $\theta$-feasible trials), the $\theta$-feasibility rate, and mean wall-clock time. Solution quality generally improves with more ants but often plateaus before $n_S = 200$; $\theta$-feasibility rises with ant count on most graphs; and runtime scales roughly linearly with $n_S$ on the log-scaled time panel.
 
 %%QUALITY%%
-    
-We observe that a marginal increase in the initial upper bound of the subgraph for Branch and Pivot allows the algorithm to prune more branches, and can sometimes result in significant decreases in runtime. ACO was run $5$ times, and the largest $k$-DB was used. If this $k$-DB had more edges than the $\theta$-heuristic output, the pivot algorithm was then run using only the $\theta$-heuristic solution as a seed, and then using the ACO solution as a seed.
-We measure the difference between the pivot algorithm runtime, adding the time ACO took to run to its final pivot time. We summarize our results below.
 
-Table~\ref{tab:seed-compare} groups datasets into three blocks separated by horizontal rules: instances where ACO seeding improved pivot runtime (top), instances with no pivot savings or net ACO overhead (middle), and instances where pivot comparison was unavailable because both seeds timed out or were not run (bottom).
+\subsection{Branch-and-pivot seeding}
+
+A marginal increase in the initial lower bound $D^*$ can allow branch-and-pivot to prune more branches and sometimes reduce runtime substantially. ACO was run five times per graph; the largest returned $k$-DB was used as a seed whenever it beat the $\theta$-heuristic. Branch-and-pivot was then run twice on each eligible graph: once seeded with the $\theta$-heuristic solution and once seeded with the ACO solution.
+
+Table~\ref{tab:seed-compare} summarizes the 21 graphs on which both pivots completed within a 2000-second timeout (the remaining 15 benchmark graphs timed out under both seeds and are omitted). $|U_G|+|V_G|$ and $|E_G|$ are the vertex and edge counts of the original graph; $|U_R|+|V_R|$ and $|E_R|$ are the corresponding counts after common-neighbor reduction. Rows are grouped into two blocks separated by a horizontal rule: graphs where ACO seeding reduced net end-to-end time (top), and graphs with no net savings or overhead (bottom). Within each block, rows are sorted by ascending absolute time saved.
+
+\emph{Time saved} is the net wall-time change of using ACO before branch-and-pivot versus running branch-and-pivot on the $\theta$-heuristic seed alone: $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$, where $T_{\mathrm{discovery}}$ is the full ACO search cost through the winning replicate (all five runs at the chosen ant count). Positive values mean the ACO-seeded pipeline is faster overall; negative values mean ACO search did not pay for itself (when ACO did not beat the $\theta$-heuristic, the column is $-T_{\mathrm{discovery}}$). \emph{Reduction (\%)} is $100 \times \text{Time saved} / T_{\mathrm{pivot}}(\theta)$.
 
 %%SEED_COMPARE%%
-Finally, we compared ACO and the $\theta$-heuristic on the 36 graphs for a total of 5 iterations, and measured both the time to completion as well as the iterations and time to the best returned solution.
-We measured time and performance for the $\theta$-heuristic. On %%STATISTICS:aco-wins%% of %%STATISTICS:n-graphs%% graphs, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming on %%STATISTICS:heur-wins%% and tying on %%STATISTICS:ties%%. %%STATISTICS:variance%% %%STATISTICS:wilcoxon%%
-In these trials, ACO took only up to a second longer than the $\theta$-heuristic, suggesting that it can feasibly be used on much larger graphs to reduce runtime as it can on smaller graphs.
 
-%%COMPARE:pn%%
+\subsection{ACO vs.\ $\theta$-heuristic}
+
+We compared ACO-PN (100 ants, five iterations) against the $\theta$-heuristic on the benchmark suite, recording time to completion, iterations to best solution (ITB), and time to best (TTB). On %%STATISTICS:aco-wins%% of %%STATISTICS:n-graphs%% graphs, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming on %%STATISTICS:heur-wins%% and tying on %%STATISTICS:ties%%. %%STATISTICS:variance%% %%STATISTICS:wilcoxon%%
+In these trials, ACO took less than 3 seconds longer than the $\theta$-heuristic in the worst case on a graph with $18000$ edges, suggesting that it can feasibly be used on much larger graphs. Per-graph results, grouped by outcome, appear in Table~\ref{tab:aco-heur-pn} (Appendix~A).
+
+\subsection{Flag ablation (P and N)}
+
+We evaluated plain ACO, ACO-P, ACO-N, and ACO-PN on all benchmark graphs at 100 ants. Neighbor scope limit (N) improves solution quality relative to plain ACO and ACO-P; prefer smaller side (P) reduces discovery time on every matched instance, with median discovery time roughly $5\times$ lower than plain ACO at some cost to $|E(D^*)|$.
 
 \section{Discussion}
 
@@ -451,7 +464,7 @@ In these trials, ACO took only up to a second longer than the $\theta$-heuristic
 On the tested graphs, ACO outperforms the $\theta$-heuristic on %%STATISTICS:aco-wins%% of %%STATISTICS:n-graphs%% graphs, and underperforms only %%STATISTICS:heur-wins%% times while tying %%STATISTICS:ties%%. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
 it often finds solutions 3-4x larger -- for example, \texttt{DNC corecipient}, \texttt{moreno}, \texttt{nowikinews}, \texttt{matter}, and \texttt{wikitalknds}. Additionally, in cases where ACO does outperform the $\theta$-heuristic, it results in significantly speed boosts to the brute-force algorithm.
 
-Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. On the 6 graphs where ACO beat the $\theta$-heuristic and ACO-seeded run reduces runtime between $54\%$ and $98\%$.
+Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. On the 6 graphs where ACO beat the $\theta$-heuristic, the net end-to-end pipeline (ACO search plus ACO-seeded pivot) reduced total time by between roughly $50\%$ and $95\%$ relative to a $\theta$-seeded pivot alone.
 
 ACO-N has significantly better solution quality than traditional ACO and ACO-P. We hypothesize this is because, when allowing an ant to add any node possible, in the early stages, an ant takes a subgraph of two nodes that are not connected.
 By requiring any future additions to share an edge with the most recently visited neighbor, ants are discouraged from creating initial subgraphs with few connections. Indeed, we find that with ACO-N, the average number of missing edges after a subgraph has reached
@@ -469,7 +482,7 @@ Additionally, we injected bicliques with $\theta$ vertices on both sides into th
 \section{Conclusion}
 
 Ant Colony Optimization is a promising heuristic approach to identifying large $k$-DB. As an emergent field, there do not exist many tested heuristics for this problem. The $\theta$-heuristic, the only previously proposed heuristic we could identify, is significantly faster than our algorithm but often does not produce solutions as large. While ACO takes longer, it can also function as a much more effective upper bound for brute-force search algorithms,
-cutting search time by as much as $98\%$.
+cutting net end-to-end search time by as much as $95\%$.
 
 \subsection{Future Work}
 
@@ -480,7 +493,7 @@ Additionally, ACO could be adapted to have N subspecies that find N solutions in
 
 Code is available on \url{https://github.com/pooch63/aco-kmdb}.
 
-\section{Works Cited}
+\section*{References}
 
 [1] D. Cui, R. Li, Q. Dai, H. Qin, and G. Wang, “On the Efficient Discovery of Maximum $K$-Defective Biclique,” arXiv.org. Accessed: Aug. 11, 2026. [Online]. Available: https://arxiv.org/abs/2506.16121
 \
@@ -533,21 +546,16 @@ C. Solnon and S. Fenet, “A Study of ACO Capabilities for Solving the Maximum C
 
 [15] K. Yu and C. Long, “Maximum $k$-Biplex Search on Bipartite Graphs: A Symmetric-BK Branching Approach,” Proc. ACM Manag. Data, vol. 1, no. 1, Art. 49, Mar. 2023, doi: 10.1145/3588729.
 
-\section{Appendix}
-
 \appendix
+\renewcommand{\thesection}{Appendix \Alph{section}}
 
 \section{ACO vs $\theta$-heuristic}
 
-Below are the results of running ACO ants vs the $\theta$-heuristic on 10 different graphs. $|U_G|$, $|V_G|$, and $|E_G|$ represent the total number of $U$ vertices, $V$ vertices, and edges in the original graph, respectively. $|U_R|$, $|V_R|$, and $|E_R|$ represent the total number of $U$ vertices, $V$ vertices, and edges in the reduced graph that both heuristics are run on, respectively.
+Table~\ref{tab:aco-heur-pn} lists per-graph results for ACO-PN (100 ants, five iterations) against the $\theta$-heuristic on the full benchmark suite. $|U_G|$, $|V_G|$, and $|E_G|$ are the original graph sizes; $|U_R|$, $|V_R|$, and $|E_R|$ are the reduced graph sizes on which both methods run after common-neighbor reduction.
 
-ACO trials were run with 100 ants for a total of 5 iterations. \texttt{ITB} represents the number of iterations that were necessary for the ants to reach their largest solution. \texttt{TTB} represents the amount of time the ants required to finish their \texttt{ITB} -- that is, to first find their best solution.
+Rows are grouped into three blocks separated by horizontal rules: graphs where ACO-PN returned a strictly larger $\theta$-feasible $|E(D^*)|$ (or was $\theta$-feasible while the $\theta$-heuristic was not), graphs where the $\theta$-heuristic won under the same rules, and graphs that tied or where neither side achieved $\theta$ feasibility on both sides. Within each block, rows are sorted by ACO $|E(D^*)|$.
 
-For both ACO and the $\theta$-heuristic, $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D*)|$ represent the number of $U$ vertices, $V$ vertices, and edges in their identified solutions. Times for both are shown in milliseconds.
-
-
-ANALYSIS STILL LEFT TO DO: Vary k and theta, even just doing k = 3 theta = 6, to see if this holds up.
-Try pivot but with all these new graphs
+For ACO, \texttt{Discovery} is the cumulative wall time through the winning replicate; \texttt{ITB} is the iteration at which that replicate first reached its best $|E(D^*)|$; \texttt{TTB} is the elapsed time within that replicate to reach ITB. $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D^*)|$ denote the returned biclique; all times are in milliseconds.
 
 %%TABLE:PN%%
 

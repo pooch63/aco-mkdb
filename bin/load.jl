@@ -110,6 +110,8 @@ isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel
 isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco", "algorithm.jl"))
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
 isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(@__DIR__, "benchmark.jl"))
+isdefined(@__MODULE__, :__GRAPH_STRUCTURE_CACHE_JL__) ||
+    include(joinpath(SRC, "graph_structure_cache.jl"))
 isdefined(@__MODULE__, :__VARY_JL__) || include(joinpath(@__DIR__, "vary.jl"))
 
 # Terminal / env flag (vary.bash exports DEBUG=true by default; unset → true).
@@ -630,7 +632,7 @@ function main()
             results = run_vary_ant_count!(g, edges, k, θ, reduction, aco_options;
                 ant_counts=ants_range, run_pivot=vary_run_pivot,
                 seed=seed, dataset=String(dataset_name), n_runs=aco_runs,
-                plant=plant)
+                plant=plant, inject=inject)
             if save_path !== nothing
                 payload = vary_results_to_dict(results;
                     k=k, θ=θ, dataset=String(dataset_name),
