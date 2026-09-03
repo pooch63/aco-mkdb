@@ -241,5 +241,13 @@
     "reduced_avg_degree": 6.133603238866397,
     "reduced_max_degree": 328
   },
-  "reduction": "simple"
+  "reduction": "simple",
+  "missing_at_size": {
+    "100": {
+      "5": {
+        "mean": 1.07,
+        "n": 100
+      }
+    }
+  }
 }
