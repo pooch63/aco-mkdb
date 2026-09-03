@@ -18,7 +18,13 @@ import statistics
 import sys
 from collections import defaultdict
 
-from .common import load_json, report_skipped, series_name, write_tex
+from .common import (
+    counted_trials,
+    load_json,
+    report_skipped,
+    series_name,
+    write_tex,
+)
 
 # Tukey fence multiplier for heuristic-panel outlier detection.
 HEURISTIC_OUTLIER_IQR_K = 1.5
@@ -54,26 +60,6 @@ def heuristic_baseline(data):
     return heuristic.get("final_edges")
 
 
-def aco_runs_per_ant(data):
-    """Replicates per ant count (1 when vary.jl ran each count once)."""
-    n = data.get("aco_runs")
-    if n is not None:
-        return int(n)
-    runs = [
-        int(t["run"])
-        for t in data.get("trials", [])
-        if t.get("run") is not None
-    ]
-    return max(runs) if runs else 1
-
-
-def include_trial_in_timing(t, data):
-    """Skip run 1 when replicates exist — it pays Julia JIT on the real graph."""
-    if aco_runs_per_ant(data) <= 1:
-        return True
-    return int(t.get("run", 1)) != 1
-
-
 def summarize_file(data):
     """
     Returns
@@ -90,10 +76,12 @@ def summarize_file(data):
                            either a usable optimum or a heuristic baseline.
 
     time_by_ants: {ants: mean wall_time_s}, over trials with usable quality
-                  baselines. When aco_runs > 1, run 1 at each ant count is
-                  omitted (Julia JIT on the first measured replicate).
+                  baselines.
+
+    When aco_runs > 1, run 1 at each ant count is omitted from every panel
+    (Julia JIT on the first measured replicate).
     """
-    trials = data.get("trials", [])
+    trials = counted_trials(data.get("trials") or [], data)
     file_level_opt = file_level_optimal(data)
     heur_edges = heuristic_baseline(data)
 
@@ -130,10 +118,9 @@ def summarize_file(data):
         if feasible and heur_pct is not None:
             heur_pct_vals[ants].append(heur_pct)
 
-        if include_trial_in_timing(t, data):
-            wall_time = t.get("wall_time_s")
-            if wall_time is not None:
-                time_vals[ants].append(wall_time)
+        wall_time = t.get("wall_time_s")
+        if wall_time is not None:
+            time_vals[ants].append(wall_time)
 
     if not any_usable:
         return None
@@ -429,7 +416,8 @@ def build_combined_latex(
         r"\end{tikzpicture}",
         r"  \caption{ACO solution quality vs.\ the Cui $\theta$-heuristic, "
         r"$\theta$-feasibility rate, and mean wall-clock time vs.\ ant count "
-        r"(first replicate omitted per ant count when multiple runs were recorded).}",
+        r"(first replicate per ant count omitted when multiple runs were "
+        r"recorded, to exclude Julia JIT warmup).}",
         r"  \label{fig:quality-groupplot}",
     ]
     if outlier_note:

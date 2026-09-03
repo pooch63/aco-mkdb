@@ -1,13 +1,17 @@
 """
 seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table:
 
-  Table of every dataset: graph/reduced nodes & edges, pivot time saved
+  Table of datasets: graph/reduced nodes & edges, pivot time saved
   (or -ACO discovery cost when ACO did not beat θ / saved no pivot time),
   and percent reduction (negative when ACO wasted time).
 
   Rows with undefined time saved or reduction are omitted. Remaining rows
   are split by a \\midrule: positive time-saved first, then waste, each
   section sorted by ascending |time saved|.
+
+  --subset=full (default) emits every remaining row (appendix).
+  --subset=highlights emits the net-savings graphs plus the smallest and
+  largest overhead cases (main text).
 
 Reads full pivot comparisons and beat_heuristic=false skip markers from
 compare-seeds.jl. Pass --vary-dir (or rely on compare_* → vary_* name
@@ -24,6 +28,7 @@ import sys
 
 from .common import (
     aco_discovery_cost,
+    counted_trials,
     display_name,
     infer_vary_dir,
     load_json,
@@ -54,13 +59,17 @@ def select_best_beating_trial(trials):
 
 
 def aco_mean_wct_s(trials):
-    """Mean ACO wall_time_s over all trials (all ant counts / replicates)."""
+    """Mean ACO wall_time_s over counted trials (all ant counts / replicates)."""
     times = [
         float(t["wall_time_s"])
         for t in trials
         if t.get("wall_time_s") is not None
     ]
     return statistics.mean(times) if times else None
+
+
+def _vary_counted_trials(vary_data):
+    return counted_trials(vary_data.get("trials") or [], vary_data)
 
 
 def _first_int(*values):
@@ -286,7 +295,7 @@ def summarize_seed_compare(data, compare_path=None, vary_data=None):
             vary_data = load_json(src)
 
     if discovery_s is None and vary_data is not None:
-        trials = vary_data.get("trials") or []
+        trials = _vary_counted_trials(vary_data)
         winning = select_best_beating_trial(trials)
         if winning is None and trial:
             # Fall back to the trial recorded in the compare JSON.
@@ -296,7 +305,9 @@ def summarize_seed_compare(data, compare_path=None, vary_data=None):
                 "time_to_best_s": trial.get("time_to_best_s"),
                 "wall_time_s": trial.get("wall_time_s"),
             }
-        discovery_s = aco_discovery_cost(trials, winning, until_found=False)
+        discovery_s = aco_discovery_cost(
+            trials, winning, until_found=False, data=vary_data
+        )
 
     if discovery_s is None and trial.get("time_to_best_s") is not None:
         # No vary file: at least count time-to-best of the seeded trial.
@@ -306,7 +317,7 @@ def summarize_seed_compare(data, compare_path=None, vary_data=None):
 
     mean_aco_wct = data.get("aco_mean_wct_s")
     if mean_aco_wct is None and vary_data is not None:
-        mean_aco_wct = aco_mean_wct_s(vary_data.get("trials") or [])
+        mean_aco_wct = aco_mean_wct_s(_vary_counted_trials(vary_data))
     elif mean_aco_wct is not None:
         mean_aco_wct = float(mean_aco_wct)
 
@@ -346,7 +357,7 @@ def summarize_from_vary_only(data):
     Used for datasets skipped by compare-seeds.jl (no ACO beat) and for
     datasets where ACO beat θ but compare-seeds has not been run yet.
     """
-    trials = data.get("trials") or []
+    trials = _vary_counted_trials(data)
     if not trials:
         return None
 
@@ -354,7 +365,9 @@ def summarize_from_vary_only(data):
     best_beat = select_best_beating_trial(trials)
 
     if best_beat is not None:
-        discovery_s = aco_discovery_cost(trials, best_beat, until_found=False)
+        discovery_s = aco_discovery_cost(
+            trials, best_beat, until_found=False, data=data
+        )
         # Pivot not timed yet: discovery is sunk cost with unknown benefit.
         inclusive_s = -float(discovery_s) if discovery_s is not None else None
         return {
@@ -382,10 +395,10 @@ def summarize_no_beat_vary(data):
     For a vary.jl file where ACO never beat θ: discovery cost is a pure
     time increase (no pivot benefit). Returns None if any trial beat θ.
 
-    Cost is the sum of wall_time_s over every ACO trial (all ant counts) —
-    the full search that failed to improve on θ.
+    Cost is the sum of wall_time_s over every counted ACO trial (all ant
+    counts) — the full search that failed to improve on θ.
     """
-    trials = data.get("trials") or []
+    trials = _vary_counted_trials(data)
     if not trials:
         return None
     if select_best_beating_trial(trials) is not None:
@@ -587,22 +600,45 @@ def order_seed_compare_rows(rows):
     return improved, neutral
 
 
-def build_seed_compare_table(rows):
+SUBSET_FULL = "full"
+SUBSET_HIGHLIGHTS = "highlights"
+
+
+def pick_highlight_sections(improved_rows, neutral_rows):
+    """
+    Representative subset for the main-text table.
+
+    Keep every graph with net end-to-end savings, plus the smallest and
+    largest overhead among the remaining graphs (already sorted by |saved|).
+    """
+    if not neutral_rows:
+        return list(improved_rows), []
+    if len(neutral_rows) == 1:
+        return list(improved_rows), list(neutral_rows)
+    return list(improved_rows), [neutral_rows[0], neutral_rows[-1]]
+
+
+def build_seed_compare_table(
+    improved_rows,
+    neutral_rows,
+    *,
+    label,
+    caption,
+    placement="htbp",
+):
     """
     LaTeX table: datasets with graph/reduced sizes and defined pivot savings.
 
     Two blocks separated by \\midrule: net end-to-end time improved (ascending
-    |saved|), then no net savings / overhead. Rows with undefined time saved or
-    reduction are omitted.
+    |saved|), then no net savings / overhead.
     """
-    improved_rows, neutral_rows = order_seed_compare_rows(rows)
     sections = [s for s in (improved_rows, neutral_rows) if s]
 
     lines = [
-        r"\begin{table}[htbp]",
+        rf"\begin{{table}}[{placement}]",
         r"  \centering",
-        r"  \caption{Pivot seed comparison: ACO vs.\ $\theta$-heuristic}",
-        r"  \label{tab:seed-compare}",
+        rf"  \caption{{{caption}}}",
+        rf"  \label{{{label}}}",
         r"  \setlength{\tabcolsep}{4pt}",
         r"  \begin{tabular}{lrrrrrr}",
         r"    \toprule",
@@ -636,8 +672,8 @@ def build_seed_compare_table(rows):
     return "\n".join(lines)
 
 
-def build_seed_compare_latex(rows):
-    """Build seed-compare LaTeX: per-example table only."""
+def build_seed_compare_latex(rows, subset=SUBSET_FULL):
+    """Build seed-compare LaTeX: full appendix table or main-text highlights."""
     if not rows:
         raise ValueError("No seed-compare rows to plot")
 
@@ -647,10 +683,39 @@ def build_seed_compare_latex(rows):
     if not improved_rows and not neutral_rows:
         raise ValueError("No seed-compare rows with defined time saved and reduction")
 
-    return build_seed_compare_table(rows)
+    if subset == SUBSET_HIGHLIGHTS:
+        improved_rows, neutral_rows = pick_highlight_sections(
+            improved_rows, neutral_rows
+        )
+        return build_seed_compare_table(
+            improved_rows,
+            neutral_rows,
+            label="tab:seed-compare",
+            caption=(
+                r"Representative pivot seed comparisons. Top: graphs where ACO "
+                r"seeding reduced net end-to-end time. Bottom: smallest and "
+                r"largest ACO-search overhead among the remaining graphs. Full "
+                r"results are in Table~\ref{tab:seed-compare-full}."
+            ),
+            placement="H",
+        )
+
+    if subset != SUBSET_FULL:
+        print(
+            f"# Warning: unknown seed-compare subset {subset!r}; emitting full table",
+            file=sys.stderr,
+        )
+
+    return build_seed_compare_table(
+        improved_rows,
+        neutral_rows,
+        label="tab:seed-compare-full",
+        caption=r"Pivot seed comparison: ACO vs.\ $\theta$-heuristic (full results)",
+        placement="H",
+    )
 
 
-def run(json_paths, output, vary_dir=None):
+def run(json_paths, output, vary_dir=None, subset=SUBSET_FULL):
     rows = []
     skipped = []
     seen_names = set()
@@ -721,7 +786,7 @@ def run(json_paths, output, vary_dir=None):
             "No compare-seeds JSON files with pivot timings -- nothing to plot."
         )
 
-    tex = build_seed_compare_latex(rows)
+    tex = build_seed_compare_latex(rows, subset=subset)
     write_tex(tex, output)
 
     beat = [r for r in rows if r.get("beat_heuristic")]

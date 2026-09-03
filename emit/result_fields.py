@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .common import display_name, load_json
+from .common import display_name, load_json, counted_trials
 
 # graph.* fields used by table / compare / seed-compare
 GRAPH_FIELDS = (
@@ -51,7 +51,7 @@ def file_missing_at_size_weight(data, *, ants, target_size):
 
     total_n = 0
     total_sum = 0.0
-    for trial in data.get("trials") or []:
+    for trial in counted_trials(data.get("trials") or [], data):
         if trial.get("ants") != ants:
             continue
         trial_entry = _trial_missing_at_size_entry(trial, target_size)
@@ -149,8 +149,7 @@ def validate_compare_directory(json_paths, plots):
         print(
             "Warning: result JSON missing fields required for compare plots.\n"
             f"  {sample}{more}\n"
-            "Re-run vary.jl or: python3 scripts/backfill_result_fields.py <dir>\n"
-            "(graph degrees are cached in data/<dataset>/graph_structure.json)",
+            "Re-run vary.jl or: python3 scripts/backfill_result_fields.py <dir>",
             file=sys.stderr,
         )
 

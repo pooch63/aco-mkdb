@@ -22,9 +22,10 @@ import os
 import statistics
 import sys
 
-from .common import list_json_paths, load_json, report_skipped, write_tex
+from .common import counted_trials, list_json_paths, load_json, report_skipped, write_tex
 from .result_fields import pool_missing_at_size_mean, validate_missing_at_size_dirs
 from .table import SECTION_ACO, SECTION_HEUR, SECTION_TIE, compare_section, summarize_file
+
 
 FIELDS = (
     "aco-wins",
@@ -43,10 +44,10 @@ MISSING_AT_SIZE_FIELDS = frozenset(
 )
 
 
-def _trials_at_ants(trials, ants):
+def _trials_at_ants(trials, ants, data=None):
     return [
         t
-        for t in trials
+        for t in counted_trials(trials, data)
         if t.get("final_edges") is not None and t.get("ants") == ants
     ]
 
@@ -73,7 +74,7 @@ def collect_outcomes(json_paths, ants=None):
                 "section": section,
                 "aco_edges": None if aco_edges is None else int(aco_edges),
                 "heur_edges": None if heur_edges is None else int(heur_edges),
-                "trials": _trials_at_ants(data.get("trials") or [], ants),
+                "trials": _trials_at_ants(data.get("trials") or [], ants, data),
             }
         )
 

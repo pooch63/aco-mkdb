@@ -1,49 +1,20 @@
-"""
-compare mode — vary.jl ant-count JSON → complexity figures.
-
-Pass a single results directory (e.g. ``vary_k2t5i_PN``), like table or
-statistics mode. Select plot groups with ``--plots`` (comma-separated):
-
-  theta-time
-    - θ-heuristic wall time vs θ(|U_R|+|V_R|)+|E_R|
-
-  deg-size-time
-    - ACO-PN discovery time vs (|U_R|+|V_R|)^2
-    - same vs (max degree + |U_R|+|V_R|)·(|U_D|+|V_D|)
-
-  density-size
-    - edge density vs |E(D*)|
-
-  max-deg-time
-    - max reduced degree vs ACO-PN discovery time
-
-ACO points use the same best-trial / discovery rules as table mode.
-"""
+"""Shared metrics and pgfplots helpers for compare-mode figures."""
 
 from __future__ import annotations
 
 import math
-import os
-import sys
-
-from .common import (
-    display_name,
-    load_json,
-    report_skipped,
-    write_tex,
-)
-from .result_fields import validate_compare_directory
-from .table import summarize_file
-
-PLOT_GROUPS = (
-    "theta-time",
-    "deg-size-time",
-    "density-size",
-    "max-deg-time",
-)
 
 ACO_LABEL = "ACO-PN"
 HEUR_LABEL = r"$\theta$-Heuristic"
+
+_SERIES_COLORS = (
+    "blue",
+    "red",
+    "green!60!black",
+    "orange",
+    "purple",
+    "brown",
+)
 
 
 def edge_density(row):
@@ -128,7 +99,7 @@ def solution_node_count(row):
     return int(nU) + int(nV)
 
 
-def _deg_plus_nodes_times(deg_fn, size_fn):
+def deg_plus_nodes_times(deg_fn, size_fn):
     """(degree + |U_R|+|V_R|) · size_fn(row) for reduced-graph degree proxies."""
 
     def x_fn(row):
@@ -142,7 +113,7 @@ def _deg_plus_nodes_times(deg_fn, size_fn):
     return x_fn
 
 
-def _scatter_coords(points):
+def scatter_coords(points):
     """points: iterable of (x, y) floats → pgfplots coordinates body."""
     parts = []
     for x, y in points:
@@ -152,18 +123,8 @@ def _scatter_coords(points):
     return " ".join(parts)
 
 
-_SERIES_COLORS = (
-    "blue",
-    "red",
-    "green!60!black",
-    "orange",
-    "purple",
-    "brown",
-)
-
-
-def _log_log_regression(points):
-    """Fit log(y) = slope * log(x) + intercept; return (slope, intercept)."""
+def log_log_regression_stats(points):
+    """Fit log(y) = slope * log(x) + intercept; return (slope, intercept, r2)."""
     valid = [(x, y) for x, y in points if x and y and x > 0 and y > 0]
     if len(valid) < 2:
         return None
@@ -178,12 +139,24 @@ def _log_log_regression(points):
         return None
     slope = num / den
     intercept = mean_y - slope * mean_x
+    ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in zip(xs, ys))
+    ss_tot = sum((y - mean_y) ** 2 for y in ys)
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    return slope, intercept, r2
+
+
+def log_log_regression(points):
+    """Fit log(y) = slope * log(x) + intercept; return (slope, intercept)."""
+    stats = log_log_regression_stats(points)
+    if stats is None:
+        return None
+    slope, intercept, _r2 = stats
     return slope, intercept
 
 
-def _trend_line_coords(points):
+def trend_line_coords(points):
     """Endpoints for a log--log least-squares trend line."""
-    reg = _log_log_regression(points)
+    reg = log_log_regression(points)
     if reg is None:
         return None
     slope, intercept = reg
@@ -198,9 +171,13 @@ def _trend_line_coords(points):
     return [(xmin, y_at(xmin)), (xmax, y_at(xmax))]
 
 
-def _addplot_scatter(label, points, *, with_legend=True, alpha=None, color=None):
-    coords = _scatter_coords(points)
+def addplot_scatter(
+    label, points, *, with_legend=True, alpha=None, color=None, mark=None
+):
+    coords = scatter_coords(points)
     opts = ["only marks"]
+    if mark:
+        opts.append(f"mark={mark}")
     if alpha is not None:
         opts.append(f"opacity={alpha}")
         opts.append(f"mark options={{opacity={alpha}}}")
@@ -212,11 +189,11 @@ def _addplot_scatter(label, points, *, with_legend=True, alpha=None, color=None)
     return lines
 
 
-def _addplot_trendline(points, *, color=None, alpha=0.85):
-    coords = _trend_line_coords(points)
+def addplot_trendline(points, *, color=None, alpha=0.85):
+    coords = trend_line_coords(points)
     if coords is None:
         return []
-    coord_str = _scatter_coords(coords)
+    coord_str = scatter_coords(coords)
     opts = ["mark=none", "thick", "dashed", "forget plot"]
     if alpha is not None:
         opts.append(f"opacity={alpha}")
@@ -225,8 +202,7 @@ def _addplot_trendline(points, *, color=None, alpha=0.85):
     return [rf"\addplot+[{', '.join(opts)}] coordinates {{{coord_str}}};"]
 
 
-
-def _series_for_x(variant_rows, aco_order, x_fn, *, size_y_fn=None):
+def series_for_x(variant_rows, aco_order, x_fn, *, size_y_fn=None):
     """
     Build size/time point lists keyed by series label.
 
@@ -279,7 +255,7 @@ def _series_for_x(variant_rows, aco_order, x_fn, *, size_y_fn=None):
     return aco_size, aco_time, heur_size, heur_time
 
 
-def _size_figure(
+def size_figure(
     *,
     aco_order,
     aco_size,
@@ -298,9 +274,11 @@ def _size_figure(
     xmax=None,
     mark_alpha=None,
     trend_lines=False,
+    placement="H",
+    series_marks=None,
 ):
     lines = [
-        r"\begin{figure}[htbp]",
+        rf"\begin{{figure}}[{placement}]",
         r"  \centering",
         r"  \begin{tikzpicture}",
         r"  \begin{axis}[",
@@ -328,7 +306,7 @@ def _size_figure(
         ]
     lines.append(r"  ]")
     if heur_size:
-        lines += _addplot_scatter(
+        lines += addplot_scatter(
             HEUR_LABEL, heur_size, with_legend=bool(legend_name)
         )
     for i, lab in enumerate(aco_order):
@@ -338,15 +316,17 @@ def _size_figure(
             else None
         )
         pts = aco_size[lab]
-        lines += _addplot_scatter(
+        mark = series_marks.get(lab) if series_marks else None
+        lines += addplot_scatter(
             lab,
             pts,
             with_legend=bool(legend_name),
             alpha=mark_alpha,
             color=color,
+            mark=mark,
         )
         if trend_lines:
-            lines += _addplot_trendline(pts, color=color)
+            lines += addplot_trendline(pts, color=color)
     if y_equals_one:
         lines.append(
             r"\addplot[black, densely dashed, forget plot] coordinates {(0,1) (1,1)};"
@@ -368,213 +348,3 @@ def _size_figure(
         r"\end{figure}",
     ]
     return lines
-
-
-def _parse_plots(plots):
-    """Validate and normalize a comma-separated plot-group list."""
-    if plots is None:
-        return list(PLOT_GROUPS)
-    selected = []
-    for raw in plots.split(","):
-        name = raw.strip()
-        if not name:
-            continue
-        if name not in PLOT_GROUPS:
-            raise SystemExit(
-                f"Unknown compare plot group {name!r}; "
-                f"choose from: {', '.join(PLOT_GROUPS)}"
-            )
-        if name not in selected:
-            selected.append(name)
-    if not selected:
-        raise SystemExit("No compare plot groups selected.")
-    return selected
-
-
-def _deg_size_time_figures(
-    *,
-    aco_order,
-    ctx,
-    reduced_nodes_sq_x,
-    max_deg_nodes_x,
-    disc_y,
-):
-    """Discovery time vs reduced-node count and max-degree complexity proxies."""
-    fig_nodes_sq = _size_figure(
-        aco_order=aco_order,
-        aco_size=ctx["reduced_nodes_sq_time"],
-        heur_size=[],
-        xlabel=reduced_nodes_sq_x,
-        ylabel=disc_y,
-        legend_name="compareReducedNodesSqTimeLegend",
-        caption=(
-            r"ACO-PN discovery time vs.\ "
-            r"$(|U_R|+|V_R|)^2$ "
-            r"(dashed line shows a log--log trend)."
-        ),
-        label="fig:compare-reduced-nodes-sq-time",
-        mark_alpha=0.5,
-        trend_lines=True,
-    )
-    fig_nodes = _size_figure(
-        aco_order=aco_order,
-        aco_size=ctx["max_deg_nodes_time"],
-        heur_size=[],
-        xlabel=max_deg_nodes_x,
-        ylabel=disc_y,
-        legend_name="compareMaxDegNodesTimeLegend",
-        caption=(
-            r"ACO-PN discovery time vs.\ "
-            r"$(\Delta(G_R)+|U_R|+|V_R|)\cdot(|U_D|+|V_D|)$ "
-            r"(dashed line shows a log--log trend)."
-        ),
-        label="fig:compare-max-deg-nodes-time",
-        mark_alpha=0.5,
-        trend_lines=True,
-    )
-    return fig_nodes_sq + [""] + fig_nodes
-
-
-def build_compare_plots(named_rows, plots=None):
-    """
-    Build selected compare figures from [(name, row), ...].
-
-    Plot groups are listed in ``PLOT_GROUPS``; pass ``plots`` as a
-    comma-separated subset (e.g. ``theta-time,deg-size-time``).
-    """
-    selected = _parse_plots(plots)
-    variant_rows = {ACO_LABEL: named_rows}
-    aco_order = [ACO_LABEL]
-
-    ctx = {}
-    need_density = "density-size" in selected
-    need_theta = "theta-time" in selected
-    need_max_deg = "max-deg-time" in selected
-    need_deg_size = "deg-size-time" in selected
-
-    if need_density:
-        full_size, _full_time, _full_heur_size, _full_heur_time = (
-            _series_for_x(variant_rows, aco_order, edge_density)
-        )
-        ctx["full_size"] = full_size
-
-    if need_theta:
-        _unused_size2, _unused_time2, _unused_heur_size3, theta_heur_time = (
-            _series_for_x(variant_rows, aco_order, theta_n_plus_m)
-        )
-        ctx["theta_heur_time"] = theta_heur_time
-
-    if need_max_deg:
-        _u3, max_deg_time, _u4, _u5 = _series_for_x(
-            variant_rows, aco_order, reduced_max_degree
-        )
-        ctx["max_deg_time"] = max_deg_time
-
-    if need_deg_size:
-        max_deg_nodes_x = _deg_plus_nodes_times(
-            reduced_max_degree, solution_node_count
-        )
-        _u9, reduced_nodes_sq_time, _u10, _u11 = _series_for_x(
-            variant_rows, aco_order, reduced_nodes_squared
-        )
-        _u12, max_deg_nodes_time, _u13, _u14 = _series_for_x(
-            variant_rows, aco_order, max_deg_nodes_x
-        )
-        ctx["reduced_nodes_sq_time"] = reduced_nodes_sq_time
-        ctx["max_deg_nodes_time"] = max_deg_nodes_time
-
-    dens_x = r"Edge density $|E|/(|U|\,|V|)$"
-    theta_nm_x = r"$\theta(|U_R|+|V_R|)+|E_R|$"
-    max_deg_x = r"Maximum reduced degree $\Delta(G_R)$"
-    reduced_nodes_sq_x = r"$(|U_R|+|V_R|)^2$"
-    max_deg_nodes_x = r"$(\Delta(G_R)+|U_R|+|V_R|)\cdot(|U_D|+|V_D|)$"
-    disc_y = r"Discovery time (s)"
-
-    group_builders = {
-        "density-size": lambda: _size_figure(
-            aco_order=aco_order,
-            aco_size=ctx["full_size"],
-            heur_size=[],
-            xlabel=dens_x,
-            legend_name="compareSizeLegend",
-            caption=(
-                r"ACO-PN solution size vs.\ graph edge density."
-            ),
-            label="fig:compare-density-size",
-        ),
-        "theta-time": lambda: _size_figure(
-            aco_order=[],
-            aco_size={},
-            heur_size=ctx["theta_heur_time"],
-            xlabel=theta_nm_x,
-            ylabel=r"Time (s)",
-            caption=(
-                r"$\theta$-heuristic wall time vs.\ "
-                r"$\theta(|U_R|+|V_R|)+|E_R|$."
-            ),
-            label="fig:compare-theta-nm-time",
-            width="0.72\\textwidth",
-            height="0.48\\textwidth",
-        ),
-        "max-deg-time": lambda: _size_figure(
-            aco_order=aco_order,
-            aco_size=ctx["max_deg_time"],
-            heur_size=[],
-            xlabel=max_deg_x,
-            ylabel=disc_y,
-            legend_name="compareMaxDegTimeLegend",
-            caption=(
-                r"ACO-PN discovery time vs.\ maximum degree in the reduced graph."
-            ),
-            label="fig:compare-max-deg-time",
-        ),
-        "deg-size-time": lambda: _deg_size_time_figures(
-            aco_order=aco_order,
-            ctx=ctx,
-            reduced_nodes_sq_x=reduced_nodes_sq_x,
-            max_deg_nodes_x=max_deg_nodes_x,
-            disc_y=disc_y,
-        ),
-    }
-
-    parts = []
-    for name in selected:
-        block = group_builders[name]()
-        if not block:
-            continue
-        if parts:
-            parts.append("")
-        parts += block
-
-    return "\n".join(parts)
-
-
-def run(json_paths, output, ants=None, plots=None):
-    named_rows = []
-    skipped = []
-
-    for path in json_paths:
-        data = load_json(path)
-        if data is None:
-            skipped.append((path, "unreadable"))
-            continue
-        row = summarize_file(data, ants=ants)
-        if row is None:
-            skipped.append((path, "not a vary.jl ant-count result"))
-            continue
-        named_rows.append((display_name(path, data), row))
-
-    if not named_rows:
-        raise SystemExit("No usable vary JSON files -- nothing to plot.")
-
-    selected = _parse_plots(plots) if plots else list(PLOT_GROUPS)
-    validate_compare_directory(json_paths, selected)
-
-    print(
-        f"# compare: {len(named_rows)} dataset(s)"
-        + (f"; ants={ants}" if ants is not None else ""),
-        file=sys.stderr,
-    )
-
-    write_tex(build_compare_plots(named_rows, plots=plots), output)
-    report_skipped(skipped)
