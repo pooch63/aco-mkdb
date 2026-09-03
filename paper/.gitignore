@@ -8,4 +8,5 @@
 # Paper build outputs (source of truth is main.tex + results/)
 build.tex
 build.pdf
+main.pdf
 generated/

@@ -14,6 +14,7 @@
     \usetikzlibrary{positioning}
 \usepackage{pgfplots}
 \usepgfplotslibrary{groupplots}
+\usepgfplotslibrary{statistics}
     \pgfplotsset{compat=1.18}
 \usepackage{pdflscape}
 \usepackage[margin=1in]{geometry}
@@ -348,7 +349,7 @@ In practice, however, there are two factors limiting this complexity. First, ant
 encourages subgraphs with $\theta$ nodes on each side, an ant will empirically visit a maximum of $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of
 $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times n)$. $n_D$ is often much lower than the total number of nodes. Additionally, let $L$ be the last node an ant visited. An ant prefers to visit only the intersection of $d_L$ and its candidate set, so it often only visits $d_L$ or fewer nodes. Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (n + \max_{v \in G}d_v)$. Because $\max_{v \in G}d_v$ is necessarily lower than $n$ and almost always lower than $\min(|U_G|, |V_G|)$, ACO's complexity practically does not scale linearly with $n$ after the first iteration.
 
-To check that observed runtimes track these bounds, we plot ACO-PN discovery time on the benchmark graphs against each complexity proxy. Figure~\ref{fig:compare-reduced-nodes-sq-time} tests the worst-case $\mathcal{O}(\lceil A / p \rceil \times I \times n^2)$ bound from the per-ant triangle-sum analysis, plotting discovery time against $(|U_R|+|V_R|)^2$ on the reduced graph. The log--log trend is steeper than slope~$1$, consistent with the bound being valid but loose on sparse instances. Figure~\ref{fig:compare-max-deg-nodes-time} tests the tighter practical bound $\mathcal{O}(\lceil A / p \rceil \times I \times n_D \times (\Delta(G_R)+n))$, plotting time against $(\Delta(G_R)+|U_R|+|V_R|)\cdot(|U_D|+|V_D|)$ using the returned biclique size $|U_D|+|V_D|$ in place of the worst-case $n$. Empirical runtime tracks this proxy much more closely, with a near-unit log--log slope.
+To check that observed runtimes track these bounds, Figure~\ref{fig:compare-bound-ratio} plots the ratio of ACO-PN discovery time to each candidate bound against $n_R = |U_R|+|V_R|$ on matched benchmark graphs, with dashed log--log trend lines for both series. A proportional bound should yield a roughly flat ratio across graph sizes; a valid but loose bound should show a declining ratio as $n_R$ grows because the bound overestimates runtime by an increasing margin. The naive $n_R^2$ bound declines with log--log slope below zero, while the practical $(\Delta_R+n_R)\cdot n_D$ proxy is near-flat, consistent with the tighter analysis in the preceding paragraph.
 
 %%COMPARE:deg-size-time%%
 
@@ -382,7 +383,7 @@ Finally, we implement the approach proposed by Cui et al. These authors observe 
 \end{minipage}
 \end{algorithm}
 
-They then propose a branch-and-pivot algorithm that takes advantage of this initial heuristic upper bound. The algorithm checks combinations of $S = (U_S, V_S)$ by maintaining a candidate set $C = (U_C, V_C)$ of all remaining nodes $u \in G \mathrel{\text{s.t.}} |\bar{E}(S \cup \{u\})| \leq k$ that could still be added to $S$. It recursively chooses a node $u \in C$ and branches on $(S^\prime = S \cup \{u\}, C^\prime = \text{candidate set of } S^\prime)$ and $(S^\prime = S, C^\prime = C \setminus \{u\})$. Several optimizations are added to make this algorithm faster than a naive brute-force approach. Its time complexity is $O(m\beta_k^n)$, where $\beta$ is the largest real root of the equation $x^{2k + 5} - 2x^{2k + 4} +  x^{k + 3} - 2x + 2 = 0$. See Appendix B for full pseudocode. 
+They then propose a branch-and-pivot algorithm that takes advantage of this initial heuristic upper bound. The algorithm checks combinations of $S = (U_S, V_S)$ by maintaining a candidate set $C = (U_C, V_C)$ of all remaining nodes $u \in G \mathrel{\text{s.t.}} |\bar{E}(S \cup \{u\})| \leq k$ that could still be added to $S$. It recursively chooses a node $u \in C$ and branches on $(S^\prime = S \cup \{u\}, C^\prime = \text{candidate set of } S^\prime)$ and $(S^\prime = S, C^\prime = C \setminus \{u\})$. Several optimizations are added to make this algorithm faster than a naive brute-force approach. Its time complexity is $O(m\beta_k^n)$, where $\beta$ is the largest real root of the equation $x^{2k + 5} - 2x^{2k + 4} +  x^{k + 3} - 2x + 2 = 0$. See Appendix~C for full pseudocode. 
 
 The paper proposes a graph reduction technique called common neighbor reduction. Common neighbor reduction prunes edges between nodes $n_1$ and $n_2$ if $n_1$ has fewer than $\theta - k$ common neighbors with $n_2$, and prunes nodes with fewer than $\theta - k$ edges.
 
@@ -444,16 +445,16 @@ We varied ant count $n_S$ across $\{2, 5, 10, 20, 50, 100, 200\}$ using ACO-PN o
 
 %%QUALITY%%
 
+\FloatBarrier
 \subsection{Branch-and-pivot seeding}
 
-A marginal increase in the initial lower bound $D^*$ can allow branch-and-pivot to prune more branches and sometimes reduce runtime substantially. ACO was run five times per graph; the largest returned $k$-DB was used as a seed whenever it beat the $\theta$-heuristic. Branch-and-pivot was then run twice on each eligible graph: once seeded with the $\theta$-heuristic solution and once seeded with the ACO solution.
+A tighter initial lower bound $D^*$ can allow branch-and-pivot to prune more branches and sometimes reduce runtime substantially. ACO was run five times per graph; the largest returned $k$-DB was used as a seed whenever it beat the $\theta$-heuristic. Branch-and-pivot was then run twice on each eligible graph: once seeded with the $\theta$-heuristic solution and once seeded with the ACO solution. Graphs on which both pivots exceeded a 2000-second timeout are omitted from the timing comparison.
 
-Table~\ref{tab:seed-compare} summarizes the 21 graphs on which both pivots completed within a 2000-second timeout (the remaining 15 benchmark graphs timed out under both seeds and are omitted). $|U_G|+|V_G|$ and $|E_G|$ are the vertex and edge counts of the original graph; $|U_R|+|V_R|$ and $|E_R|$ are the corresponding counts after common-neighbor reduction. Rows are grouped into two blocks separated by a horizontal rule: graphs where ACO seeding reduced net end-to-end time (top), and graphs with no net savings or overhead (bottom). Within each block, rows are sorted by ascending absolute time saved.
+Table~\ref{tab:seed-compare} shows the graphs where ACO seeding reduced net end-to-end time, together with the smallest and largest overhead cases. \emph{Time saved} is the net change $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$; positive values mean the ACO-seeded pipeline is faster overall. Relative reductions are largest on the smallest reduced graphs; the largest absolute savings occur where the $\theta$-seeded pivot was already expensive. When ACO does not improve $D^*$, the extra search cost remains small relative to the pivot timeout. Full per-graph results appear in Table~\ref{tab:seed-compare-full} (Appendix~B).
 
-\emph{Time saved} is the net wall-time change of using ACO before branch-and-pivot versus running branch-and-pivot on the $\theta$-heuristic seed alone: $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$, where $T_{\mathrm{discovery}}$ is the full ACO search cost through the winning replicate (all five runs at the chosen ant count). Positive values mean the ACO-seeded pipeline is faster overall; negative values mean ACO search did not pay for itself (when ACO did not beat the $\theta$-heuristic, the column is $-T_{\mathrm{discovery}}$). \emph{Reduction (\%)} is $100 \times \text{Time saved} / T_{\mathrm{pivot}}(\theta)$.
+%%SEED_COMPARE:highlights%%
 
-%%SEED_COMPARE%%
-
+\FloatBarrier
 \subsection{ACO vs.\ $\theta$-heuristic}
 
 We compared ACO-PN (100 ants, five iterations) against the $\theta$-heuristic on the benchmark suite, recording time to completion, iterations to best solution (ITB), and time to best (TTB). On %%STATISTICS:aco-wins%% of %%STATISTICS:n-graphs%% graphs, ACO produced a larger $k$-DB than the $\theta$-heuristic, underperforming on %%STATISTICS:heur-wins%% and tying on %%STATISTICS:ties%%. %%STATISTICS:variance%% %%STATISTICS:wilcoxon%%
@@ -461,7 +462,9 @@ In these trials, ACO took less than 3 seconds longer than the $\theta$-heuristic
 
 \subsection{Flag ablation (P and N)}
 
-We evaluated plain ACO, ACO-P, ACO-N, and ACO-PN on all benchmark graphs at 100 ants. Neighbor scope limit (N) improves solution quality relative to plain ACO and ACO-P; prefer smaller side (P) reduces discovery time on every matched instance, with median discovery time roughly $5\times$ lower than plain ACO at some cost to $|E(D^*)|$.
+We evaluated plain ACO, ACO-P, ACO-N, and ACO-PN on all benchmark graphs at 100 ants. Figure~\ref{fig:flag-ablation} summarizes the matched benchmark set: neighbor-scope limit (N) raises $|E(D^*)|$ while leaving discovery time largely unchanged across the P axis; prefer-smaller-side (P) cuts discovery time with only a modest quality cost, so ACO-PN matches ACO-N on quality at a fraction of ACO-N's runtime.
+
+%%COMPARE:flag-ablation%%
 
 \section{Discussion}
 
@@ -470,7 +473,7 @@ We evaluated plain ACO, ACO-P, ACO-N, and ACO-PN on all benchmark graphs at 100 
 On the tested graphs, ACO outperforms the $\theta$-heuristic on %%STATISTICS:aco-wins%% of %%STATISTICS:n-graphs%% graphs, and underperforms only %%STATISTICS:heur-wins%% times while tying %%STATISTICS:ties%%. While ACO is significantly slower than the $\theta$-heuristic, sometimes taking over one hundred times as long,
 it often finds solutions 3-4x larger -- for example, \texttt{DNC corecipient}, \texttt{moreno}, \texttt{nowikinews}, \texttt{matter}, and \texttt{wikitalknds}. Additionally, in cases where ACO does outperform the $\theta$-heuristic, it results in significantly speed boosts to the brute-force algorithm.
 
-Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. On the 6 graphs where ACO beat the $\theta$-heuristic, the net end-to-end pipeline (ACO search plus ACO-seeded pivot) reduced total time by between roughly $50\%$ and $95\%$ relative to a $\theta$-seeded pivot alone.
+Small improvements in ACO solutions can meaningfully reduce the time that Branch and Pivot takes. On the 6 graphs where ACO beat the $\theta$-heuristic (Table~\ref{tab:seed-compare}), the net end-to-end pipeline (ACO search plus ACO-seeded pivot) reduced total time by between roughly $50\%$ and $95\%$ relative to a $\theta$-seeded pivot alone.
 
 ACO-N has significantly better solution quality than traditional ACO and ACO-P. We hypothesize this is because, when allowing an ant to add any node possible, in the early stages, an ant takes a subgraph of two nodes that are not connected.
 By requiring any future additions to share an edge with the most recently visited neighbor, ants are discouraged from creating initial subgraphs with few connections. Indeed, we find that with ACO-N, the average number of missing edges after a subgraph has reached
@@ -492,7 +495,7 @@ cutting net end-to-end search time by as much as $95\%$.
 
 \subsection{Future Work}
 
-The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{dblp-cite}, \texttt{ciaodvd}, and \texttt{matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~\ref{tab:seed-compare}). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
+The graphs excluded from our seeded branch-and-pivot experiment are precisely the ones where we would expect the seeding benefit to be largest. On several large graphs --- such as \texttt{dblp-cite}, \texttt{ciaodvd}, and \texttt{matter} --- ACO found bicliques roughly 3--4$\times$ larger by edge count than the $\theta$-heuristic, at a runtime cost of only a fraction of a second to roughly one second more (Table~\ref{tab:seed-compare-full}). Because branch-and-pivot's pruning power depends on the tightness of its initial bound $D^*$, a substantially larger seed on these graphs should, in principle, prune far more of the search tree than the $\theta$-heuristic's seed does, potentially yielding much larger runtime reductions than we observed on the small graphs in Section~4. We were unable to test this directly because branch-and-pivot's runtime on graphs of this size exceeded the resources available for this study. A natural next step is to rerun the seeded comparison on higher-performance hardware to determine whether this relationship holds at scale.
 
 Additionally, ACO could be adapted to have N subspecies that find N solutions in parallel by using a repulsion mechanism similar to that proposed for diversity in other ant colony variants [9], extending previous multi-colony parallelization strategies [10].
 
@@ -564,6 +567,16 @@ Rows are grouped into three blocks separated by horizontal rules: graphs where A
 For ACO, \texttt{Discovery} is the cumulative wall time through the winning replicate; \texttt{ITB} is the iteration at which that replicate first reached its best $|E(D^*)|$; \texttt{TTB} is the elapsed time within that replicate to reach ITB. $|U_{D^*}|$, $|V_{D^*}|$, and $|E(D^*)|$ denote the returned biclique; all times are in milliseconds.
 
 %%TABLE:PN%%
+
+\section{Pivot seed comparison}
+
+Table~\ref{tab:seed-compare-full} lists per-graph branch-and-pivot timings for every dataset with a defined net time saved and percent reduction. $|U_G|+|V_G|$ and $|E_G|$ are the vertex and edge counts of the original graph; $|U_R|+|V_R|$ and $|E_R|$ are the corresponding counts after common-neighbor reduction.
+
+Rows are grouped into two blocks separated by a horizontal rule: graphs where ACO seeding reduced net end-to-end time (top), and graphs with no net savings or overhead (bottom). Within each block, rows are sorted by ascending absolute time saved.
+
+\emph{Time saved} is the net wall-time change of using ACO before branch-and-pivot versus running branch-and-pivot on the $\theta$-heuristic seed alone: $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$, where $T_{\mathrm{discovery}}$ is the full ACO search cost through the winning replicate (all five runs at the chosen ant count). Positive values mean the ACO-seeded pipeline is faster overall; negative values mean ACO search did not pay for itself (when ACO did not beat the $\theta$-heuristic, the column is $-T_{\mathrm{discovery}}$). \emph{Reduction (\%)} is $100 \times \text{Time saved} / T_{\mathrm{pivot}}(\theta)$. Graphs on which both the $\theta$-seeded and ACO-seeded pivots exceeded the 2000-second timeout are omitted.
+
+%%SEED_COMPARE%%
 
 \section{Branch and Pivot Pseudocode}
 

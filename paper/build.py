@@ -101,8 +101,10 @@ def run_emit(cfg: dict) -> None:
         if frag.get("vary_dir"):
             cmd.append(f"--vary-dir={resolve(frag['vary_dir'])}")
         plots = args or frag.get("plots")
-        if plots:
+        if plots and name not in ("SEED_COMPARE", "STATISTICS", "TABLE"):
             cmd.append(f"--plots={plots}")
+        if name == "SEED_COMPARE" and args:
+            cmd.append(f"--subset={args}")
         if frag.get("ants") is not None:
             cmd.append(f"--ants={frag['ants']}")
         if frag.get("flag_dirs"):
