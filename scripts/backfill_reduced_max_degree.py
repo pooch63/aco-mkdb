@@ -12,9 +12,6 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from emit.graph_structure_cache import lookup_from_vary_json  # noqa: E402
 
 
 def folder_uses_inject(dir_name: str) -> bool:
@@ -34,14 +31,6 @@ def collect_jobs(directory: Path):
         )
         if key[0] is None or graph.get("reduced_max_degree") is not None:
             continue
-        inject = folder_uses_inject(directory.name)
-        cached = lookup_from_vary_json(data, inject=inject)
-        if cached is not None:
-            graph["reduced_max_degree"] = int(cached["reduced_max_degree"])
-            if cached.get("reduced_avg_degree") is not None:
-                graph["reduced_avg_degree"] = float(cached["reduced_avg_degree"])
-            path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-            continue
         key_str = f"{key[0]},{key[1]},{key[2]}"
         paths_by_key.setdefault(key, []).append(path)
         if key_str in jobs:
@@ -55,7 +44,7 @@ def collect_jobs(directory: Path):
             "seed": str(seed),
             "k": data.get("k"),
             "theta": data.get("theta"),
-            "inject": inject,
+            "inject": folder_uses_inject(directory.name),
             "key": key_str,
         }
     return jobs, paths_by_key
@@ -90,56 +79,16 @@ def run_batch(jobs: dict) -> dict[str, int]:
 
 
 def patch_directory(directory: Path) -> int:
-    inject = folder_uses_inject(directory.name)
-    by_key: dict[tuple, int] = {}
-    for path in sorted(directory.glob("*.json")):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        graph = data.get("graph") or {}
-        key = (
-            graph.get("reduced_nU"),
-            graph.get("reduced_nV"),
-            graph.get("reduced_edges"),
-        )
-        max_deg = graph.get("reduced_max_degree")
-        if key[0] is not None and max_deg is not None:
-            by_key[key] = int(max_deg)
-
-    updated = 0
-    for path in sorted(directory.glob("*.json")):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        graph = data.setdefault("graph", {})
-        if graph.get("reduced_max_degree") is not None:
-            continue
-        cached = lookup_from_vary_json(data, inject=inject)
-        if cached is not None:
-            graph["reduced_max_degree"] = int(cached["reduced_max_degree"])
-            if cached.get("reduced_avg_degree") is not None:
-                graph["reduced_avg_degree"] = float(cached["reduced_avg_degree"])
-            path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-            updated += 1
-            continue
-        key = (
-            graph.get("reduced_nU"),
-            graph.get("reduced_nV"),
-            graph.get("reduced_edges"),
-        )
-        if key in by_key:
-            graph["reduced_max_degree"] = by_key[key]
-            path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-            updated += 1
-
     jobs, paths_by_key = collect_jobs(directory)
     if not jobs:
-        if updated:
-            print(f"# {directory}: patched {updated} file(s)", file=sys.stderr)
-        else:
-            print(f"# {directory}: nothing to backfill", file=sys.stderr)
-        return updated
+        print(f"# {directory}: nothing to backfill", file=sys.stderr)
+        return 0
     print(
         f"# {directory}: computing max degree for {len(jobs)} reduced graph(s)…",
         file=sys.stderr,
     )
     computed = run_batch(jobs)
+    updated = 0
     for key, paths in paths_by_key.items():
         key_str = f"{key[0]},{key[1]},{key[2]}"
         max_deg = computed.get(key_str)
@@ -148,12 +97,7 @@ def patch_directory(directory: Path) -> int:
             continue
         for path in paths:
             data = json.loads(path.read_text(encoding="utf-8"))
-            graph = data.setdefault("graph", {})
-            graph["reduced_max_degree"] = max_deg
-            ru, rv, re = graph["reduced_nU"], graph["reduced_nV"], graph["reduced_edges"]
-            n = int(ru) + int(rv)
-            if n > 0:
-                graph["reduced_avg_degree"] = (2.0 * float(re)) / float(n)
+            data.setdefault("graph", {})["reduced_max_degree"] = max_deg
             path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             updated += 1
     print(f"# {directory}: patched {updated} file(s)", file=sys.stderr)

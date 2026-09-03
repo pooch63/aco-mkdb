@@ -17,14 +17,11 @@ isdefined(@__MODULE__, :__TABU_JL__) || include(joinpath("..", "tabu.jl"))
 # Best used with parallelize=false — ACO forces that when ACO_TRACE is on.
 const ACO_TRACE = false
 
-# Ablation switches for paper experiments (baseline ACO vs optimized ACO).
+# Ablation defaults (overridable via aco() kwargs / CLI / vary.bash env).
 # Softmax-select a few finished ants by fitness and deposit elite pheromone on them.
-const USE_ELITE_PHEROMONE = false
 # Tabu repair on elite ants before deposit, and on new global bests.
-const USE_TABU = false
 # MAX-MIN Ant System: clamp shared + each species trail to [τ_min, τ_max].
 # When false, pheromone is unbounded ([0, +∞)).
-const USE_MMAS = false
 
 const ELITE_PHEROMONE_FACTOR = 2
 const SHARED_PHEROMONE_FACTOR = 0.25
@@ -73,6 +70,10 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     elite_seed::Bool=true,
     elite_seed_ants::Int=3,
     elite_seed_remove::Int=2,
+    # Paper ablations (default off — baseline ACO does not use these).
+    elite_pheromone::Bool=false,  # elitist pheromone emit on softmax elites
+    aco_tabu::Bool=false,         # tabu repair on elites / new global bests
+    mmas::Bool=false,             # MAX-MIN Ant System τ bounds
     reduction::ReductionMode.T=ReductionMode.all_reductions,
     trace_target::Union{Nothing,SubGraph}=nothing,
     # Original-id nodes to plant into every ant at the start of each construction.
@@ -146,7 +147,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
     τ_mins = Vector{Float64}(undef, num_subspecies)
     τ_maxs = Vector{Float64}(undef, num_subspecies)
-    if USE_MMAS
+    if mmas
         # θ-heuristic feeds MMAS τ bounds only — never the tracked incumbent.
         # Prefer a seed-feasible heuristic so the ceiling reflects admissible quality;
         # otherwise fall back to empty-best default (best_n=2) via empty subgraphs.
@@ -177,7 +178,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         println("ACO MMAS disabled: species pheromone unbounded [0, +∞) " *
                 "(θ-heuristic not run for ACO)")
     end
-    println("ACO ablations: elite_pheromone=$USE_ELITE_PHEROMONE tabu=$USE_TABU mmas=$USE_MMAS")
+    println("ACO ablations: elite_pheromone=$elite_pheromone tabu=$aco_tabu mmas=$mmas")
     # println("ACO MMAS species bounds: τ_min=$(round(τ_min; digits=6)) τ_max=$(round(τ_max; digits=6))")
     # Compact-space watch target (optional). Dropped nodes mean reduction already
     # removed part of the known optimum — ACO can never recover those.
@@ -262,7 +263,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 # Merge the local additions into the global pheromone tracker
                 merge_pheromones!(pheromones, local_additions)
                 # Cap species trails during construction so mid-iter selection stays bounded.
-                USE_MMAS && clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
+                mmas && clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
                 
                 # Remove dead ants from the active pool for the next iteration
                 setdiff!(active_ants, local_invalids)
@@ -273,7 +274,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
         # Softmax-select a few finished ants by instance fitness; optionally
         # tabu-repair them and/or reinforce every node in the (repaired) subgraph.
-        if USE_ELITE_PHEROMONE || USE_TABU
+        if elite_pheromone || aco_tabu
             for s in 1:num_subspecies
                 eligible = [ant for ant in ants if ant.last_visited.id != -1 && ant.species == s]
                 n_elite = min(3, length(eligible))
@@ -287,7 +288,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 for ant in elites
                     ACO_TRACE && println("  elite species=$s pre-repair score=$(instance_fitness(compact_fg, ant.explored, θ)) " *
                                      "U=$(sorted_str(ant.explored.U)) V=$(sorted_str(ant.explored.V))")
-                    if USE_TABU
+                    if aco_tabu
                         tabu_repair!(compact_fg, ant.explored, k, θ, tt, tabu_patience)
                         seed_compact !== nothing && merge_seed!(ant.explored, seed_compact)
                         if ACO_TRACE
@@ -301,7 +302,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                             println(msg)
                         end
                     end
-                    if USE_ELITE_PHEROMONE
+                    if elite_pheromone
                         for u in ant.explored.U
                             node = Node(true, u)
                             add_pheromone!(pheromones.species[s], node, pheromone * ELITE_PHEROMONE_FACTOR)
@@ -333,7 +334,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 best_times[s] = (time_ns() - t0) / 1e9
             end
             if score > best_score
-                if USE_TABU
+                if aco_tabu
                     tabu = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
                     tabu_repair!(compact_fg, tabu, k, θ, tt, tabu_patience)
                     if seed_compact !== nothing
@@ -367,7 +368,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         end
 
         # Refresh MMAS bounds from each subspecies' best, then floor/cap trails.
-        if USE_MMAS
+        if mmas
             n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
             update_species_pheromone_bounds!(τ_mins, τ_maxs, pheromone, n_nodes, evaporation, best_subgraphs;
                 pheromone_min=pheromone_min, pheromone_max=pheromone_max)

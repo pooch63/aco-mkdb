@@ -68,6 +68,8 @@ function pool_size(fg::FrozenBipartite, ant::Ant, neighbor_scope_limit::Bool)
     return length(ant.candidates)
 end
 
+const MAX_WALK_STEPS = parse(Int, get(ENV, "ANT_WALK_MAX_STEPS", "150"))
+
 function measure_ant_walks(fg::FrozenBipartite, k::Int, θ::Int, num_ants::Int;
     prefer_smaller_side::Bool=true, neighbor_scope_limit::Bool=true)
     num_subspecies = 1
@@ -77,6 +79,7 @@ function measure_ant_walks(fg::FrozenBipartite, k::Int, θ::Int, num_ants::Int;
     vertices = Int[]
     examined = Int[]
     examined_sum = zeros(Int, num_ants)
+    steps = zeros(Int, num_ants)
     active = collect(1:num_ants)
 
     while !isempty(active)
@@ -84,11 +87,20 @@ function measure_ant_walks(fg::FrozenBipartite, k::Int, θ::Int, num_ants::Int;
         invalids = Int[]
         for i in active
             ant = ants[i]
+            if steps[i] >= MAX_WALK_STEPS
+                sg = ant.explored
+                push!(feasible, θ_feasible(sg, θ))
+                push!(vertices, Subgraph.vertex_count(sg))
+                push!(examined, examined_sum[i])
+                push!(invalids, i)
+                continue
+            end
             examined_sum[i] += pool_size(fg, ant, neighbor_scope_limit)
             if advance_ant!(fg, pheromones, additions, 1, ant, k, θ;
                     prefer_smaller_side=prefer_smaller_side,
                     neighbor_scope_limit=neighbor_scope_limit,
                     ant_id=i)
+                steps[i] += 1
                 continue
             end
             sg = ant.explored

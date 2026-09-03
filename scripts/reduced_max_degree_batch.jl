@@ -25,17 +25,7 @@ for job in jobs
     g, _edges, _plant = load_graph_maybe_inject(graph_path, inject, k, Random.default_rng())
     g_red = deepcopy(g)
     fg = apply_graph_reductions!(g_red, k, θ, nothing, nothing, true, ReductionMode.simple)
-    max_deg, avg_deg = reduced_degree_stats(fg)
-    nU = length(g.adjU)
-    nV = length(g.adjV)
-    inject_cfg = if do_inject
-        (; enabled=true, nU=5, nV=5, attempts=20)
-    else
-        (; enabled=false, nU=0, nV=0, attempts=0)
-    end
-    structure_key = graph_structure_cache_key(k, θ, ReductionMode.simple, inject_cfg; seed=seed)
-    store_graph_structure_cache!(dataset, structure_key, nU, nV, _edges, length(fg.u_ids),
-        length(fg.v_ids), length(fg.v_adj), max_deg, avg_deg)
+    max_deg, _ = reduced_degree_stats(fg)
     out[key] = max_deg
 end
 

@@ -16,9 +16,14 @@
 #   DEBUG=false ./scripts/vary.bash             # skip post-reduction plant check
 #   ENABLE_NEIGHBOR_SCOPE_LIMIT=false ./scripts/vary.bash  # sample full C (not N∩C)
 #   PREFER_SMALLER_SIDE=false ./scripts/vary.bash          # disable smaller-side bias
+#   ELITE_PHEROMONE=true ./scripts/vary.bash    # elitist pheromone emit (ablation; default off)
+#   ACO_TABU=true ./scripts/vary.bash           # tabu repair on elites / bests (ablation; default off)
+#   MMAS=true ./scripts/vary.bash               # MAX-MIN Ant System bounds (ablation; default off)
+#   ELITE_PHEROMONE=true ACO_TABU=true MMAS=true ./scripts/vary.bash  # all three on
 #
-# OUT_DIR: positional arg, else $OUT_DIR env, else results/vary_kKtTHETAi_{P?}{N?}
-# (P/N appended when that flag is true). Bare names are nested under results/.
+# OUT_DIR: positional arg, else $OUT_DIR env, else results/vary_kKtTHETAi_{P?}{N?}{E?}{T?}{M?}
+# (flag letter appended when that option is true: P prefer-smaller-side, N neighbor-scope,
+#  E elite-pheromone, T aco-tabu, M mmas). Bare names are nested under results/.
 #
 # Then compare pivot time on ACO-beats-heuristic trials:
 #   PREFIX=konect-small ./scripts/compare-seeds.bash
@@ -51,14 +56,19 @@ export DEBUG
 ENABLE_NEIGHBOR_SCOPE_LIMIT="${ENABLE_NEIGHBOR_SCOPE_LIMIT:-true}"
 # Bias ACO toward the smaller bipartition side (ACO default). Set false to disable.
 PREFER_SMALLER_SIDE="${PREFER_SMALLER_SIDE:-true}"
+# Paper ablations — default off (baseline ACO). Set true to measure quality/runtime impact.
+ELITE_PHEROMONE="${ELITE_PHEROMONE:-false}"
+ACO_TABU="${ACO_TABU:-false}"
+MMAS="${MMAS:-false}"
 PREFIX="$(normalize_prefix "${PREFIX:-}")"
 
-# Optional inject (same defaults as test.bash k2t5i). Set INJECT=0 to disable.
+# Optional inject. Plant sides default to θ so the plant is θ-feasible.
+# Set INJECT=0 to disable; override with INJECT_U / INJECT_V.
 INJECT="${INJECT:-1}"
 K="${K:-2}"
 THETA="${THETA:-5}"
-INJECT_U="${INJECT_U:-5}"
-INJECT_V="${INJECT_V:-5}"
+INJECT_U="${INJECT_U:-$THETA}"
+INJECT_V="${INJECT_V:-$THETA}"
 INJECT_NAME=""
 [[ "$INJECT" == "1" ]] && INJECT_NAME="i"
 
@@ -72,10 +82,13 @@ if ! [[ "$ACO_RUNS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
-# OUT_DIR: results/vary_kKtTHETAi_ then P if prefer-smaller-side, N if neighbor-scope-limit.
+# OUT_DIR: results/vary_kKtTHETAi_ then P/N/E/T/M for each enabled flag.
 FLAGS=""
 [[ "$PREFER_SMALLER_SIDE" == "true" ]] && FLAGS+="P"
 [[ "$ENABLE_NEIGHBOR_SCOPE_LIMIT" == "true" ]] && FLAGS+="N"
+[[ "$ELITE_PHEROMONE" == "true" ]] && FLAGS+="E"
+[[ "$ACO_TABU" == "true" ]] && FLAGS+="T"
+[[ "$MMAS" == "true" ]] && FLAGS+="M"
 if [[ -n "$OUT_DIR_ARG" ]]; then
   OUT_DIR="$OUT_DIR_ARG"
 else
@@ -95,6 +108,9 @@ echo "ACO replicates per ant count: $ACO_RUNS"
 echo "Run pivot for optimum: $RUN_PIVOT"
 echo "Neighbor scope limit: $ENABLE_NEIGHBOR_SCOPE_LIMIT"
 echo "Prefer smaller side: $PREFER_SMALLER_SIDE"
+echo "Elite pheromone (emit): $ELITE_PHEROMONE"
+echo "ACO tabu repair: $ACO_TABU"
+echo "MMAS bounds: $MMAS"
 echo "DEBUG (post-reduction plant check): $DEBUG"
 echo "Writing vary results under $OUT_DIR/"
 
@@ -148,6 +164,9 @@ for key in "${DATASETS[@]}"; do
   julia -t "$THREADS" bin/load.jl "$key" \
     --prefer-smaller-side="$PREFER_SMALLER_SIDE" \
     --neighbor-scope-limit="$ENABLE_NEIGHBOR_SCOPE_LIMIT" \
+    --elite-pheromone="$ELITE_PHEROMONE" \
+    --aco-tabu="$ACO_TABU" \
+    --mmas="$MMAS" \
     --reduce=lo \
     "${INJECT_ARGS[@]}" \
     --k="$K" --theta="$THETA" \
