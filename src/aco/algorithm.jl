@@ -48,6 +48,28 @@ function target_overlap(sg::SubGraph, target::SubGraph)
     return length(intersect(sg.U, target.U)), length(intersect(sg.V, target.V))
 end
 
+@inline theta_feasible(sg::SubGraph, θ::Int) = length(sg.U) ≥ θ && length(sg.V) ≥ θ
+
+"""
+Whether `cand` should replace `curr` as a tracked best.
+
+θ-feasible solutions compete by edge count. Fitness is used only when the
+incumbent is also not θ-feasible (so an infeasible search can still progress).
+A θ-feasible candidate always beats an infeasible incumbent.
+"""
+function better_than_best(fg::FrozenBipartite, cand::SubGraph, curr::SubGraph, θ::Int)
+    cand_ok = theta_feasible(cand, θ)
+    curr_ok = theta_feasible(curr, θ)
+    if cand_ok
+        curr_ok || return true
+        return Subgraph.edge_count(fg, cand) > Subgraph.edge_count(fg, curr)
+    elseif curr_ok
+        return false
+    else
+        return instance_fitness(fg, cand, θ) > instance_fitness(fg, curr, θ)
+    end
+end
+
 function _trace_degree_nodes(nodes::Vector{DegreeNode}; limit::Int=12)
     isempty(nodes) && return "{}"
     shown = nodes[1:min(limit, length(nodes))]
@@ -326,23 +348,26 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
             end
             score = instance_fitness(compact_fg, ant.explored, θ)
             s = ant.species
-            if score > best_scores[s]
+            # Subspecies / global incumbents: θ-feasible by edges; fitness only if
+            # the current best is also not θ-feasible. (Elitism above is unchanged.)
+            if better_than_best(compact_fg, ant.explored, best_subgraphs[s], θ)
                 best_scores[s] = score
                 # Copy so later colony mutations / seeds never alias the stored best.
                 best_subgraphs[s] = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
                 best_iterations[s] = iter
                 best_times[s] = (time_ns() - t0) / 1e9
             end
-            if score > best_score
+            if better_than_best(compact_fg, ant.explored, best_subgraph, θ)
                 if aco_tabu
                     tabu = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
                     tabu_repair!(compact_fg, tabu, k, θ, tt, tabu_patience)
                     if seed_compact !== nothing
                         merge_seed!(tabu, seed_compact)
                     end
-                    tabu_score = instance_fitness(compact_fg, tabu, θ)
-                    if tabu_score >= score && (seed_compact === nothing || subgraph_has_seed(tabu, seed_compact))
-                        best_score = tabu_score
+                    # Prefer repaired if seed-ok and not strictly worse than unrepaired.
+                    if (seed_compact === nothing || subgraph_has_seed(tabu, seed_compact)) &&
+                       !better_than_best(compact_fg, ant.explored, tabu, θ)
+                        best_score = instance_fitness(compact_fg, tabu, θ)
                         best_subgraph = tabu
                     else
                         best_score = score
@@ -355,7 +380,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                 best_iteration = iter
                 best_time = (time_ns() - t0) / 1e9
                 if ACO_TRACE
-                    msg = "  NEW BEST score=$best_score iter=$best_iteration " *
+                    msg = "  NEW BEST score=$best_score edges=$(Subgraph.edge_count(compact_fg, best_subgraph)) " *
+                          "θ_ok=$(theta_feasible(best_subgraph, θ)) iter=$best_iteration " *
                           "t=$(round(best_time; digits=4))s " *
                           "U=$(sorted_str(best_subgraph.U)) V=$(sorted_str(best_subgraph.V))"
                     if target_compact !== nothing

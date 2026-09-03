@@ -1,0 +1,236 @@
+{
+  "run_pivot": false,
+  "ants_range": [
+    100
+  ],
+  "aco_runs": 5,
+  "k": 2,
+  "edge_count": 26036,
+  "base_seed": "1",
+  "best_trial": {
+    "final_edges": 28,
+    "beats_heuristic": false,
+    "iterations_to_best": 1,
+    "run": 3,
+    "time_to_best_s": 0.0173,
+    "ants": 100,
+    "theta_feasible": false,
+    "seed": "3",
+    "nV": 3,
+    "nU": 10,
+    "wall_time_s": 0.0537
+  },
+  "dataset": "konect-small/p2p-Gnutella09",
+  "neighbor_scope_limit": false,
+  "theta": 5,
+  "trials": [
+    {
+      "final_edges": 14,
+      "V": [
+        97,
+        159,
+        263,
+        308
+      ],
+      "allocated_bytes": 36920504,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0242,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0491,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        744,
+        1774,
+        2296,
+        3025
+      ],
+      "iterations_to_best": 3,
+      "run": 1,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": false,
+      "seed": "1",
+      "nV": 4,
+      "nU": 4
+    },
+    {
+      "final_edges": 14,
+      "V": [
+        35,
+        268,
+        279,
+        337
+      ],
+      "allocated_bytes": 41573952,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0221,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0541,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        194,
+        1485,
+        1636,
+        2962
+      ],
+      "iterations_to_best": 2,
+      "run": 2,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": false,
+      "seed": "2",
+      "nV": 4,
+      "nU": 4
+    },
+    {
+      "final_edges": 28,
+      "V": [
+        38,
+        97,
+        266
+      ],
+      "allocated_bytes": 40219528,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0173,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0537,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        970,
+        1018,
+        1470,
+        1492,
+        1495,
+        2290,
+        2353,
+        2799,
+        3007,
+        3025
+      ],
+      "iterations_to_best": 1,
+      "run": 3,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": false,
+      "seed": "3",
+      "nV": 3,
+      "nU": 10
+    },
+    {
+      "final_edges": 14,
+      "V": [
+        79,
+        263,
+        310,
+        434
+      ],
+      "allocated_bytes": 40950952,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0288,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0571,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        689,
+        957,
+        1051,
+        1704
+      ],
+      "iterations_to_best": 3,
+      "run": 4,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": false,
+      "seed": "4",
+      "nV": 4,
+      "nU": 4
+    },
+    {
+      "final_edges": 10,
+      "V": [
+        33,
+        78,
+        187,
+        263
+      ],
+      "allocated_bytes": 36923488,
+      "beats_heuristic": false,
+      "iterations_to_optimal": null,
+      "time_to_best_s": 0.0119,
+      "rss_delta_bytes": 0,
+      "wall_time_s": 0.0459,
+      "missing": 2,
+      "matched_optimal": false,
+      "U": [
+        749,
+        1425,
+        2353
+      ],
+      "iterations_to_best": 1,
+      "run": 5,
+      "optimal_edges": null,
+      "ants": 100,
+      "iterations_budget": 5,
+      "theta_feasible": false,
+      "seed": "5",
+      "nV": 4,
+      "nU": 3
+    }
+  ],
+  "vary": "ant-count",
+  "heuristic": {
+    "final_edges": 23,
+    "V": [
+      79,
+      187,
+      188,
+      334,
+      435
+    ],
+    "allocated_bytes": 174504,
+    "rss_delta_bytes": 0,
+    "wall_time_s": 0.0004,
+    "missing": 2,
+    "matched_optimal": false,
+    "U": [
+      1137,
+      1483,
+      1600,
+      1768,
+      1813
+    ],
+    "optimal_edges": null,
+    "theta_feasible": true,
+    "nV": 5,
+    "nU": 5
+  },
+  "aco_discovery_s": 0.1205,
+  "seed": "1",
+  "prefer_smaller_side": true,
+  "graph": {
+    "reduced_nV": 106,
+    "reduced_edges": 4056,
+    "reduction_time_s": 0.0041,
+    "frozen_bytes": 96272,
+    "reduced_nU": 455,
+    "nV": 8038,
+    "mutable_bytes": 3605016,
+    "nU": 3055,
+    "edges": 26036,
+    "reduced_avg_degree": 14.459893048128341,
+    "reduced_max_degree": 88
+  },
+  "reduction": "simple"
+}

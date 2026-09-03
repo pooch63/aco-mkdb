@@ -1,2 +1,0 @@
-# Deprecated: use data/aliases.txt instead (provider/local=remote).
-# Bare local=remote lines here are still loaded as konect/<local>=<remote>.

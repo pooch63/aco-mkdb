@@ -16,6 +16,9 @@ amazon/gift-cards=Gift_Cards
 amazon/health=Health_and_Personal_Care
 amazon/software=Software
 amazon/movies=Movies_and_TV
+amazon/beauty=All_Beauty
+amazon/magazine=Magazine_Subscriptions
+amazon/handmade=Handmade_Products
 
 # --- konect (shared with konect-small) ---
 konect/moreno=moreno_propro

@@ -3,10 +3,10 @@
 # post-JIT timing (ACO_RUNS=6 → run 1 discarded; θ-heuristic timed on 2nd solve).
 #
 # Covers:
-#   1. Flag ablation (P×N) at k=2, θ=5 — full ant sweep for PN / P / N / plain
-#   2. 100-ant plain ACO + ACO-N dirs used by flag-ablation / missing-at-size
-#   3. (k,θ) PN table sweeps: k∈{2,3,4} θ=5 and k=3 θ∈{5,6,7}
-#   4. Quality ant-count sweep (2..200) for the groupplot
+#   1. Flag ablation (P×N) at k=2, θ=5 — 100 ants only for ACO / ACO-P / ACO-N / ACO-PN
+#   2. Ant-count sweep with ACO-PN (P=N=true) → results/vary_k2t5i_PN
+#   3. (k,θ) PN table runs: k∈{2,3,4} θ=5 and k=3 θ∈{5,6,7} at ants=100
+#   4. Quality ant-count sweep (2..200) for the groupplot (ACO-PN)
 #   5. Pivot seed comparison (konect-small by default)
 #   6. Quick ACO vs θ-heuristic evaluate logs (optional)
 #
@@ -18,9 +18,9 @@
 #   SKIP_EXISTING=0 ./scripts/regenerate-paper-data.bash  # overwrite JSON
 #
 # Phases (comma-separated via PHASES=…; default=all):
-#   flags     — 4 P×N combos at k=2 θ=5 (ANTS_RANGE default sweep)
-#   ants100   — plain ACO + ACO-N at ants=100 only (missing-at-size / ablation)
-#   kt        — PN sweeps for (2,5)(3,5)(4,5)(3,6)(3,7) at ants=100
+#   flags     — 4 P×N combos at k=2 θ=5, ants=100 (build.json flag_dirs)
+#   sweep     — ACO-PN ant-count sweep (ANTS_SWEEP) → vary_k2t5i_PN
+#   kt        — PN @ ants=100 for (2,5)(3,5)(4,5)(3,6)(3,7)
 #   quality   — PN ants 2,5,10,20,50,100,200 (quality figure; ACO_RUNS=6)
 #   compare   — compare-seeds on vary_k2t5i_PN (PREFIX=konect-small default)
 #   evaluate  — scripts/evaluate.bash ACO vs θ logs
@@ -69,6 +69,15 @@ want_phase() {
   if [[ "$PHASES_RAW" == "all" ]]; then
     return 0
   fi
+  # ants100 is a legacy alias for the 100-ant flag ablation dirs.
+  if [[ "$name" == "flags" ]]; then
+    local IFS=','
+    local p
+    for p in $PHASES_RAW; do
+      [[ "$p" == "flags" || "$p" == "ants100" ]] && return 0
+    done
+    return 1
+  fi
   local IFS=','
   local p
   for p in $PHASES_RAW; do
@@ -111,51 +120,79 @@ echo "  PREFIX=${PREFIX:-<all>}  SKIP_EXISTING=$SKIP_EXISTING  threads=$THREADS"
 echo "  Logs under $LOG_DIR/"
 
 # ---------------------------------------------------------------------------
-# 1. Flag ablation (prefer-smaller-side × neighbor-scope) at k=2, θ=5
+# 1. Flag ablation (prefer-smaller-side × neighbor-scope) at k=2, θ=5, 100 ants
+#    OUT_DIRs match paper/build.json flag_dirs / missing_at_base.
+#    When the sweep phase also runs, skip ACO-PN here so vary_k2t5i_PN gets the
+#    full ant-count range (emit still reads ants=100 for the ablation panel).
 # ---------------------------------------------------------------------------
 if want_phase flags; then
   echo
-  echo "### Phase: flags (PxN ablation @ k=2 θ=5, ants=$ANTS_SWEEP)"
+  echo "### Phase: flags (PxN ablation @ k=2 θ=5, ants=$ANTS_TABLE)"
+  skip_pn=0
+  if want_phase sweep; then
+    skip_pn=1
+    echo "(sweep phase also selected → ACO-PN deferred to ant-count sweep)"
+  fi
   for prefer in true false; do
     for neighbor in true false; do
-      tag="prefer=${prefer}_neighbor=${neighbor}"
-      log="${LOG_DIR}/flags_${tag}.log"
-      echo "→ $tag  (log: $log)"
-      if [[ "$DRY_RUN" == "1" ]]; then
-        echo "+ K=2 THETA=5 ANTS_RANGE=$ANTS_SWEEP PREFER_SMALLER_SIDE=$prefer ENABLE_NEIGHBOR_SCOPE_LIMIT=$neighbor ./scripts/vary.bash"
+      if [[ "$skip_pn" == "1" && "$prefer" == "true" && "$neighbor" == "true" ]]; then
         continue
       fi
-      K=2 THETA=5 \
-        ANTS_RANGE="$ANTS_SWEEP" \
-        PREFER_SMALLER_SIDE="$prefer" \
-        ENABLE_NEIGHBOR_SCOPE_LIMIT="$neighbor" \
-        JULIA_THREADS="$THREADS" SEED="$SEED" \
-        SKIP_EXISTING="$SKIP_EXISTING" PREFIX="$PREFIX" \
-        INJECT="$INJECT" ITERATIONS="$ITERATIONS" ACO_RUNS="$ACO_RUNS" \
-        ./scripts/vary.bash >"$log" 2>&1
+      # Explicit dirs for plain / ACO-N so they do not collide with sweep naming.
+      out=""
+      if [[ "$prefer" == "false" && "$neighbor" == "false" ]]; then
+        out="results/vary_k2t5i_100_"
+      elif [[ "$prefer" == "false" && "$neighbor" == "true" ]]; then
+        out="results/vary_k2t5i_100_N"
+      fi
+      tag="prefer=${prefer}_neighbor=${neighbor}"
+      log="${LOG_DIR}/flags_${tag}.log"
+      echo "→ $tag  (log: $log${out:+, OUT_DIR=$out})"
+      if [[ "$DRY_RUN" == "1" ]]; then
+        if [[ -n "$out" ]]; then
+          echo "+ K=2 THETA=5 ANTS_RANGE=$ANTS_TABLE PREFER_SMALLER_SIDE=$prefer ENABLE_NEIGHBOR_SCOPE_LIMIT=$neighbor OUT_DIR=$out ./scripts/vary.bash"
+        else
+          echo "+ K=2 THETA=5 ANTS_RANGE=$ANTS_TABLE PREFER_SMALLER_SIDE=$prefer ENABLE_NEIGHBOR_SCOPE_LIMIT=$neighbor ./scripts/vary.bash"
+        fi
+        continue
+      fi
+      if [[ -n "$out" ]]; then
+        K=2 THETA=5 \
+          ANTS_RANGE="$ANTS_TABLE" \
+          PREFER_SMALLER_SIDE="$prefer" \
+          ENABLE_NEIGHBOR_SCOPE_LIMIT="$neighbor" \
+          OUT_DIR="$out" \
+          JULIA_THREADS="$THREADS" SEED="$SEED" \
+          SKIP_EXISTING="$SKIP_EXISTING" PREFIX="$PREFIX" \
+          INJECT="$INJECT" ITERATIONS="$ITERATIONS" ACO_RUNS="$ACO_RUNS" \
+          ./scripts/vary.bash >"$log" 2>&1
+      else
+        K=2 THETA=5 \
+          ANTS_RANGE="$ANTS_TABLE" \
+          PREFER_SMALLER_SIDE="$prefer" \
+          ENABLE_NEIGHBOR_SCOPE_LIMIT="$neighbor" \
+          JULIA_THREADS="$THREADS" SEED="$SEED" \
+          SKIP_EXISTING="$SKIP_EXISTING" PREFIX="$PREFIX" \
+          INJECT="$INJECT" ITERATIONS="$ITERATIONS" ACO_RUNS="$ACO_RUNS" \
+          ./scripts/vary.bash >"$log" 2>&1
+      fi
     done
   done
 fi
 
 # ---------------------------------------------------------------------------
-# 2. 100-ant plain ACO + ACO-N (build.json flag_dirs / missing_at_base)
+# 2. Ant-count sweep with ACO-PN (P and N both true) → vary_k2t5i_PN
 # ---------------------------------------------------------------------------
-if want_phase ants100; then
+if want_phase sweep; then
   echo
-  echo "### Phase: ants100 (plain ACO + ACO-N @ ants=$ANTS_TABLE)"
-  run_vary "plain ACO ants=$ANTS_TABLE" \
-    K=2 THETA=5 ANTS_RANGE="$ANTS_TABLE" \
-    PREFER_SMALLER_SIDE=false ENABLE_NEIGHBOR_SCOPE_LIMIT=false \
-    OUT_DIR="results/vary_k2t5i_100_"
-
-  run_vary "ACO-N ants=$ANTS_TABLE" \
-    K=2 THETA=5 ANTS_RANGE="$ANTS_TABLE" \
-    PREFER_SMALLER_SIDE=false ENABLE_NEIGHBOR_SCOPE_LIMIT=true \
-    OUT_DIR="results/vary_k2t5i_100_N"
+  echo "### Phase: sweep (ACO-PN ants=$ANTS_SWEEP → vary_k2t5i_PN)"
+  run_vary "ACO-PN ant-count sweep" \
+    K=2 THETA=5 ANTS_RANGE="$ANTS_SWEEP" \
+    PREFER_SMALLER_SIDE=true ENABLE_NEIGHBOR_SCOPE_LIMIT=true
 fi
 
 # ---------------------------------------------------------------------------
-# 3. (k,θ) PN sweeps for ACO vs θ tables / statistics
+# 3. (k,θ) PN runs for ACO vs θ tables / statistics (ants=100)
 # ---------------------------------------------------------------------------
 if want_phase kt; then
   echo
@@ -163,6 +200,12 @@ if want_phase kt; then
   for pair in "${KT_PAIRS[@]}"; do
     k="${pair%%:*}"
     theta="${pair##*:}"
+    # (2,5) is already produced by the sweep phase (full ant range) or by flags
+    # (ants=100). Skip the redundant 100-ant-only rewrite when either ran.
+    if [[ "$k" == "2" && "$theta" == "5" ]] && { want_phase sweep || want_phase flags; }; then
+      echo "→ skip k=2 θ=5 (already covered by sweep/flags → vary_k2t5i_PN)"
+      continue
+    fi
     run_vary "ACO-PN k=$k θ=$theta ants=$ANTS_TABLE" \
       K="$k" THETA="$theta" ANTS_RANGE="$ANTS_TABLE" \
       PREFER_SMALLER_SIDE=true ENABLE_NEIGHBOR_SCOPE_LIMIT=true
@@ -170,7 +213,7 @@ if want_phase kt; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Quality figure ant-count sweep (default PN, ants 2..200)
+# 4. Quality figure ant-count sweep (ACO-PN, ants 2..200)
 # ---------------------------------------------------------------------------
 if want_phase quality; then
   echo

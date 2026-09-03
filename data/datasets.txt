@@ -33,5 +33,7 @@ amazon/music
 amazon/appliances
 amazon/gift-cards
 amazon/health
-amazon/Software
+amazon/software
 amazon/movies
+amazon/beauty
+amazon/magazine

@@ -116,7 +116,7 @@ quality sweep, compare-seeds, …):
 
 ```bash
 ./scripts/regenerate-paper-data.bash
-# or a subset: PHASES=kt,flags,ants100 ./scripts/regenerate-paper-data.bash
+# or a subset: PHASES=flags,sweep,kt ./scripts/regenerate-paper-data.bash
 ```
 
 Useful options:
