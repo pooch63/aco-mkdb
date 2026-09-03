@@ -1,4 +1,3 @@
-konect-small/euroroad
 konect-small/moreno
 konect-small/facebook
 konect-small/urwiki
@@ -12,7 +11,6 @@ konect-small/nawiki
 konect-small/moreno_health
 konect-small/edit-mkwikisource
 konect-small/edit-mrwiktionary
-amazon/boxes
 konect-small/petster-hamster
 konect-small/edit-nowikinews
 konect-small/edit-jamwiki
@@ -29,7 +27,11 @@ konect/gnutella
 konect/ciaodvd
 konect/dblp_cite
 konect/matter
+konect/eswiki
+amazon/boxes
 amazon/music
 amazon/appliances
-konect/jawiki
-konect/eswiki
+amazon/gift-cards
+amazon/health
+amazon/Software
+amazon/movies

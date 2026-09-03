@@ -9,7 +9,8 @@
 #   PREFIX=konect-small ./scripts/vary.bash
 #   JULIA_THREADS=8 ./scripts/vary.bash
 #   ANTS_RANGE=10,20,50,100 ITERATIONS=100 ./scripts/vary.bash
-#   ACO_RUNS=10 ./scripts/vary.bash             # 10 seeded ACO replicates per ant count
+#   ACO_RUNS=6 ./scripts/vary.bash             # 6 seeded ACO replicates per ant count
+#                                              # (run 1 = JIT warmup; emit uses 5)
 #   RUN_PIVOT=1 ./scripts/vary.bash             # also run branch-and-pivot for optimum (slow)
 #   RESUME_FROM=13 ./scripts/vary.bash          # skip graphs 1–12; start at #13
 #   SKIP_EXISTING=1 ./scripts/vary.bash         # skip graphs whose *_ants.json already exists
@@ -44,7 +45,7 @@ OUT_DIR_ARG="${1:-}"
 THREADS="${JULIA_THREADS:-8}"
 ANTS_RANGE="${ANTS_RANGE:-100}"
 ITERATIONS="${ITERATIONS:-5}"
-ACO_RUNS="${ACO_RUNS:-5}"
+ACO_RUNS="${ACO_RUNS:-6}"
 SEED="${SEED:-1}"
 RESUME_FROM="${RESUME_FROM:-1}"
 RUN_PIVOT="${RUN_PIVOT:-0}"
@@ -104,7 +105,7 @@ fi
 mapfile -t DATASETS < <(order_graph_keys "$PREFIX")
 n="${#DATASETS[@]}"
 echo "Found $n graphs"
-echo "ACO replicates per ant count: $ACO_RUNS"
+echo "ACO replicates per ant count: $ACO_RUNS (run 1 = JIT warmup; emit uses the rest)"
 echo "Run pivot for optimum: $RUN_PIVOT"
 echo "Neighbor scope limit: $ENABLE_NEIGHBOR_SCOPE_LIMIT"
 echo "Prefer smaller side: $PREFER_SMALLER_SIDE"

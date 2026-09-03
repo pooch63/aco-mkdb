@@ -1,4 +1,0 @@
-Dataset Transformation Metadata
-=================================
-Total Unique Users: 6883
-Total Unique Items: 671239

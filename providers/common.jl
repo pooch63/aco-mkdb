@@ -47,6 +47,105 @@ end
 
 list_providers() = sort!(collect(keys(PROVIDER_REGISTRY)))
 
+# ------------------------------------------------------------------------------
+# Shared local-key → remote-name aliases (`data/aliases.txt`)
+# ------------------------------------------------------------------------------
+
+const _PROVIDER_ALIASES_LOADED = Ref(false)
+"""
+provider → (local_key → remote_name). Populated by `load_provider_aliases!`.
+"""
+const PROVIDER_ALIASES = Dict{String,Dict{String,String}}()
+
+function _aliases_path()
+    return joinpath(@__DIR__, "..", "data", "aliases.txt")
+end
+
+function _legacy_konect_aliases_path()
+    return joinpath(@__DIR__, "..", "data", "konect_aliases.txt")
+end
+
+"""
+Parse one aliases file into `PROVIDER_ALIASES`.
+
+Lines are `provider/local=remote`. Blank lines and `#` comments are ignored.
+Bare `local=remote` (no slash) is treated as `konect/local=remote` for legacy
+`data/konect_aliases.txt` compatibility.
+"""
+function _merge_aliases_file!(path::AbstractString; default_provider::Union{Nothing,String}=nothing)
+    isfile(path) || return
+    for line in eachline(path)
+        s = strip(line)
+        isempty(s) && continue
+        startswith(s, '#') && continue
+        parts = split(s, '=', limit=2)
+        length(parts) == 2 || continue
+        left = strip(parts[1])
+        remote = strip(parts[2])
+        isempty(left) && continue
+        isempty(remote) && continue
+
+        provider = default_provider
+        local_key = left
+        if occursin('/', left)
+            segs = split(replace(left, '\\' => '/'), '/'; keepempty=false)
+            length(segs) >= 2 || continue
+            provider = lowercase(segs[1])
+            local_key = join(segs[2:end], '/')
+        elseif provider === nothing
+            continue
+        end
+
+        bucket = get!(PROVIDER_ALIASES, provider) do
+            Dict{String,String}()
+        end
+        bucket[local_key] = remote
+    end
+    return nothing
+end
+
+"""
+Load `data/aliases.txt` (and legacy `data/konect_aliases.txt` if present) once.
+"""
+function load_provider_aliases!()
+    _PROVIDER_ALIASES_LOADED[] && return PROVIDER_ALIASES
+    empty!(PROVIDER_ALIASES)
+    _merge_aliases_file!(_aliases_path())
+    # Legacy bare `local=remote` lines → konect namespace
+    _merge_aliases_file!(_legacy_konect_aliases_path(); default_provider="konect")
+    _PROVIDER_ALIASES_LOADED[] = true
+    return PROVIDER_ALIASES
+end
+
+"""
+Resolve `local_key` for `provider` using builtins then `data/aliases.txt` overrides.
+
+`normalize` maps the lookup key (e.g. lowercase for Amazon). Returns `fallback`
+when no alias matches.
+"""
+function resolve_alias(provider::AbstractString, local_key::AbstractString;
+    builtins::AbstractDict{<:AbstractString,<:AbstractString}=Dict{String,String}(),
+    normalize::Function=identity,
+    fallback::AbstractString=String(local_key))
+
+    load_provider_aliases!()
+    key = String(normalize(String(local_key)))
+    file_map = get(PROVIDER_ALIASES, lowercase(String(provider)), nothing)
+    if file_map !== nothing
+        for (k, v) in file_map
+            if String(normalize(k)) == key
+                return v
+            end
+        end
+    end
+    for (k, v) in builtins
+        if String(normalize(String(k))) == key
+            return String(v)
+        end
+    end
+    return String(fallback)
+end
+
 """
 Gunzip `src.gz` to `dest` (defaults to path without `.gz`), then remove the archive.
 """

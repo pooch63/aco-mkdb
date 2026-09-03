@@ -7,9 +7,14 @@ Downloads category review JSONL from McAuley Lab and converts via edges.jl.
 URL template:
   https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/{NAME}.jsonl.gz
 
+Short local keys (amazon/boxes, amazon/gift-cards, …) map to McAuley category
+filenames via builtins below and optional overrides in `data/aliases.txt`
+(`amazon/local=Category_Name`).
+
 Examples:
-  julia process.jl amazon/boxes --download
-  julia process.jl amazon/Appliances --download
+  julia bin/process.jl amazon/boxes --download
+  julia bin/process.jl amazon/gift-cards --download
+  julia bin/process.jl amazon/Appliances --download
 =#
 
 const __PROVIDER_AMAZON_JL__ = true
@@ -26,19 +31,27 @@ const AMAZON_REVIEW_URL =
 
 """
 Short local keys → Amazon Reviews 2023 category filenames.
+
+File overrides: `amazon/<key>=<Category>` in `data/aliases.txt`.
 """
 const AMAZON_CATEGORY_ALIASES = Dict{String,String}(
     "boxes" => "Subscription_Boxes",
     "appliances" => "Appliances",
     "music" => "Digital_Music",
     "grocery" => "Grocery_and_Gourmet_Food",
+    "gift-cards" => "Gift_Cards",
+    "health" => "Health_and_Personal_Care",
+    "software" => "Software",
+    "movies" => "Movies_and_TV",
 )
 
 function amazon_category_name(dataset_name::AbstractString)
     name = String(dataset_name)
-    name = split(replace(name, '\\' => '/'), '/')[end]
-    key = lowercase(name)
-    return get(AMAZON_CATEGORY_ALIASES, key, name)
+    leaf = split(replace(name, '\\' => '/'), '/')[end]
+    return resolve_alias("amazon", leaf;
+        builtins=AMAZON_CATEGORY_ALIASES,
+        normalize=lowercase,
+        fallback=leaf)
 end
 
 """

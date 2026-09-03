@@ -274,8 +274,12 @@ function aco_options_from(cfg::Dict{String,Any})
     elite_seed = Bool(get(aco, "elite_seed", true))
     elite_seed_ants = Int(get(aco, "elite_seed_ants", 3))
     elite_seed_remove = Int(get(aco, "elite_seed_remove", 2))
+    elite_pheromone = Bool(get(aco, "elite_pheromone", false))
+    aco_tabu = Bool(get(aco, "aco_tabu", false))
+    mmas = Bool(get(aco, "mmas", false))
     return (; pheremone, num_ants, num_iterations, evaporation, num_subspecies,
-        prefer_smaller_side, neighbor_scope_limit, elite_seed, elite_seed_ants, elite_seed_remove)
+        prefer_smaller_side, neighbor_scope_limit, elite_seed, elite_seed_ants, elite_seed_remove,
+        elite_pheromone, aco_tabu, mmas)
 end
 
 # ---- serialization ----------------------------------------------------------

@@ -9,6 +9,7 @@ The `emit/` package turns **pre-recorded** JSON from `vary.jl` / `compare-seeds.
 - **Never** re-simulate ACO, re-run Julia, or derive statistics that should have been written at experiment time.
 - **Only read** fields already present in result JSON (and documented backfill scripts when fields were added later).
 - If a value is missing from JSON, emit a placeholder or fallback sentence and **warn** on stderr — do not try to compute it another way.
+- When `aco_runs > 1`, **omit run 1** (or any trial with `jit_warmup=true`) from quality, feasibility, timing, discovery, variance, and seed selection — that replicate is the real-graph Julia JIT warmup.
 
 ## Emit must not fail the build on incomplete data
 
@@ -21,7 +22,14 @@ The paper build (`python paper/build.py`) **must complete** even when some resul
 ## Workflow
 
 1. Experiments write JSON under `results/`.
-2. `emit` reads JSON → `paper/generated/*.tex`.
+2. `emit` reads JSON → `paper/generated/*.tex` (and optional `*.preamble.tex` sidecars).
 3. `build.py` substitutes `%%PLACEHOLDER%%` in `main.tex` → `build.tex` → PDF.
+
+### `%%PREAMBLE%%`
+
+Fragments that need preamble macros call `write_tex(..., preamble=...)`, which
+writes a `*.preamble.tex` sidecar next to the fragment. Assemble concatenates
+unique sidecars for placeholders used in `main.tex` into `%%PREAMBLE%%` (safe
+when empty). No `build.json` entry is required for `PREAMBLE`.
 
 Do not break step 2 or 3 because a subset of graphs is missing fields. Fix or backfill the JSON separately.

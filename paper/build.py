@@ -11,6 +11,8 @@ Workflow:
 Use --keep-tex to retain build.tex after compiling.
 
 Placeholders in main.tex use the form %%QUALITY%%, %%COMPARE:theta-time%%, etc.
+%%PREAMBLE%% aggregates emit sidecar snippets (*.preamble.tex) into the
+document preamble — not a normal emit target.
 Paths in build.json are relative to this directory (paper/).
 
 STATISTICS missing-at-5 fields use missing_at_base (plain ACO dir; ACO-N is
@@ -31,14 +33,38 @@ PAPER_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PAPER_DIR.parent
 PLACEHOLDER_RE = re.compile(r"%%([A-Z][A-Z0-9_]*)(?::([^%]+))?%%")
 AUX_SUFFIXES = (".aux", ".log", ".fls", ".fdb_latexmk", ".out")
+# Assembled from fragment sidecars (*.preamble.tex); not a normal emit target.
+SPECIAL_PLACEHOLDERS = frozenset({"PREAMBLE"})
 
 
 def fragment_output_name(name: str, args: str | None) -> str:
     """Map placeholder (name, args) → generated/*.tex basename."""
     if not args:
         return name.lower()
-    safe = args.strip().replace(",", "__").replace(" ", "")
+    safe = (
+        args.strip()
+        .replace(",", "__")
+        .replace(":", "__")
+        .replace(" ", "")
+    )
     return f"{name.lower()}__{safe}"
+
+
+def parse_table_args(args: str | None) -> tuple[str, str]:
+    """
+    Split %%TABLE:…%% args into (path_suffix, subset).
+
+    Examples: ``k2t5i_PN`` → (``k2t5i_PN``, ``full``);
+    ``k2t5i_PN:highlights`` → (``k2t5i_PN``, ``highlights``).
+    """
+    if not args:
+        return "", "full"
+    raw = args.strip()
+    for subset in ("highlights", "full"):
+        marker = f":{subset}"
+        if raw.endswith(marker):
+            return raw[: -len(marker)], subset
+    return raw, "full"
 
 
 def placeholders_in_source(source_text: str) -> list[tuple[str, str | None]]:
@@ -64,12 +90,13 @@ def resolve(path_str: str) -> Path:
 
 
 def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> Path:
-    """Resolve emit input directory; TABLE uses vary_base + optional prefix suffix."""
+    """Resolve emit input directory; TABLE uses vary_base + k/θ/flags suffix."""
     if name == "TABLE":
         base = cfg.get("vary_base")
         if not base:
             raise SystemExit("TABLE fragment requires vary_base in build.json")
-        return resolve(base + (args or ""))
+        suffix, _subset = parse_table_args(args)
+        return resolve(base + suffix)
     input_path = frag.get("input")
     if not input_path:
         raise SystemExit(f"Fragment {name} has no input path in build.json")
@@ -82,6 +109,8 @@ def run_emit(cfg: dict) -> None:
     source_text = (PAPER_DIR / cfg["source"]).read_text(encoding="utf-8")
 
     for name, args in placeholders_in_source(source_text):
+        if name in SPECIAL_PLACEHOLDERS:
+            continue
         frag = cfg["fragments"].get(name)
         if frag is None:
             continue
@@ -105,6 +134,10 @@ def run_emit(cfg: dict) -> None:
             cmd.append(f"--plots={plots}")
         if name == "SEED_COMPARE" and args:
             cmd.append(f"--subset={args}")
+        if name == "TABLE":
+            _suffix, subset = parse_table_args(args)
+            if subset != "full":
+                cmd.append(f"--subset={subset}")
         if frag.get("ants") is not None:
             cmd.append(f"--ants={frag['ants']}")
         if frag.get("flag_dirs"):
@@ -131,6 +164,30 @@ def run_emit(cfg: dict) -> None:
         subprocess.run(cmd, cwd=REPO_ROOT, check=True)
 
 
+def collect_preamble(generated: Path, source_text: str) -> str:
+    """
+    Aggregate unique ``*.preamble.tex`` sidecars for fragments used in the
+    document. Duplicate snippets (same body) are included once.
+    """
+    snippets: list[str] = []
+    seen: set[str] = set()
+    for name, args in placeholders_in_source(source_text):
+        if name in SPECIAL_PLACEHOLDERS:
+            continue
+        out_name = fragment_output_name(name, args)
+        path = generated / f"{out_name}.preamble.tex"
+        if not path.is_file():
+            continue
+        body = path.read_text(encoding="utf-8").strip()
+        if not body or body in seen:
+            continue
+        seen.add(body)
+        snippets.append(body)
+    if not snippets:
+        return "% (no preamble contributions from emit)\n"
+    return "\n\n".join(snippets) + "\n"
+
+
 def assemble(cfg: dict) -> Path:
     source = PAPER_DIR / cfg["source"]
     output = PAPER_DIR / cfg["output"]
@@ -142,6 +199,8 @@ def assemble(cfg: dict) -> Path:
     def replace(match: re.Match[str]) -> str:
         name = match.group(1)
         args = match.group(2) or None
+        if name == "PREAMBLE":
+            return collect_preamble(generated, text)
         frag = cfg["fragments"].get(name)
         if frag is None:
             missing.append(name if not args else f"{name}:{args}")
@@ -169,7 +228,7 @@ def assemble(cfg: dict) -> Path:
     unknown = {
         name
         for name, _args in placeholders_in_source(built)
-    } - set(cfg["fragments"])
+    } - set(cfg["fragments"]) - SPECIAL_PLACEHOLDERS
     if unknown:
         raise SystemExit(
             "Placeholders in main.tex with no build.json entry: "
@@ -276,7 +335,7 @@ def verify_pdf(cfg: dict, tex_path: Path | None = None) -> None:
 
     print(
         "# verified bound-ratio figure in "
-        f"{pdf_path.relative_to(PAPER_DIR)} (section 3.2, fig:compare-bound-ratio)",
+        f"{pdf_path.relative_to(PAPER_DIR)} (section 3.3, fig:compare-bound-ratio)",
         file=sys.stderr,
     )
 

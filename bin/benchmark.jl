@@ -192,7 +192,15 @@ function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_opt
     end
     if :aco in targets
         aco(deepcopy(g), pheremone, min(num_ants, 2), 1, evaporation, k_w, θ_w, num_subspecies;
-            parallelize=false, force_gc=false, reduction=reduction)
+            parallelize=false, force_gc=false, reduction=reduction,
+            prefer_smaller_side=get(aco_options, :prefer_smaller_side, true),
+            neighbor_scope_limit=get(aco_options, :neighbor_scope_limit, true),
+            elite_seed=get(aco_options, :elite_seed, true),
+            elite_seed_ants=get(aco_options, :elite_seed_ants, 3),
+            elite_seed_remove=get(aco_options, :elite_seed_remove, 2),
+            elite_pheromone=get(aco_options, :elite_pheromone, false),
+            aco_tabu=get(aco_options, :aco_tabu, false),
+            mmas=get(aco_options, :mmas, false))
     end
     if :heuristic in targets
         g_h = deepcopy(g)
@@ -362,11 +370,14 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     elite_seed = get(aco_options, :elite_seed, true)
     elite_seed_ants = get(aco_options, :elite_seed_ants, 3)
     elite_seed_remove = get(aco_options, :elite_seed_remove, 2)
+    elite_pheromone = get(aco_options, :elite_pheromone, false)
+    aco_tabu = get(aco_options, :aco_tabu, false)
+    mmas = get(aco_options, :mmas, false)
 
     first_hit = Ref{Union{Nothing,Int}}(nothing)
 
     println()
-    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies prefer_smaller_side=$prefer_smaller_side neighbor_scope_limit=$neighbor_scope_limit elite_seed=$elite_seed)…")
+    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies prefer_smaller_side=$prefer_smaller_side neighbor_scope_limit=$neighbor_scope_limit elite_seed=$elite_seed elite_pheromone=$elite_pheromone aco_tabu=$aco_tabu mmas=$mmas)…")
 
     g_run = deepcopy(g)
     m = measure_call() do
@@ -378,6 +389,9 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             elite_seed=elite_seed,
             elite_seed_ants=elite_seed_ants,
             elite_seed_remove=elite_seed_remove,
+            elite_pheromone=elite_pheromone,
+            aco_tabu=aco_tabu,
+            mmas=mmas,
             reduction=reduction,
             iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
                 if opt_edges === nothing || first_hit[] !== nothing
@@ -525,6 +539,9 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
 
     heuristic_stats = nothing
     if :heuristic in targets
+        println()
+        println("θ-heuristic warmup (excluded from timings)…")
+        benchmark_heuristic!(g_reduced, k, θ, solver_reduction; opt_edges=opt_edges)
         heuristic_stats = benchmark_heuristic!(g_reduced, k, θ, solver_reduction; opt_edges=opt_edges)
     end
 
@@ -535,6 +552,10 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
 
     aco_stats = nothing
     if :aco in targets
+        println()
+        println("ACO warmup on reduced graph (excluded from timings)…")
+        benchmark_aco!(g_reduced, k, θ, aco_options;
+            opt_edges=opt_edges, early_stop=true, reduction=solver_reduction)
         aco_stats = benchmark_aco!(g_reduced, k, θ, aco_options;
             opt_edges=opt_edges, early_stop=true, reduction=solver_reduction)
     end

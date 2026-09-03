@@ -62,6 +62,9 @@ ACO flags:
   --elite-seed=true|false            seed some ants from best − nodes (default: true)
   --elite-seed-ants=N                ants seeded from elite each iteration (default: 3)
   --elite-seed-remove=N              nodes stripped from elite seed (default: 2)
+  --elite-pheromone=true|false       elitist pheromone emit on softmax elites (default: false)
+  --aco-tabu=true|false              tabu repair on elites / new global bests (default: false)
+  --mmas=true|false                  MAX-MIN Ant System τ bounds (default: false)
   --aco-reduce=true|false            run pivot + ACO, then score how many nodes
                                      sit below the min pheromone on the pivot optimum
                                      (default: false). ACO is not told the optimum;
@@ -110,8 +113,6 @@ isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel
 isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco", "algorithm.jl"))
 isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
 isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(@__DIR__, "benchmark.jl"))
-isdefined(@__MODULE__, :__GRAPH_STRUCTURE_CACHE_JL__) ||
-    include(joinpath(SRC, "graph_structure_cache.jl"))
 isdefined(@__MODULE__, :__VARY_JL__) || include(joinpath(@__DIR__, "vary.jl"))
 
 # Terminal / env flag (vary.bash exports DEBUG=true by default; unset → true).
@@ -229,6 +230,9 @@ function parse_aco_options()
     prefer_smaller_side = parse_bool_eq("prefer-smaller-side", true)
     neighbor_scope_limit = parse_bool_eq("neighbor-scope-limit", true)
     elite_seed = parse_bool_eq("elite-seed", true)
+    elite_pheromone = parse_bool_eq("elite-pheromone", false)
+    aco_tabu = parse_bool_eq("aco-tabu", false)
+    mmas = parse_bool_eq("mmas", false)
 
     if !(0.0 < evaporation <= 1.0)
         throw(ArgumentError("evaporation must be in (0, 1], got $evaporation"))
@@ -245,7 +249,8 @@ function parse_aco_options()
 
     # NamedTuple: first five fields stay positionally destructurable.
     return (; pheremone, num_ants, num_iterations, evaporation, num_subspecies,
-        prefer_smaller_side, neighbor_scope_limit, elite_seed, elite_seed_ants, elite_seed_remove)
+        prefer_smaller_side, neighbor_scope_limit, elite_seed, elite_seed_ants, elite_seed_remove,
+        elite_pheromone, aco_tabu, mmas)
 end
 
 function parse_benchmark()
@@ -345,6 +350,8 @@ function parse_args()
                startswith(arg, "--prefer-smaller-side=") || startswith(arg, "--neighbor-scope-limit=") ||
                startswith(arg, "--elite-seed=") ||
                startswith(arg, "--elite-seed-ants=") || startswith(arg, "--elite-seed-remove=") ||
+               startswith(arg, "--elite-pheromone=") || startswith(arg, "--aco-tabu=") ||
+               startswith(arg, "--mmas=") ||
                startswith(arg, "--aco-reduce=") ||
                startswith(arg, "--vary=") || startswith(arg, "--ants-range=") ||
                startswith(arg, "--vary-pivot=") || startswith(arg, "--aco-runs=")
@@ -478,7 +485,10 @@ function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
             neighbor_scope_limit=aco_options.neighbor_scope_limit,
             elite_seed=aco_options.elite_seed,
             elite_seed_ants=aco_options.elite_seed_ants,
-            elite_seed_remove=aco_options.elite_seed_remove)
+            elite_seed_remove=aco_options.elite_seed_remove,
+            elite_pheromone=aco_options.elite_pheromone,
+            aco_tabu=aco_options.aco_tabu,
+            mmas=aco_options.mmas)
         return remapped
     elseif solver == Solver.heuristic_solver
         fg = if reduction == ReductionMode.none
@@ -530,6 +540,9 @@ function run_aco_reduce!(g::BipartiteGraph, k::Int, θ::Int, reduction::Reductio
         elite_seed=aco_options.elite_seed,
         elite_seed_ants=aco_options.elite_seed_ants,
         elite_seed_remove=aco_options.elite_seed_remove,
+        elite_pheromone=aco_options.elite_pheromone,
+        aco_tabu=aco_options.aco_tabu,
+        mmas=aco_options.mmas,
         reduction=reduction)
 
     fg_aco = freeze(g_aco)
@@ -632,14 +645,17 @@ function main()
             results = run_vary_ant_count!(g, edges, k, θ, reduction, aco_options;
                 ant_counts=ants_range, run_pivot=vary_run_pivot,
                 seed=seed, dataset=String(dataset_name), n_runs=aco_runs,
-                plant=plant, inject=inject)
+                plant=plant)
             if save_path !== nothing
                 payload = vary_results_to_dict(results;
                     k=k, θ=θ, dataset=String(dataset_name),
                     seed=seed, reduction=reduction, edge_count=edges,
                     run_pivot=vary_run_pivot,
                     prefer_smaller_side=aco_options.prefer_smaller_side,
-                    neighbor_scope_limit=aco_options.neighbor_scope_limit)
+                    neighbor_scope_limit=aco_options.neighbor_scope_limit,
+                    elite_pheromone=aco_options.elite_pheromone,
+                    aco_tabu=aco_options.aco_tabu,
+                    mmas=aco_options.mmas)
                 save_vary_json(resolve_benchmark_save_path(save_path), payload)
             end
         elseif benchmark !== nothing

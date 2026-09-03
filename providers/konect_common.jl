@@ -9,17 +9,21 @@ KONECT hosts downloadable archives at:
 Each archive unpacks to `{INTERNAL_NAME}/out.*` (whitespace-separated edgelist).
 
 Local dataset keys under data/konect* may differ from KONECT internal names; see
-`konect_remote_name` and optional overrides in `data/konect_aliases.txt`.
+`konect_remote_name` and optional overrides in `data/aliases.txt`
+(`konect/local=remote`). Legacy `data/konect_aliases.txt` is still merged.
 =#
 
 const __KONECT_COMMON_JL__ = true
+
+isdefined(@__MODULE__, :__PROVIDERS_JL__) || include(joinpath(@__DIR__, "common.jl"))
 
 const KONECT_FILES_URL = "http://konect.cc/files"
 const KONECT_OPSAHL_URL = "http://opsahl.co.uk/konect/datasets"
 
 """
 Built-in local-key → KONECT-internal-name overrides for this repo's datasets.
-Optional `data/konect_aliases.txt` can add or replace entries (`local=remote`).
+File overrides: `konect/<key>=<remote>` in `data/aliases.txt` (shared with
+konect-small). Legacy bare lines in `data/konect_aliases.txt` still work.
 """
 const KONECT_BUILTIN_ALIASES = Dict{String,String}(
     "euroroad" => "subelj_euroroad",
@@ -36,42 +40,6 @@ const KONECT_BUILTIN_ALIASES = Dict{String,String}(
     "bitcoin" => "soc-sign-bitcoinalpha",
     "gnutella" => "p2p-Gnutella04",
 )
-
-const _KONECT_ALIASES_LOADED = Ref(false)
-const KONECT_ALIASES = Dict{String,String}()
-
-function _konect_aliases_path()
-    return joinpath(@__DIR__, "..", "data", "konect_aliases.txt")
-end
-
-"""
-Load `data/konect_aliases.txt` once (if present) into `KONECT_ALIASES`.
-Lines are `local=remote`; blank lines and `#` comments are ignored.
-"""
-function load_konect_aliases!()
-    _KONECT_ALIASES_LOADED[] && return KONECT_ALIASES
-    empty!(KONECT_ALIASES)
-    for (k, v) in KONECT_BUILTIN_ALIASES
-        KONECT_ALIASES[k] = v
-    end
-    path = _konect_aliases_path()
-    if isfile(path)
-        for line in eachline(path)
-            s = strip(line)
-            isempty(s) && continue
-            startswith(s, '#') && continue
-            parts = split(s, '=', limit=2)
-            length(parts) == 2 || continue
-            local_name = strip(parts[1])
-            remote_name = strip(parts[2])
-            isempty(local_name) && continue
-            isempty(remote_name) && continue
-            KONECT_ALIASES[local_name] = remote_name
-        end
-    end
-    _KONECT_ALIASES_LOADED[] = true
-    return KONECT_ALIASES
-end
 
 """
 Normalize a dataset key to the leaf stem (no path / archive prefix).
@@ -91,14 +59,15 @@ end
 """
 Map a local dataset stem to the KONECT internal archive name.
 
-Uses `data/konect_aliases.txt` and built-in overrides when present; otherwise
-returns the local stem unchanged. KONECT uses both hyphens and underscores
-(e.g. `wiki_talk_nds`, `dblp-cite`), so we do not guess by rewriting `_` → `-`.
+Uses builtins and `data/aliases.txt` (`konect/…`); otherwise returns the local
+stem unchanged. KONECT uses both hyphens and underscores (e.g. `wiki_talk_nds`,
+`dblp-cite`), so we do not guess by rewriting `_` → `-`.
 """
 function konect_remote_name(local_stem::AbstractString)
-    load_konect_aliases!()
     stem = konect_dataset_stem(local_stem)
-    return get(KONECT_ALIASES, stem, stem)
+    return resolve_alias("konect", stem;
+        builtins=KONECT_BUILTIN_ALIASES,
+        fallback=stem)
 end
 
 """

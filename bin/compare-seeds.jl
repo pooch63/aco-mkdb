@@ -96,12 +96,14 @@ function json_int_vec(x)
 end
 
 """
-Among trials with beats_heuristic==true, pick max final_edges; break ties by
-minimum time_to_best_s (then wall_time_s).
+Among counted trials with beats_heuristic==true, pick max final_edges; break
+ties by minimum time_to_best_s (then wall_time_s). JIT warmup replicates
+(run 1 when aco_runs > 1, or jit_warmup=true) are omitted.
 """
-function select_best_beating_trial(trials)
+function select_best_beating_trial(trials; n_runs::Int=1)
     beating = Any[]
     for t in trials
+        is_jit_warmup_trial(t; n_runs=n_runs) && continue
         beats = json_get(t, "beats_heuristic", false)
         beats === true || beats === 1 || continue
         push!(beating, t)
@@ -121,10 +123,11 @@ function select_best_beating_trial(trials)
     return argmin(trial_time, tied)
 end
 
-"""Best trial by edges even if it did not beat the heuristic."""
-function select_best_trial_any(trials)
+"""Best counted trial by edges even if it did not beat the heuristic."""
+function select_best_trial_any(trials; n_runs::Int=1)
     usable = Any[]
     for t in trials
+        is_jit_warmup_trial(t; n_runs=n_runs) && continue
         json_get(t, "final_edges", nothing) === nothing && continue
         push!(usable, t)
     end
@@ -141,6 +144,21 @@ function select_best_trial_any(trials)
     end
 
     return argmin(trial_time, tied)
+end
+
+function aco_runs_from_data(data)
+    n = json_get(data, "aco_runs", nothing)
+    n === nothing && return 1
+    return Int(n)
+end
+
+"""True for the first ACO replicate when multiple runs were recorded (JIT)."""
+function is_jit_warmup_trial(t; n_runs::Int=1)
+    jw = json_get(t, "jit_warmup", nothing)
+    jw === true && return true
+    jw === false && return false
+    n_runs <= 1 && return false
+    return Int(json_get(t, "run", 1)) == 1
 end
 
 function trial_has_subgraph(t)
@@ -165,10 +183,11 @@ function trial_summary_dict(t)
     )
 end
 
-function aco_trial_time_stats(trials)
+function aco_trial_time_stats(trials; n_runs::Int=1)
     total = 0.0
     n_timed = 0
     for t in trials
+        is_jit_warmup_trial(t; n_runs=n_runs) && continue
         wt = json_get(t, "wall_time_s", nothing)
         wt === nothing && continue
         total += Float64(wt)
@@ -180,15 +199,16 @@ end
 
 """
 Full ACO wall time at the winning ant count: sum `wall_time_s` over every
-same-ants replicate (not truncated at the winning run / time-to-best).
+counted same-ants replicate (not truncated at the winning run / time-to-best).
 """
-function aco_discovery_full_budget(trials, best)
+function aco_discovery_full_budget(trials, best; n_runs::Int=1)
     best === nothing && return nothing
     win_ants = json_get(best, "ants", nothing)
     win_ants === nothing && return nothing
     total = 0.0
     n = 0
     for t in trials
+        is_jit_warmup_trial(t; n_runs=n_runs) && continue
         json_get(t, "ants", nothing) == win_ants || continue
         wt = json_get(t, "wall_time_s", nothing)
         wt === nothing && continue
@@ -234,10 +254,11 @@ without re-reading the vary file.
 """
 function build_skip_payload(data, vary_path::AbstractString; reason::AbstractString)
     trials = json_get(data, "trials", [])
+    n_runs = aco_runs_from_data(data)
     heur = json_get(data, "heuristic", nothing)
     heur_edges = heur === nothing ? nothing : json_get(heur, "final_edges", nothing)
-    best_any = select_best_trial_any(trials)
-    discovery_s, mean_wct, n_timed = aco_trial_time_stats(trials)
+    best_any = select_best_trial_any(trials; n_runs=n_runs)
+    discovery_s, mean_wct, n_timed = aco_trial_time_stats(trials; n_runs=n_runs)
 
     payload = Dict{String,Any}(
         "compare" => "seeds",
@@ -687,7 +708,8 @@ function compare_from_vary_json(vary_path::AbstractString; inject_raw, seed_over
     heur_edges = heur === nothing ? nothing : json_get(heur, "final_edges", nothing)
 
     trials = json_get(data, "trials", [])
-    best = select_best_beating_trial(trials)
+    n_runs = aco_runs_from_data(data)
+    best = select_best_beating_trial(trials; n_runs=n_runs)
 
     if best === nothing
         println("No ACO trial beat the θ-heuristic" *
@@ -729,11 +751,12 @@ function _compare_from_vary_json_loaded(vary_path, data, best, heur_edges, trial
             raw === nothing ? nothing : parse(UInt64, string(raw))
         end
 
+    n_runs = aco_runs_from_data(data)
     aco_seed = subgraph_from_uv(json_get(best, "U"), json_get(best, "V"))
-    _discovery_all, mean_wct, _n_timed = aco_trial_time_stats(trials)
-    # Full same-ants budget: every replicate's wall_time_s, even if the seed
-    # came from an earlier win (e.g. win on run 3 of 5 still charges all 5).
-    discovery_until = aco_discovery_full_budget(trials, best)
+    _discovery_all, mean_wct, _n_timed = aco_trial_time_stats(trials; n_runs=n_runs)
+    # Full same-ants budget: every counted replicate's wall_time_s, even if the
+    # seed came from an earlier win (e.g. win on run 3 of 6 still charges runs 2–6).
+    discovery_until = aco_discovery_full_budget(trials, best; n_runs=n_runs)
 
     aco_meta = Dict{String,Any}(
         "run" => json_get(best, "run", nothing),

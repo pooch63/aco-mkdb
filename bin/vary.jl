@@ -10,27 +10,27 @@ For `--vary=ant-count`, runs ACO once per ant count (fixed iteration budget from
 `--iterations`) and records iterations-to-best, solution quality, and wall time.
 With `--aco-runs=N` (N>1), each ant count is repeated N times with a distinct
 seed derived from `--seed`, and every replicate is written into the JSON.
+Run 1 of each ant count is a real-instance Julia JIT warmup (`jit_warmup=true`);
+paper emit and `best_trial` / `aco_discovery_s` discard it, leaving N-1 counted
+replicates (paper default: N=6 → 5 timed runs). When N=1, an untimed ACO solve
+still runs first so the recorded wall time excludes JIT.
 Each trial also logs the returned subgraph vertex ids (`U` / `V`) so downstream
 tools (compare-seeds.jl) can re-seed branch-and-pivot.
-The JSON also records `best_trial` (max edges) and `aco_discovery_s`: sum of
-`wall_time_s` over every replicate at that trial's ant count (full budget,
-not truncated at the winning run).
+The JSON also records `best_trial` (max edges among counted replicates) and
+`aco_discovery_s`: sum of counted `wall_time_s` over every replicate at that
+trial's ant count (full budget, not truncated at the winning run).
 Top-level keys `prefer_smaller_side` and `neighbor_scope_limit` mirror the
-CLI flags used for the ACO trials.
+CLI flags used for the ACO trials. Ablation flags `elite_pheromone`,
+`aco_tabu`, and `mmas` are also recorded (default false).
 Pivot is off by default (it is too slow on large graphs); enable with
 `--vary-pivot=true` to supply an optimum edge count for quality comparison.
-The θ-heuristic also runs once (same reduced graph) and is logged in the JSON
-so ACO quality can be compared against it.
+The θ-heuristic runs twice on the reduced graph (first discarded for JIT;
+second timed) and is logged in the JSON so ACO quality can be compared against it.
 
 Graph reduction is always common-neighbor (CNN / `ReductionMode.simple`).
 Progressive / `all_reductions` must not run as a one-shot peel here: that path
 tightens θ_eff without interleaved search and can delete the whole graph
 (e.g. kuwiki → 0×0) before ACO or the θ-heuristic run.
-
-Reduced-graph degree stats (`reduced_max_degree`, `reduced_avg_degree`, etc.)
-are cached per dataset in `data/<dataset>/graph_structure.json` (tracked in
-git). vary.jl reads that file and only computes + writes when the entry for
-the current (k, θ, reduction, inject) setup is missing.
 
 When `DEBUG` is true (env; `scripts/vary.bash` defaults it on) and `--inject`
 planted a biclique, each run logs whether that plant still exists after the
@@ -83,7 +83,8 @@ function parse_ants_range()
 end
 
 """
-Parse `--aco-runs=N`: number of stochastic ACO replicates per ant count (default 1).
+Parse `--aco-runs=N`: number of stochastic ACO replicates per ant count
+(default 1). When N>1, run 1 is a JIT warmup discarded by emit / best_trial.
 """
 function parse_aco_runs()
     for arg in ARGS
@@ -128,9 +129,32 @@ function vary_run_seed(base_seed::UInt64, ant_index::Int, run::Int, n_runs::Int)
     return base_seed + offset
 end
 
-"""Best trial by edges even if it did not beat the heuristic."""
-function select_best_trial_any(trials)
-    usable = [t for t in trials if t.final_edges !== nothing]
+"""
+Max and mean degree over all vertices in a reduced frozen bipartite graph.
+Average is `2|E|/(|U|+|V|)` (each edge contributes to one U and one V degree).
+"""
+function reduced_degree_stats(fg::FrozenBipartite)
+    n = length(fg.u_ids) + length(fg.v_ids)
+    n == 0 && return (0, 0.0)
+    max_deg = 0
+    for u in fg.u_ids
+        max_deg = max(max_deg, degree_u(fg, u))
+    end
+    for v in fg.v_ids
+        max_deg = max(max_deg, degree_v(fg, v))
+    end
+    avg_deg = (2 * length(fg.v_adj)) / n
+    return (max_deg, avg_deg)
+end
+
+"""Best trial by edges even if it did not beat the heuristic.
+
+Ignores JIT-warmup replicates (`jit_warmup=true`, or `run==1` when
+`n_runs > 1`).
+"""
+function select_best_trial_any(trials; n_runs::Int=1)
+    usable = [t for t in trials if t.final_edges !== nothing &&
+        !is_jit_warmup_trial(t; n_runs=n_runs)]
     isempty(usable) && return nothing
     best_edges = maximum(t.final_edges for t in usable)
     tied = [t for t in usable if t.final_edges == best_edges]
@@ -139,17 +163,28 @@ function select_best_trial_any(trials)
     return argmin(trial_time, tied)
 end
 
+"""True for the first ACO replicate when multiple runs were recorded (JIT)."""
+function is_jit_warmup_trial(t; n_runs::Int=1)
+    jw = get(t, :jit_warmup, nothing)
+    jw === true && return true
+    jw === false && return false
+    n_runs <= 1 && return false
+    return Int(get(t, :run, 1)) == 1
+end
+
 """
 Full ACO wall time at the winning ant count: sum `wall_time_s` over every
-same-ants replicate (not truncated at the winning run / time-to-best).
+counted same-ants replicate (not truncated at the winning run / time-to-best;
+JIT warmup replicates omitted).
 """
-function aco_discovery_until(trials, best)
+function aco_discovery_until(trials, best; n_runs::Int=1)
     best === nothing && return nothing
     win_ants = best.num_ants
     total = 0.0
     n = 0
     for t in trials
         t.num_ants != win_ants && continue
+        is_jit_warmup_trial(t; n_runs=n_runs) && continue
         total += Float64(t.wall_time_s)
         n += 1
     end
@@ -182,73 +217,25 @@ function remap_addition_order(remapping::GraphRemapping, order::Vector{Tuple{Boo
     ]
 end
 
-function _env_flag(name::AbstractString, default::Bool=false)
-    v = lowercase(get(ENV, name, default ? "true" : "false"))
-    return v in ("true", "1", "yes", "on")
-end
-
-"""Include per-ant raw samples in JSON (large). Default: summary mean/n only."""
-record_construction_samples() = _env_flag("RECORD_CONSTRUCTION_SAMPLES", false)
-
-"""Include last-iteration vertex addition traces in JSON (very large)."""
-record_construction_orders() = _env_flag("RECORD_CONSTRUCTION_ORDERS", false)
-
 function construction_stats_dict(stats, remapping::GraphRemapping)
     stats === nothing && return nothing
     missing_at_size = Dict{String,Any}()
     for (size, samples) in stats.missing_at_size
         n = length(samples)
-        entry = Dict{String,Any}(
+        missing_at_size[string(size)] = Dict{String,Any}(
             "mean" => n > 0 ? sum(samples) / n : nothing,
             "n" => n,
+            "samples" => samples,
         )
-        record_construction_samples() && (entry["samples"] = samples)
-        missing_at_size[string(size)] = entry
     end
-    out = Dict{String,Any}("missing_at_size" => missing_at_size)
-    if record_construction_orders()
-        orders = [
-            remap_addition_order(remapping, order)
-            for order in stats.last_iteration_orders
-        ]
-        out["last_iteration_orders"] = orders
-    end
-    return out
-end
-
-"""Pooled missing-at-size means across trials, keyed by ant count then |S|."""
-function pool_missing_at_size_summary(trials)
-    pooled_n = Dict{String, Dict{String, Int}}()
-    pooled_sum = Dict{String, Dict{String, Float64}}()
-    for t in trials
-        c = get(t, :construction, nothing)
-        c === nothing && continue
-        mas = get(c, "missing_at_size", nothing)
-        mas === nothing && continue
-        ants_key = string(t.num_ants)
-        n_bucket = get!(pooled_n, ants_key, Dict{String, Int}())
-        s_bucket = get!(pooled_sum, ants_key, Dict{String, Float64}())
-        for (size_str, entry) in mas
-            n = Int(get(entry, "n", 0))
-            mean = get(entry, "mean", nothing)
-            n == 0 || mean === nothing && continue
-            n_bucket[size_str] = get(n_bucket, size_str, 0) + n
-            s_bucket[size_str] = get(s_bucket, size_str, 0.0) + Float64(mean) * n
-        end
-    end
-    out = Dict{String, Any}()
-    for (ants_key, sizes) in pooled_n
-        size_out = Dict{String, Any}()
-        for (size_str, n) in sizes
-            n == 0 && continue
-            size_out[size_str] = Dict(
-                "mean" => pooled_sum[ants_key][size_str] / n,
-                "n" => n,
-            )
-        end
-        isempty(size_out) || (out[ants_key] = size_out)
-    end
-    return out
+    orders = [
+        remap_addition_order(remapping, order)
+        for order in stats.last_iteration_orders
+    ]
+    return Dict{String,Any}(
+        "missing_at_size" => missing_at_size,
+        "last_iteration_orders" => orders,
+    )
 end
 
 """
@@ -263,6 +250,9 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     elite_seed = get(aco_options, :elite_seed, true)
     elite_seed_ants = get(aco_options, :elite_seed_ants, 3)
     elite_seed_remove = get(aco_options, :elite_seed_remove, 2)
+    elite_pheromone = get(aco_options, :elite_pheromone, false)
+    aco_tabu = get(aco_options, :aco_tabu, false)
+    mmas = get(aco_options, :mmas, false)
 
     first_hit = Ref{Union{Nothing,Int}}(nothing)
     construction_stats = Ref{Any}(nothing)
@@ -277,6 +267,9 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             elite_seed=elite_seed,
             elite_seed_ants=elite_seed_ants,
             elite_seed_remove=elite_seed_remove,
+            elite_pheromone=elite_pheromone,
+            aco_tabu=aco_tabu,
+            mmas=mmas,
             reduction=reduction,
             construction_stats=construction_stats,
             iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
@@ -377,7 +370,7 @@ planted biclique vertices survive the one-shot CNN reduction and logs the result
 function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int,
     reduction::ReductionMode.T, aco_options; ant_counts::Vector{Int},
     run_pivot::Bool=false, seed=nothing, dataset::AbstractString="",
-    n_runs::Int=1, plant=nothing, inject=nothing)
+    n_runs::Int=1, plant=nothing)
     n_runs >= 1 || throw(ArgumentError("n_runs must be >= 1, got $n_runs"))
     _, _, num_iterations, _, _ = aco_options
 
@@ -393,12 +386,16 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     println()
     prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
     neighbor_scope_limit = get(aco_options, :neighbor_scope_limit, true)
+    elite_pheromone = get(aco_options, :elite_pheromone, false)
+    aco_tabu = get(aco_options, :aco_tabu, false)
+    mmas = get(aco_options, :mmas, false)
 
     println("==================== VARY ant-count ====================")
     println("dataset=$dataset  k=$k  θ=$θ  iterations=$num_iterations")
     println("ants-range=$(join(ant_counts, ","))  run_pivot=$run_pivot  aco_runs=$n_runs")
     println("base_seed=$base_seed")
     println("prefer_smaller_side=$prefer_smaller_side  neighbor_scope_limit=$neighbor_scope_limit")
+    println("elite_pheromone=$elite_pheromone  aco_tabu=$aco_tabu  mmas=$mmas")
     println("reduction=$reduction (CNN / one-shot; progressive disabled)")
     if vary_debug_enabled()
         println("DEBUG=$(vary_debug_enabled())  plant_check=$(plant !== nothing)")
@@ -429,10 +426,7 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     reduced_nU = length(fg.u_ids)
     reduced_nV = length(fg.v_ids)
     reduced_edges = length(fg.v_adj)
-    inject_cfg = inject === nothing ? (; enabled=false, nU=0, nV=0, attempts=0) : inject
-    structure_key = graph_structure_cache_key(k, θ, reduction, inject_cfg; seed=seed)
-    reduced_max_degree, reduced_avg_degree = resolve_reduced_degree_stats!(
-        dataset, structure_key, nU, nV, edge_count, fg)
+    reduced_max_degree, reduced_avg_degree = reduced_degree_stats(fg)
     print_metric_block("Graph reduction";
         wall_time_s = m_red.time,
         allocated_bytes = m_red.allocated,
@@ -470,7 +464,10 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
         opt_edges = pivot_stats.opt_edges
     end
 
-    # θ-heuristic once per graph — baseline for "does ACO beat the heuristic?"
+    # θ-heuristic: discard first real-instance solve (JIT), time the second.
+    println()
+    println("θ-heuristic warmup (excluded from timings)…")
+    benchmark_heuristic!(g_reduced, k, θ, solver_reduction; opt_edges=opt_edges)
     heuristic_stats = benchmark_heuristic!(g_reduced, k, θ, solver_reduction; opt_edges=opt_edges)
     heur_missing = Subgraph.missing_edges(heuristic_stats.fg_eval, heuristic_stats.sol)
     heur_θ_ok = (length(heuristic_stats.sol.U) ≥ θ && length(heuristic_stats.sol.V) ≥ θ) ||
@@ -486,13 +483,25 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
 
     trials = NamedTuple[]
     for (ai, n_ants) in enumerate(ant_counts)
+        # When only one recorded replicate, still burn one untimed solve so the
+        # measured wall time excludes Julia JIT on this graph.
+        if n_runs == 1
+            println()
+            println("── ACO ants=$n_ants  JIT warmup (excluded) ──")
+            Random.seed!(vary_run_seed(base_seed, ai, 1, 1))
+            vary_aco_trial!(g_reduced, k, θ, aco_options;
+                num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction)
+        end
         for run in 1:n_runs
             run_seed = vary_run_seed(base_seed, ai, run, n_runs)
             Random.seed!(run_seed)
 
+            jit_warmup = n_runs > 1 && run == 1
             println()
             if n_runs == 1
                 println("── ACO $(ai)/$(length(ant_counts)): ants=$n_ants ──")
+            elseif jit_warmup
+                println("── ACO ants=$n_ants  run $run/$n_runs  seed=$run_seed  (JIT warmup; recorded but discarded in emit) ──")
             else
                 println("── ACO ants=$n_ants  run $run/$n_runs  seed=$run_seed ──")
             end
@@ -500,14 +509,15 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
                 num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction)
             beats_heuristic = trial.final_edges > heuristic_stats.final_edges &&
                 trial.theta_feasible
-            trial = merge(trial, (; run, seed=string(run_seed), beats_heuristic))
+            trial = merge(trial, (; run, seed=string(run_seed), beats_heuristic, jit_warmup))
             println("  wall=$(format_seconds(trial.wall_time_s))s  " *
                     "to_best=$(format_seconds(trial.time_to_best_s))s  " *
                     "iters→best=$(trial.iterations_to_best)  " *
                     "edges=$(trial.final_edges)" *
                     (opt_edges === nothing ? "" : " / $opt_edges optimal") *
                     "  vs heur=$(heuristic_stats.final_edges)" *
-                    (beats_heuristic ? " (beats)" : ""))
+                    (beats_heuristic ? " (beats)" : "") *
+                    (jit_warmup ? "  [warmup]" : ""))
             push!(trials, trial)
         end
     end
@@ -549,8 +559,8 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     end
     println("===================================================")
 
-    best_trial = select_best_trial_any(trials)
-    aco_discovery_s = aco_discovery_until(trials, best_trial)
+    best_trial = select_best_trial_any(trials; n_runs=n_runs)
+    aco_discovery_s = aco_discovery_until(trials, best_trial; n_runs=n_runs)
     if best_trial !== nothing
         println()
         println("Best ACO trial (by edges): ants=$(best_trial.num_ants)  " *
@@ -564,18 +574,27 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
 
     return (; graph_stats, pivot_stats, heuristic_stats, trials, ant_counts, opt_edges,
         n_runs, base_seed=string(base_seed), best_trial, aco_discovery_s,
-        prefer_smaller_side, neighbor_scope_limit)
+        prefer_smaller_side, neighbor_scope_limit, elite_pheromone, aco_tabu, mmas)
 end
 
 function vary_results_to_dict(results; k::Int=0, θ::Int=0,
     dataset::AbstractString="", seed=nothing, reduction=nothing,
     edge_count::Union{Nothing,Int}=nothing, run_pivot::Bool=false,
     prefer_smaller_side::Union{Nothing,Bool}=nothing,
-    neighbor_scope_limit::Union{Nothing,Bool}=nothing)
+    neighbor_scope_limit::Union{Nothing,Bool}=nothing,
+    elite_pheromone::Union{Nothing,Bool}=nothing,
+    aco_tabu::Union{Nothing,Bool}=nothing,
+    mmas::Union{Nothing,Bool}=nothing)
     pss = prefer_smaller_side === nothing ?
         get(results, :prefer_smaller_side, nothing) : prefer_smaller_side
     nsl = neighbor_scope_limit === nothing ?
         get(results, :neighbor_scope_limit, nothing) : neighbor_scope_limit
+    ep = elite_pheromone === nothing ?
+        get(results, :elite_pheromone, nothing) : elite_pheromone
+    at = aco_tabu === nothing ?
+        get(results, :aco_tabu, nothing) : aco_tabu
+    mm = mmas === nothing ?
+        get(results, :mmas, nothing) : mmas
     out = Dict{String,Any}(
         "vary" => "ant-count",
         "dataset" => String(dataset),
@@ -589,6 +608,9 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         "run_pivot" => run_pivot,
         "prefer_smaller_side" => pss,
         "neighbor_scope_limit" => nsl,
+        "elite_pheromone" => ep,
+        "aco_tabu" => at,
+        "mmas" => mm,
         "ants_range" => results.ant_counts,
     )
 
@@ -637,11 +659,12 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         Dict(
             "run" => get(t, :run, 1),
             "seed" => get(t, :seed, nothing),
-            "ants" => t.num_ants,
+            "jit_warmup" => get(t, :jit_warmup, false),
             "wall_time_s" => t.wall_time_s,
             "time_to_best_s" => t.time_to_best_s,
             "allocated_bytes" => t.allocated_bytes,
             "rss_delta_bytes" => t.rss_delta_bytes,
+            "ants" => t.num_ants,
             "iterations_budget" => t.iterations_budget,
             "iterations_to_best" => t.iterations_to_best,
             "iterations_to_optimal" => t.iterations_to_optimal,
@@ -664,9 +687,6 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         out["best_trial"] = best_trial_summary_dict(best)
         out["aco_discovery_s"] = get(results, :aco_discovery_s, nothing)
     end
-
-    mas_summary = pool_missing_at_size_summary(results.trials)
-    isempty(mas_summary) || (out["missing_at_size"] = mas_summary)
 
     return out
 end

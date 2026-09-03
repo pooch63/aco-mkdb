@@ -77,7 +77,9 @@ julia bin/process.jl amazon/boxes --download
 
 **Notes:**
 
-- KONECT aliases can be overridden in `data/konect_aliases.txt`.
+- Short dataset keys map to remote filenames via builtins and `data/aliases.txt`
+  (`provider/local=Remote_Name`, e.g. `amazon/gift-cards=Gift_Cards`,
+  `konect/moreno=moreno_propro`). Legacy `data/konect_aliases.txt` is still merged.
 - Wikipedia dumps (`konect/jawiki`, `konect/eswiki`) depend on Wikimedia's dump servers and may fail intermittently; re-run or fetch them individually.
 - Some very large graphs (`matter`, `appliances`, …) download slowly and use substantial RAM during indexing.
 
@@ -91,7 +93,7 @@ Paper-matching settings:
 export JULIA_THREADS=8
 export ANTS_RANGE=1,2,5,10,20,50,100
 export ITERATIONS=5
-export ACO_RUNS=5
+export ACO_RUNS=6
 export SEED=1
 export INJECT=1
 export K=2
@@ -102,6 +104,19 @@ export PREFER_SMALLER_SIDE=true
 export ENABLE_NEIGHBOR_SCOPE_LIMIT=true
 
 ./scripts/vary.bash
+```
+
+`ACO_RUNS=6` records six seeded replicates per ant count; **run 1 is Julia JIT
+warmup** on the real instance and is omitted by `emit/` (and by `best_trial` /
+discovery in the JSON), leaving five counted runs for quality, timing, TTB, and
+ITB. The θ-heuristic is also run twice (first discarded, second timed).
+
+To regenerate every paper result directory (flag ablation, (k,θ) PN tables,
+quality sweep, compare-seeds, …):
+
+```bash
+./scripts/regenerate-paper-data.bash
+# or a subset: PHASES=kt,flags,ants100 ./scripts/regenerate-paper-data.bash
 ```
 
 Useful options:
@@ -203,7 +218,7 @@ The source of truth for prose is `paper/main.tex`; `paper/build.tex` and `paper/
 | Pheromone deposit (T) | 1 | default in `bin/load.jl` |
 | Smaller-side factor (P) | 2 | `PREFER_SMALLER_SIDE=true` → `PREFER_SMALLER_SIDE_MULTIPLIER` in `src/aco/advance.jl` |
 | Ant counts (N_S) | 1–100 sweep | `ANTS_RANGE=1,2,5,10,20,50,100` |
-| ACO replicates | 5 | `ACO_RUNS=5` |
+| ACO replicates | 6 (run 1 = JIT warmup; 5 counted) | `ACO_RUNS=6` |
 | Random seed | 1 | `SEED=1` |
 | Threads | 8 | `JULIA_THREADS=8` |
 
@@ -227,7 +242,7 @@ julia -t 8 bin/load.jl konect-small/urwiki \
   --reduce=lo \
   --vary=ant-count \
   --ants-range=1,2,5,10,20,50,100 \
-  --iterations=5 --aco-runs=5 \
+  --iterations=5 --aco-runs=6 \
   --save=results/urwiki_ants.json
 ```
 

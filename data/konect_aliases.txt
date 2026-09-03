@@ -1,8 +1,2 @@
-# Optional local dataset key → KONECT internal name overrides.
-# Format: local_key=remote_name
-# Built-in aliases in providers/konect_common.jl are loaded first; entries here override them.
-#
-# Example:
-# moreno=moreno_train
-
-moreno=moreno_propro
+# Deprecated: use data/aliases.txt instead (provider/local=remote).
+# Bare local=remote lines here are still loaded as konect/<local>=<remote>.

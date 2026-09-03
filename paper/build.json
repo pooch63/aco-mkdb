@@ -3,11 +3,11 @@
   "output": "build.tex",
   "generated_dir": "generated",
   "pdf": "build.pdf",
-  "vary_base": "../results/vary_k2t5i_",
+  "vary_base": "../results/vary_",
   "fragments": {
     "QUALITY": {
       "emit": "quality",
-      "input": "../results/vary_k2t5i_2_200_PN_acoruns20",
+      "input": "../results/vary_k2t5i_2_200_PN",
       "file": "quality.tex"
     },
     "SEED_COMPARE": {

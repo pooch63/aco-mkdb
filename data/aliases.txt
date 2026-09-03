@@ -1,0 +1,21 @@
+# Local dataset key → remote download name
+# Format: provider/local_key=Remote_Name
+#
+# Used by providers/ when --download resolves short keys under data/<provider>/.
+# Built-in defaults live in each provider; entries here override them.
+#
+# Amazon: McAuley Reviews 2023 category filenames (underscored Title_Case).
+# KONECT: internal archive names (also used by konect-small / catster).
+
+# --- amazon ---
+amazon/boxes=Subscription_Boxes
+amazon/music=Digital_Music
+amazon/appliances=Appliances
+amazon/grocery=Grocery_and_Gourmet_Food
+amazon/gift-cards=Gift_Cards
+amazon/health=Health_and_Personal_Care
+amazon/software=Software
+amazon/movies=Movies_and_TV
+
+# --- konect (shared with konect-small) ---
+konect/moreno=moreno_propro

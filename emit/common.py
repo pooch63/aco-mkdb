@@ -21,13 +21,35 @@ def load_json(path):
         return None
 
 
-def write_tex(tex, output):
-    """Write LaTeX to output path, or print to stdout when output is None."""
+def preamble_sidecar_path(output):
+    """Map ``foo.tex`` → ``foo.preamble.tex`` (or ``<output>.preamble.tex``)."""
+    if output.endswith(".tex"):
+        return output[: -len(".tex")] + ".preamble.tex"
+    return output + ".preamble.tex"
+
+
+def write_tex(tex, output, *, preamble=None):
+    """
+    Write LaTeX to output path, or print to stdout when output is None.
+
+    Optional ``preamble`` is written beside the fragment as
+    ``<stem>.preamble.tex`` for ``%%PREAMBLE%%`` assembly. Passing
+    ``preamble=None`` removes a stale sidecar when writing to a file.
+    """
     if output:
         with open(output, "w") as f:
             f.write(tex + "\n")
+        sidecar = preamble_sidecar_path(output)
+        if preamble:
+            with open(sidecar, "w") as f:
+                f.write(preamble.rstrip() + "\n")
+        elif os.path.isfile(sidecar):
+            os.remove(sidecar)
     else:
         print(tex)
+        if preamble:
+            print("% --- preamble contribution ---", file=sys.stderr)
+            print(preamble.rstrip(), file=sys.stderr)
 
 
 def report_skipped(skipped):
@@ -94,6 +116,50 @@ def infer_vary_dir(compare_dir):
     return None
 
 
+def aco_runs_per_ant(data):
+    """Replicates per ant count (1 when vary.jl ran each count once)."""
+    if data is None:
+        return 1
+    n = data.get("aco_runs")
+    if n is not None:
+        return int(n)
+    runs = [
+        int(t["run"])
+        for t in data.get("trials") or []
+        if t.get("run") is not None
+    ]
+    return max(runs) if runs else 1
+
+
+def is_jit_warmup_trial(t, data=None, *, n_runs=None):
+    """
+    True for the first ACO replicate when multiple runs were recorded.
+
+    That replicate pays Julia JIT on the real graph and must be excluded from
+    quality, feasibility, timing, discovery, and seed selection. Prefer an
+    explicit ``jit_warmup`` flag when present; otherwise treat ``run == 1`` as
+    warmup whenever ``aco_runs > 1``.
+    """
+    if t.get("jit_warmup") in (True, 1):
+        return True
+    if t.get("jit_warmup") in (False, 0):
+        return False
+    if n_runs is None:
+        n_runs = aco_runs_per_ant(data)
+    if n_runs <= 1:
+        return False
+    return int(t.get("run", 1)) == 1
+
+
+def counted_trials(trials, data=None, *, n_runs=None):
+    """Trials excluding the per-ant-count JIT warmup replicate."""
+    return [
+        t
+        for t in (trials or [])
+        if not is_jit_warmup_trial(t, data, n_runs=n_runs)
+    ]
+
+
 def select_best_trial_any(trials):
     """Best trial by edges even if it did not beat the heuristic."""
     usable = [t for t in trials if t.get("final_edges") is not None]
@@ -112,12 +178,13 @@ def select_best_trial_any(trials):
     return min(tied, key=trial_time)
 
 
-def aco_discovery_cost(trials, winning_trial, until_found=False):
+def aco_discovery_cost(trials, winning_trial, until_found=False, data=None):
     """
     Full ACO wall time at the winning ant count.
 
-    Sums wall_time_s over every same-ant replicate — the full search budget
-    at that ant count, even if the seeded subgraph came from an earlier run.
+    Sums wall_time_s over every counted same-ant replicate — the full search
+    budget at that ant count, even if the seeded subgraph came from an earlier
+    run. JIT warmup replicates (run 1 when aco_runs > 1) are omitted.
 
     until_found is kept for call-site compatibility and ignored: discovery is
     never truncated at the winning run / time-to-best.
@@ -130,7 +197,11 @@ def aco_discovery_cost(trials, winning_trial, until_found=False):
     if ants is None:
         return None
 
-    same = [t for t in trials if t.get("ants") == ants]
+    same = [
+        t
+        for t in counted_trials(trials, data)
+        if t.get("ants") == ants
+    ]
     if not same:
         return None
 
