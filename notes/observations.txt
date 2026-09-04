@@ -159,3 +159,9 @@ GREAT IDEA:
 What if we have fewer ants, but once they've exhausted the biclique and they can't add anything else, they can backtrack and probablistically choose at every branch of the tree
 whether to continue from that past point or keep going into the past? Then, instead of iterations, they just run for a damn long while, syncing information with pheromones so they can see what might work (or maybe not doing that, maybe instead,
 we just seed them each from different nodes). This way, they don't get stuck in a local optima. The intuition is, it's not like TSP - one bad node in a biclique can _devastate_ the maximum option.
+
+9.3.26
+
+GREAT IDEA:
+
+Use upper bounding techniques on the ants. So if it's provably not possible to continue with an ant's solution and beat the current best, just stop the ant (and maybe even reduce its pheromones), because we know that it can't be the best solution.

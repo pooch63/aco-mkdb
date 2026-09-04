@@ -7,4 +7,8 @@
 #   raw/          already skipped by default; safe to repeat
 
 example
+amazon/software
+amazon/movies
 konect/urwiki
+konect/jawiki
+konect/eswiki

@@ -3,17 +3,18 @@
   "output": "build.tex",
   "generated_dir": "generated",
   "pdf": "build.pdf",
-  "vary_base": "../results/vary_",
+  "results_dir": "../results_old",
+  "vary_base": "vary_",
   "fragments": {
     "QUALITY": {
       "emit": "quality",
-      "input": "../results/vary_k2t5i_2_200_PN",
+      "input": "vary_k2t5i_2_200_PN",
       "file": "quality.tex"
     },
     "SEED_COMPARE": {
       "emit": "seed-compare",
-      "input": "../results/compare_k2t5i_konect-small",
-      "vary_dir": "../results/vary_k2t5i_PN",
+      "input": "compare_k2t5i_konect-small",
+      "vary_dir": "vary_k2t5i_PN",
       "file": "seed-compare.tex"
     },
     "TABLE": {
@@ -23,20 +24,20 @@
     },
     "COMPARE": {
       "emit": "compare",
-      "input": "../results/vary_k2t5i_PN",
+      "input": "vary_k2t5i_PN",
       "ants": 100,
       "flag_dirs": {
-        "ACO": "../results/vary_k2t5i_100_",
-        "ACO-P": "../results/vary_k2t5i_P",
-        "ACO-N": "../results/vary_k2t5i_100_N",
-        "ACO-PN": "../results/vary_k2t5i_PN"
+        "ACO": "vary_k2t5i_100_",
+        "ACO-P": "vary_k2t5i_P",
+        "ACO-N": "vary_k2t5i_100_N",
+        "ACO-PN": "vary_k2t5i_PN"
       }
     },
     "STATISTICS": {
       "emit": "statistics",
-      "input": "../results/vary_k2t5i_PN",
+      "input": "vary_k2t5i_PN",
       "ants": 100,
-      "missing_at_base": "../results/vary_k2t5i_100_"
+      "missing_at_base": "vary_k2t5i_100_"
     }
   }
 }

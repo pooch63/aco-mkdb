@@ -1,6 +1,6 @@
 # ACO-MKDB
 
-Ant Colony Optimization (ACO) for **k-defective maximum edge bicliques** on bipartite graphs, with benchmarks against the Cui et al. θ-heuristic and branch-and-pivot seeding experiments from [the paper](paper/main.pdf) (`paper/main.tex`).
+Ant Colony Optimization (ACO) for **k-defective maximum edge bicliques** on bipartite graphs, with benchmarks against the Cui et al. θ-heuristic and branch-and-pivot seeding experiments from [the paper](paper/build.pdf) (`paper/main.tex`).
 
 This README describes how to reproduce the paper's datasets, experiments, and figures from scratch.
 

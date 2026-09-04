@@ -37,3 +37,5 @@ amazon/software
 amazon/movies
 amazon/beauty
 amazon/magazine
+amazon/fashion
+amazon/instruments

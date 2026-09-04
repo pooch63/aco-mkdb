@@ -107,7 +107,7 @@ def bound_ratio_figure(*, matched):
             rf"vs.\ $|U_R|+|V_R|$ on {n} matched graphs "
             rf"(dashed lines show log--log trends). "
             rf"A proportional bound should yield a flat ratio (log--log slope "
-            rf"$\approx 0$); the naive $n_R^2$ bound declines "
+            rf"$\approx 0$). The naive $n_R^2$ bound declines "
             rf"({_fmt_log_log_regression_caption(naive_stats)}), while the "
             rf"practical bound is near-flat "
             rf"({_fmt_log_log_regression_caption(practical_stats)})."

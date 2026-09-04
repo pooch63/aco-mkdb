@@ -19,6 +19,8 @@ amazon/movies=Movies_and_TV
 amazon/beauty=All_Beauty
 amazon/magazine=Magazine_Subscriptions
 amazon/handmade=Handmade_Products
+amazon/fashion=Amazon_Fashion
+amazon/instruments=Musical_Instruments
 
 # --- konect (shared with konect-small) ---
 konect/moreno=moreno_propro

@@ -150,16 +150,6 @@ def _pgf_xticklabels(labels):
     return "{" + ",".join(parts) + "}"
 
 
-def _paired_line_coords(order, graph_entry, value_fn):
-    parts = []
-    for i, label in enumerate(order, start=1):
-        value = value_fn(graph_entry[label])
-        if value is None:
-            return None
-        parts.append(f"({i},{float(value):.8g})")
-    return " ".join(parts)
-
-
 def _flag_ablation_caption(matched):
     n = len(matched)
     med_edges = {
@@ -211,8 +201,7 @@ def _flag_ablation_caption(matched):
         rf"Flag ablation at 100 ants on {n} benchmark graphs matched across "
         rf"all four variants. Left: $|E(D^*)|$ grouped by neighbor-scope "
         rf"limit (N); {quality_clause}. Right: discovery time (log scale) "
-        rf"grouped by prefer-smaller-side (P); {time_clause}. Faint lines "
-        rf"connect the same graph across variants."
+        rf"grouped by prefer-smaller-side (P); {time_clause}."
     )
     return body
 
@@ -261,18 +250,6 @@ def flag_ablation_figure(matched):
         color = _variant_color(label, panel="quality")
         lines += _addplot_boxplot(i, stats, color=color)
 
-    for graph in matched:
-        coords = _paired_line_coords(
-            FLAG_QUALITY_ORDER,
-            graph,
-            lambda row: row.get("aco_edges"),
-        )
-        if coords:
-            lines.append(
-                rf"\addplot[gray, opacity=0.14, mark=none, forget plot] "
-                rf"coordinates {{{coords}}};"
-            )
-
     lines += [
         r"  \node[font=\scriptsize] at (rel axis cs:0.25,-0.14) {N off};",
         r"  \node[font=\scriptsize] at (rel axis cs:0.75,-0.14) {N on};",
@@ -298,18 +275,6 @@ def flag_ablation_figure(matched):
             continue
         color = _variant_color(label, panel="time")
         lines += _addplot_boxplot(i, stats, color=color)
-
-    for graph in matched:
-        coords = _paired_line_coords(
-            FLAG_TIME_ORDER,
-            graph,
-            lambda row: row.get("aco_time"),
-        )
-        if coords:
-            lines.append(
-                rf"\addplot[gray, opacity=0.14, mark=none, forget plot] "
-                rf"coordinates {{{coords}}};"
-            )
 
     lines += [
         r"  \node[font=\scriptsize] at (rel axis cs:0.25,-0.14) {P off};",

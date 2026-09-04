@@ -13,7 +13,11 @@ Use --keep-tex to retain build.tex after compiling.
 Placeholders in main.tex use the form %%QUALITY%%, %%COMPARE:theta-time%%, etc.
 %%PREAMBLE%% aggregates emit sidecar snippets (*.preamble.tex) into the
 document preamble — not a normal emit target.
-Paths in build.json are relative to this directory (paper/).
+
+Experiment paths in build.json are usually bare names under results_dir
+(e.g. ``"input": "vary_k2t5i_PN"`` with ``"results_dir": "../results"``).
+Change results_dir once to point at another tree (e.g. ``../results_old``).
+Absolute paths and ``./`` / ``../`` paths are still resolved from paper/.
 
 STATISTICS missing-at-5 fields use missing_at_base (plain ACO dir; ACO-N is
 that path + "N"). Falls back to vary_base if missing_at_base is omitted.
@@ -24,7 +28,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +38,7 @@ PLACEHOLDER_RE = re.compile(r"%%([A-Z][A-Z0-9_]*)(?::([^%]+))?%%")
 AUX_SUFFIXES = (".aux", ".log", ".fls", ".fdb_latexmk", ".out")
 # Assembled from fragment sidecars (*.preamble.tex); not a normal emit target.
 SPECIAL_PLACEHOLDERS = frozenset({"PREAMBLE"})
+DEFAULT_RESULTS_DIR = "../results"
 
 
 def fragment_output_name(name: str, args: str | None) -> str:
@@ -89,6 +93,24 @@ def resolve(path_str: str) -> Path:
     return (PAPER_DIR / path_str).resolve()
 
 
+def results_root(cfg: dict) -> Path:
+    """Absolute path to the experiment results tree (default: ../results)."""
+    return resolve(cfg.get("results_dir", DEFAULT_RESULTS_DIR))
+
+
+def resolve_results_path(cfg: dict, path_str: str) -> Path:
+    """
+    Resolve an experiment path from build.json.
+
+    Bare names (``vary_k2t5i_PN``) join under results_dir. Absolute paths and
+    paths starting with ``./`` or ``../`` stay paper-relative for compatibility.
+    """
+    path = Path(path_str)
+    if path.is_absolute() or path_str.startswith(("./", "../")):
+        return resolve(path_str)
+    return (results_root(cfg) / path_str).resolve()
+
+
 def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> Path:
     """Resolve emit input directory; TABLE uses vary_base + k/θ/flags suffix."""
     if name == "TABLE":
@@ -96,11 +118,11 @@ def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> P
         if not base:
             raise SystemExit("TABLE fragment requires vary_base in build.json")
         suffix, _subset = parse_table_args(args)
-        return resolve(base + suffix)
+        return resolve_results_path(cfg, base + suffix)
     input_path = frag.get("input")
     if not input_path:
         raise SystemExit(f"Fragment {name} has no input path in build.json")
-    return resolve(input_path)
+    return resolve_results_path(cfg, input_path)
 
 
 def run_emit(cfg: dict) -> None:
@@ -128,7 +150,9 @@ def run_emit(cfg: dict) -> None:
             str(out_path),
         ]
         if frag.get("vary_dir"):
-            cmd.append(f"--vary-dir={resolve(frag['vary_dir'])}")
+            cmd.append(
+                f"--vary-dir={resolve_results_path(cfg, frag['vary_dir'])}"
+            )
         plots = args or frag.get("plots")
         if plots and name not in ("SEED_COMPARE", "STATISTICS", "TABLE"):
             cmd.append(f"--plots={plots}")
@@ -142,7 +166,9 @@ def run_emit(cfg: dict) -> None:
             cmd.append(f"--ants={frag['ants']}")
         if frag.get("flag_dirs"):
             for label, path in frag["flag_dirs"].items():
-                cmd.append(f"--flag-dir={label}={resolve(path)}")
+                cmd.append(
+                    f"--flag-dir={label}={resolve_results_path(cfg, path)}"
+                )
         if name == "STATISTICS" and args:
             cmd.append(f"--field={args}")
         if name == "STATISTICS" and args in (
@@ -157,7 +183,9 @@ def run_emit(cfg: dict) -> None:
                 or cfg.get("vary_base")
             )
             if missing_at_base:
-                cmd.append(f"--vary-base={resolve(missing_at_base)}")
+                cmd.append(
+                    f"--vary-base={resolve_results_path(cfg, missing_at_base)}"
+                )
 
         label = name if not args else f"{name}:{args}"
         print(f"# emit {label} → {out_path.relative_to(PAPER_DIR)}", file=sys.stderr)
@@ -340,16 +368,6 @@ def verify_pdf(cfg: dict, tex_path: Path | None = None) -> None:
     )
 
 
-def publish_pdf(cfg: dict, tex_path: Path | None = None) -> None:
-    """Copy build.pdf to main.pdf so IDE viewers have an obvious target."""
-    tex = tex_path or (PAPER_DIR / cfg["output"])
-    src = PAPER_DIR / cfg.get("pdf", tex.with_suffix(".pdf").name)
-    dst = PAPER_DIR / "main.pdf"
-    if src.is_file():
-        shutil.copy2(src, dst)
-        print(f"# wrote {dst.relative_to(PAPER_DIR)}", file=sys.stderr)
-
-
 def compile_pdf(
     cfg: dict,
     tex_path: Path | None = None,
@@ -423,7 +441,6 @@ def main(argv: list[str] | None = None) -> None:
             tex_path = assemble(cfg)
         compile_pdf(cfg, tex_path, keep_aux=args.keep_aux)
         verify_pdf(cfg, tex_path)
-        publish_pdf(cfg, tex_path)
         if not args.keep_tex:
             remove_build_tex(cfg, tex_path)
 

@@ -49,7 +49,6 @@ COMPARE_PREFIX="${COMPARE_PREFIX:-konect-small}"
 COMPARE_TIMEOUT="${TIMEOUT:-2000}"
 
 ANTS_TABLE="${ANTS_TABLE:-100}"
-ANTS_SWEEP="${ANTS_SWEEP:-1,2,5,10,20,50,100}"
 ANTS_QUALITY="${ANTS_QUALITY:-2,5,10,20,50,100,200}"
 
 LOG_DIR="${LOG_DIR:-results/regenerate_paper_logs}"
@@ -178,17 +177,6 @@ if want_phase flags; then
       fi
     done
   done
-fi
-
-# ---------------------------------------------------------------------------
-# 2. Ant-count sweep with ACO-PN (P and N both true) → vary_k2t5i_PN
-# ---------------------------------------------------------------------------
-if want_phase sweep; then
-  echo
-  echo "### Phase: sweep (ACO-PN ants=$ANTS_SWEEP → vary_k2t5i_PN)"
-  run_vary "ACO-PN ant-count sweep" \
-    K=2 THETA=5 ANTS_RANGE="$ANTS_SWEEP" \
-    PREFER_SMALLER_SIDE=true ENABLE_NEIGHBOR_SCOPE_LIMIT=true
 fi
 
 # ---------------------------------------------------------------------------

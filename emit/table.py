@@ -245,7 +245,7 @@ def tabular_header_lines():
         r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
         r" & \multicolumn{6}{c}{ACO-PN} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
         r"    \cmidrule(lr){8-13} \cmidrule(lr){14-17}",
-        r"    & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ITB & TTB"
+        r"    & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & TriTB & TimTB"
         r" & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\",
         r"    \midrule",
     ]

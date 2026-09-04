@@ -10,11 +10,13 @@ Modes
      julia -t 8 bin/compare-seeds.jl vary_k2t5i/boxes_ants.json \
          --inject --u=5 --v=5 --save=compare_k2t5i/boxes.json
 
-   Picks the ACO trial that beat the θ-heuristic with the most edges; on ties,
-   the replicate with the smallest time_to_best_s. If ACO never beat the
-   heuristic (or the best beating trial lacks U/V), still writes a compact
-   marker JSON under --save= so re-runs can SKIP_EXISTING without re-parsing
-   the vary file. load.jl is only included when a real pivot comparison runs.
+   Among ants=100 trials only, picks the ACO trial that beat the θ-heuristic
+   with the most edges; on ties, the replicate with the smallest
+   time_to_best_s. Other ant counts in the vary JSON are ignored. If no
+   ants=100 trial beat the heuristic (or the best beating trial lacks U/V),
+   still writes a compact marker JSON under --save= so re-runs can
+   SKIP_EXISTING without re-parsing the vary file. load.jl is only included
+   when a real pivot comparison runs.
 
 2. Explicit seed subgraph JSON `{"U":[...],"V":[...]}`:
 
@@ -24,16 +26,19 @@ Modes
 
 Both modes time full pivot runs (default progressive / all_reductions) on a
 fresh copy of the loaded graph each time — same path as a normal load.jl pivot,
-so progressive reduction stays interleaved with branching. (a) θ-heuristic seed
-only, (b) best of θ-heuristic and the external seed.
+so progressive reduction stays interleaved with branching. Before timing, the
+worker runs a discarded ACO-seeded pivot on the real graph so both timed runs
+see a warm process (tiny-graph warmup alone is not enough). Timed order:
+(a) θ-heuristic + ACO seed, (b) θ-heuristic only.
 
 Each timed pivot runs in a worker process with a hard timeout (default 2000s;
 override with --timeout=SECONDS). On timeout the worker is killed and the
 result is recorded with status="timeout", wall_time_s equal to the limit,
 pivot_timeout_s, any_timed_out, and timed_out_pivots naming which side(s)
-timed out (pivot_theta / pivot_aco_seed). With SKIP_EXISTING=1, a prior
-timeout result is only re-run when the new --timeout= is strictly larger
-than the previous pivot_timeout_s.
+timed out (pivot_theta / pivot_aco_seed). If the discarded ACO warmup times
+out, the timed ACO run is recorded as timeout without a second attempt.
+With SKIP_EXISTING=1, a prior timeout result is only re-run when the new
+--timeout= is strictly larger than the previous pivot_timeout_s.
 =================================================================================
 =#
 
@@ -96,14 +101,16 @@ function json_int_vec(x)
 end
 
 """
-Among counted trials with beats_heuristic==true, pick max final_edges; break
-ties by minimum time_to_best_s (then wall_time_s). JIT warmup replicates
-(run 1 when aco_runs > 1, or jit_warmup=true) are omitted.
+Among counted ants=`ants` trials (default 100) with beats_heuristic==true,
+pick max final_edges; break ties by minimum time_to_best_s (then wall_time_s).
+Other ant counts are ignored even if present in the vary JSON. JIT warmup
+replicates (run 1 when aco_runs > 1, or jit_warmup=true) are omitted.
 """
-function select_best_beating_trial(trials; n_runs::Int=1)
+function select_best_beating_trial(trials; n_runs::Int=1, ants::Int=100)
     beating = Any[]
     for t in trials
         is_jit_warmup_trial(t; n_runs=n_runs) && continue
+        json_get(t, "ants", nothing) == ants || continue
         beats = json_get(t, "beats_heuristic", false)
         beats === true || beats === 1 || continue
         push!(beating, t)
@@ -428,6 +435,28 @@ function setup_compare_worker!(p::Integer)
             return nothing
         end
 
+        # TEMP: diagnose whether ACO-seed vs θ-only hit different specializations.
+        function worker_code_warntype_pivot(g, k::Int, θ::Int, reduction_sym::Symbol,
+            use_heuristic::Bool, seed_U, seed_V)
+            reduction = worker_reduction_from_sym(reduction_sym)
+            initial_seed = if seed_U === nothing
+                nothing
+            else
+                SubGraph(Set{Int}(Int(v) for v in seed_U), Set{Int}(Int(v) for v in seed_V))
+            end
+            g_run = deepcopy(g)
+            label = seed_U === nothing ? "θ-only / no seed" : "ACO seed"
+            println("="^60)
+            println("pivot call types ($label)")
+            println("  typeof(g_run)        = $(typeof(g_run))")
+            println("  typeof(initial_seed) = $(typeof(initial_seed))")
+            println("  typeof(reduction)    = $(typeof(reduction))")
+            println("  typeof(use_heuristic)= $(typeof(use_heuristic))")
+            println("  BranchMode.pivot     = $(BranchMode.pivot)::$(typeof(BranchMode.pivot))")
+            println("="^60)
+            return nothing
+        end
+
         function worker_time_pivot_seeded(g, k::Int, θ::Int, reduction_sym::Symbol,
             use_heuristic::Bool, seed_U, seed_V)
             reduction = worker_reduction_from_sym(reduction_sym)
@@ -582,14 +611,64 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
     println("ACO seed: |U|=$(length(aco_seed.U)) |V|=$(length(aco_seed.V))  " *
             "U=$(sorted_str(aco_seed.U)) V=$(sorted_str(aco_seed.V))")
 
-    # Tiny synthetic graph only — JIT is type-based, so a full-instance warmup
-    # would be two extra complete pivot solves (often as expensive as the timed runs).
-    # Warm up on the timeout worker (where timed pivots actually run).
+    # Tiny synthetic graph first (cheap method coverage), then a discarded
+    # ACO-seeded pivot on the real instance so timed runs exclude Julia JIT.
+    # Killing the worker on timeout destroys that JIT — if the warmup times
+    # out, treat the timed ACO run as timed out too (same work) and only
+    # time θ after a fresh tiny warmup on the respawned worker.
     println()
     println("Warming up (tiny graph on worker, excluded from timings)…")
     ensure_compare_worker!()
     with_process_timeout(min(timeout_seconds, 120.0), :worker_warmup,
         k, θ, reduction_to_sym(reduction))
+
+    # TEMP: type probe on both seed paths (remove after diagnosing).
+    println()
+    println("TEMP: type probe on real-graph pivot (ACO seed)…")
+    seed_U = collect(Int, aco_seed.U)
+    seed_V = collect(Int, aco_seed.V)
+    with_process_timeout(min(timeout_seconds, 120.0), :worker_code_warntype_pivot,
+        g, k, θ, reduction_to_sym(reduction), true, seed_U, seed_V)
+    println()
+    println("TEMP: type probe on real-graph pivot (θ-only / no seed)…")
+    with_process_timeout(min(timeout_seconds, 120.0), :worker_code_warntype_pivot,
+        g, k, θ, reduction_to_sym(reduction), true, nothing, nothing)
+
+    println()
+    println("── Pivot JIT warmup (θ + ACO seed, discarded) ──")
+    warmup_run = time_pivot_seeded!(g, k, θ, reduction;
+        use_heuristic=true, initial_seed=aco_seed, timeout_seconds=timeout_seconds)
+    if warmup_run.timed_out
+        println("  timed out after $(format_seconds(timeout_seconds))s " *
+                "(worker killed; timed ACO will be recorded as timeout)")
+        with_process_timeout(min(timeout_seconds, 120.0), :worker_warmup,
+            k, θ, reduction_to_sym(reduction))
+        aco_run = (;
+            edges = nothing,
+            time = Float64(timeout_seconds),
+            allocated = nothing,
+            rss_delta = nothing,
+            timed_out = true,
+        )
+    else
+        println("  warmup finished in $(format_seconds(warmup_run.time))s " *
+                "(excluded from timings)")
+        println()
+        println("── Pivot seeded with θ-heuristic + ACO subgraph ──")
+        aco_run = time_pivot_seeded!(g, k, θ, reduction;
+            use_heuristic=true, initial_seed=aco_seed, timeout_seconds=timeout_seconds)
+        if aco_run.timed_out
+            println("  timed out after $(format_seconds(timeout_seconds))s")
+            with_process_timeout(min(timeout_seconds, 120.0), :worker_warmup,
+                k, θ, reduction_to_sym(reduction))
+        else
+            print_metric_block("Pivot (θ + ACO seed)";
+                wall_time_s = aco_run.time,
+                allocated_bytes = aco_run.allocated,
+                optimal_edges = aco_run.edges,
+            )
+        end
+    end
 
     println()
     println("── Pivot seeded with θ-heuristic only ──")
@@ -597,9 +676,6 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
         use_heuristic=true, initial_seed=nothing, timeout_seconds=timeout_seconds)
     if theta_run.timed_out
         println("  timed out after $(format_seconds(timeout_seconds))s")
-        # Worker was killed and respawned cold — re-warm before the next timed run.
-        with_process_timeout(min(timeout_seconds, 120.0), :worker_warmup,
-            k, θ, reduction_to_sym(reduction))
     else
         print_metric_block("Pivot (θ seed)";
             wall_time_s = theta_run.time,
@@ -608,34 +684,20 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
         )
     end
 
-    println()
-    println("── Pivot seeded with θ-heuristic + ACO subgraph ──")
-    aco_run = time_pivot_seeded!(g, k, θ, reduction;
-        use_heuristic=true, initial_seed=aco_seed, timeout_seconds=timeout_seconds)
-    if aco_run.timed_out
-        println("  timed out after $(format_seconds(timeout_seconds))s")
-    else
-        print_metric_block("Pivot (θ + ACO seed)";
-            wall_time_s = aco_run.time,
-            allocated_bytes = aco_run.allocated,
-            optimal_edges = aco_run.edges,
-        )
-    end
-
     time_reduction_s = theta_run.time - aco_run.time
     time_reduction_pct = theta_run.time > 0 ?
         100.0 * time_reduction_s / theta_run.time : 0.0
 
     timed_out_pivots = String[]
-    theta_run.timed_out && push!(timed_out_pivots, "pivot_theta")
     aco_run.timed_out && push!(timed_out_pivots, "pivot_aco_seed")
+    theta_run.timed_out && push!(timed_out_pivots, "pivot_theta")
 
     println()
     println("==================== SUMMARY ======================")
-    theta_label = theta_run.timed_out ? "TIMEOUT" : "$(format_seconds(theta_run.time))s  edges=$(theta_run.edges)"
     aco_label = aco_run.timed_out ? "TIMEOUT" : "$(format_seconds(aco_run.time))s  edges=$(aco_run.edges)"
-    println("θ-seed pivot:     $theta_label")
+    theta_label = theta_run.timed_out ? "TIMEOUT" : "$(format_seconds(theta_run.time))s  edges=$(theta_run.edges)"
     println("θ+ACO-seed pivot: $aco_label")
+    println("θ-seed pivot:     $theta_label")
     if !isempty(timed_out_pivots)
         println("timed out:        $(join(timed_out_pivots, ", "))  (limit=$(timeout_seconds)s)")
     end
@@ -667,6 +729,7 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
         "time_reduction_pct" => time_reduction_pct,
         "timed_out_pivots" => timed_out_pivots,
         "any_timed_out" => !isempty(timed_out_pivots),
+        "aco_warmup_timed_out" => warmup_run.timed_out,
     )
 
     if aco_meta !== nothing
@@ -712,7 +775,7 @@ function compare_from_vary_json(vary_path::AbstractString; inject_raw, seed_over
     best = select_best_beating_trial(trials; n_runs=n_runs)
 
     if best === nothing
-        println("No ACO trial beat the θ-heuristic" *
+        println("No ants=100 ACO trial beat the θ-heuristic" *
                 (heur_edges === nothing ? "" : " (heur_edges=$heur_edges)") *
                 ". Writing skip marker")
         payload = build_skip_payload(data, vary_path; reason="no_aco_beat")

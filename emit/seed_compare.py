@@ -40,9 +40,13 @@ from .common import (
 )
 
 
-def select_best_beating_trial(trials):
-    """Mirror compare-seeds.jl: max edges among beats_heuristic, then min TTB."""
-    beating = [t for t in trials if t.get("beats_heuristic") in (True, 1)]
+def select_best_beating_trial(trials, ants=100):
+    """Mirror compare-seeds.jl: max edges among ants=`ants` beats_heuristic, then min TTB."""
+    beating = [
+        t
+        for t in trials
+        if t.get("ants") == ants and t.get("beats_heuristic") in (True, 1)
+    ]
     if not beating:
         return None
     best_edges = max(int(t.get("final_edges") or 0) for t in beating)

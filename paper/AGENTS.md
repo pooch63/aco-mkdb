@@ -21,9 +21,16 @@ The paper build (`python paper/build.py`) **must complete** even when some resul
 
 ## Workflow
 
-1. Experiments write JSON under `results/`.
+1. Experiments write JSON under `results/` (or another tree named by `results_dir` in `build.json`).
 2. `emit` reads JSON → `paper/generated/*.tex` (and optional `*.preamble.tex` sidecars).
 3. `build.py` substitutes `%%PLACEHOLDER%%` in `main.tex` → `build.tex` → PDF.
+
+### `results_dir`
+
+Set once in `paper/build.json` (default `../results`). Fragment paths
+(`input`, `vary_dir`, `flag_dirs`, `missing_at_base`, and `vary_base` + TABLE
+suffix) are bare names under that directory, e.g. `"vary_k2t5i_PN"`. To rebuild
+from an archive tree, change only `results_dir` (e.g. `../results_old`).
 
 ### `%%PREAMBLE%%`
 

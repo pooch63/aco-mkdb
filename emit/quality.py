@@ -206,6 +206,13 @@ def _tex_escape_name(name):
     )
 
 
+def _table_style_name(name):
+    """Match emit.common.display_name / table Dataset column style."""
+    return _tex_escape_name(
+        str(name).replace("_", " ").replace("-", " ").title()
+    )
+
+
 def fmt_outlier_pct(value):
     """Format a deviation percentage for LaTeX prose."""
     if abs(value) >= 100:
@@ -218,17 +225,18 @@ def build_outlier_note(outliers):
     LaTeX note listing graphs omitted from the quality groupplot.
 
     outliers: [(name, max_pct), ...] from detect_heuristic_outliers.
+    Names use the same title-case style as table Dataset columns.
     """
     if not outliers:
         return None
 
     if len(outliers) == 1:
         name, peak = outliers[0]
-        names_part = rf"\texttt{{{_tex_escape_name(name)}}}"
+        names_part = _table_style_name(name)
         values_part = fmt_outlier_pct(peak)
     else:
         parts = [
-            rf"\texttt{{{_tex_escape_name(name)}}} ({fmt_outlier_pct(peak)})"
+            rf"{_table_style_name(name)} ({fmt_outlier_pct(peak)})"
             for name, peak in outliers
         ]
         names_part = ", ".join(parts[:-1]) + ", and " + parts[-1]

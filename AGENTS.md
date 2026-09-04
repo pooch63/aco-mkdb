@@ -88,7 +88,7 @@ python paper/build.py assemble  # only substitute placeholders
 python paper/build.py pdf       # only compile
 ```
 
-**Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Paths are relative to `paper/`.
+**Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Set `results_dir` once (default `../results`); fragment paths are bare names under that tree (e.g. `vary_k2t5i_PN`). Absolute / `../…` paths still resolve from `paper/`.
 
 | Placeholder | Emit mode | Purpose |
 |-------------|-----------|---------|
@@ -101,7 +101,7 @@ python paper/build.py pdf       # only compile
 
 **Important:** `emit/` must **only read pre-recorded JSON** — it must not re-run Julia or re-simulate ACO. The build must tolerate incomplete data (warn, don't crash). See `paper/AGENTS.md` for emit-specific rules.
 
-**Artifacts:** `paper/build.tex` and `paper/build.pdf` are generated (gitignored). `main.pdf` is a copy of `build.pdf` for IDE viewers.
+**Artifacts:** `paper/build.tex` and `paper/build.pdf` are generated (gitignored).
 
 ## Results collected
 
