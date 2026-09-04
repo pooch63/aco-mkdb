@@ -29,8 +29,13 @@ Modes
   compare
       Vary.jl ant-count JSON → complexity figures (ACO-PN).
       Plot groups (pass comma-separated via --plots):
-        theta-time, deg-size-time, density-size, max-deg-time
+        theta-time, deg-size-time, density-size, max-deg-time,
+        flag-ablation, iteration-budget, k-sweep, theta-sweep, param-runtime
       Pass a single results directory, e.g. vary_k2t5i_PN.
+      k-sweep / theta-sweep / param-runtime use --param-dir=LABEL=DIR
+      (see build.json).
+      iteration-budget uses recorded iterations_to_best on counted
+      (non-JIT) replicates.
 
   statistics
       Vary.jl ant-count JSON → inline LaTeX for %%STATISTICS:field%%
@@ -107,7 +112,8 @@ def main(argv=None):
         default=None,
         help="compare mode: comma-separated plot groups "
              "(theta-time, deg-size-time, density-size, max-deg-time, "
-             "flag-ablation)",
+             "flag-ablation, iteration-budget, k-sweep, theta-sweep, "
+             "param-runtime)",
     )
     parser.add_argument(
         "--flag-dir",
@@ -116,6 +122,14 @@ def main(argv=None):
         default=None,
         help="compare flag-ablation: variant directory "
              "(repeat for ACO, ACO-P, ACO-N, ACO-PN)",
+    )
+    parser.add_argument(
+        "--param-dir",
+        action="append",
+        metavar="LABEL=DIR",
+        default=None,
+        help="compare k-sweep / theta-sweep: (k, θ) suite directory "
+             "(repeat; labels are free-form, k/θ read from JSON)",
     )
     parser.add_argument(
         "--field",
@@ -171,9 +185,31 @@ def main(argv=None):
                         f"Invalid --flag-dir entry {item!r}; use LABEL=DIR"
                     )
                 flag_dirs[label.strip()] = path.strip()
-        if not json_paths and not (
-            args.plots and "flag-ablation" in args.plots.split(",")
-        ):
+        param_dirs = None
+        if args.param_dir:
+            param_dirs = {}
+            for item in args.param_dir:
+                label, sep, path = item.partition("=")
+                if not sep or not label.strip() or not path.strip():
+                    raise SystemExit(
+                        f"Invalid --param-dir entry {item!r}; use LABEL=DIR"
+                    )
+                param_dirs[label.strip()] = path.strip()
+        plot_names = (
+            [p.strip() for p in args.plots.split(",") if p.strip()]
+            if args.plots
+            else []
+        )
+        multi_only = plot_names and all(
+            p in (
+                "flag-ablation",
+                "k-sweep",
+                "theta-sweep",
+                "param-runtime",
+            )
+            for p in plot_names
+        )
+        if not json_paths and not multi_only:
             raise SystemExit(f"No .json files found in {args.directory}")
         from . import compare
         compare.run(
@@ -182,6 +218,7 @@ def main(argv=None):
             ants=args.ants,
             plots=args.plots,
             flag_dirs=flag_dirs,
+            param_dirs=param_dirs,
         )
 
     elif args.mode == "statistics":
