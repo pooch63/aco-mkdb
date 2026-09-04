@@ -21,6 +21,7 @@ Absolute paths and ``./`` / ``../`` paths are still resolved from paper/.
 
 STATISTICS missing-at-5 fields use missing_at_base (plain ACO dir; ACO-N is
 that path + "N"). Falls back to vary_base if missing_at_base is omitted.
+COMPARE k-sweep / theta-sweep use param_dirs (labeled vary_* suites).
 """
 
 from __future__ import annotations
@@ -168,6 +169,11 @@ def run_emit(cfg: dict) -> None:
             for label, path in frag["flag_dirs"].items():
                 cmd.append(
                     f"--flag-dir={label}={resolve_results_path(cfg, path)}"
+                )
+        if frag.get("param_dirs"):
+            for label, path in frag["param_dirs"].items():
+                cmd.append(
+                    f"--param-dir={label}={resolve_results_path(cfg, path)}"
                 )
         if name == "STATISTICS" and args:
             cmd.append(f"--field={args}")

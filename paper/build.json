@@ -31,6 +31,12 @@
         "ACO-P": "vary_k2t5i_P",
         "ACO-N": "vary_k2t5i_100_N",
         "ACO-PN": "vary_k2t5i_PN"
+      },
+      "param_dirs": {
+        "k2t5": "vary_k2t5i_PN",
+        "k3t5": "vary_k3t5i_PN",
+        "k4t5": "vary_k4t5i_PN",
+        "k3t6": "vary_k3t6i_PN"
       }
     },
     "STATISTICS": {
