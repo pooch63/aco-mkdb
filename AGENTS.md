@@ -94,10 +94,15 @@ python paper/build.py pdf       # only compile
 |-------------|-----------|---------|
 | `%%QUALITY%%` | `quality` | Ant-count sweep: quality vs. θ-heuristic, θ-feasibility rate, runtime |
 | `%%SEED_COMPARE%%` | `seed-compare` | Full pivot table (appendix); `:highlights` = representative rows in §4.2 |
-| `%%TABLE:k2t5i_PN%%` | `table` | Per-graph ACO vs. θ comparison (appendix); `:k2t5i_PN:highlights` = §4.3; `:k3t6i_PN` = $k{=}3,\theta{=}6$ |
+| `%%TABLE:k2t5i_PN%%` | `table` | Per-graph ACO vs. θ comparison (appendix); `:k2t5i_PN:highlights` = §4.3; `:k3t5i_PN` / `:k3t6i_PN` / `:k4t5i_PN` = other $(k,\theta)$ |
 | `%%COMPARE:theta-time%%` | `compare` | θ-heuristic runtime vs. \(\theta n + m\) bound |
 | `%%COMPARE:deg-size-time%%` | `compare` | ACO runtime vs. complexity bounds |
-| `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, missing-at-size stats |
+| `%%COMPARE:k-sweep%%` | `compare` | Log edge ratio + win rate vs. \(k\) at fixed \(\theta\) (`param_dirs`) |
+| `%%COMPARE:theta-sweep%%` | `compare` | Same vs. \(\theta\) at fixed \(k\) |
+| `%%COMPARE:density-wins%%` | `compare` | Rolling win rate vs. reduced density (pooled across $(k,\theta)$) |
+| `%%COMPARE:param-density%%` | `compare` | Reduced density boxplots vs. \(k\) and vs. \(\theta\) |
+| `%%COMPARE:iteration-budget%%` | `compare` | Epoch budget \(E=1..n_E\): wins vs. θ-heuristic + % edge increase (log) + ETB CDF |
+| `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, θ-feasibility rates, missing-at-size stats |
 
 **Important:** `emit/` must **only read pre-recorded JSON** — it must not re-run Julia or re-simulate ACO. The build must tolerate incomplete data (warn, don't crash). See `paper/AGENTS.md` for emit-specific rules.
 
@@ -127,6 +132,18 @@ One file per graph. Top-level metadata plus `trials[]` (one entry per ant-count 
 - `wall_time_s`, `time_to_best_s`, `iterations_to_best`
 - `U`, `V` — returned subgraph vertex ids (used to re-seed pivot)
 - `construction.missing_at_size` — missing-edge count when subgraph first reaches each size
+
+**Timeout fields** (optional; set when `--aco-timeout=` / `ACO_TIMEOUT` is used):
+
+- `aco_timeout_s` — shared wall-clock budget for all ACO trials on this graph
+- `aco_timed_out` — `true` if the budget expired before the full ant×run sweep finished
+- `aco_status` — `"ok"` | `"timeout"` | `"running"` (checkpoint after θ, before ACO finishes)
+
+θ-heuristic always runs first. On timeout, JSON still has a full `heuristic` block;
+emit skips timed-out files for ACO win/rate plots and clears ACO table columns.
+`SKIP_EXISTING=1` re-runs a timed-out file only when the new `ACO_TIMEOUT` is
+strictly larger than the previous `aco_timeout_s` (same upgrade pattern as pivot
+`TIMEOUT` in compare-seeds).
 
 **Graph metadata:** `nU`, `nV`, `reduced_nU`, `reduced_nV`, `reduced_edges`, `reduced_max_degree`
 
