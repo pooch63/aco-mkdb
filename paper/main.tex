@@ -69,7 +69,7 @@
 The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization.
 We adapt Ant Colony Optimization (ACO) to the k-MDB problem, introducing a preference for the lower-cardinality partite set and a local neighborhood search to improve solution quality.
 In many instances, ACO produces bicliques with two or more times the edges than previously proposed heuristics.
-Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can reduce brute force search time by up to $95\%$ on total wall-clock execution time, including ACO search cost.
+Additionally, ACO provides a tighter upper bound on the size of the $k$-MDB and can cut brute force search time by more than half.
 \end{abstract}
 
 \section{Introduction}
@@ -303,7 +303,7 @@ Here, $\sigma(x) = 1/(1+e^{-x})$ denotes the standard logistic sigmoid, used to 
                 \EndWhile
             \EndForPar
 
-            \State $S_B \gets \text{argmax}_{S_i \in \mathcal{S}}{\Call{InstanceFitness}{S_i}}$ \Comment{$S_B$ is guaranteed to have at least one node}
+            \State $S_B \gets \text{argmax}_{S_i \in \mathcal{S}}{|E(S_i)|}$ \Comment{$S_B$ is guaranteed to have at least one node}
 
             \If{$B = \emptyset$ or $E(S_B) > E(B)$}
                 \State $B \gets S_B$
@@ -447,9 +447,17 @@ subset of graphs:
     \end{tabular}
 \end{table}
 
-$\rho$ was tuned manually by observing convergence behavior on a small subset of graphs; $\Delta\tau$ and $P$ were set to reasonable fixed values without a formal search. The effect of $n_E$ on performance is studied in Section~4.7. ACO was run six times; the first trial warmed up the Julia JIT compiler and took far longer than the others. Therefore, the first trial on all runs was discarded, and the last 5 trials were used. A more systematic hyperparameter study is left to future work.
+$\rho$ was tuned manually by observing convergence behavior on a small subset of graphs.
+$\Delta\tau$ and $P$ were set to reasonable fixed values without a formal search.
+A more systematic hyperparameter study is left to future work.
+
+The effect of $n_E$ on performance is studied in Section~4.7. By default, $n_E = 5$.
+ACO was run six times; the first trial warmed up the Julia JIT compiler and took far longer than the others.
+Therefore, the first trial on all runs was discarded, and the last 5 trials were used.
 
 When testing ACO and the $\theta$-heuristic, a biclique with $k$ missing edges and $\theta$ vertices on each side was injected into the graph to make graphs without a naturally occurring $k$-DB usable for tests.
+Because the $\theta$-heuristic was designed for $\theta \times N \gg \theta$ bicliques, this might unintentionally favor ACO. Future work might examine injecting more variable bicliques.
+Preliminary tests, however, indicate that ACO outperforms the $\theta$ heuristic on both $\theta \times \theta$ and $\theta \times N \gg \theta$ graphs (Section~5.1).
 Sometimes, graphs may have bicliques larger than the injection. We test on 35 graphs from two public collections: 32 from KONECT (\url{http://konect.cc}), a standard repository of real-world bipartite networks, and 3 from Amazon Reviews 2023 (\url{http://amazon-reviews-2023.github.io}), user-product review graphs in selected product categories.
 All tests were run with 8 threads on a computer with Ubuntu, an Intel(R) Core(TM) Ultra 7 258V, and 32 gigabytes of RAM.
 
@@ -461,7 +469,9 @@ In a hyperparameter study, we examine how $k$ and $\theta$ affect ACO performanc
 
 \subsection{Effect of ant count}
 
-We varied ant count $n_S$ across $\{2, 5, 10, 20, 50, 100, 200\}$ using ACO-PN on the full benchmark suite. At each ant count, $n_E$ was set to $5$ epochs, and means and rates use the five counted replicates of Section~3.3. We refer to a $\theta$-feasible trial as a trial in which the ant's final graph had $\geq \theta$ nodes on both sides. Figure~\ref{fig:quality-groupplot} plots, for each graph, the mean percent deviation from the $\theta$-heuristic (among $\theta$-feasible trials), the $\theta$-feasibility rate, and mean wall-clock time. Solution quality generally improves with more ants but often plateaus before $n_S = 200$; $\theta$-feasibility rises with ant count on most graphs; and runtime scales roughly linearly with $n_S$ on the log-scaled time panel.
+We varied ant count $n_S$ across $\{2, 5, 10, 20, 50, 100, 200\}$ using ACO-PN on the full benchmark suite. At each ant count, $n_E$ was set to $5$ epochs, and means and rates use the five counted replicates of Section~3.3. We refer to a $\theta$-feasible trial as a trial in which the ant's final graph had $\geq \theta$ nodes on both sides. Figure~\ref{fig:quality-groupplot} plots, for each graph, the mean percent deviation from the $\theta$-heuristic (among $\theta$-feasible trials), the $\theta$-feasibility rate, and mean wall-clock time. Solution quality generally improves with more ants but often plateaus before $n_S = 200$.
+$\theta$-feasibility generally rises but is also subject to fluctuate.
+Finally, runtime scales roughly linearly with $n_S$ on the log-scaled time panel.
 
 %%QUALITY%%
 
@@ -499,7 +509,9 @@ Figure~\ref{fig:k-sweep} holds $\theta = 5$ and varies $k$. Relative ACO edge co
 
 %%COMPARE:theta-sweep%%
 
-We observe that ACO performs better with larger $k$ and smaller $\theta$. This is likely due to differences in density among the graphs. Figure~\ref{fig:density-wins} plots rolling ACO win rate against reduced edge density $\text{den}(G_R) = |E_R|/(|U_R|\,|V_R|)$ (derived from recorded sizes and edge counts), pooling all graph$\times$suite observations across $(k, \theta)$. Figure~\ref{fig:param-density} shows that raising $k$ tends to leave sparser reduced graphs while raising $\theta$ tends to leave denser ones, so the win-rate pattern tracks density as a shared structural correlate rather than $\theta$ alone. Together these preliminary sweeps suggest that the qualitative ACO-vs-heuristic story is not confined to the paper default $(k, \theta) = (2, 5)$; fuller suites will tighten the comparison.
+We observe that ACO performs better with larger $k$ and smaller $\theta$. This is likely due to differences in density among the graphs. Figure~\ref{fig:density-wins} plots rolling ACO win rate against reduced edge density $\text{den}(G_R) = |E_R|/(|U_R|\,|V_R|)$ across all graphs on all $(k, \theta)$. We observe that ACO wins more often on sparser graphs.
+Figure~\ref{fig:param-density} shows that common-neighbor reductions leaves graphs denser with larger $k$ and sparser with larger $\theta$, so density is a plausible correlate with ACO success.
+Together, these sweeps suggest that ACO's advantage over the $\theta$-heuristic is not confined to a single $(k, \theta)$ setting. Future work might explore more extensive sweeps to further confirm this hypothesis.
 
 %%COMPARE:density-wins%%
 
@@ -508,16 +520,9 @@ We observe that ACO performs better with larger $k$ and smaller $\theta$. This i
 \FloatBarrier
 \subsubsection{Runtime across $k$ and $\theta$}
 
-Sections~4.2 and~4.5 emphasize solution quality. Here we ask how much longer ACO-PN takes than the $\theta$-heuristic on the same reduced graphs, and how that cost shifts with $k$ and $\theta$. Throughout, \emph{discovery time} is the cumulative counted-replicate wall time used elsewhere in the paper (five non-JIT runs at 100 ants; the Julia warmup replicate is omitted). The $\theta$-heuristic time is a single timed pass after its own JIT discard (Section~3.3).
-
-Figure~\ref{fig:param-runtime} summarizes the comparison. On matched graphs that completed under the ACO wall-clock budget at every plotted setting, ACO discovery is typically two to three orders of magnitude slower than the $\theta$-heuristic: median ratios lie near $400\times$--$700\times$ depending on $(k, \theta)$. Absolute times tell a milder story. The $\theta$-heuristic finishes in milliseconds on almost every instance, while median ACO discovery is usually under two seconds. The cost is therefore large in relative terms but often modest in wall-clock terms on this suite---except where ACO hits the timeout discussed below.
-
-Raising $k$ at fixed $\theta = 5$ lengthens ACO search. On the $21$ graphs matched across $k \in \{1, 2, 3, 4\}$, median discovery-time ratio rises from $422\times$ at $k = 1$ to $688\times$ at $k = 4$ (with $398\times$ at the paper default $k = 2$ and $486\times$ at $k = 3$), and median absolute discovery rises from $1.0$\,s ($k = 1$) through a dip to $0.36$\,s at $k = 2$, then to $1.03$\,s at $k = 3$ and $1.88$\,s at $k = 4$.
-The $k = 2$ dip is consistent with shorter constructions on the denser reduced graphs left by a moderate defect budget. At $k = 4$, however, $10$ of $35$ graphs timed out under a $10$\,s ACO wall-clock budget before finishing the ant$\times$replicate sweep (Appliances, Beauty, Gift Cards, Health, Magazine, Music, Matter, Nawiki, DBLP Cite, and Wiki Talk NDS). Those graphs are omitted from the matched boxes in Figure~\ref{fig:param-runtime} and from the quality sweep in Section~4.5. Timeouts concentrate on larger Amazon and KONECT instances where the expanded defect budget leaves a wider feasible neighborhood for each ant to score, so the quality comparison at $k = 4$ is partially censored: we observe wins and losses only on graphs that finished, not on the hardest incomplete ones.
-
-Raising $\theta$ at fixed $k = 3$ has the opposite effect on runtime. On the $25$ graphs matched across $\theta \in \{5, 6, 7\}$, median discovery-time ratio falls from $509\times$ at $\theta = 5$ to $362\times$ at $\theta = 6$ and $383\times$ at $\theta = 7$, and median ACO discovery drops from $1.07$\,s to about $0.53$\,s. Stronger common-neighbor reduction (threshold $\theta - k$) shrinks $G_R$ as $\theta$ grows, so ants explore a smaller graph even though each construction targets larger sides. This mirrors Figure~\ref{fig:param-density}: larger $\theta$ tends to leave denser but often cheaper reduced instances, while larger $k$ tends to leave sparser, harder-to-prune graphs that are more expensive for ACO.
-
-What this means for quality. The extra wall time is the price of the edge-count and $\theta$-feasibility gains in Sections~4.2--4.5: ACO often returns bicliques with several times more edges, and sometimes recovers $\theta$-feasible solutions when the heuristic fails. At the paper default $(k, \theta) = (2, 5)$, wins and non-wins have similar time ratios (medians near $380\times$ vs.\ $500\times$), so paying for ACO does not selectively inflate cost only when it helps---the colony always runs the full ant$\times$epoch$\times$replicate budget. When ACO times out, as at $k = 4$ on several graphs, we cannot claim a win or a loss, only that the $\theta$-heuristic finished quickly while ACO did not finish under the allotted budget. In practice, a short epoch budget (Section~4.7) already captures most quality gains against the heuristic, so the full five-epoch discovery cost reported here is an upper bound on the time needed to dominate the $\theta$-heuristic on many instances. For exact search, the same discovery cost is often recovered many times over when a better seed prunes branch-and-pivot (Section~4.4)---but only when ACO completes and improves $D^*$.
+Figure~\ref{fig:param-runtime} compares ACO-PN discovery time to the $\theta$-heuristic on the same $(k, \theta)$ sweeps (five counted replicates at 100 ants; Section~3.3). On matched graphs that finish under the ACO wall-clock budget, median discovery-time ratios are about $400\times$--$700\times$. Median absolute ACO discovery time, however, generally remains under two seconds.
+Raising $k$ at fixed $\theta = 5$ tends to lengthen ACO search; raising $\theta$ at fixed $k = 3$ tends to shorten it, likely because larger $k$ and smaller $\theta$ allow common-neighbor reduction to prune fewer nodes.
+At $k = 4$, $10$ of $35$ graphs timed out under a $600$\,s budget. Therefore, ACO might have a higher win rate than was recorded, although at the expense of significant runtime.
 
 %%COMPARE:param-runtime%%
 
@@ -548,7 +553,7 @@ Other wins are entirely different. ACO may escape the $\theta$-exact limitation 
 
 We hypothesize this is due to ACO's exploration. Because the $\theta$-heuristic arbitrarily chooses $U$ as its $\theta$-side and greedily expands, early vertex choices can permanently shrink the retained neighborhood. Conversely, ACO's stochastic multi-agent construction samples alternative $\theta \times \theta$ subgraphs and often recovers a better one. Even inside the niche it targets, the $\theta$-heuristic's one-pass greedy construction can be dominated by ACO search, which iteratively refines the $\theta$ vertices it uses.
 
-Small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. On the 6 graphs where ACO beat the $\theta$-heuristic (Table~\ref{tab:seed-compare}), ACO-seeded runtimes (search plus ACO-seeded pivot) were shorter by between roughly $50\%$ and $95\%$ relative to a $\theta$-seeded pivot.
+Small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. On the 5 graphs where ACO beat the $\theta$-heuristic (Table~\ref{tab:seed-compare}), ACO-seeded runtimes (search plus ACO-seeded pivot) were shorter relative to a $\theta$-seeded pivot by over $6.52\%$ in the worst case and $56.15\%$ in the best case.
 Additionally, ACO had a $\theta$-feasibility rate of %%STATISTICS:aco-theta-feasibility-rate%% versus the $\theta$-heuristic's feasibility rate of %%STATISTICS:theta-heuristic-feasibility-rate%%, meaning it can be used as a valid lower bound more often. This suggests that ACO is a significantly better upper bound to use for branch-and-pivot than the $\theta$-heuristic in some cases.
 
 It should be noted that the timeout excluded graphs unevenly: branch-and-pivot completed on all %%STATISTICS:aco-nonwins%% graphs where ACO tied or lost, but on only %%STATISTICS:pivot-tested-wins%% of the %%STATISTICS:aco-wins%% graphs where ACO won. The %%STATISTICS:pivot-tested-wins%% tested win-graphs are smaller than the %%STATISTICS:pivot-excluded-wins%% excluded ones (mean $n_R$ = %%STATISTICS:pivot-tested-wins-mean-nR%% vs.\ %%STATISTICS:pivot-excluded-wins-mean-nR%%; mean $|E_R|$ = %%STATISTICS:pivot-tested-wins-mean-eR%% vs.\ %%STATISTICS:pivot-excluded-wins-mean-eR%%), so our reported $50$--$95\%$ reduction range is drawn from an easier, non-random subset of wins and may not generalize to the larger instances the timeout excluded.
@@ -574,7 +579,11 @@ Additionally, we injected bicliques with $\theta$ vertices on both sides into th
 
 \section{Conclusion}
 
-Ant Colony Optimization is a promising heuristic approach to identifying large $k$-DB. As an emergent field, there do not exist many tested heuristics for this problem. The $\theta$-heuristic, the only previously proposed heuristic we could identify, is significantly faster than our algorithm but often does not produce solutions as large. While ACO takes longer under a full ant and epoch budget, both knobs scale runtime linearly, so the quality--runtime tradeoff can be dialed toward speed or toward larger bicliques as needed. When quality is worth the cost, ACO can also function as a much more effective upper bound for brute-force search algorithms, cutting net end-to-end search time by as much as $95\%$.
+Ant Colony Optimization is a promising heuristic approach to identifying large $k$-DB.
+As an emergent field, there do not exist many tested heuristics for this problem.
+The $\theta$-heuristic, the only previously proposed heuristic we could identify, is significantly faster than our algorithm but often does not produce solutions as large.
+While ACO takes longer under a large ant and epoch budget, both knobs scale runtime linearly, so the quality--runtime tradeoff can be dialed toward speed or toward larger bicliques as needed.
+When quality is worth the cost, ACO can also function as a much more effective upper bound for brute-force search algorithms, cutting net end-to-end search time by over $50\%$.
 
 \subsection{Future Work}
 

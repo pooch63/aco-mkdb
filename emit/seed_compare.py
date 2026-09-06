@@ -696,10 +696,10 @@ def build_seed_compare_latex(rows, subset=SUBSET_FULL):
             neutral_rows,
             label="tab:seed-compare",
             caption=(
-                r"Representative pivot seed comparisons. Top: graphs where ACO "
-                r"seeding reduced net end-to-end time. Bottom: smallest and "
-                r"largest ACO-search overhead among the remaining graphs. Full "
-                r"results are in Table~\ref{tab:seed-compare-full}."
+                r"Representative pivot seed comparisons. Top: graphs where "
+                r"ACO seeding reduced wall-clock time. Bottom: smallest and "
+                r"largest ACO-search overhead among graphs where ACO did not beat the $\theta$-heuristic. "
+                r"Full results in Table~\ref{tab:seed-compare-full}."
             ),
             placement="H",
         )
