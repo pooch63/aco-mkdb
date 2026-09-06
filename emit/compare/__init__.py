@@ -21,7 +21,12 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
   flag-ablation
     - 2-panel groupplot (quality | discovery time) across ACO, ACO-P,
       ACO-N, and ACO-PN at a fixed ant count. Requires --flag-dir for
-      each variant (see build.json flag_dirs).
+      each variant (see build.json flag_dirs). Quality averages scored
+      edges (θ-infeasible trials count as 0).
+
+  flag-feasibility
+    - 1-panel boxplot of per-graph θ-feasibility rate across the same
+      four variants (ordered ACO, ACO-N, ACO-P, ACO-PN; grouped by P).
 
   iteration-budget
     - 3-panel groupplot of ACO-PN quality vs. θ-heuristic (as a
@@ -93,7 +98,8 @@ PLOT_GROUPS = (
     + param_sweep.PLOT_GROUPS
 )
 PARAM_SWEEP_PLOTS = frozenset(param_sweep.PLOT_GROUPS)
-MULTI_DIR_PLOTS = frozenset({"flag-ablation"}) | PARAM_SWEEP_PLOTS
+FLAG_ABLATION_PLOTS = frozenset(flag_ablation.PLOT_GROUPS)
+MULTI_DIR_PLOTS = FLAG_ABLATION_PLOTS | PARAM_SWEEP_PLOTS
 BUDGET_PLOTS = frozenset(
     iteration_budget.PLOT_GROUPS + replicate_budget.PLOT_GROUPS
 )
@@ -174,11 +180,11 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
     repl_summary = None
     skipped = []
 
-    if "flag-ablation" in selected:
+    if FLAG_ABLATION_PLOTS.intersection(selected):
         if not flag_dirs:
             raise SystemExit(
-                "flag-ablation plot requires --flag-dir=LABEL=DIR for "
-                "ACO, ACO-P, ACO-N, and ACO-PN"
+                "flag-ablation / flag-feasibility plots require "
+                "--flag-dir=LABEL=DIR for ACO, ACO-P, ACO-N, and ACO-PN"
             )
         matched_ablation, flag_skipped = (
             flag_ablation.load_flag_ablation_matched(flag_dirs, ants=ants)
@@ -186,8 +192,8 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
         skipped.extend(flag_skipped)
         if not matched_ablation:
             print(
-                "Warning: flag-ablation: no graphs matched across all four "
-                "variant directories.",
+                "Warning: flag-ablation / flag-feasibility: no graphs "
+                "matched across all four variant directories.",
                 file=sys.stderr,
             )
 
@@ -277,7 +283,7 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
         + (f"; ants={ants}" if ants is not None else "")
         + (
             f"; flag-ablation matched={len(matched_ablation or [])}"
-            if "flag-ablation" in selected
+            if FLAG_ABLATION_PLOTS.intersection(selected)
             else ""
         )
         + (

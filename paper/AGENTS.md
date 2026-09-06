@@ -4,7 +4,7 @@ Read this before changing `emit/` or `paper/build.py`.
 
 ## General guidelines
 
-1. When I ask you to create a new graph, do NOT update the paper analysis. Wait to update the paper analysis until after a graph is generated. This way, I can make sure the trend is legitimate.
+1. When I ask you to create a new graph, do NOT update the paper analysis. This way, I can make sure the trend is legitimate.
 
 ## Emit must not recompute experiment results
 

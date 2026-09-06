@@ -82,7 +82,7 @@ Generally, real-world data often introduces noise to graphs, and structures with
 
 The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm that can run in polynomial time and is guaranteed to find the maximum solution. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
 
-Dorigo et al. [2] proposed a metaheuristic known as Ant Colony Optimization (ACO) for exploring graphs. Initially used on finding the shortest path in the Traveling Salesman Problem, ACO has been adapted to many graph problems, such as vehicle routing [5], quadratic assignment [6], graph coloring [7], and the maximum clique problem [8], the last of which is closely related to the k-MDB problem via the reduction discussed in Section 2.2.
+Dorigo et al. [2] proposed a metaheuristic known as Ant Colony Optimization (ACO) for exploring graphs. Initially used on finding the shortest path in the Traveling Salesman Problem, ACO has been adapted to many graph problems, such as vehicle routing [5], quadratic assignment [6], graph coloring [7], and the maximum clique problem [8], the last of which $k$-MDB is closely related to (Section~2.2).
 We adapt ACO as a heuristic approach to identifying the $k$-MDB. We observe that its speed is comparable to previously proposed heuristics and in many cases returns significantly larger $k$-DB.
 
 \section{Background}
@@ -287,7 +287,7 @@ Here, $\sigma(x) = 1/(1+e^{-x})$ denotes the standard logistic sigmoid, used to 
                 \State $C \gets \{u \in G \mathrel{\text{s.t.}} |\bar{E}(S_i \cup \{u\})| \leq k\}$
                 \While{$|C| > 0$}
                     \State $L \gets$ the last node that was appended to $S_i$
-                    \State $C_L \gets d_L$
+                    \State $C_L \gets N(L)$
 
                     \If{$|C \cap C_L| > 0$ and $N$}
                         \State $search \gets C \cap C_L$
@@ -367,19 +367,13 @@ Additionally, at each step, an ant generates a candidate set of nodes that could
 
 \subsubsection{Practical Complexity}
 
-In practice, however, there are several factors limiting this complexity.
+In practice, however, there are two factors limiting this complexity.
 
-\textbf{Neighbor Scope Limit} First, let $L$ be the last node an ant visited. Under flag~N, an ant prefers to visit only the intersection of $d_L$ and its candidate set, so it often only visits $d_L$ or fewer nodes.
-Empirically, the typical neighbor-scope size tracks the mean degree of the graph, $d^{\mathrm{avg}}_G = 2|E_G|/(|U_G|+|V_G|)$, rather than the worst-case maximum node degree.
-Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times (n_E \times n \times d^{\mathrm{avg}} + n))$. Note that $n \times d^{\mathrm{avg}}_G = n \times \frac{2|E_G|}{n} = 2|E_G|$, so this term does not scale with $n$. The practical complexity therefore reduces to $\mathcal{O}(\lceil A / p \rceil \times (n_E \times |E_G| + n))$, and ACO's complexity does not practically scale quadratically with $n$ after the first epoch.
+\textbf{Neighbor Scope Limit} First, let $L$ be the last node an ant visited. Under flag~N, an ant prefers to visit only the intersection of $N(L)$ and its candidate set, so it often only visits $d_L$ or fewer nodes.
+Empirically, this means the ant will visit a number of nodes equal to average of the graph's degree, $d^{\mathrm{avg}}_G = 2|E_G|/(|U_G|+|V_G|)$, rather than the worst-case maximum node degree. Therefore, the practical time complexity is $\mathcal{O}(\lceil A / p \rceil \times (n_E \times n \times d^{\mathrm{avg}} + n))$. Note that $n \times d^{\mathrm{avg}} = n \times \frac{2|E_G|}{n} = 2|E_G|$, so this term does not scale with $n$. The practical complexity therefore reduces to $\mathcal{O}(\lceil A / p \rceil \times (n_E \times |E_G| + n))$, and ACO's complexity does not practically scale quadratically with $n$. On sparse graphs where $|E_G| \ll n^2$, this suggests significantly less complexity than the theoretical bound indicates.
 \
 
-\textbf{Empirical Limit to Subgraph Size} Additionally, ants run until they are unable to add more nodes. Let $D$ be the $k$-MDB of $G$. Because flag~P encourages subgraphs with $\theta$ nodes on each side, an ant empirically will not visit more than $n_D = |U_D| + |V_D|$ nodes, and therefore have a time complexity of $\mathcal{O}(\lceil A / p \rceil \times (n_E \times n_D \times d^{\mathrm{avg}} + n))$.
-
-We do not currently have a model of how $n_D$ scales with graph parameters such as density or degree distribution, and observed values vary considerably across graphs. What we do observe consistently is that $n_D \ll n$, even on the densest graphs in our benchmark set. We therefore treat $n_D \le n$ as a worst-case-only bound, not a practical one, and rely on the empirical results in Figure~\ref{fig:compare-bound-ratio} to characterize practical scaling.
-\
-
-\textbf{Practical Candidate Set Size} Finally, while the upper bound of the candidate set pass is $\mathcal{O}(n)$, we optimize this pass to remove nodes from a memoized candidate set at each step. This results in an optimized complexity of $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large, this could still be $\mathcal{O}(n)$ but practically runs much faster.
+\textbf{Practical Candidate Set Size} Additional, while the upper bound of the candidate set pass is $\mathcal{O}(n)$, we optimize this pass to remove nodes from a memoized candidate set at each step. This results in an optimized complexity of $\mathcal{O}(|U_C| + |V_C|)$, where $C$ is the set of candidate nodes before it advanced. If $C$ remains very large, this could still be $\mathcal{O}(n)$ but practically runs much faster.
 \
 
 To check that observed runtimes track these bounds, Figure~\ref{fig:compare-bound-ratio} plots the ratio of ACO-PN discovery time to each candidate bound on matched benchmark graphs, with dashed log--log trend lines for each series. The three panels use different size axes---reduced nodes $n_R = |U_R|+|V_R|$, reduced edges $|E_R|$, and $n_R+|E_R|$---so a proportional bound should stay roughly flat across all three. A valid but loose bound should show a declining ratio as the graph grows because the bound overestimates runtime by an increasing margin.
@@ -451,7 +445,7 @@ $\rho$ was tuned manually by observing convergence behavior on a small subset of
 $\Delta\tau$ and $P$ were set to reasonable fixed values without a formal search.
 A more systematic hyperparameter study is left to future work.
 
-The effect of $n_E$ on performance is studied in Section~4.7. By default, $n_E = 5$.
+The effect of $n_E$ on performance is studied in Section~4.6. By default, $n_E = 5$.
 ACO was run six times; the first trial warmed up the Julia JIT compiler and took far longer than the others.
 Therefore, the first trial on all runs was discarded, and the last 5 trials were used.
 
@@ -485,9 +479,11 @@ In these trials, ACO took less than 3 seconds longer than the $\theta$-heuristic
 \FloatBarrier
 \subsection{Flag ablation (P and N)}
 
-We evaluated ACO, ACO-P, ACO-N, and ACO-PN on all benchmark graphs with 100 ants. Figure~\ref{fig:flag-ablation} summarizes the solution quality and time for all four algorithms. $|E(D^*)|$ remains comparable across all four variants, so neither prefer-smaller-side (P) nor neighbor-scope limit (N) sacrifices solution quality. Discovery time, by contrast, falls with either flag alone and further with both: ACO-N is faster than plain ACO, and ACO-PN is faster than ACO, ACO-P, and ACO-N.
+We evaluated ACO, ACO-P, ACO-N, and ACO-PN on all benchmark graphs with 100 ants. Figure~\ref{fig:flag-ablation} summarizes the solution quality and time for all four algorithms. Quality is the per-graph mean of scored edge counts over counted replicates, with $\theta$-infeasible trials contributing 0 edges but remaining in the mean. Discovery time falls with either flag alone and further with both: ACO-N is faster than plain ACO, and ACO-PN is faster than ACO, ACO-P, and ACO-N. Figure~\ref{fig:flag-feasibility} reports the corresponding $\theta$-feasibility rates, comparing ACO and ACO-N (P off) to ACO-P and ACO-PN (P on).
 
 %%COMPARE:flag-ablation%%
+
+%%COMPARE:flag-feasibility%%
 
 \FloatBarrier
 \subsection{Branch-and-pivot seeding}
@@ -554,11 +550,11 @@ Other wins are entirely different. ACO may escape the $\theta$-exact limitation 
 We hypothesize this is due to ACO's exploration. Because the $\theta$-heuristic arbitrarily chooses $U$ as its $\theta$-side and greedily expands, early vertex choices can permanently shrink the retained neighborhood. Conversely, ACO's stochastic multi-agent construction samples alternative $\theta \times \theta$ subgraphs and often recovers a better one. Even inside the niche it targets, the $\theta$-heuristic's one-pass greedy construction can be dominated by ACO search, which iteratively refines the $\theta$ vertices it uses.
 
 Small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. On the 5 graphs where ACO beat the $\theta$-heuristic (Table~\ref{tab:seed-compare}), ACO-seeded runtimes (search plus ACO-seeded pivot) were shorter relative to a $\theta$-seeded pivot by over $6.52\%$ in the worst case and $56.15\%$ in the best case.
-Additionally, ACO had a $\theta$-feasibility rate of %%STATISTICS:aco-theta-feasibility-rate%% versus the $\theta$-heuristic's feasibility rate of %%STATISTICS:theta-heuristic-feasibility-rate%%, meaning it can be used as a valid lower bound more often. This suggests that ACO is a significantly better upper bound to use for branch-and-pivot than the $\theta$-heuristic in some cases.
+Additionally, ACO had a $\theta$-feasibility rate of %%STATISTICS:aco-theta-feasibility-rate%% versus the $\theta$-heuristic's feasibility rate of %%STATISTICS:theta-heuristic-feasibility-rate%% ($k, \theta = 2, 5$), meaning it can be used as a valid lower bound more often. This suggests that ACO is a significantly better upper bound to use for branch-and-pivot than the $\theta$-heuristic in some cases.
 
 It should be noted that the timeout excluded graphs unevenly: branch-and-pivot completed on all %%STATISTICS:aco-nonwins%% graphs where ACO tied or lost, but on only %%STATISTICS:pivot-tested-wins%% of the %%STATISTICS:aco-wins%% graphs where ACO won. The %%STATISTICS:pivot-tested-wins%% tested win-graphs are smaller than the %%STATISTICS:pivot-excluded-wins%% excluded ones (mean $n_R$ = %%STATISTICS:pivot-tested-wins-mean-nR%% vs.\ %%STATISTICS:pivot-excluded-wins-mean-nR%%; mean $|E_R|$ = %%STATISTICS:pivot-tested-wins-mean-eR%% vs.\ %%STATISTICS:pivot-excluded-wins-mean-eR%%), so our reported $50$--$95\%$ reduction range is drawn from an easier, non-random subset of wins and may not generalize to the larger instances the timeout excluded.
 
-These promising results are driven by ACO-PN, which is superior to both ACO-P and ACO-N. ACO-PN reduces time with no observed effect on quality: neither ACO-P, nor ACO-N, nor ACO-PN reduces median $|E(D^*)|$ relative to plain ACO (Figure~\ref{fig:flag-ablation}, left). Neighbor-scope limit (N) shrinks the candidate set at each construction step, and prefer-smaller-side (P) steers growth toward $\theta$-feasible sides sooner, reducing runtime spent on large, infeasible graphs. Either flag alone cuts discovery time versus plain ACO, and ACO-PN is fastest of the four variants without sacrificing quality (Figure~\ref{fig:flag-ablation}, right).
+These promising results are driven by ACO-PN, which is superior to both ACO-P and ACO-N. Figure~\ref{fig:flag-ablation} (left) scores $\theta$-infeasible trials as 0 edges in the per-graph mean; Figure~\ref{fig:flag-feasibility} shows the matching $\theta$-feasibility rates. Neighbor-scope limit (N) shrinks the candidate set at each construction step, and prefer-smaller-side (P) steers growth toward $\theta$-feasible sides sooner, reducing runtime spent on large, infeasible graphs. Either flag alone cuts discovery time versus plain ACO, and ACO-PN is fastest of the four variants (Figure~\ref{fig:flag-ablation}, right).
 
 On the preliminary $k$ and $\theta$ sweeps (Figures~\ref{fig:k-sweep},~\ref{fig:theta-sweep}), ACO-PN's edge over the $\theta$-heuristic is not confined to $k, \theta = 2, 5$. Increasing $k$ at a fixed $\theta = 5$ increases the win rate and does not seem to affect the relative edge ratio of ACO vs the $\theta$-heuristic; increasing $\theta$ at fixed $k = 3$ makes the heuristic somewhat harder to beat but leaves ACO ahead on many instances. Figure~\ref{fig:density-wins} shows that ACO win rate falls as reduced density $\text{den}(G_R)$ rises, both within suites and when all $(k, \theta)$ observations are pooled. Figure~\ref{fig:param-density} shows the same parameter changes that shift win rate also shift $\text{den}(G_R)$, so ACO is not necessarily worse when $\theta$ is larger or $k$ is smaller.
 

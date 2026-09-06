@@ -5,9 +5,10 @@ Emit LaTeX figures and tables from ACO benchmark JSON.
 Modes
 -----
   quality
-      Vary.jl ant-count format → 2-column groupplot:
+      Vary.jl ant-count format → 2-column groupplot (IQR across graphs):
         Top row: θ-heuristic deviation | θ-feasibility rate
-        Bottom row: mean wall-clock time (optimum-quality panel if present)
+        Bottom row: wall-clock time (optimum-quality panel if present)
+        Each panel: 1st quartile / median / 3rd quartile vs ant count
 
   seed-compare
       compare-seeds.jl (+ vary.jl) → table:
@@ -30,9 +31,11 @@ Modes
       Vary.jl ant-count JSON → complexity figures (ACO-PN).
       Plot groups (pass comma-separated via --plots):
         theta-time, deg-size-time, density-size,
-        max-deg-time, flag-ablation, iteration-budget, replicate-budget,
-        k-sweep, theta-sweep, density-wins, param-density, param-runtime
+        max-deg-time, flag-ablation, flag-feasibility, iteration-budget,
+        replicate-budget, k-sweep, theta-sweep, density-wins, param-density,
+        param-runtime
       Pass a single results directory, e.g. vary_k2t5i_PN.
+      flag-ablation / flag-feasibility use --flag-dir=LABEL=DIR.
       k-sweep / theta-sweep / density-wins / param-density / param-runtime use
       --param-dir=LABEL=DIR (see build.json).
       iteration-budget retrospectively truncates full-budget
@@ -122,16 +125,16 @@ def main(argv=None):
         help="compare mode: comma-separated plot groups "
              "(theta-time, deg-size-time, density-size, "
              "max-deg-time, "
-             "flag-ablation, iteration-budget, replicate-budget, "
-             "k-sweep, theta-sweep, density-wins, param-density, "
-             "param-runtime)",
+             "flag-ablation, flag-feasibility, iteration-budget, "
+             "replicate-budget, k-sweep, theta-sweep, density-wins, "
+             "param-density, param-runtime)",
     )
     parser.add_argument(
         "--flag-dir",
         action="append",
         metavar="LABEL=DIR",
         default=None,
-        help="compare flag-ablation: variant directory "
+        help="compare flag-ablation / flag-feasibility: variant directory "
              "(repeat for ACO, ACO-P, ACO-N, ACO-PN)",
     )
     parser.add_argument(
@@ -224,6 +227,7 @@ def main(argv=None):
         multi_only = plot_names and all(
             p in (
                 "flag-ablation",
+                "flag-feasibility",
                 "k-sweep",
                 "theta-sweep",
                 "density-wins",

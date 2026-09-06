@@ -259,7 +259,9 @@ def replicate_budget_figure(summary):
     ymax_log = max(pct_vals) * 1.5 if pct_vals else 100.0
 
     lines = [
+        # Stacked under fig:iteration-budget in §4.6; slight pull-up.
         r"\begin{figure}[H]",
+        r"  \vspace{-1em}",
         r"  \centering",
         r"  \begin{tikzpicture}",
         r"  \begin{groupplot}[",

@@ -54,7 +54,7 @@ AUX_SUFFIXES = (".aux", ".log", ".fls", ".fdb_latexmk", ".out")
 SPECIAL_PLACEHOLDERS = frozenset({"PREAMBLE"})
 DEFAULT_RESULTS_DIR = "../results"
 # COMPARE plots that read flag_dirs / param_dirs instead of (or besides) input.
-COMPARE_FLAG_PLOTS = frozenset({"flag-ablation"})
+COMPARE_FLAG_PLOTS = frozenset({"flag-ablation", "flag-feasibility"})
 COMPARE_PARAM_PLOTS = frozenset(
     {
         "k-sweep",
@@ -99,6 +99,7 @@ COMPARE_PLOT_SOURCES: dict[str, Path] = {
     "density-size": EMIT_DIR / "compare" / "complexity.py",
     "max-deg-time": EMIT_DIR / "compare" / "complexity.py",
     "flag-ablation": EMIT_DIR / "compare" / "flag_ablation.py",
+    "flag-feasibility": EMIT_DIR / "compare" / "flag_ablation.py",
     "iteration-budget": EMIT_DIR / "compare" / "iteration_budget.py",
     "replicate-budget": EMIT_DIR / "compare" / "replicate_budget.py",
     "k-sweep": EMIT_DIR / "compare" / "param_sweep.py",

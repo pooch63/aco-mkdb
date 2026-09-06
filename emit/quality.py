@@ -2,14 +2,17 @@
 quality mode — vary.jl ant-count format → groupplot:
 
   Top row (side by side):
-  - mean % deviation from θ-heuristic (feasible trials)
-  - % theta-feasible trials
+  - % deviation from θ-heuristic (feasible trials): Q1 / median / Q3
+  - % theta-feasible trials: Q1 / median / Q3
 
   Bottom row:
-  - mean wall-clock time vs ant count
+  - wall-clock time vs ant count: Q1 / median / Q3
 
-  Optional: mean % deviation from optimum is included when present
-  (placed before the heuristic panel).
+  Optional: % deviation from optimum is included when present
+  (placed before the heuristic panel), also as IQR summary lines.
+
+  Each panel aggregates across graphs (one mean-per-graph point at each
+  ant count) into lower quartile, median, and upper quartile.
 """
 
 from __future__ import annotations
@@ -27,8 +30,12 @@ from .common import (
     write_tex,
 )
 
-# Tukey fence multiplier for heuristic-panel outlier detection.
-HEURISTIC_OUTLIER_IQR_K = 1.5
+# Display order and pgfplots style for the three IQR summary curves.
+IQR_SERIES = (
+    ("1st quartile", "dashed, mark=triangle*, blue!55!black"),
+    ("Median", "solid, thick, mark=*, blue!80!black"),
+    ("3rd quartile", "dashed, mark=square*, blue!55!black"),
+)
 
 
 def pct_deviation(final_edges, baseline_edges):
@@ -152,119 +159,63 @@ def summarize_file(data):
     return pct_by_ants, heur_pct_by_ants, feasible_pct_by_ants, time_by_ants
 
 
+def _quartile_triple(values):
+    """Return (Q1, median, Q3) for a list of numbers."""
+    if not values:
+        return None
+    if len(values) == 1:
+        v = float(values[0])
+        return v, v, v
+    q1, _, q3 = statistics.quantiles(values, n=4, method="exclusive")
+    return float(q1), float(statistics.median(values)), float(q3)
+
+
+def aggregate_iqr_series(per_graph_series):
+    """
+    Collapse [(name, {ants: value}), ...] into three IQR curves.
+
+    At each ant count, take the cross-graph distribution of per-graph
+    means and return Q1 / median / Q3 as named series matching IQR_SERIES.
+    """
+    by_ants = defaultdict(list)
+    for _, xy in per_graph_series:
+        for ants, val in xy.items():
+            if val is None:
+                continue
+            by_ants[ants].append(float(val))
+
+    q1_xy = {}
+    med_xy = {}
+    q3_xy = {}
+    for ants, vals in by_ants.items():
+        triple = _quartile_triple(vals)
+        if triple is None:
+            continue
+        q1, med, q3 = triple
+        q1_xy[ants] = q1
+        med_xy[ants] = med
+        q3_xy[ants] = q3
+
+    if not q1_xy:
+        return []
+
+    return [
+        (IQR_SERIES[0][0], q1_xy),
+        (IQR_SERIES[1][0], med_xy),
+        (IQR_SERIES[2][0], q3_xy),
+    ]
+
+
 def _series_lookup(series_dicts):
     return {name: xy for name, xy in series_dicts}
 
 
-def _heuristic_series_max_pct(name_xy):
-    """Largest mean % deviation from the θ-heuristic for one graph."""
-    _, xy = name_xy
-    if not xy:
-        return None
-    return max(xy.values())
-
-
-def detect_heuristic_outliers(heuristic_series, *, iqr_k=HEURISTIC_OUTLIER_IQR_K):
+def _addplots(ordered_names, series_lookup, *, with_legend=False):
     """
-    Flag graphs whose peak θ-heuristic deviation is a Tukey upper outlier.
-
-    Uses the maximum mean deviation (over ant counts) per graph. Returns
-    [(name, max_pct), ...] sorted by descending max_pct.
+    Emit one \\addplot per IQR curve. Styles come from IQR_SERIES so
+    Q1/Q3 stay dashed and the median is solid.
     """
-    scored = []
-    for name_xy in heuristic_series:
-        peak = _heuristic_series_max_pct(name_xy)
-        if peak is not None:
-            scored.append((name_xy[0], peak))
-
-    if len(scored) < 4:
-        return []
-
-    peaks = sorted(p for _, p in scored)
-    q1, _, q3 = statistics.quantiles(peaks, n=4, method="exclusive")
-    upper = q3 + iqr_k * (q3 - q1)
-
-    outliers = [(name, peak) for name, peak in scored if peak > upper]
-    outliers.sort(key=lambda item: item[1], reverse=True)
-    return outliers
-
-
-def filter_outlier_series(series, outlier_names):
-    """Drop named series from a (name, data) list."""
-    if not outlier_names:
-        return series
-    return [(name, data) for name, data in series if name not in outlier_names]
-
-
-def _tex_escape_name(name):
-    return (
-        str(name)
-        .replace("\\", "\\textbackslash{}")
-        .replace("_", "\\_")
-        .replace("&", "\\&")
-        .replace("%", "\\%")
-        .replace("#", "\\#")
-    )
-
-
-def _table_style_name(name):
-    """Match emit.common.display_name / table Dataset column style."""
-    return _tex_escape_name(
-        str(name).replace("_", " ").replace("-", " ").title()
-    )
-
-
-def fmt_outlier_pct(value):
-    """Format a deviation percentage for LaTeX prose."""
-    if abs(value) >= 100:
-        return f"{value:.0f}\\%"
-    return f"{value:.1f}\\%"
-
-
-def build_outlier_note(outliers):
-    """
-    LaTeX note listing graphs omitted from the quality groupplot.
-
-    outliers: [(name, max_pct), ...] from detect_heuristic_outliers.
-    Names use the same title-case style as table Dataset columns.
-    """
-    if not outliers:
-        return None
-
-    if len(outliers) == 1:
-        name, peak = outliers[0]
-        names_part = _table_style_name(name)
-        values_part = fmt_outlier_pct(peak)
-    else:
-        parts = [
-            rf"{_table_style_name(name)} ({fmt_outlier_pct(peak)})"
-            for name, peak in outliers
-        ]
-        names_part = ", ".join(parts[:-1]) + ", and " + parts[-1]
-        values_part = None
-
-    if values_part is not None:
-        body = (
-            rf"{names_part} was omitted from all panels because its deviation "
-            rf"from the $\theta$-heuristic ({values_part}) was a statistical "
-            rf"outlier (Tukey upper fence, $k={HEURISTIC_OUTLIER_IQR_K:g}$)."
-        )
-    else:
-        body = (
-            rf"{names_part} were omitted from all panels because their "
-            rf"deviations from the $\theta$-heuristic were statistical "
-            rf"outliers (Tukey upper fence, $k={HEURISTIC_OUTLIER_IQR_K:g}$)."
-        )
-
-    return rf"\small\textit{{Note: {body}}}"
-
-
-def _addplots(ordered_names, series_lookup):
-    """
-    Emit one \\addplot per name in ordered_names so pgfplots cycle lists
-    stay aligned across panels even when a series is missing from a panel.
-    Missing series get empty coordinates (no marks drawn).
-    """
+    style_by_name = {name: style for name, style in IQR_SERIES}
     lines = []
 
     for name in ordered_names:
@@ -273,8 +224,11 @@ def _addplots(ordered_names, series_lookup):
             f"({x},{y:.4f})"
             for x, y in sorted(xy.items())
         )
-
-        lines.append(r"\addplot coordinates {" + coords + "};")
+        style = style_by_name.get(name, "")
+        opt = f"[{style}]" if style else ""
+        lines.append(rf"\addplot{opt} coordinates {{{coords}}};")
+        if with_legend:
+            lines.append(rf"\addlegendentry{{{name}}}")
 
     return lines
 
@@ -284,38 +238,22 @@ def build_combined_latex(
     heuristic_series,
     feasible_series,
     time_series,
-    *,
-    outlier_note=None,
 ):
     """
     Build a 2-column groupplot from whichever panels have data:
 
       Top row (side by side):
-      - Output compared to θ-heuristic
-      - Theta-feasibility rate
+      - Output compared to θ-heuristic (IQR across graphs)
+      - Theta-feasibility rate (IQR across graphs)
 
       Bottom row:
-      - Run time (alone when present)
+      - Run time (IQR across graphs)
 
       Optional optimum-quality panel is included when present and shares
       the bottom row with runtime.
-
-    Series order is the union of all panels so colors/markers stay
-    consistent across panels.
     """
 
-    ordered_names = []
-    seen = set()
-    for series in (
-        quality_series,
-        heuristic_series,
-        feasible_series,
-        time_series,
-    ):
-        for name, _ in series:
-            if name not in seen:
-                seen.add(name)
-                ordered_names.append(name)
+    ordered_names = [name for name, _ in IQR_SERIES]
 
     quality_lookup = _series_lookup(quality_series)
     heuristic_lookup = _series_lookup(heuristic_series)
@@ -337,7 +275,10 @@ def build_combined_latex(
                     r"    ylabel style={align=center, font=\small},",
                     r"    title={Output compared to $\theta$-heuristic},",
                     r"    title style={font=\small},",
+                    r"    legend pos=north west,",
+                    r"    legend style={font=\footnotesize, cells={anchor=west}},",
                 ],
+                "legend": True,
             }
         )
 
@@ -354,6 +295,7 @@ def build_combined_latex(
                     r"    ymin=0,",
                     r"    ymax=100,",
                 ],
+                "legend": False,
             }
         )
 
@@ -368,6 +310,7 @@ def build_combined_latex(
                     r"    title={Solution quality (feasible trials only)},",
                     r"    title style={font=\small},",
                 ],
+                "legend": False,
             }
         )
 
@@ -383,6 +326,7 @@ def build_combined_latex(
                     r"    title style={font=\small},",
                     r"    ymode=log,",
                 ],
+                "legend": False,
             }
         )
 
@@ -425,21 +369,25 @@ def build_combined_latex(
         lines.append(r"\nextgroupplot[")
         lines.extend(panel["opts"])
         lines.append(r"]")
-        lines += _addplots(ordered_names, panel["lookup"])
+        lines += _addplots(
+            ordered_names,
+            panel["lookup"],
+            with_legend=panel.get("legend", False),
+        )
 
     lines += [
         r"\end{groupplot}",
         r"\end{tikzpicture}",
         r"  \caption{ACO-PN solution quality vs.\ the $\theta$-heuristic, "
-        r"$\theta$-feasibility rate, and mean wall-clock time vs.\ ant "
-        r"count. Quality and feasibility generally rise with colony size "
-        r"but often plateau before the largest $n_S$; runtime scales "
-        r"roughly linearly (JIT warmup replicate omitted).}",
+        r"$\theta$-feasibility rate, and wall-clock time vs.\ ant count. "
+        r"Each panel shows the cross-graph first quartile, median, and "
+        r"third quartile (per-graph means over counted replicates; JIT "
+        r"warmup omitted). Quality and feasibility generally rise with "
+        r"colony size but often plateau before the largest $n_S$; runtime "
+        r"scales roughly linearly.}",
         r"  \label{fig:quality-groupplot}",
+        r"\end{figure}",
     ]
-    if outlier_note:
-        lines += ["  \\medskip", f"  {outlier_note}"]
-    lines.append(r"\end{figure}")
 
     return "\n".join(lines)
 
@@ -500,29 +448,28 @@ def run(json_paths, output):
             "No files had a usable optimum or heuristic -- nothing to plot."
         )
 
-    outliers = detect_heuristic_outliers(heuristic_series)
-    outlier_names = {name for name, _ in outliers}
-    if outlier_names:
-        quality_series = filter_outlier_series(quality_series, outlier_names)
-        heuristic_series = filter_outlier_series(heuristic_series, outlier_names)
-        feasible_series = filter_outlier_series(feasible_series, outlier_names)
-        time_series = filter_outlier_series(time_series, outlier_names)
+    quality_iqr = aggregate_iqr_series(quality_series)
+    heuristic_iqr = aggregate_iqr_series(heuristic_series)
+    feasible_iqr = aggregate_iqr_series(feasible_series)
+    time_iqr = aggregate_iqr_series(time_series)
 
     combined_tex = build_combined_latex(
-        quality_series,
-        heuristic_series,
-        feasible_series,
-        time_series,
-        outlier_note=build_outlier_note(outliers),
+        quality_iqr,
+        heuristic_iqr,
+        feasible_iqr,
+        time_iqr,
     )
 
     write_tex(combined_tex, output)
-    if outliers:
-        removed = ", ".join(
-            f"{name} ({peak:.1f}%)" for name, peak in outliers
-        )
-        print(
-            f"# quality: omitted {len(outliers)} heuristic outlier(s): {removed}",
-            file=sys.stderr,
-        )
+    n_graphs = max(
+        len(quality_series),
+        len(heuristic_series),
+        len(feasible_series),
+        len(time_series),
+    )
+    print(
+        f"# quality: IQR summary over {n_graphs} graph(s) "
+        f"(Q1 / median / Q3 per panel)",
+        file=sys.stderr,
+    )
     report_skipped(skipped)
