@@ -2,7 +2,7 @@
 quality mode — vary.jl ant-count format → groupplot:
 
   Top row (side by side):
-  - mean % deviation from Cui θ-heuristic (feasible trials)
+  - mean % deviation from θ-heuristic (feasible trials)
   - % theta-feasible trials
 
   Bottom row:
@@ -19,6 +19,7 @@ import sys
 from collections import defaultdict
 
 from .common import (
+    aco_timed_out,
     counted_trials,
     load_json,
     report_skipped,
@@ -55,7 +56,7 @@ def file_level_optimal(data):
 
 
 def heuristic_baseline(data):
-    """Cui θ-heuristic edge count from the top-level heuristic block."""
+    """θ-heuristic edge count from the top-level heuristic block."""
     heuristic = data.get("heuristic") or {}
     return heuristic.get("final_edges")
 
@@ -68,7 +69,7 @@ def summarize_file(data):
 
     pct_by_ants: {ants: mean % deviation from optimum}, feasible trials only.
 
-    heur_pct_by_ants: {ants: mean % deviation from Cui heuristic}, feasible
+    heur_pct_by_ants: {ants: mean % deviation from θ-heuristic}, feasible
                       trials only. Empty when the file has no heuristic block.
 
     feasible_pct_by_ants: {ants: % of trials at that ant count that were
@@ -156,7 +157,7 @@ def _series_lookup(series_dicts):
 
 
 def _heuristic_series_max_pct(name_xy):
-    """Largest mean % deviation from the Cui heuristic for one graph."""
+    """Largest mean % deviation from the θ-heuristic for one graph."""
     _, xy = name_xy
     if not xy:
         return None
@@ -165,7 +166,7 @@ def _heuristic_series_max_pct(name_xy):
 
 def detect_heuristic_outliers(heuristic_series, *, iqr_k=HEURISTIC_OUTLIER_IQR_K):
     """
-    Flag graphs whose peak Cui-heuristic deviation is a Tukey upper outlier.
+    Flag graphs whose peak θ-heuristic deviation is a Tukey upper outlier.
 
     Uses the maximum mean deviation (over ant counts) per graph. Returns
     [(name, max_pct), ...] sorted by descending max_pct.
@@ -245,13 +246,13 @@ def build_outlier_note(outliers):
     if values_part is not None:
         body = (
             rf"{names_part} was omitted from all panels because its deviation "
-            rf"from the Cui $\theta$-heuristic ({values_part}) was a statistical "
+            rf"from the $\theta$-heuristic ({values_part}) was a statistical "
             rf"outlier (Tukey upper fence, $k={HEURISTIC_OUTLIER_IQR_K:g}$)."
         )
     else:
         body = (
             rf"{names_part} were omitted from all panels because their "
-            rf"deviations from the Cui $\theta$-heuristic were statistical "
+            rf"deviations from the $\theta$-heuristic were statistical "
             rf"outliers (Tukey upper fence, $k={HEURISTIC_OUTLIER_IQR_K:g}$)."
         )
 
@@ -290,7 +291,7 @@ def build_combined_latex(
     Build a 2-column groupplot from whichever panels have data:
 
       Top row (side by side):
-      - Output compared to Cui Heuristic
+      - Output compared to θ-heuristic
       - Theta-feasibility rate
 
       Bottom row:
@@ -332,9 +333,9 @@ def build_combined_latex(
                 "lookup": heuristic_lookup,
                 "opts": [
                     r"    xlabel={Number of ants},",
-                    r"    ylabel={Dev. from Cui Heuristic (\%)},",
+                    r"    ylabel={Dev. from $\theta$-heuristic (\%)},",
                     r"    ylabel style={align=center, font=\small},",
-                    r"    title={Output compared to Cui Heuristic},",
+                    r"    title={Output compared to $\theta$-heuristic},",
                     r"    title style={font=\small},",
                 ],
             }
@@ -390,19 +391,26 @@ def build_combined_latex(
         raise ValueError("No panels to plot")
 
     # Side-by-side top row whenever both heuristic and feasibility exist.
+    # Keep the multi-row height modest so [!tp] can sit at the top of a
+    # page with following Results text underneath (avoids a float-only page).
     n_cols = 2 if len(top_panels) >= 2 else 1
     n_rows = (len(panels) + n_cols - 1) // n_cols
-    width = 0.48 if n_cols == 2 else 0.75
-    height = 0.36 if n_rows >= 2 else 0.44
+    # Slightly narrower panels leave room for larger horizontal sep.
+    width = 0.44 if n_cols == 2 else 0.75
+    height = 0.28 if n_rows >= 2 else 0.44
+    hsep = 48 if n_cols == 2 else 28
+    vsep = 52 if n_rows >= 2 else 48
 
     lines = [
-        r"\begin{figure}[htbp]",
+        # Prefer top of the next page so leftover space can hold §4.2+ text
+        # instead of a centered float-only page behind \FloatBarrier.
+        r"\begin{figure}[!tp]",
         r"  \centering",
         r"\begin{tikzpicture}",
         r"\begin{groupplot}[",
         (
             rf"    group style={{group size={n_cols} by {n_rows}, "
-            r"horizontal sep=24pt, vertical sep=40pt},"
+            rf"horizontal sep={hsep}pt, vertical sep={vsep}pt}},"
         ),
         r"    title style={yshift=-3pt},",
         rf"    width={width:.2f}\textwidth,",
@@ -422,10 +430,11 @@ def build_combined_latex(
     lines += [
         r"\end{groupplot}",
         r"\end{tikzpicture}",
-        r"  \caption{ACO solution quality vs.\ the Cui $\theta$-heuristic, "
-        r"$\theta$-feasibility rate, and mean wall-clock time vs.\ ant count "
-        r"(first replicate per ant count omitted when multiple runs were "
-        r"recorded, to exclude Julia JIT warmup).}",
+        r"  \caption{ACO-PN solution quality vs.\ the $\theta$-heuristic, "
+        r"$\theta$-feasibility rate, and mean wall-clock time vs.\ ant "
+        r"count. Quality and feasibility generally rise with colony size "
+        r"but often plateau before the largest $n_S$; runtime scales "
+        r"roughly linearly (JIT warmup replicate omitted).}",
         r"  \label{fig:quality-groupplot}",
     ]
     if outlier_note:
@@ -446,6 +455,13 @@ def run(json_paths, output):
         data = load_json(path)
         if data is None:
             skipped.append((path, "unreadable"))
+            continue
+        if aco_timed_out(data):
+            limit = data.get("aco_timeout_s")
+            reason = "aco timed out"
+            if limit is not None:
+                reason = f"aco timed out ({limit}s)"
+            skipped.append((path, reason))
             continue
 
         result = summarize_file(data)

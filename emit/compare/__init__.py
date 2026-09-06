@@ -8,7 +8,9 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
     - θ-heuristic wall time vs θ(|U_R|+|V_R|)+|E_R|
 
   deg-size-time
-    - ratio of discovery time to each bound vs |U_R|+|V_R| (matched graphs)
+    - 2-panel ratio of discovery time to each bound (matched graphs);
+      naive bound n_R^2; practical bound n_E·n_R+|E_R| (n_E=5);
+      panels vs n_R and vs |E_R|
 
   density-size
     - edge density vs |E(D*)|
@@ -22,10 +24,19 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
       each variant (see build.json flag_dirs).
 
   iteration-budget
-    - 2-panel groupplot of ACO-PN quality vs. θ-heuristic (as a
-      percentage of graphs) and the iterations-to-best CDF as the
-      epoch budget I varies from 1 to n_E (uses recorded ITB on
-      counted non-JIT replicates).
+    - 3-panel groupplot of ACO-PN quality vs. θ-heuristic (as a
+      percentage of graphs), log-scaled percent edge increase vs.
+      the θ-heuristic, and the epochs-to-best CDF as the credited
+      epoch budget E varies from 1 to n_E. Each JSON trial is a
+      full-budget replicate; E is a retrospective ETB ≤ E credit
+      rule (not a separately measured shorter run). Left/middle
+      panels are per-graph; the CDF is per-replicate.
+
+  replicate-budget
+    - Companion 3-panel groupplot as the credited replicate budget R
+      varies from 1 to R_max (first R counted non-JIT seeds, ordered
+      by run). Left/middle/CDF are all per-graph; CDF is
+      replicates-to-best. JIT warmup (run 1) is never included.
 
   k-sweep
     - Edge ratio (log) and ACO win rate across defect budgets k at
@@ -35,8 +46,17 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
   theta-sweep
     - Same layout across minimum side sizes θ at fixed k.
 
+  density-wins
+    - Rolling ACO win rate vs. reduced density, pooled over all
+      graph×suite observations across $(k,\theta)$.
+
+  param-density
+    - Reduced-density boxplots: vary k at fixed θ | vary θ at fixed k.
+
   param-runtime
-    - Discovery-time boxplots: vary k at fixed θ | vary θ at fixed k.
+    - 2×2 groupplot: ACO/θ discovery-time ratio and absolute ACO
+      discovery time vs k (fixed θ) and vs θ (fixed k). Timed-out
+      graphs are excluded from the matched boxes.
 
 ACO points use the same best-trial / discovery rules as table mode.
 
@@ -45,7 +65,8 @@ Layout
   helpers.py            shared metrics and pgfplots primitives
   complexity.py         time / complexity scaling figures
   flag_ablation.py      P/N flag ablation figure
-  iteration_budget.py   epoch-budget / ITB figure
+  iteration_budget.py   epoch-budget / ETB figure
+  replicate_budget.py   replicate-budget / RTB figure
   param_sweep.py        k / θ sweep figures
 """
 
@@ -56,17 +77,26 @@ import sys
 from ..common import display_name, load_json, report_skipped, write_tex
 from ..result_fields import validate_compare_directory
 from ..table import summarize_file
-from . import complexity, flag_ablation, iteration_budget, param_sweep
+from . import (
+    complexity,
+    flag_ablation,
+    iteration_budget,
+    param_sweep,
+    replicate_budget,
+)
 
 PLOT_GROUPS = (
     complexity.PLOT_GROUPS
     + flag_ablation.PLOT_GROUPS
     + iteration_budget.PLOT_GROUPS
+    + replicate_budget.PLOT_GROUPS
     + param_sweep.PLOT_GROUPS
 )
 PARAM_SWEEP_PLOTS = frozenset(param_sweep.PLOT_GROUPS)
 MULTI_DIR_PLOTS = frozenset({"flag-ablation"}) | PARAM_SWEEP_PLOTS
-ITERATION_BUDGET_PLOTS = frozenset(iteration_budget.PLOT_GROUPS)
+BUDGET_PLOTS = frozenset(
+    iteration_budget.PLOT_GROUPS + replicate_budget.PLOT_GROUPS
+)
 
 
 def _parse_plots(plots):
@@ -97,6 +127,7 @@ def build_compare_plots(
     param_by_label=None,
     param_meta=None,
     iteration_budget_summary=None,
+    replicate_budget_summary=None,
 ):
     """
     Build selected compare figures from [(name, row), ...].
@@ -109,6 +140,7 @@ def build_compare_plots(
         **complexity.BUILDERS,
         **flag_ablation.BUILDERS,
         **iteration_budget.BUILDERS,
+        **replicate_budget.BUILDERS,
         **param_sweep.BUILDERS,
     }
 
@@ -120,6 +152,8 @@ def build_compare_plots(
             block = builders[name](flag_ablation_matched or [])
         elif name in iteration_budget.BUILDERS:
             block = builders[name](iteration_budget_summary)
+        elif name in replicate_budget.BUILDERS:
+            block = builders[name](replicate_budget_summary)
         else:
             block = builders[name](param_by_label or {}, param_meta or {})
         if not block:
@@ -137,6 +171,7 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
     param_by_label = None
     param_meta = None
     iter_summary = None
+    repl_summary = None
     skipped = []
 
     if "flag-ablation" in selected:
@@ -167,7 +202,7 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
                 file=sys.stderr,
             )
 
-    if ITERATION_BUDGET_PLOTS.intersection(selected):
+    if "iteration-budget" in selected:
         iter_ants = ants if ants is not None else iteration_budget.DEFAULT_ANTS
         iter_summary, iter_skipped = iteration_budget.summarize_iteration_budget(
             json_paths, ants=iter_ants
@@ -182,20 +217,39 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             print(
                 f"# iteration-budget: {iter_summary['n_graphs']} graph(s), "
                 f"{iter_summary['n_trials']} trial(s), ants={iter_ants}; "
-                f"wins@I={dict(zip(iter_summary['budgets'], iter_summary['wins']))}",
+                f"wins@E={dict(zip(iter_summary['budgets'], iter_summary['wins']))}",
+                file=sys.stderr,
+            )
+
+    if "replicate-budget" in selected:
+        repl_ants = ants if ants is not None else replicate_budget.DEFAULT_ANTS
+        repl_summary, repl_skipped = replicate_budget.summarize_replicate_budget(
+            json_paths, ants=repl_ants
+        )
+        skipped.extend(repl_skipped)
+        if repl_summary is None:
+            print(
+                "Warning: replicate-budget: no usable graphs.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"# replicate-budget: {repl_summary['n_graphs']} graph(s), "
+                f"{repl_summary['n_replicates']} counted replicate(s), "
+                f"ants={repl_ants}; "
+                f"wins@R={dict(zip(repl_summary['budgets'], repl_summary['wins']))}",
                 file=sys.stderr,
             )
 
     named_rows = []
     needs_single_dir = any(
-        p not in MULTI_DIR_PLOTS and p not in ITERATION_BUDGET_PLOTS
+        p not in MULTI_DIR_PLOTS and p not in BUDGET_PLOTS
         for p in selected
     )
-    # iteration-budget still needs the vary directory JSON paths
-    if any(p in ITERATION_BUDGET_PLOTS for p in selected) and not json_paths:
+    if any(p in BUDGET_PLOTS for p in selected) and not json_paths:
         raise SystemExit(
-            "iteration-budget requires a vary.jl JSON directory "
-            "(e.g. vary_k2t5i_PN)"
+            "iteration-budget / replicate-budget require a vary.jl "
+            "JSON directory (e.g. vary_k2t5i_PN)"
         )
     if needs_single_dir:
         for path in json_paths:
@@ -213,8 +267,9 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             raise SystemExit("No usable vary JSON files -- nothing to plot.")
 
         validate_compare_directory(json_paths, selected)
-    elif any(p in ITERATION_BUDGET_PLOTS for p in selected):
-        # Still warn on incomplete graph fields when only this plot is requested.
+    elif any(p in BUDGET_PLOTS for p in selected):
+        # Still warn on incomplete graph fields when only budget plots
+        # are requested.
         validate_compare_directory(json_paths, selected)
 
     print(
@@ -234,6 +289,11 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             f"; iteration-budget graphs={iter_summary['n_graphs']}"
             if iter_summary is not None
             else ""
+        )
+        + (
+            f"; replicate-budget graphs={repl_summary['n_graphs']}"
+            if repl_summary is not None
+            else ""
         ),
         file=sys.stderr,
     )
@@ -246,6 +306,7 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             param_by_label=param_by_label,
             param_meta=param_meta,
             iteration_budget_summary=iter_summary,
+            replicate_budget_summary=repl_summary,
         ),
         output,
     )

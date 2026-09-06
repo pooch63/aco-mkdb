@@ -5,7 +5,11 @@
 # Covers:
 #   1. Flag ablation (P×N) at k=2, θ=5 — 100 ants only for ACO / ACO-P / ACO-N / ACO-PN
 #   2. Ant-count sweep with ACO-PN (P=N=true) → results/vary_k2t5i_PN
-#   3. (k,θ) PN table runs: k∈{2,3,4} θ=5 and k=3 θ∈{5,6,7} at ants=100
+#   3. (k,θ) PN table runs: k∈{1,2,3,4} θ=5 and k=3 θ∈{5,6,7} at ants=100
+#      Two global ACO timeout passes over the whole kt phase:
+#        (1) short — θ for every graph in every (k,θ) dir
+#        (2) long  — only after short is done for the phase; retries graphs
+#                    that timed out below ACO_TIMEOUT_LONG
 #   4. Quality ant-count sweep (2..200) for the groupplot (ACO-PN)
 #   5. Pivot seed comparison (konect-small by default)
 #   6. Quick ACO vs θ-heuristic evaluate logs (optional)
@@ -16,18 +20,19 @@
 #   PHASES=quality,compare PREFIX=konect-small ./scripts/regenerate-paper-data.bash
 #   DRY_RUN=1 ./scripts/regenerate-paper-data.bash    # print commands only
 #   SKIP_EXISTING=0 ./scripts/regenerate-paper-data.bash  # overwrite JSON
+#   ACO_TIMEOUT_SHORT=10 ACO_TIMEOUT_LONG=600 PHASES=kt ./scripts/regenerate-paper-data.bash
 #
 # Phases (comma-separated via PHASES=…; default=all):
 #   flags     — 4 P×N combos at k=2 θ=5, ants=100 (build.json flag_dirs)
 #   sweep     — ACO-PN ant-count sweep (ANTS_SWEEP) → vary_k2t5i_PN
-#   kt        — PN @ ants=100 for (2,5)(3,5)(4,5)(3,6)(3,7)
+#   kt        — PN @ ants=100: short pass for all (k,θ), then long pass
 #   quality   — PN ants 2,5,10,20,50,100,200 (quality figure; ACO_RUNS=6)
 #   compare   — compare-seeds on vary_k2t5i_PN (PREFIX=konect-small default)
 #   evaluate  — scripts/evaluate.bash ACO vs θ logs
 #
 # Shared env (forwarded to vary.bash / compare-seeds / evaluate):
 #   JULIA_THREADS  SEED  SKIP_EXISTING  PREFIX  INJECT  ITERATIONS  ACO_RUNS
-
+#   ACO_TIMEOUT_SHORT  ACO_TIMEOUT_LONG  ACO_PROCESS_LIMIT  (kt two-pass)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,6 +52,14 @@ ITERATIONS="${ITERATIONS:-5}"
 ACO_RUNS="${ACO_RUNS:-6}"
 COMPARE_PREFIX="${COMPARE_PREFIX:-konect-small}"
 COMPARE_TIMEOUT="${TIMEOUT:-2000}"
+# kt two-pass (whole phase): short budget so θ finishes on every graph across
+# all (k,θ); long budget retries only after that, and only graphs that timed out
+# (SKIP_EXISTING + aco_timeout_s upgrade).
+ACO_TIMEOUT_SHORT="${ACO_TIMEOUT_SHORT:-10}"
+ACO_TIMEOUT_LONG="${ACO_TIMEOUT_LONG:-600}"
+# Optional hard julia wall limit for vary.bash (must be > active ACO timeout).
+# Leave empty so each pass defaults to ACO_TIMEOUT+180 inside vary.bash.
+ACO_PROCESS_LIMIT="${ACO_PROCESS_LIMIT:-}"
 
 ANTS_TABLE="${ANTS_TABLE:-100}"
 ANTS_QUALITY="${ANTS_QUALITY:-2,5,10,20,50,100,200}"
@@ -54,8 +67,20 @@ ANTS_QUALITY="${ANTS_QUALITY:-2,5,10,20,50,100,200}"
 LOG_DIR="${LOG_DIR:-results/regenerate_paper_logs}"
 mkdir -p "$LOG_DIR"
 
-# Unique (k,θ) pairs: k=2,3,4 @ θ=5 and k=3 @ θ=5,6,7
+if ! awk -v s="$ACO_TIMEOUT_SHORT" -v l="$ACO_TIMEOUT_LONG" \
+     'BEGIN { exit !(l > s) }'; then
+  echo "ACO_TIMEOUT_LONG ($ACO_TIMEOUT_LONG) must be strictly greater than ACO_TIMEOUT_SHORT ($ACO_TIMEOUT_SHORT)" >&2
+  exit 1
+fi
+if [[ -n "$ACO_PROCESS_LIMIT" ]] && ! awk -v soft="$ACO_TIMEOUT_LONG" -v hard="$ACO_PROCESS_LIMIT" \
+     'BEGIN { exit !(hard > soft) }'; then
+  echo "ACO_PROCESS_LIMIT ($ACO_PROCESS_LIMIT) must be strictly greater than ACO_TIMEOUT_LONG ($ACO_TIMEOUT_LONG)" >&2
+  exit 1
+fi
+
+# Unique (k,θ) pairs: k=1,2,3,4 @ θ=5 and k=3 @ θ=5,6,7
 KT_PAIRS=(
+  "1:5"
   "2:5"
   "3:5"
   "3:6"
@@ -101,6 +126,12 @@ run_vary() {
   local desc="$1"
   shift
   # Remaining args are env assignments then optional OUT_DIR positional.
+  # Only forward ACO_PROCESS_LIMIT when set so vary.bash can default to
+  # ACO_TIMEOUT+180 for each pass (short vs long need different hard kills).
+  local process_limit_args=()
+  if [[ -n "$ACO_PROCESS_LIMIT" ]]; then
+    process_limit_args=(ACO_PROCESS_LIMIT="$ACO_PROCESS_LIMIT")
+  fi
   run_cmd "$desc" env \
     JULIA_THREADS="$THREADS" \
     SEED="$SEED" \
@@ -109,13 +140,69 @@ run_vary() {
     INJECT="$INJECT" \
     ITERATIONS="$ITERATIONS" \
     ACO_RUNS="$ACO_RUNS" \
+    "${process_limit_args[@]}" \
     "$@" \
     ./scripts/vary.bash
+}
+
+# True when this (k,θ) should be skipped because sweep/flags already cover k=2 θ=5.
+kt_skip_pair() {
+  local k="$1"
+  local theta="$2"
+  [[ "$k" == "2" && "$theta" == "5" ]] && { want_phase sweep || want_phase flags; }
+}
+
+# Default OUT_DIR for ACO-PN at (k,θ) with inject — matches vary.bash naming.
+kt_out_dir() {
+  local k="$1"
+  local theta="$2"
+  echo "results/vary_k${k}t${theta}i_PN"
+}
+
+run_kt_pass() {
+  local pass_label="$1"
+  local aco_timeout="$2"
+  echo
+  echo "### Phase: kt $pass_label (ACO_TIMEOUT=${aco_timeout}s, ants=$ANTS_TABLE)"
+  for pair in "${KT_PAIRS[@]}"; do
+    local k theta
+    k="${pair%%:*}"
+    theta="${pair##*:}"
+    if kt_skip_pair "$k" "$theta"; then
+      echo "→ skip k=2 θ=5 (already covered by sweep/flags → vary_k2t5i_PN)"
+      continue
+    fi
+    if [[ "$pass_label" == *long* ]]; then
+      local out need
+      out="$(kt_out_dir "$k" "$theta")"
+      # Resolve prefix suffix the same way vary.bash does when PREFIX is set.
+      out="${out}$(dir_suffix_for_prefix "$PREFIX")"
+      mapfile -t _kt_graphs < <(order_graph_keys "$PREFIX")
+      if ! vary_short_pass_complete "$out" "${_kt_graphs[@]}"; then
+        echo "→ skip long for k=$k θ=$theta ($out): short pass not complete yet"
+        continue
+      fi
+      need="$(count_vary_need_long "$out" "$aco_timeout" "${_kt_graphs[@]}")"
+      if [[ "$need" == "0" ]]; then
+        echo "→ skip long for k=$k θ=$theta: no graphs need upgrade above prior timeout"
+        continue
+      fi
+      echo "→ long for k=$k θ=$theta: $need graph(s) need ACO_TIMEOUT=${aco_timeout}s"
+    fi
+    run_vary "ACO-PN k=$k θ=$theta ants=$ANTS_TABLE timeout=${aco_timeout}s ($pass_label)" \
+      K="$k" THETA="$theta" ANTS_RANGE="$ANTS_TABLE" \
+      ACO_TIMEOUT="$aco_timeout" \
+      PREFER_SMALLER_SIDE=true ENABLE_NEIGHBOR_SCOPE_LIMIT=true
+  done
 }
 
 echo "Paper data regeneration"
 echo "  PHASES=$PHASES_RAW  DRY_RUN=$DRY_RUN  ACO_RUNS=$ACO_RUNS (run 1 = JIT)"
 echo "  PREFIX=${PREFIX:-<all>}  SKIP_EXISTING=$SKIP_EXISTING  threads=$THREADS"
+echo "  kt ACO search budgets: short=${ACO_TIMEOUT_SHORT}s  long=${ACO_TIMEOUT_LONG}s"
+if [[ -n "$ACO_PROCESS_LIMIT" ]]; then
+  echo "  ACO_PROCESS_LIMIT=${ACO_PROCESS_LIMIT}s (hard julia kill)"
+fi
 echo "  Logs under $LOG_DIR/"
 
 # ---------------------------------------------------------------------------
@@ -181,23 +268,13 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3. (k,θ) PN runs for ACO vs θ tables / statistics (ants=100)
+#    Pass 1 (whole phase): short ACO timeout — θ for every graph in every dir.
+#    Pass 2 (whole phase): long ACO timeout — only after short is complete for
+#            that dir; retries graphs timed out below LONG.
 # ---------------------------------------------------------------------------
 if want_phase kt; then
-  echo
-  echo "### Phase: kt (PN @ ants=$ANTS_TABLE for each (k,θ))"
-  for pair in "${KT_PAIRS[@]}"; do
-    k="${pair%%:*}"
-    theta="${pair##*:}"
-    # (2,5) is already produced by the sweep phase (full ant range) or by flags
-    # (ants=100). Skip the redundant 100-ant-only rewrite when either ran.
-    if [[ "$k" == "2" && "$theta" == "5" ]] && { want_phase sweep || want_phase flags; }; then
-      echo "→ skip k=2 θ=5 (already covered by sweep/flags → vary_k2t5i_PN)"
-      continue
-    fi
-    run_vary "ACO-PN k=$k θ=$theta ants=$ANTS_TABLE" \
-      K="$k" THETA="$theta" ANTS_RANGE="$ANTS_TABLE" \
-      PREFER_SMALLER_SIDE=true ENABLE_NEIGHBOR_SCOPE_LIMIT=true
-  done
+  run_kt_pass "pass 1 / short" "$ACO_TIMEOUT_SHORT"
+  run_kt_pass "pass 2 / long" "$ACO_TIMEOUT_LONG"
 fi
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ Parameter sweeps (see vary.jl):
   --vary=ant-count            sweep `--ants-range` and record time / iters / quality as JSON
   --ants-range=5,10,20,50     ant counts to try (default: 1,2,5,10,20,50,100)
   --aco-runs=N                stochastic ACO replicates per ant count (default: 1; distinct seeds)
+  --aco-timeout=SECONDS       shared wall-clock budget for all ACO trials (θ always runs first)
   --vary-pivot=true           run pivot once for an optimum edge count (default: false)
 
 Problem parameters:
@@ -323,6 +324,7 @@ function parse_args()
     ants_range = parse_ants_range()
     vary_run_pivot = parse_vary_run_pivot()
     aco_runs = parse_aco_runs()
+    aco_timeout = parse_aco_timeout()
 
     for arg in ARGS
         if arg == "--ga"
@@ -354,7 +356,8 @@ function parse_args()
                startswith(arg, "--mmas=") ||
                startswith(arg, "--aco-reduce=") ||
                startswith(arg, "--vary=") || startswith(arg, "--ants-range=") ||
-               startswith(arg, "--vary-pivot=") || startswith(arg, "--aco-runs=")
+               startswith(arg, "--vary-pivot=") || startswith(arg, "--aco-runs=") ||
+               startswith(arg, "--aco-timeout=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -381,7 +384,7 @@ function parse_args()
         throw(ArgumentError("--vary cannot be combined with --aco-reduce"))
     end
 
-    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs
+    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout
 end
 
 """
@@ -566,7 +569,7 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs =
+    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout =
         parse_args()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
@@ -606,6 +609,9 @@ function main()
         println("Mode: vary ant-count (range=$(join(ants_range, ",")), aco_runs=$aco_runs)")
         println("ACO: iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
         println("Pivot for quality baseline: $(vary_run_pivot ? "yes" : "no")")
+        if aco_timeout !== nothing
+            println("ACO timeout: $(aco_timeout)s (shared across trials; θ-heuristic always runs)")
+        end
         if save_path !== nothing
             println("Save: $(resolve_benchmark_save_path(save_path))")
         end
@@ -642,11 +648,19 @@ function main()
         elseif vary == :ant_count
             g, edges, plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
+            resolved_save = save_path === nothing ? nothing :
+                resolve_benchmark_save_path(save_path)
+            # Checkpoint θ results before ACO only when a timeout may kill the process.
+            checkpoint = (resolved_save !== nothing && aco_timeout !== nothing) ?
+                resolved_save : nothing
             results = run_vary_ant_count!(g, edges, k, θ, reduction, aco_options;
                 ant_counts=ants_range, run_pivot=vary_run_pivot,
                 seed=seed, dataset=String(dataset_name), n_runs=aco_runs,
-                plant=plant)
-            if save_path !== nothing
+                plant=plant, aco_timeout=aco_timeout,
+                checkpoint_path=checkpoint,
+                checkpoint_meta=(; k, θ, dataset=String(dataset_name), seed,
+                    reduction, edge_count=edges, run_pivot=vary_run_pivot))
+            if resolved_save !== nothing
                 payload = vary_results_to_dict(results;
                     k=k, θ=θ, dataset=String(dataset_name),
                     seed=seed, reduction=reduction, edge_count=edges,
@@ -656,7 +670,7 @@ function main()
                     elite_pheromone=aco_options.elite_pheromone,
                     aco_tabu=aco_options.aco_tabu,
                     mmas=aco_options.mmas)
-                save_vary_json(resolve_benchmark_save_path(save_path), payload)
+                save_vary_json(resolved_save, payload)
             end
         elseif benchmark !== nothing
             g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)

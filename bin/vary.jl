@@ -4,7 +4,7 @@ Parameter sweeps for load.jl.
 
 Invoked via:
   julia bin/load.jl <dataset> --vary=ant-count [--ants-range=5,10,20,50]
-      [--aco-runs=N] [--save=...]
+      [--aco-runs=N] [--aco-timeout=SECONDS] [--save=...]
 
 For `--vary=ant-count`, runs ACO once per ant count (fixed iteration budget from
 `--iterations`) and records iterations-to-best, solution quality, and wall time.
@@ -26,6 +26,14 @@ Pivot is off by default (it is too slow on large graphs); enable with
 `--vary-pivot=true` to supply an optimum edge count for quality comparison.
 The θ-heuristic runs twice on the reduced graph (first discarded for JIT;
 second timed) and is logged in the JSON so ACO quality can be compared against it.
+
+Optional `--aco-timeout=SECONDS` is a wall-clock budget for *all* ACO trials on
+this graph (shared). The θ-heuristic always runs first; when a save path is
+set, a checkpoint JSON with the heuristic is flushed before ACO so a hard
+process kill still leaves usable θ results. If the budget expires between
+epochs (or before starting further replicates), remaining ACO work stops and
+the JSON records `aco_timed_out=true` / `aco_status="timeout"`. Scripts may
+re-run with a larger `--aco-timeout=` to upgrade a short-timeout result.
 
 Graph reduction is always common-neighbor (CNN / `ReductionMode.simple`).
 Progressive / `all_reductions` must not run as a one-shot peel here: that path
@@ -97,6 +105,24 @@ function parse_aco_runs()
         end
     end
     return 1
+end
+
+"""
+Parse `--aco-timeout=SECONDS`: shared wall-clock budget for all ACO trials
+on this graph. `nothing` means no timeout (default).
+"""
+function parse_aco_timeout()
+    for arg in ARGS
+        if startswith(arg, "--aco-timeout=")
+            raw = strip(split(arg, "=", limit=2)[2])
+            t = parse(Float64, raw)
+            t > 0 || throw(ArgumentError("--aco-timeout must be > 0, got $t"))
+            return t
+        elseif arg == "--aco-timeout"
+            throw(ArgumentError("--aco-timeout requires a value, e.g. --aco-timeout=10"))
+        end
+    end
+    return nothing
 end
 
 """
@@ -240,10 +266,16 @@ end
 
 """
 Run ACO for a single ant count; return metrics without verbose printing.
+
+When `deadline_s` is set (unix time), the iteration callback aborts ACO once
+`time() >= deadline_s` and the result includes `timed_out=true`. Partial
+best-so-far from the interrupted run is returned but callers normally discard
+it so incomplete budgets are not treated as finished trials.
 """
 function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     num_ants::Int, opt_edges::Union{Nothing,Int}=nothing,
-    reduction::ReductionMode.T=ReductionMode.none)
+    reduction::ReductionMode.T=ReductionMode.none,
+    deadline_s::Union{Nothing,Float64}=nothing)
     pheremone, _na, num_iterations, evaporation, num_subspecies = aco_options
     prefer_smaller_side = get(aco_options, :prefer_smaller_side, true)
     neighbor_scope_limit = get(aco_options, :neighbor_scope_limit, true)
@@ -256,6 +288,7 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
 
     first_hit = Ref{Union{Nothing,Int}}(nothing)
     construction_stats = Ref{Any}(nothing)
+    timed_out = Ref(false)
 
     g_run = deepcopy(g)
     m = measure_call() do
@@ -273,6 +306,10 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             reduction=reduction,
             construction_stats=construction_stats,
             iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
+                if deadline_s !== nothing && time() >= deadline_s
+                    timed_out[] = true
+                    return false
+                end
                 if opt_edges === nothing || first_hit[] !== nothing
                     return true
                 end
@@ -322,7 +359,8 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
         V = sort!(collect(sol.V)),
         missing,
         theta_feasible = θ_feasible,
-        construction = construction_stats_dict(construction_stats[], remapping))
+        construction = construction_stats_dict(construction_stats[], remapping),
+        timed_out = timed_out[])
 end
 
 """
@@ -366,11 +404,19 @@ When `n_runs > 1`, each ant count is repeated with a distinct seed derived from
 `seed` (required). Every replicate is appended to `trials`.
 When `DEBUG` is set and `plant` is provided (from `--inject`), verifies the
 planted biclique vertices survive the one-shot CNN reduction and logs the result.
+
+`aco_timeout` (seconds), when set, is a shared wall-clock budget for all ACO
+trials. The θ-heuristic always completes first. If `checkpoint_path` is set,
+a JSON snapshot with the heuristic (and `aco_status="running"`) is written
+before ACO so a hard process kill still leaves θ results on disk.
 """
 function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int,
     reduction::ReductionMode.T, aco_options; ant_counts::Vector{Int},
     run_pivot::Bool=false, seed=nothing, dataset::AbstractString="",
-    n_runs::Int=1, plant=nothing)
+    n_runs::Int=1, plant=nothing,
+    aco_timeout::Union{Nothing,Float64}=nothing,
+    checkpoint_path::Union{Nothing,AbstractString}=nothing,
+    checkpoint_meta=nothing)
     n_runs >= 1 || throw(ArgumentError("n_runs must be >= 1, got $n_runs"))
     _, _, num_iterations, _, _ = aco_options
 
@@ -397,6 +443,9 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     println("prefer_smaller_side=$prefer_smaller_side  neighbor_scope_limit=$neighbor_scope_limit")
     println("elite_pheromone=$elite_pheromone  aco_tabu=$aco_tabu  mmas=$mmas")
     println("reduction=$reduction (CNN / one-shot; progressive disabled)")
+    if aco_timeout !== nothing
+        println("aco_timeout=$(aco_timeout)s (shared budget for all ACO trials)")
+    end
     if vary_debug_enabled()
         println("DEBUG=$(vary_debug_enabled())  plant_check=$(plant !== nothing)")
     end
@@ -481,18 +530,64 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
         theta_feasible = heur_θ_ok,
     ))
 
+    # Checkpoint after θ so a hard kill during ACO still leaves heuristic JSON.
+    if checkpoint_path !== nothing
+        partial = (; graph_stats, pivot_stats, heuristic_stats, trials=NamedTuple[],
+            ant_counts, opt_edges, n_runs, base_seed=string(base_seed),
+            best_trial=nothing, aco_discovery_s=nothing,
+            prefer_smaller_side, neighbor_scope_limit, elite_pheromone, aco_tabu, mmas,
+            aco_timeout, aco_timed_out=false, aco_status="running")
+        meta = checkpoint_meta === nothing ? NamedTuple() : checkpoint_meta
+        payload = vary_results_to_dict(partial;
+            k=get(meta, :k, k), θ=get(meta, :θ, θ),
+            dataset=get(meta, :dataset, dataset),
+            seed=get(meta, :seed, seed),
+            reduction=get(meta, :reduction, reduction),
+            edge_count=get(meta, :edge_count, edge_count),
+            run_pivot=get(meta, :run_pivot, run_pivot),
+            prefer_smaller_side=prefer_smaller_side,
+            neighbor_scope_limit=neighbor_scope_limit,
+            elite_pheromone=elite_pheromone,
+            aco_tabu=aco_tabu,
+            mmas=mmas)
+        println()
+        println("Checkpoint (θ-heuristic done, ACO pending) → $checkpoint_path")
+        save_vary_json(checkpoint_path, payload)
+    end
+
+    aco_deadline = aco_timeout === nothing ? nothing : time() + Float64(aco_timeout)
+    aco_timed_out = false
+
     trials = NamedTuple[]
     for (ai, n_ants) in enumerate(ant_counts)
+        if aco_deadline !== nothing && time() >= aco_deadline
+            aco_timed_out = true
+            println()
+            println("── ACO budget exhausted before ants=$n_ants (timeout=$(aco_timeout)s) ──")
+            break
+        end
         # When only one recorded replicate, still burn one untimed solve so the
         # measured wall time excludes Julia JIT on this graph.
         if n_runs == 1
             println()
             println("── ACO ants=$n_ants  JIT warmup (excluded) ──")
             Random.seed!(vary_run_seed(base_seed, ai, 1, 1))
-            vary_aco_trial!(g_reduced, k, θ, aco_options;
-                num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction)
+            warm = vary_aco_trial!(g_reduced, k, θ, aco_options;
+                num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction,
+                deadline_s=aco_deadline)
+            if get(warm, :timed_out, false)
+                aco_timed_out = true
+                println("  ACO timed out during JIT warmup (budget=$(aco_timeout)s)")
+                break
+            end
         end
         for run in 1:n_runs
+            if aco_deadline !== nothing && time() >= aco_deadline
+                aco_timed_out = true
+                println()
+                println("── ACO budget exhausted before ants=$n_ants run=$run ──")
+                break
+            end
             run_seed = vary_run_seed(base_seed, ai, run, n_runs)
             Random.seed!(run_seed)
 
@@ -506,7 +601,14 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
                 println("── ACO ants=$n_ants  run $run/$n_runs  seed=$run_seed ──")
             end
             trial = vary_aco_trial!(g_reduced, k, θ, aco_options;
-                num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction)
+                num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction,
+                deadline_s=aco_deadline)
+            if get(trial, :timed_out, false)
+                aco_timed_out = true
+                println("  ACO timed out mid-trial (budget=$(aco_timeout)s); " *
+                        "discarding incomplete replicate, keeping θ-heuristic")
+                break
+            end
             beats_heuristic = trial.final_edges > heuristic_stats.final_edges &&
                 trial.theta_feasible
             trial = merge(trial, (; run, seed=string(run_seed), beats_heuristic, jit_warmup))
@@ -520,6 +622,13 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
                     (jit_warmup ? "  [warmup]" : ""))
             push!(trials, trial)
         end
+        aco_timed_out && break
+    end
+
+    if aco_timed_out
+        println()
+        println("ACO timed out after $(format_seconds(aco_timeout))s budget " *
+                "($(length(trials)) complete trial(s) kept)")
     end
 
     println()
@@ -528,6 +637,9 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
             (opt_edges === nothing ? "" : " / $opt_edges optimal") *
             "  θ-feasible=$(heuristic_stats.theta_feasible)" *
             "  |U|=$(heuristic_stats.nU) |V|=$(heuristic_stats.nV)")
+    if aco_timed_out
+        println("ACO status: TIMEOUT (limit=$(aco_timeout)s)")
+    end
     if n_runs == 1
         println(rpad("ants", 8), rpad("time", 12), rpad("→best", 12),
                 rpad("iters", 8), rpad("edges", 10), rpad(">heur", 8), "optimal")
@@ -559,8 +671,10 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     end
     println("===================================================")
 
-    best_trial = select_best_trial_any(trials; n_runs=n_runs)
-    aco_discovery_s = aco_discovery_until(trials, best_trial; n_runs=n_runs)
+    # Timed-out graphs are incomplete: do not advertise a best ACO trial.
+    best_trial = aco_timed_out ? nothing : select_best_trial_any(trials; n_runs=n_runs)
+    aco_discovery_s = aco_timed_out ? nothing :
+        aco_discovery_until(trials, best_trial; n_runs=n_runs)
     if best_trial !== nothing
         println()
         println("Best ACO trial (by edges): ants=$(best_trial.num_ants)  " *
@@ -572,9 +686,18 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
                 "θ-feasible=$(best_trial.theta_feasible)")
     end
 
+    aco_status = if aco_timeout === nothing
+        nothing
+    elseif aco_timed_out
+        "timeout"
+    else
+        "ok"
+    end
+
     return (; graph_stats, pivot_stats, heuristic_stats, trials, ant_counts, opt_edges,
         n_runs, base_seed=string(base_seed), best_trial, aco_discovery_s,
-        prefer_smaller_side, neighbor_scope_limit, elite_pheromone, aco_tabu, mmas)
+        prefer_smaller_side, neighbor_scope_limit, elite_pheromone, aco_tabu, mmas,
+        aco_timeout, aco_timed_out, aco_status)
 end
 
 function vary_results_to_dict(results; k::Int=0, θ::Int=0,
@@ -613,6 +736,15 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         "mmas" => mm,
         "ants_range" => results.ant_counts,
     )
+
+    aco_timeout = get(results, :aco_timeout, nothing)
+    if aco_timeout !== nothing
+        out["aco_timeout_s"] = Float64(aco_timeout)
+        out["aco_timed_out"] = get(results, :aco_timed_out, false) === true
+        status = get(results, :aco_status, nothing)
+        out["aco_status"] = status === nothing ?
+            (out["aco_timed_out"] ? "timeout" : "ok") : String(status)
+    end
 
     gs = results.graph_stats
     out["graph"] = Dict(

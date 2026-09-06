@@ -4,7 +4,7 @@ table mode — vary.jl ant-count JSON → LaTeX table.
 Columns match the paper table:
 
     Dataset | |U_G| | |V_G| | |E_G| | |U_R| | |V_R| | |E_R|
-            | ACO: |U(D*)| |V(D*)| |E(D*)| Discovery ITB TTB
+            | ACO: |U(D*)| |V(D*)| |E(D*)| Discovery ETB TimTB
             | θ-Heuristic: |U(D*)| |V(D*)| |E(D*)| Time
 
 |U_G| / |V_G| / |E_G| come from the original graph (`graph.nU` / `graph.nV`
@@ -12,7 +12,7 @@ and top-level `edge_count`). |U_R| / |V_R| / |E_R| are the reduced graph
 sizes. ACO reports the best counted trial (max `final_edges`, then min
 `time_to_best_s`, then min `wall_time_s`). The first replicate per ant
 count is a Julia JIT warmup when `aco_runs > 1` and is omitted. Discovery
-is the sum of counted same-ant `wall_time_s` values. ITB / TTB are from
+is the sum of counted same-ant `wall_time_s` values. ETB / TimTB are from
 that winning replicate only.
 
 Rows are grouped into three sections (each sorted ascending by ACO's
@@ -35,6 +35,7 @@ import sys
 
 from .common import (
     aco_discovery_cost,
+    aco_timed_out,
     counted_trials,
     display_name,
     load_json,
@@ -84,7 +85,11 @@ def summarize_file(data, ants=None):
 
     graph = data.get("graph") or {}
     heuristic = data.get("heuristic") or {}
-    trials = counted_trials(data.get("trials") or [], data)
+    # Incomplete ACO budgets must not contribute ACO columns (θ still shown).
+    if aco_timed_out(data):
+        trials = []
+    else:
+        trials = counted_trials(data.get("trials") or [], data)
     best = select_best_trial(trials, ants=ants)
 
     edge_count = data.get("edge_count")
@@ -120,6 +125,7 @@ def summarize_file(data, ants=None):
         "heur_nV": heuristic.get("nV"),
         "heur_edges": heuristic.get("final_edges"),
         "heur_time": heuristic.get("wall_time_s"),
+        "aco_timed_out": aco_timed_out(data),
     }
 
 
@@ -245,7 +251,7 @@ def tabular_header_lines():
         r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
         r" & \multicolumn{6}{c}{ACO-PN} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
         r"    \cmidrule(lr){8-13} \cmidrule(lr){14-17}",
-        r"    & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & TriTB & TimTB"
+        r"    & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ETB & TimTB"
         r" & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\",
         r"    \midrule",
     ]

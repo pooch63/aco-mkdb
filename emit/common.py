@@ -21,6 +21,21 @@ def load_json(path):
         return None
 
 
+def aco_timed_out(data):
+    """
+    True when vary.jl recorded an incomplete ACO budget.
+
+    Short/long timeout passes write ``aco_timed_out`` / ``aco_status``.
+    ``running`` is a pre-ACO checkpoint left by a hard process kill.
+    Legacy JSON without these fields is treated as complete.
+    """
+    if not data:
+        return False
+    if data.get("aco_timed_out") is True:
+        return True
+    return data.get("aco_status") in ("timeout", "running")
+
+
 def preamble_sidecar_path(output):
     """Map ``foo.tex`` → ``foo.preamble.tex`` (or ``<output>.preamble.tex``)."""
     if output.endswith(".tex"):

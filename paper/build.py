@@ -8,6 +8,13 @@ Workflow:
   3. pdf    — compile build.tex with latexmk, then remove build.tex
   4. (default) all three steps
 
+Emit is make-style and parallel: a fragment is regenerated only when its
+output is missing or older than ``build.json``, any dependency results folder
+(newest file mtime under that folder), or the emit Python sources that build
+that fragment (mode module + COMPARE plot module when applicable).
+Stale jobs run concurrently (``-j`` / ``--jobs``, default: CPU count).
+Use ``--force`` to rebuild all.
+
 Use --keep-tex to retain build.tex after compiling.
 
 Placeholders in main.tex use the form %%QUALITY%%, %%COMPARE:theta-time%%, etc.
@@ -21,16 +28,22 @@ Absolute paths and ``./`` / ``../`` paths are still resolved from paper/.
 
 STATISTICS missing-at-5 fields use missing_at_base (plain ACO dir; ACO-N is
 that path + "N"). Falls back to vary_base if missing_at_base is omitted.
-COMPARE k-sweep / theta-sweep use param_dirs (labeled vary_* suites).
+STATISTICS pivot-tested / pivot-excluded fields use compare_dir (compare-seeds
+JSON) together with the vary input directory.
+COMPARE k-sweep / theta-sweep / density-wins / param-density / param-runtime use param_dirs
+(labeled vary_* suites).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 
 PAPER_DIR = Path(__file__).resolve().parent
@@ -40,6 +53,60 @@ AUX_SUFFIXES = (".aux", ".log", ".fls", ".fdb_latexmk", ".out")
 # Assembled from fragment sidecars (*.preamble.tex); not a normal emit target.
 SPECIAL_PLACEHOLDERS = frozenset({"PREAMBLE"})
 DEFAULT_RESULTS_DIR = "../results"
+# COMPARE plots that read flag_dirs / param_dirs instead of (or besides) input.
+COMPARE_FLAG_PLOTS = frozenset({"flag-ablation"})
+COMPARE_PARAM_PLOTS = frozenset(
+    {
+        "k-sweep",
+        "theta-sweep",
+        "density-wins",
+        "param-density",
+        "param-runtime",
+    }
+)
+STATISTICS_MISSING_AT_FIELDS = frozenset(
+    {"missing-at-5", "aco-missing-at-5", "aco-n-missing-at-5"}
+)
+
+EMIT_DIR = REPO_ROOT / "emit"
+# Shared by every ``python -m emit`` invocation.
+EMIT_SHARED_SOURCES = (
+    EMIT_DIR / "__init__.py",
+    EMIT_DIR / "__main__.py",
+    EMIT_DIR / "common.py",
+    EMIT_DIR / "result_fields.py",
+)
+# Mode entry modules (plus extras each mode imports for output).
+EMIT_MODE_SOURCES: dict[str, tuple[Path, ...]] = {
+    "quality": (EMIT_DIR / "quality.py",),
+    "seed-compare": (EMIT_DIR / "seed_compare.py",),
+    "table": (EMIT_DIR / "table.py",),
+    "statistics": (
+        EMIT_DIR / "statistics.py",
+        EMIT_DIR / "table.py",
+        EMIT_DIR / "seed_compare.py",
+    ),
+    "compare": (
+        EMIT_DIR / "compare" / "__init__.py",
+        EMIT_DIR / "compare" / "helpers.py",
+        EMIT_DIR / "table.py",
+    ),
+}
+# COMPARE ``--plots=`` group → implementing module.
+COMPARE_PLOT_SOURCES: dict[str, Path] = {
+    "theta-time": EMIT_DIR / "compare" / "complexity.py",
+    "deg-size-time": EMIT_DIR / "compare" / "complexity.py",
+    "density-size": EMIT_DIR / "compare" / "complexity.py",
+    "max-deg-time": EMIT_DIR / "compare" / "complexity.py",
+    "flag-ablation": EMIT_DIR / "compare" / "flag_ablation.py",
+    "iteration-budget": EMIT_DIR / "compare" / "iteration_budget.py",
+    "replicate-budget": EMIT_DIR / "compare" / "replicate_budget.py",
+    "k-sweep": EMIT_DIR / "compare" / "param_sweep.py",
+    "theta-sweep": EMIT_DIR / "compare" / "param_sweep.py",
+    "density-wins": EMIT_DIR / "compare" / "param_sweep.py",
+    "param-density": EMIT_DIR / "compare" / "param_sweep.py",
+    "param-runtime": EMIT_DIR / "compare" / "param_sweep.py",
+}
 
 
 def fragment_output_name(name: str, args: str | None) -> str:
@@ -126,76 +193,329 @@ def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> P
     return resolve_results_path(cfg, input_path)
 
 
-def run_emit(cfg: dict) -> None:
+def newest_mtime(path: Path, _cache: dict[Path, float | None] | None = None) -> float | None:
+    """
+    Newest mtime of ``path`` (file) or any file under it (directory).
+
+    Returns None when the path does not exist. Directory mtime alone is not
+    enough: overwriting a JSON file updates the file but often not the folder.
+    """
+    if _cache is not None and path in _cache:
+        return _cache[path]
+    try:
+        st = path.stat()
+    except OSError:
+        if _cache is not None:
+            _cache[path] = None
+        return None
+    if path.is_file():
+        if _cache is not None:
+            _cache[path] = st.st_mtime
+        return st.st_mtime
+    if not path.is_dir():
+        if _cache is not None:
+            _cache[path] = st.st_mtime
+        return st.st_mtime
+    newest = st.st_mtime
+    for child in path.rglob("*"):
+        try:
+            newest = max(newest, child.stat().st_mtime)
+        except OSError:
+            continue
+    if _cache is not None:
+        _cache[path] = newest
+    return newest
+
+
+def is_stale(
+    out_path: Path,
+    dep_paths: list[Path],
+    *,
+    mtime_cache: dict[Path, float | None] | None = None,
+) -> bool:
+    """True when output is missing or older than any dependency (make-style)."""
+    if not out_path.is_file():
+        return True
+    out_mtime = out_path.stat().st_mtime
+    for dep in dep_paths:
+        dep_mtime = newest_mtime(dep, mtime_cache)
+        if dep_mtime is None:
+            # Missing input: re-run so emit can warn / write fallbacks.
+            return True
+        if dep_mtime > out_mtime:
+            return True
+    return False
+
+
+def fragment_emit_source_deps(
+    name: str,
+    frag: dict,
+    args: str | None,
+) -> list[Path]:
+    """
+    Emit Python sources whose mtime invalidates this fragment.
+
+    Ties each figure/table to the mode (and COMPARE plot module) that
+    builds it, plus shared emit entrypoints and ``build.py`` itself.
+    """
+    deps: list[Path] = [
+        PAPER_DIR / "build.py",
+        *EMIT_SHARED_SOURCES,
+    ]
+    mode = frag.get("emit")
+    if mode in EMIT_MODE_SOURCES:
+        deps.extend(EMIT_MODE_SOURCES[mode])
+
+    if name == "COMPARE" or mode == "compare":
+        plots = args or frag.get("plots") or ""
+        plot_names = {p.strip() for p in str(plots).split(",") if p.strip()}
+        if not plot_names:
+            plot_names = set(COMPARE_PLOT_SOURCES)
+        for plot in plot_names:
+            src = COMPARE_PLOT_SOURCES.get(plot)
+            if src is not None:
+                deps.append(src)
+        # param_sweep imports boxplot helpers from flag_ablation.
+        if plot_names & COMPARE_PARAM_PLOTS:
+            deps.append(EMIT_DIR / "compare" / "flag_ablation.py")
+
+    return deps
+
+
+def fragment_dep_paths(
+    cfg: dict,
+    name: str,
+    frag: dict,
+    args: str | None,
+) -> list[Path]:
+    """Results folders, emit sources, and build.json that invalidate a fragment."""
+    deps: list[Path] = [PAPER_DIR / "build.json"]
+    deps.extend(fragment_emit_source_deps(name, frag, args))
+    plots = args or frag.get("plots") or ""
+    plot_names = {p.strip() for p in str(plots).split(",") if p.strip()}
+
+    if name == "COMPARE" and plot_names:
+        if plot_names & COMPARE_FLAG_PLOTS and frag.get("flag_dirs"):
+            for path in frag["flag_dirs"].values():
+                deps.append(resolve_results_path(cfg, path))
+        if plot_names & COMPARE_PARAM_PLOTS and frag.get("param_dirs"):
+            for path in frag["param_dirs"].values():
+                deps.append(resolve_results_path(cfg, path))
+        # Complexity / budget plots read the primary vary directory.
+        if plot_names - (COMPARE_FLAG_PLOTS | COMPARE_PARAM_PLOTS):
+            deps.append(fragment_input_path(cfg, name, frag, args))
+    else:
+        deps.append(fragment_input_path(cfg, name, frag, args))
+        if frag.get("flag_dirs"):
+            for path in frag["flag_dirs"].values():
+                deps.append(resolve_results_path(cfg, path))
+        if frag.get("param_dirs"):
+            for path in frag["param_dirs"].values():
+                deps.append(resolve_results_path(cfg, path))
+
+    if frag.get("vary_dir"):
+        deps.append(resolve_results_path(cfg, frag["vary_dir"]))
+
+    if name == "STATISTICS" and args in STATISTICS_MISSING_AT_FIELDS:
+        missing_at_base = (
+            frag.get("missing_at_base")
+            or frag.get("vary_base")
+            or cfg.get("missing_at_base")
+            or cfg.get("vary_base")
+        )
+        if missing_at_base:
+            base = resolve_results_path(cfg, missing_at_base)
+            deps.append(base)
+            deps.append(Path(str(base) + "N"))
+
+    if name == "STATISTICS" and args and args.startswith("pivot-"):
+        compare_dir = frag.get("compare_dir") or cfg.get("compare_dir")
+        if compare_dir:
+            deps.append(resolve_results_path(cfg, compare_dir))
+
+    # Deduplicate while preserving order.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in deps:
+        if path in seen:
+            continue
+        seen.add(path)
+        unique.append(path)
+    return unique
+
+
+@dataclass(frozen=True)
+class EmitJob:
+    label: str
+    cmd: list[str]
+    out_path: Path
+    dep_paths: list[Path]
+
+
+def build_emit_job(
+    cfg: dict,
+    name: str,
+    frag: dict,
+    args: str | None,
+    generated: Path,
+) -> EmitJob:
+    out_name = fragment_output_name(name, args)
+    out_path = generated / f"{out_name}.tex"
+    input_path = fragment_input_path(cfg, name, frag, args)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "emit",
+        frag["emit"],
+        str(input_path),
+        "-o",
+        str(out_path),
+    ]
+    if frag.get("vary_dir"):
+        cmd.append(
+            f"--vary-dir={resolve_results_path(cfg, frag['vary_dir'])}"
+        )
+    plots = args or frag.get("plots")
+    if plots and name not in ("SEED_COMPARE", "STATISTICS", "TABLE"):
+        cmd.append(f"--plots={plots}")
+    if name == "SEED_COMPARE" and args:
+        cmd.append(f"--subset={args}")
+    if name == "TABLE":
+        _suffix, subset = parse_table_args(args)
+        if subset != "full":
+            cmd.append(f"--subset={subset}")
+    if frag.get("ants") is not None:
+        cmd.append(f"--ants={frag['ants']}")
+    if frag.get("flag_dirs"):
+        for label, path in frag["flag_dirs"].items():
+            cmd.append(
+                f"--flag-dir={label}={resolve_results_path(cfg, path)}"
+            )
+    if frag.get("param_dirs"):
+        for label, path in frag["param_dirs"].items():
+            cmd.append(
+                f"--param-dir={label}={resolve_results_path(cfg, path)}"
+            )
+    if name == "STATISTICS" and args:
+        cmd.append(f"--field={args}")
+    if name == "STATISTICS" and args in STATISTICS_MISSING_AT_FIELDS:
+        missing_at_base = (
+            frag.get("missing_at_base")
+            or frag.get("vary_base")
+            or cfg.get("missing_at_base")
+            or cfg.get("vary_base")
+        )
+        if missing_at_base:
+            cmd.append(
+                f"--vary-base={resolve_results_path(cfg, missing_at_base)}"
+            )
+    if name == "STATISTICS" and args and args.startswith("pivot-"):
+        compare_dir = frag.get("compare_dir") or cfg.get("compare_dir")
+        if compare_dir:
+            cmd.append(
+                f"--compare-dir={resolve_results_path(cfg, compare_dir)}"
+            )
+
+    label = name if not args else f"{name}:{args}"
+    return EmitJob(
+        label=label,
+        cmd=cmd,
+        out_path=out_path,
+        dep_paths=fragment_dep_paths(cfg, name, frag, args),
+    )
+
+
+def _run_emit_job(job: EmitJob) -> str:
+    """Run one emit subprocess; return a short status line for stderr."""
+    rel = job.out_path.relative_to(PAPER_DIR)
+    result = subprocess.run(
+        job.cmd,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.stdout:
+        sys.stderr.write(result.stdout)
+        if not result.stdout.endswith("\n"):
+            sys.stderr.write("\n")
+    if result.stderr:
+        sys.stderr.write(result.stderr)
+        if not result.stderr.endswith("\n"):
+            sys.stderr.write("\n")
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            job.cmd,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return f"# emit {job.label} → {rel}"
+
+
+def run_emit(
+    cfg: dict,
+    *,
+    force: bool = False,
+    jobs: int | None = None,
+) -> None:
     generated = resolve(cfg["generated_dir"])
     generated.mkdir(parents=True, exist_ok=True)
     source_text = (PAPER_DIR / cfg["source"]).read_text(encoding="utf-8")
 
+    planned: list[EmitJob] = []
     for name, args in placeholders_in_source(source_text):
         if name in SPECIAL_PLACEHOLDERS:
             continue
         frag = cfg["fragments"].get(name)
         if frag is None:
             continue
-        out_name = fragment_output_name(name, args)
-        out_path = generated / f"{out_name}.tex"
-        input_path = fragment_input_path(cfg, name, frag, args)
+        planned.append(build_emit_job(cfg, name, frag, args, generated))
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "emit",
-            frag["emit"],
-            str(input_path),
-            "-o",
-            str(out_path),
-        ]
-        if frag.get("vary_dir"):
-            cmd.append(
-                f"--vary-dir={resolve_results_path(cfg, frag['vary_dir'])}"
-            )
-        plots = args or frag.get("plots")
-        if plots and name not in ("SEED_COMPARE", "STATISTICS", "TABLE"):
-            cmd.append(f"--plots={plots}")
-        if name == "SEED_COMPARE" and args:
-            cmd.append(f"--subset={args}")
-        if name == "TABLE":
-            _suffix, subset = parse_table_args(args)
-            if subset != "full":
-                cmd.append(f"--subset={subset}")
-        if frag.get("ants") is not None:
-            cmd.append(f"--ants={frag['ants']}")
-        if frag.get("flag_dirs"):
-            for label, path in frag["flag_dirs"].items():
-                cmd.append(
-                    f"--flag-dir={label}={resolve_results_path(cfg, path)}"
-                )
-        if frag.get("param_dirs"):
-            for label, path in frag["param_dirs"].items():
-                cmd.append(
-                    f"--param-dir={label}={resolve_results_path(cfg, path)}"
-                )
-        if name == "STATISTICS" and args:
-            cmd.append(f"--field={args}")
-        if name == "STATISTICS" and args in (
-            "missing-at-5",
-            "aco-missing-at-5",
-            "aco-n-missing-at-5",
-        ):
-            missing_at_base = (
-                frag.get("missing_at_base")
-                or frag.get("vary_base")
-                or cfg.get("missing_at_base")
-                or cfg.get("vary_base")
-            )
-            if missing_at_base:
-                cmd.append(
-                    f"--vary-base={resolve_results_path(cfg, missing_at_base)}"
-                )
+    stale: list[EmitJob] = []
+    skipped = 0
+    mtime_cache: dict[Path, float | None] = {}
+    for job in planned:
+        if force or is_stale(job.out_path, job.dep_paths, mtime_cache=mtime_cache):
+            stale.append(job)
+        else:
+            skipped += 1
 
-        label = name if not args else f"{name}:{args}"
-        print(f"# emit {label} → {out_path.relative_to(PAPER_DIR)}", file=sys.stderr)
-        subprocess.run(cmd, cwd=REPO_ROOT, check=True)
+    if not stale:
+        print(
+            f"# emit: {skipped} fragment(s) up to date, nothing to rebuild",
+            file=sys.stderr,
+        )
+        return
+
+    workers = jobs if jobs is not None else (os.cpu_count() or 4)
+    workers = max(1, workers)
+    print(
+        f"# emit: rebuilding {len(stale)}/{len(planned)} "
+        f"fragment(s) with {workers} worker(s)"
+        + (f", skipped {skipped} up to date" if skipped else ""),
+        file=sys.stderr,
+    )
+
+    if workers == 1 or len(stale) == 1:
+        for job in stale:
+            print(_run_emit_job(job), file=sys.stderr)
+        return
+
+    errors: list[tuple[str, BaseException]] = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_run_emit_job, job): job for job in stale}
+        for fut in as_completed(futures):
+            job = futures[fut]
+            try:
+                print(fut.result(), file=sys.stderr)
+            except Exception as exc:
+                errors.append((job.label, exc))
+                print(f"# emit FAILED {job.label}: {exc}", file=sys.stderr)
+
+    if errors:
+        labels = ", ".join(label for label, _ in errors)
+        raise SystemExit(f"emit failed for: {labels}")
 
 
 def collect_preamble(generated: Path, source_text: str) -> str:
@@ -355,7 +675,7 @@ def verify_pdf(cfg: dict, tex_path: Path | None = None) -> None:
 
     text = probe.stdout
     required = (
-        "Ratio of ACO-PN discovery time to each candidate complexity bound",
+        "Ratio of ACO-PN discovery time to the theoretical and practical",
         "Time / bound",
     )
     missing = [phrase for phrase in required if phrase not in text]
@@ -434,12 +754,26 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="keep build.tex after compiling (removed by default)",
     )
+    parser.add_argument(
+        "--force",
+        "-B",
+        action="store_true",
+        help="rebuild all emit fragments even when outputs look up to date",
+    )
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=None,
+        metavar="N",
+        help="parallel emit workers (default: CPU count)",
+    )
     args = parser.parse_args(argv)
     cfg = load_config()
 
     tex_path: Path | None = None
     if args.step in ("all", "emit"):
-        run_emit(cfg)
+        run_emit(cfg, force=args.force, jobs=args.jobs)
     if args.step in ("all", "assemble"):
         tex_path = assemble(cfg)
     if args.step in ("all", "pdf"):

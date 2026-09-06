@@ -1,54 +1,38 @@
 """
-Epoch-budget analysis from recorded iterations_to_best (ETB).
+Replicate-budget analysis from ordered counted (non-JIT) trials.
 
 Data model (read this before changing anything)
 ----------------------------------------------
 Each vary.jl ``*_ants.json`` trial is one independent **replicate**
-(``run`` / seed), always executed for the full colony budget
-``iterations_budget`` (= ``n_E`` epochs, typically 5). The JSON does
-**not** contain separate experiments that stopped early at E=1,2,….
+(``run`` / seed). When ``aco_runs > 1``, run 1 (or ``jit_warmup=true``)
+is the real-graph Julia JIT warmup and is **never** used here — only
+``counted_trials`` remain.
 
-Within each replicate, ``iterations_to_best`` (ETB) is the epoch index
-in ``1…n_E`` at which that replicate first reached the ``final_edges``
-it reports. So:
+Counted replicates on a graph are ordered by ascending ``run``. Credited
+replicate budget ``R`` means: keep only the first ``R`` counted
+replicates (the earliest seeds after discarding JIT), take the best
+among them, and score that graph. This is a retrospective prefix of the
+recorded replicate sequence — we do not re-run ACO with fewer seeds.
 
-  - ``run``              → which replicate (stochastic restart)
-  - ``iterations_budget`` → epochs that replicate was allowed to run
-  - ``iterations_to_best`` → epoch *inside* that replicate when its
-                             eventual best |E| first appeared
-
-This figure is a **retrospective truncation** of those full-budget
-replicates: for credited budget E we keep only replicates with
-ETB ≤ E and use their recorded ``final_edges``. Intermediate edge
-counts between epoch 1 and ETB are not stored, so short-budget quality
-is a conservative lower bound.
+``replicates-to-best`` (RTB) for a graph is the 1-based index in that
+ordered counted list of the first replicate whose ``final_edges`` equals
+the best ``final_edges`` among all counted replicates on that graph.
 
 Plot group
 ----------
-  iteration-budget
+  replicate-budget
     3-panel groupplot at fixed ant count (default 100) for ACO-PN:
       Left: percentage of **graphs** where ACO beats the θ-heuristic,
             and percentage that admit a θ-feasible ACO solution, as a
-            function of credited epoch budget E ∈ {1…n_E}.
-            Per graph: best among counted replicates with ETB ≤ E.
-      Middle: mean and median percent edge increase of ACO over the
-            θ-heuristic among θ-feasible **graphs**, log-scaled
-            y-axis, as E grows (same per-graph best).
-      Right: CDF of epochs-to-best over **replicates** (counted
-            non-JIT trials): for each E, the percentage of replicates
-            whose eventual best was already reached by epoch E.
-            This panel can rise while the middle panel stays flat:
-            late-ETB replicates on a graph do not change that graph's
-            contribution once an earlier replicate already matched
-            the same (or better) edges.
-
-Methodology
------------
-Each vary.jl trial runs a fixed epoch budget (typically n_E = 5) and
-records iterations_to_best (epochs-to-best). For budget E we credit a
-trial's final_edges only when ETB ≤ E — a conservative lower bound on
-quality under a shorter budget, because intermediate edge counts before
-ETB are not stored. JIT warmup replicates are omitted via counted_trials.
+            function of credited replicate budget R ∈ {1…R_max}.
+            Per graph: best among the first R counted replicates.
+      Middle: mean, median, and best (max) percent edge increase of
+            ACO over the θ-heuristic among θ-feasible **graphs**,
+            log-scaled y-axis, as R grows (same per-graph best).
+      Right: CDF of replicates-to-best over **graphs**: for each R,
+            the percentage of graphs whose eventual best among all
+            counted replicates was already reached by counted
+            replicate R (RTB ≤ R).
 """
 
 from __future__ import annotations
@@ -60,46 +44,45 @@ from collections import defaultdict
 from ..common import counted_trials, list_json_paths, load_json, aco_timed_out
 from ..quality import pct_deviation
 
-PLOT_GROUPS = ("iteration-budget",)
+PLOT_GROUPS = ("replicate-budget",)
 DEFAULT_ANTS = 100
-DEFAULT_MAX_BUDGET = 5
 
 
-def _trials_at_ants(data, ants):
-    """Counted (non-JIT) replicates at this ant count with usable ETB."""
-    return [
+def _ordered_counted_at_ants(data, ants):
+    """
+    Counted (non-JIT) replicates at this ant count, ordered by run.
+
+    JIT warmup is excluded via counted_trials. Ordering by ``run`` makes
+    R=1 the first *counted* seed (typically raw run 2), never the warmup.
+    """
+    trials = [
         t
         for t in counted_trials(data.get("trials") or [], data)
-        if t.get("ants") == ants
-        and t.get("final_edges") is not None
-        and t.get("iterations_to_best") is not None
+        if t.get("ants") == ants and t.get("final_edges") is not None
     ]
+    return sorted(trials, key=lambda t: int(t.get("run", 10**9)))
 
 
-def _max_budget(trials, default=DEFAULT_MAX_BUDGET):
-    budgets = [
-        int(t["iterations_budget"])
-        for t in trials
-        if t.get("iterations_budget") is not None
-    ]
-    if budgets:
-        return max(budgets)
-    itbs = [int(t["iterations_to_best"]) for t in trials]
-    return max(default, max(itbs) if itbs else default)
+def _replicates_to_best(ordered):
+    """1-based index of first counted replicate matching the eventual best."""
+    if not ordered:
+        return None
+    best_edges = max(int(t["final_edges"]) for t in ordered)
+    for i, t in enumerate(ordered, start=1):
+        if int(t["final_edges"]) == best_edges:
+            return i
+    return None
 
 
-def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
+def summarize_replicate_budget(json_paths, *, ants=DEFAULT_ANTS):
     """
-    Aggregate per-budget win / feasibility / ETB-CDF stats.
+    Aggregate per-replicate-budget win / feasibility / RTB-CDF stats.
 
-    Units (do not mix these up):
-      - Left / middle panels: one value per **graph** (best eligible
-        replicate under the ETB ≤ E credit rule).
-      - Right CDF: one observation per **replicate** (counted trial).
+    All panels are per **graph**. JIT warmup replicates are never included.
 
     Returns None when no usable files exist; otherwise a dict with:
-      n_graphs, n_trials, budgets, wins, feasible_graphs,
-      reach_trials, mean_pct, median_pct, full_wins
+      n_graphs, n_replicates, budgets, wins, feasible_graphs,
+      reach_graphs, mean_pct, median_pct, best_pct, full_wins
     """
     skipped = []
     loaded = []
@@ -116,55 +99,49 @@ def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
                 reason = f"aco timed out ({limit}s)"
             skipped.append((path, reason))
             continue
-        trials = _trials_at_ants(data, ants)
-        if not trials:
+        ordered = _ordered_counted_at_ants(data, ants)
+        if not ordered:
             skipped.append((path, f"no counted trials at ants={ants}"))
             continue
         heur = (data.get("heuristic") or {}).get("final_edges")
         if heur is None:
             skipped.append((path, "missing heuristic.final_edges"))
             continue
-        loaded.append((trials, int(heur)))
+        loaded.append((ordered, int(heur)))
 
     if not loaded:
         return None, skipped
 
-    max_budget = DEFAULT_MAX_BUDGET
-    for trials, _heur in loaded:
-        max_budget = max(max_budget, _max_budget(trials))
+    max_budget = max(len(ordered) for ordered, _ in loaded)
+    if max_budget < 1:
+        return None, skipped
 
     by_budget_wins = defaultdict(int)
     by_budget_feas = defaultdict(int)
     by_budget_pct = defaultdict(list)
-    reach_trials = defaultdict(int)
-    n_trials = 0
+    reach_graphs = defaultdict(int)
+    n_replicates = 0
     full_wins = 0
 
-    for trials, heur in loaded:
-        # trials = counted replicates on this graph at fixed ants.
-        n_trials += len(trials)
+    for ordered, heur in loaded:
+        n_replicates += len(ordered)
 
-        feas_full = [t for t in trials if t.get("theta_feasible")]
+        feas_full = [t for t in ordered if t.get("theta_feasible")]
         if feas_full:
             best_full = max(int(t["final_edges"]) for t in feas_full)
             if best_full > heur:
                 full_wins += 1
 
-        # CDF: count replicates (not graphs) whose ETB ≤ E.
-        for t in trials:
-            itb = int(t["iterations_to_best"])
-            for budget in range(1, max_budget + 1):
-                if itb <= budget:
-                    reach_trials[budget] += 1
+        rtb = _replicates_to_best(ordered)
+        if rtb is not None:
+            for budget in range(rtb, max_budget + 1):
+                reach_graphs[budget] += 1
 
-        # Win / feas / % increase: one best replicate per graph per E.
         for budget in range(1, max_budget + 1):
-            eligible = [
-                t
-                for t in trials
-                if int(t["iterations_to_best"]) <= budget
-                and t.get("theta_feasible")
-            ]
+            prefix = ordered[:budget]
+            if not prefix:
+                continue
+            eligible = [t for t in prefix if t.get("theta_feasible")]
             if not eligible:
                 continue
             by_budget_feas[budget] += 1
@@ -179,12 +156,12 @@ def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
     budgets = list(range(1, max_budget + 1))
     summary = {
         "n_graphs": len(loaded),
-        "n_trials": n_trials,
+        "n_replicates": n_replicates,
         "ants": ants,
         "budgets": budgets,
         "wins": [by_budget_wins[b] for b in budgets],
         "feasible_graphs": [by_budget_feas[b] for b in budgets],
-        "reach_trials": [reach_trials[b] for b in budgets],
+        "reach_graphs": [reach_graphs[b] for b in budgets],
         "mean_pct": [
             statistics.mean(by_budget_pct[b]) if by_budget_pct[b] else None
             for b in budgets
@@ -193,14 +170,18 @@ def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
             statistics.median(by_budget_pct[b]) if by_budget_pct[b] else None
             for b in budgets
         ],
+        "best_pct": [
+            max(by_budget_pct[b]) if by_budget_pct[b] else None
+            for b in budgets
+        ],
         "full_wins": full_wins,
     }
     return summary, skipped
 
 
-def load_iteration_budget(directory, *, ants=DEFAULT_ANTS):
+def load_replicate_budget(directory, *, ants=DEFAULT_ANTS):
     """Load summary from a vary.jl directory."""
-    return summarize_iteration_budget(list_json_paths(directory), ants=ants)
+    return summarize_replicate_budget(list_json_paths(directory), ants=ants)
 
 
 def _as_pct(count, total):
@@ -222,42 +203,33 @@ def _pct_coords(budgets, values):
 def _caption(summary):
     ants = summary["ants"]
     budgets = summary["budgets"]
-    n_trials = summary["n_trials"]
-    reach_by_budget = dict(zip(budgets, summary["reach_trials"]))
-    # Right-panel CDF: share of counted replicates with ETB ≤ 3.
-    epoch_ref = 3
-    if epoch_ref in reach_by_budget and n_trials:
-        reach_pct = f"{_as_pct(reach_by_budget[epoch_ref], n_trials):.1f}\\%"
-    else:
-        reach_pct = "--"
 
     return (
-        f"Retrospective epoch-budget analysis at {ants} ants "
-        f"($k{{=}}2, \\theta{{=}}5, n_E{{=}}5$). "
-        f"Most of ACO-PN's advantage over the $\\theta$-heuristic requires "
-        f"few epochs. Win rate and $\\theta$-feasibility largely plateau by "
-        f"3 epochs. Median and mean edge increase slightly after 3 epochs, but "
-        f"the majority of increase happens in the first 3 epochs. Indeed, by "
-        f"epoch 3, {reach_pct} of replicates have already found their best "
-        f"solutions."
+        f"Credited replicate budget at {ants} ants "
+        f"($k{{=}}2$, $\\theta{{=}}5$; best among the first $R$ counted "
+        f"replicates, up to $R_{{\\max}}{{=}}{budgets[-1]}$). "
+        f"A single counted replicate already recovers essentially all "
+        f"head-to-head wins; additional seeds mainly improve late "
+        f"replicates-to-best coverage and slight $\\theta$-feasibility "
+        f"gains rather than new wins against the $\\theta$-heuristic."
     )
 
 
-def iteration_budget_figure(summary):
-    """3-panel groupplot: win/feas % | % edge increase (log) | ETB CDF."""
+def replicate_budget_figure(summary):
+    """3-panel groupplot: win/feas % | % edge increase (log) | RTB CDF."""
     if not summary:
         return [
-            r"% iteration-budget: no usable vary.jl trials "
-            r"(need ants, iterations_to_best, heuristic.final_edges)",
+            r"% replicate-budget: no usable vary.jl trials "
+            r"(need counted ants trials with final_edges, "
+            r"heuristic.final_edges)",
         ]
 
     budgets = summary["budgets"]
     n_graphs = summary["n_graphs"]
-    n_trials = summary["n_trials"]
     win_pct = [_as_pct(w, n_graphs) for w in summary["wins"]]
     feas_pct = [_as_pct(f, n_graphs) for f in summary["feasible_graphs"]]
     reach_pct = [
-        _as_pct(r, n_trials) for r in summary["reach_trials"]
+        _as_pct(r, n_graphs) for r in summary["reach_graphs"]
     ]
 
     win_coords = " ".join(
@@ -268,17 +240,18 @@ def iteration_budget_figure(summary):
     )
     mean_coords = _pct_coords(budgets, summary["mean_pct"])
     median_coords = _pct_coords(budgets, summary["median_pct"])
+    best_coords = _pct_coords(budgets, summary["best_pct"])
     cdf_coords = " ".join(
         f"({b},{p:.4f})" for b, p in zip(budgets, reach_pct)
     )
     xtick = "{" + ",".join(str(b) for b in budgets) + "}"
 
-    # Log-safe floor slightly below the smallest plotted aggregate.
     pct_vals = [
         v
         for v in (
             list(summary["mean_pct"])
             + list(summary["median_pct"])
+            + list(summary["best_pct"])
         )
         if v is not None and v > 0
     ]
@@ -286,21 +259,17 @@ def iteration_budget_figure(summary):
     ymax_log = max(pct_vals) * 1.5 if pct_vals else 100.0
 
     lines = [
-        # [H] keeps the figure in §4.6; htbp can defer it past §5.
         r"\begin{figure}[H]",
         r"  \centering",
         r"  \begin{tikzpicture}",
         r"  \begin{groupplot}[",
         r"    group style={",
         r"      group size=3 by 1,",
-        # Extra sep so long y-labels do not collide with the next panel.
         r"      horizontal sep=56pt},",
         r"    width=0.28\textwidth,",
         r"    height=0.40\textwidth,",
         r"    grid=major,",
-        # E is a retrospective credit threshold on full-budget replicates,
-        # not a separately measured shorter-budget experiment.
-        r"    xlabel={Credited epoch budget $E$},",
+        r"    xlabel={Credited replicate budget $R$},",
         r"    ylabel style={font=\small},",
         rf"    xtick={xtick},",
         r"    xmin=0.5,",
@@ -350,14 +319,20 @@ def iteration_budget_figure(summary):
             rf"teal!70!black] coordinates {{{median_coords}}};"
         )
         lines.append(r"  \addlegendentry{median}")
-    if not mean_coords and not median_coords:
+    if best_coords:
+        lines.append(
+            rf"  \addplot[thick, densely dotted, mark=diamond*, "
+            rf"violet!75!black] coordinates {{{best_coords}}};"
+        )
+        lines.append(r"  \addlegendentry{best}")
+    if not mean_coords and not median_coords and not best_coords:
         lines.append(
             r"  % no positive percent-increase aggregates to plot"
         )
     lines += [
         r"\nextgroupplot[",
-        r"    ylabel={Replicates at eventual best (\%)},",
-        r"    title={CDF of epochs-to-best},",
+        r"    ylabel={Graphs at eventual best (\%)},",
+        r"    title={CDF of replicates-to-best},",
         r"    title style={font=\small},",
         r"    ymin=0,",
         r"    ymax=105,",
@@ -366,7 +341,7 @@ def iteration_budget_figure(summary):
         r"  \end{groupplot}",
         r"  \end{tikzpicture}",
         rf"  \caption{{{_caption(summary)}}}",
-        r"  \label{fig:iteration-budget}",
+        r"  \label{fig:replicate-budget}",
         r"\end{figure}",
     ]
     return lines
@@ -374,23 +349,23 @@ def iteration_budget_figure(summary):
 
 def build_from_paths(json_paths, *, ants=DEFAULT_ANTS):
     """Return (latex_lines, skipped) for compare-mode wiring."""
-    summary, skipped = summarize_iteration_budget(json_paths, ants=ants)
+    summary, skipped = summarize_replicate_budget(json_paths, ants=ants)
     if summary is None:
         print(
-            "Warning: iteration-budget: no usable graphs "
+            "Warning: replicate-budget: no usable graphs "
             f"(ants={ants}).",
             file=sys.stderr,
         )
-        return iteration_budget_figure(None), skipped
+        return replicate_budget_figure(None), skipped
     print(
-        f"# iteration-budget: {summary['n_graphs']} graph(s), "
-        f"{summary['n_trials']} replicate(s), ants={ants}; "
-        f"wins@E={dict(zip(summary['budgets'], summary['wins']))}",
+        f"# replicate-budget: {summary['n_graphs']} graph(s), "
+        f"{summary['n_replicates']} counted replicate(s), ants={ants}; "
+        f"wins@R={dict(zip(summary['budgets'], summary['wins']))}",
         file=sys.stderr,
     )
-    return iteration_budget_figure(summary), skipped
+    return replicate_budget_figure(summary), skipped
 
 
 BUILDERS = {
-    "iteration-budget": iteration_budget_figure,
+    "replicate-budget": replicate_budget_figure,
 }

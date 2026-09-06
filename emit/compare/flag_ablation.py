@@ -5,10 +5,8 @@ Plot group
 ----------
   flag-ablation
     2-panel groupplot (quality | discovery time) across ACO, ACO-P,
-    ACO-N, and ACO-PN at a fixed ant count. The quality panel shows that
-    neither flag sacrifices $|E(D^*)|$; the time panel shows that either
-    flag alone reduces discovery time and ACO-PN is fastest. Requires
-    --flag-dir for each variant (see build.json flag_dirs).
+    ACO-N, and ACO-PN at a fixed ant count. Requires --flag-dir for each
+    variant (see build.json flag_dirs).
 """
 
 from __future__ import annotations
@@ -16,7 +14,7 @@ from __future__ import annotations
 import math
 import os
 
-from ..common import list_json_paths, load_json
+from ..common import list_json_paths, load_json, aco_timed_out
 from ..table import summarize_file
 
 FLAG_VARIANTS = ("ACO", "ACO-P", "ACO-N", "ACO-PN")
@@ -56,16 +54,6 @@ def _five_number_summary(values):
     }
 
 
-def _median(values):
-    vals = sorted(float(v) for v in values if v is not None)
-    if not vals:
-        return None
-    mid = len(vals) // 2
-    if len(vals) % 2:
-        return vals[mid]
-    return (vals[mid - 1] + vals[mid]) / 2.0
-
-
 def _dataset_key(path, data):
     return data.get("dataset") or os.path.splitext(os.path.basename(path))[0]
 
@@ -93,6 +81,13 @@ def load_flag_ablation_matched(flag_dirs, *, ants=100):
             data = load_json(path)
             if data is None:
                 skipped.append((path, "unreadable"))
+                continue
+            if aco_timed_out(data):
+                limit = data.get("aco_timeout_s")
+                reason = "aco timed out"
+                if limit is not None:
+                    reason = f"aco timed out ({limit}s)"
+                skipped.append((path, reason))
                 continue
             row = summarize_file(data, ants=ants)
             if row is None:
@@ -152,58 +147,13 @@ def _pgf_xticklabels(labels):
 
 def _flag_ablation_caption(matched):
     n = len(matched)
-    med_edges = {
-        label: _median([g[label]["aco_edges"] for g in matched])
-        for label in FLAG_VARIANTS
-    }
-    med_times = {
-        label: _median([g[label]["aco_time"] for g in matched])
-        for label in FLAG_VARIANTS
-    }
-
-    quality_note = ""
-    if all(med_edges[label] is not None for label in FLAG_VARIANTS):
-        quality_note = (
-            rf"median $|E(D^*)|$ is "
-            rf"{med_edges['ACO']:.0f} (ACO), "
-            rf"{med_edges['ACO-P']:.0f} (ACO-P), "
-            rf"{med_edges['ACO-N']:.0f} (ACO-N), and "
-            rf"{med_edges['ACO-PN']:.0f} (ACO-PN)"
-        )
-
-    time_note = ""
-    med_time_aco = med_times["ACO"]
-    med_time_pn = med_times["ACO-PN"]
-    if (
-        all(med_times[label] is not None for label in FLAG_VARIANTS)
-        and med_time_pn > 0
-    ):
-        ratio = med_time_aco / med_time_pn
-        time_note = (
-            rf"median discovery time falls from {med_time_aco:.3g}\,s "
-            rf"(ACO) to {med_times['ACO-P']:.3g}\,s (ACO-P), "
-            rf"{med_times['ACO-N']:.3g}\,s (ACO-N), and "
-            rf"{med_time_pn:.3g}\,s (ACO-PN), an "
-            rf"${ratio:.1f}\times$ reduction from ACO to ACO-PN"
-        )
-
-    quality_clause = (
-        rf"neither P nor N sacrifices solution quality"
-        + (rf" ({quality_note})" if quality_note else "")
+    return (
+        rf"Flag ablation at 100 ants on {n} matched graphs. "
+        rf"Solution quality $|E(D^*)|$ is comparable across ACO, ACO-P, "
+        rf"ACO-N, and ACO-PN (left; grouped by neighbor-scope N), while "
+        rf"either flag alone cuts discovery time and ACO-PN is fastest "
+        rf"(right; grouped by prefer-smaller-side P)."
     )
-    time_clause = (
-        rf"either flag alone reduces discovery time, and ACO-PN is "
-        rf"fastest of the four"
-        + (rf" ({time_note})" if time_note else "")
-    )
-
-    body = (
-        rf"Flag ablation at 100 ants on {n} benchmark graphs matched across "
-        rf"all four variants. Left: $|E(D^*)|$ grouped by neighbor-scope "
-        rf"limit (N); {quality_clause}. Right: discovery time (log scale) "
-        rf"grouped by prefer-smaller-side (P); {time_clause}."
-    )
-    return body
 
 
 def flag_ablation_figure(matched):
@@ -215,7 +165,8 @@ def flag_ablation_figure(matched):
 
     quality_xticks = list(FLAG_QUALITY_ORDER)
     time_xticks = list(FLAG_TIME_ORDER)
-    width = 0.46
+    # Slightly narrower panels leave room for larger horizontal sep.
+    width = 0.44
     height = 0.44
 
     lines = [
@@ -223,7 +174,7 @@ def flag_ablation_figure(matched):
         r"  \centering",
         r"  \begin{tikzpicture}",
         r"  \begin{groupplot}[",
-        r"    group style={group size=2 by 1, horizontal sep=28pt},",
+        r"    group style={group size=2 by 1, horizontal sep=52pt},",
         rf"    width={width:.2f}\textwidth,",
         rf"    height={height:.2f}\textwidth,",
         r"    grid=major,",

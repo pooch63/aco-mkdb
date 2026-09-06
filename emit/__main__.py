@@ -6,7 +6,7 @@ Modes
 -----
   quality
       Vary.jl ant-count format → 2-column groupplot:
-        Top row: Cui θ-heuristic deviation | θ-feasibility rate
+        Top row: θ-heuristic deviation | θ-feasibility rate
         Bottom row: mean wall-clock time (optimum-quality panel if present)
 
   seed-compare
@@ -29,21 +29,30 @@ Modes
   compare
       Vary.jl ant-count JSON → complexity figures (ACO-PN).
       Plot groups (pass comma-separated via --plots):
-        theta-time, deg-size-time, density-size, max-deg-time,
-        flag-ablation, iteration-budget, k-sweep, theta-sweep, param-runtime
+        theta-time, deg-size-time, density-size,
+        max-deg-time, flag-ablation, iteration-budget, replicate-budget,
+        k-sweep, theta-sweep, density-wins, param-density, param-runtime
       Pass a single results directory, e.g. vary_k2t5i_PN.
-      k-sweep / theta-sweep / param-runtime use --param-dir=LABEL=DIR
-      (see build.json).
-      iteration-budget uses recorded iterations_to_best on counted
-      (non-JIT) replicates.
+      k-sweep / theta-sweep / density-wins / param-density / param-runtime use
+      --param-dir=LABEL=DIR (see build.json).
+      iteration-budget retrospectively truncates full-budget
+      replicates by recorded iterations_to_best (ETB) on counted
+      (non-JIT) replicates; replicate-budget prefixes the ordered
+      counted (non-JIT) replicate sequence by budget R.
 
   statistics
       Vary.jl ant-count JSON → inline LaTeX for %%STATISTICS:field%%
       placeholders (win/loss counts, cross-run variance, Wilcoxon test,
-      construction missing-at-size means). Fields: aco-wins, heur-wins,
-      ties, n-graphs, variance, wilcoxon, aco-missing-at-5, aco-n-missing-at-5
+      θ-feasibility rates, construction missing-at-size means, pivot
+      coverage among ACO wins). Fields include:
+      aco-wins, heur-wins, ties, n-graphs, aco-nonwins, variance,
+      wilcoxon, aco-theta-feasibility-rate,
+      theta-heuristic-feasibility-rate, aco-missing-at-5,
+      aco-n-missing-at-5, pivot-tested-wins, pivot-excluded-wins,
+      pivot-*-mean-nR, pivot-*-mean-eR
 
-      missing-at-5 fields read pre-recorded JSON only (no Julia at build time).
+      missing-at-5 fields read pre-recorded JSON only (no Julia at build
+      time). Pivot-coverage fields also need --compare-dir.
 
 Usage:
     python -m emit quality /path/to/json/dir -o plot.tex
@@ -111,8 +120,10 @@ def main(argv=None):
         "--plots",
         default=None,
         help="compare mode: comma-separated plot groups "
-             "(theta-time, deg-size-time, density-size, max-deg-time, "
-             "flag-ablation, iteration-budget, k-sweep, theta-sweep, "
+             "(theta-time, deg-size-time, density-size, "
+             "max-deg-time, "
+             "flag-ablation, iteration-budget, replicate-budget, "
+             "k-sweep, theta-sweep, density-wins, param-density, "
              "param-runtime)",
     )
     parser.add_argument(
@@ -128,21 +139,31 @@ def main(argv=None):
         action="append",
         metavar="LABEL=DIR",
         default=None,
-        help="compare k-sweep / theta-sweep: (k, θ) suite directory "
-             "(repeat; labels are free-form, k/θ read from JSON)",
+        help="compare k-sweep / theta-sweep / density-wins / param-density / "
+             "param-runtime: (k, θ) suite directory (repeat; labels are "
+             "free-form, k/θ read from JSON)",
     )
     parser.add_argument(
         "--field",
         default=None,
         help="statistics mode: output field "
-             "(aco-wins, heur-wins, ties, n-graphs, variance, wilcoxon, "
-             "missing-at-5, aco-missing-at-5, aco-n-missing-at-5)",
+             "(aco-wins, heur-wins, ties, n-graphs, aco-nonwins, variance, "
+             "wilcoxon, aco-theta-feasibility-rate, "
+             "theta-heuristic-feasibility-rate, missing-at-5, "
+             "aco-missing-at-5, aco-n-missing-at-5, pivot-tested-wins, "
+             "pivot-excluded-wins, pivot-*-mean-nR, pivot-*-mean-eR)",
     )
     parser.add_argument(
         "--vary-base",
         default=None,
         help="statistics mode: vary folder prefix for ACO flag directories "
              "(e.g. ../results/vary_k2t5i_)",
+    )
+    parser.add_argument(
+        "--compare-dir",
+        default=None,
+        help="statistics mode: compare-seeds JSON directory for "
+             "pivot-tested / pivot-excluded win coverage fields",
     )
 
     args = parser.parse_args(argv)
@@ -205,6 +226,8 @@ def main(argv=None):
                 "flag-ablation",
                 "k-sweep",
                 "theta-sweep",
+                "density-wins",
+                "param-density",
                 "param-runtime",
             )
             for p in plot_names
@@ -232,6 +255,7 @@ def main(argv=None):
             ants=args.ants,
             field=args.field,
             vary_base=args.vary_base,
+            compare_dir=args.compare_dir,
         )
 
     else:

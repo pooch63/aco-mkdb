@@ -28,7 +28,8 @@ Both modes time full pivot runs (default progressive / all_reductions) on a
 fresh copy of the loaded graph each time — same path as a normal load.jl pivot,
 so progressive reduction stays interleaved with branching. Before timing, the
 worker runs a discarded ACO-seeded pivot on the real graph so both timed runs
-see a warm process (tiny-graph warmup alone is not enough). Timed order:
+see a warm process. θ-only always passes an empty `SubGraph()` (never
+`nothing`) so it shares that same `find_kmdb!` specialization. Timed order:
 (a) θ-heuristic + ACO seed, (b) θ-heuristic only.
 
 Each timed pivot runs in a worker process with a hard timeout (default 2000s;
@@ -435,36 +436,19 @@ function setup_compare_worker!(p::Integer)
             return nothing
         end
 
-        # TEMP: diagnose whether ACO-seed vs θ-only hit different specializations.
-        function worker_code_warntype_pivot(g, k::Int, θ::Int, reduction_sym::Symbol,
-            use_heuristic::Bool, seed_U, seed_V)
-            reduction = worker_reduction_from_sym(reduction_sym)
-            initial_seed = if seed_U === nothing
-                nothing
-            else
-                SubGraph(Set{Int}(Int(v) for v in seed_U), Set{Int}(Int(v) for v in seed_V))
-            end
-            g_run = deepcopy(g)
-            label = seed_U === nothing ? "θ-only / no seed" : "ACO seed"
-            println("="^60)
-            println("pivot call types ($label)")
-            println("  typeof(g_run)        = $(typeof(g_run))")
-            println("  typeof(initial_seed) = $(typeof(initial_seed))")
-            println("  typeof(reduction)    = $(typeof(reduction))")
-            println("  typeof(use_heuristic)= $(typeof(use_heuristic))")
-            println("  BranchMode.pivot     = $(BranchMode.pivot)::$(typeof(BranchMode.pivot))")
-            println("="^60)
-            return nothing
-        end
+        """
+        Timed pivot on a fresh deepcopy of `g`. Returns lightweight fields only
+        (no SubGraph) so remotecall does not ship large solution sets back.
 
+        Always builds a SubGraph from seed_U/seed_V (empty vectors → empty
+        seed) so θ-only and ACO-seeded calls share one compiled method.
+        """
         function worker_time_pivot_seeded(g, k::Int, θ::Int, reduction_sym::Symbol,
             use_heuristic::Bool, seed_U, seed_V)
             reduction = worker_reduction_from_sym(reduction_sym)
-            initial_seed = if seed_U === nothing
-                nothing
-            else
-                SubGraph(Set{Int}(Int(v) for v in seed_U), Set{Int}(Int(v) for v in seed_V))
-            end
+            initial_seed = SubGraph(
+                Set{Int}(Int(v) for v in seed_U),
+                Set{Int}(Int(v) for v in seed_V))
             g_run = deepcopy(g)
             m = measure_call() do
                 find_kmdb!(g_run, use_heuristic, BranchMode.pivot, k, θ, reduction;
@@ -559,8 +543,10 @@ end
 # Untyped signatures so this file parses before load.jl defines BipartiteGraph / SubGraph.
 function time_pivot_seeded!(g, k::Int, θ::Int, reduction;
     use_heuristic::Bool, initial_seed, timeout_seconds::Real=DEFAULT_PIVOT_TIMEOUT_SECONDS)
-    seed_U = initial_seed === nothing ? nothing : collect(Int, initial_seed.U)
-    seed_V = initial_seed === nothing ? nothing : collect(Int, initial_seed.V)
+    # Always ship Int vectors (possibly empty) so the worker always builds a
+    # SubGraph — never Nothing — matching the ACO-seeded specialization.
+    seed_U = collect(Int, initial_seed.U)
+    seed_V = collect(Int, initial_seed.V)
     reduction_sym = reduction_to_sym(reduction)
     try
         r = with_process_timeout(timeout_seconds, :worker_time_pivot_seeded,
@@ -611,28 +597,16 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
     println("ACO seed: |U|=$(length(aco_seed.U)) |V|=$(length(aco_seed.V))  " *
             "U=$(sorted_str(aco_seed.U)) V=$(sorted_str(aco_seed.V))")
 
-    # Tiny synthetic graph first (cheap method coverage), then a discarded
-    # ACO-seeded pivot on the real instance so timed runs exclude Julia JIT.
-    # Killing the worker on timeout destroys that JIT — if the warmup times
-    # out, treat the timed ACO run as timed out too (same work) and only
-    # time θ after a fresh tiny warmup on the respawned worker.
+    # Tiny synthetic graph first, then a discarded ACO-seeded pivot on the real
+    # instance so timed runs exclude Julia JIT. θ-only uses SubGraph() (empty),
+    # never nothing, so it shares the ACO-seeded specialization. If the warmup
+    # times out, treat timed ACO as timed out too and only time θ after a fresh
+    # tiny warmup on the respawned worker.
     println()
     println("Warming up (tiny graph on worker, excluded from timings)…")
     ensure_compare_worker!()
     with_process_timeout(min(timeout_seconds, 120.0), :worker_warmup,
         k, θ, reduction_to_sym(reduction))
-
-    # TEMP: type probe on both seed paths (remove after diagnosing).
-    println()
-    println("TEMP: type probe on real-graph pivot (ACO seed)…")
-    seed_U = collect(Int, aco_seed.U)
-    seed_V = collect(Int, aco_seed.V)
-    with_process_timeout(min(timeout_seconds, 120.0), :worker_code_warntype_pivot,
-        g, k, θ, reduction_to_sym(reduction), true, seed_U, seed_V)
-    println()
-    println("TEMP: type probe on real-graph pivot (θ-only / no seed)…")
-    with_process_timeout(min(timeout_seconds, 120.0), :worker_code_warntype_pivot,
-        g, k, θ, reduction_to_sym(reduction), true, nothing, nothing)
 
     println()
     println("── Pivot JIT warmup (θ + ACO seed, discarded) ──")
@@ -673,7 +647,7 @@ function run_seed_comparison!(g, k::Int, θ::Int, reduction, aco_seed;
     println()
     println("── Pivot seeded with θ-heuristic only ──")
     theta_run = time_pivot_seeded!(g, k, θ, reduction;
-        use_heuristic=true, initial_seed=nothing, timeout_seconds=timeout_seconds)
+        use_heuristic=true, initial_seed=SubGraph(), timeout_seconds=timeout_seconds)
     if theta_run.timed_out
         println("  timed out after $(format_seconds(timeout_seconds))s")
     else

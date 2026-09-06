@@ -186,20 +186,23 @@ end
 """
 Choose the best initial incumbent among the θ-heuristic (if enabled) and an
 optional external seed (e.g. an ACO subgraph). Higher `solution_score` wins.
+
+Always pass a `SubGraph` — use `SubGraph()` when there is no external seed.
+An empty seed is a no-op for incumbent selection but keeps `find_kmdb!` on a
+single Julia specialization (avoiding a cold `Nothing` vs `SubGraph` compile
+when comparing θ-only vs ACO-seeded pivot).
 """
 function choose_initial_seed(fg::FrozenBipartite, k::Int, θ::Int, use_heuristic::Bool,
-    initial_seed::Union{Nothing,SubGraph})
+    initial_seed::SubGraph)
     candidates = SubGraph[]
     if use_heuristic
         push!(candidates, theta_based_heuristic(fg, k, θ; return_invalid=false))
     end
-    if initial_seed !== nothing
-        filtered = filter_seed_to_graph(fg, initial_seed)
-        if Subgraph.vertex_count(filtered) > 0
-            push!(candidates, filtered)
-        end
+    filtered = filter_seed_to_graph(fg, initial_seed)
+    if Subgraph.vertex_count(filtered) > 0
+        push!(candidates, filtered)
     end
-    isempty(candidates) && return SubGraph(Set(), Set())
+    isempty(candidates) && return SubGraph()
 
     best = candidates[1]
     best_missing = Subgraph.missing_edges(fg, best)
@@ -220,12 +223,13 @@ end
 # e.g., there are some gaps in node IDs, you'll need to pass the maximum node ID for each side.
 # Returns the top `num_solutions` subgraphs by `solution_score`, best first.
 #
-# `initial_seed`: optional external incumbent (original vertex ids). When
-# `use_heuristic` is also true, the better of θ-heuristic and `initial_seed`
-# seeds the search (useful for measuring ACO→branch-and-bound speedups).
+# `initial_seed`: optional external incumbent (original vertex ids). Empty
+# `SubGraph()` means no external seed — prefer that over `nothing` so θ-only
+# and ACO-seeded calls share one compiled method. When `use_heuristic` is also
+# true, the better of θ-heuristic and `initial_seed` seeds the search.
 function find_kmdb!(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T, k::Int, θ::Int,
     reduction::ReductionMode.T=ReductionMode.all_reductions; num_U::Union{Int, Nothing}=nothing, num_V::Union{Int, Nothing}=nothing,
-    num_solutions::Int=1, initial_seed::Union{Nothing,SubGraph}=nothing)
+    num_solutions::Int=1, initial_seed::SubGraph=SubGraph())
 
     num_solutions >= 1 || throw(ArgumentError("num_solutions must be >= 1, got $num_solutions"))
     @assert θ > k "θ must be greater than k"
@@ -307,7 +311,7 @@ end
 
 function find_kmdb(g::BipartiteGraph, use_heuristic::Bool, mode::BranchMode.T,
     k::Int, θ::Int, reduction::ReductionMode.T=ReductionMode.all_reductions; num_solutions::Int=1,
-    initial_seed::Union{Nothing,SubGraph}=nothing)
+    initial_seed::SubGraph=SubGraph())
     return find_kmdb!(deepcopy(g), use_heuristic, mode, k, θ, reduction;
         num_solutions=num_solutions, initial_seed=initial_seed)
 end

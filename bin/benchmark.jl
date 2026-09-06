@@ -188,7 +188,10 @@ function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_opt
     @assert θ_w > k_w
 
     if :pivot in targets
-        find_kmdb!(deepcopy(g), true, BranchMode.pivot, k_w, θ_w, reduction)
+        # Empty SubGraph() (the find_kmdb! default) — same specialization as
+        # ACO-seeded and θ-only compare-seeds pivots.
+        find_kmdb!(deepcopy(g), true, BranchMode.pivot, k_w, θ_w, reduction;
+            initial_seed=SubGraph())
     end
     if :aco in targets
         aco(deepcopy(g), pheremone, min(num_ants, 2), 1, evaporation, k_w, θ_w, num_subspecies;
