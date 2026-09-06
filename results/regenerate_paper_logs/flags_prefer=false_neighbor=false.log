@@ -1,6 +1,7 @@
 Discovering graphs (ascending by edges)…
 Found 37 graphs
 ACO replicates per ant count: 6 (run 1 = JIT warmup; emit uses the rest)
+ACO timeout: none
 Run pivot for optimum: 0
 Neighbor scope limit: false
 Prefer smaller side: false
@@ -9,6 +10,8 @@ ACO tabu repair: false
 MMAS bounds: false
 DEBUG (post-reduction plant check): true
 Writing vary results under results/vary_k2t5i_100_/
+
+── Pass: single (no ACO timeout) ──
 
 [1/37] konect-small/moreno → results/vary_k2t5i_100_/moreno_ants.json
 Skipping (exists): results/vary_k2t5i_100_/moreno_ants.json
@@ -120,6 +123,7 @@ Skipping (exists): results/vary_k2t5i_100_/fashion_ants.json
 
 [37/37] amazon/instruments → results/vary_k2t5i_100_/instruments_ants.json
 Skipping (exists): results/vary_k2t5i_100_/instruments_ants.json
+Pass single done (skipped=37, timed_out=0)
 
 Done. JSON results under results/vary_k2t5i_100_/
 Skipped existing: 37

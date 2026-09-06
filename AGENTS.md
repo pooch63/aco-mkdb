@@ -76,6 +76,7 @@ results/*.json  →  emit/  →  paper/generated/*.tex  →  build.py  →  buil
 
 1. **Experiments** write JSON under `results/` (see below).
 2. **`python -m emit`** (or `make paper-emit`) reads JSON and writes LaTeX fragments to `paper/generated/`.
+   Fragments rebuild when results JSON **or** the emit Python that produces them is newer (see `paper/build.py`).
 3. **`paper/build.py`** substitutes `%%PLACEHOLDER%%` tokens in `main.tex` with generated fragments → `build.tex` → compiles PDF.
 
 **Commands:**
@@ -96,13 +97,15 @@ python paper/build.py pdf       # only compile
 | `%%SEED_COMPARE%%` | `seed-compare` | Full pivot table (appendix); `:highlights` = representative rows in §4.2 |
 | `%%TABLE:k2t5i_PN%%` | `table` | Per-graph ACO vs. θ comparison (appendix); `:k2t5i_PN:highlights` = §4.3; `:k3t5i_PN` / `:k3t6i_PN` / `:k4t5i_PN` = other $(k,\theta)$ |
 | `%%COMPARE:theta-time%%` | `compare` | θ-heuristic runtime vs. \(\theta n + m\) bound |
-| `%%COMPARE:deg-size-time%%` | `compare` | ACO runtime vs. complexity bounds |
+| `%%COMPARE:deg-size-time%%` | `compare` | ACO discovery time / $n_R^2$ and / ($n_E\cdot n_R+|E_R|$) with $n_E=5$, in a 2-panel figure vs.\ $n_R$ and vs.\ $|E_R|$ |
 | `%%COMPARE:k-sweep%%` | `compare` | Log edge ratio + win rate vs. \(k\) at fixed \(\theta\) (`param_dirs`) |
 | `%%COMPARE:theta-sweep%%` | `compare` | Same vs. \(\theta\) at fixed \(k\) |
 | `%%COMPARE:density-wins%%` | `compare` | Rolling win rate vs. reduced density (pooled across $(k,\theta)$) |
 | `%%COMPARE:param-density%%` | `compare` | Reduced density boxplots vs. \(k\) and vs. \(\theta\) |
-| `%%COMPARE:iteration-budget%%` | `compare` | Epoch budget \(E=1..n_E\): wins vs. θ-heuristic + % edge increase (log) + ETB CDF |
-| `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, θ-feasibility rates, missing-at-size stats |
+| `%%COMPARE:param-runtime%%` | `compare` | ACO/θ discovery-time ratio + absolute ACO discovery vs. \(k\) and \(\theta\) (timeouts noted) |
+| `%%COMPARE:iteration-budget%%` | `compare` | Retrospective epoch credit \(E=1..n_E\) on full-budget replicates (ETB≤E): wins vs. θ-heuristic + % edge increase (log) + ETB CDF over replicates |
+| `%%COMPARE:replicate-budget%%` | `compare` | Credited counted-replicate prefix \(R=1..R_{\max}\) (JIT warmup omitted): wins vs. θ-heuristic + % edge increase (log) + replicates-to-best CDF over graphs |
+| `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, θ-feasibility rates, missing-at-size stats, pivot-tested vs excluded ACO-win size means (`compare_dir`) |
 
 **Important:** `emit/` must **only read pre-recorded JSON** — it must not re-run Julia or re-simulate ACO. The build must tolerate incomplete data (warn, don't crash). See `paper/AGENTS.md` for emit-specific rules.
 
@@ -129,7 +132,9 @@ One file per graph. Top-level metadata plus `trials[]` (one entry per ant-count 
 
 - `ants`, `final_edges`, `theta_feasible`, `beats_heuristic`
 - `run`, `jit_warmup` — when `aco_runs > 1`, run 1 is JIT warmup (`jit_warmup=true`); emit ignores it
-- `wall_time_s`, `time_to_best_s`, `iterations_to_best`
+- `wall_time_s`, `time_to_best_s`, `iterations_to_best` — ETB is the epoch
+  *within this replicate* when `final_edges` first appeared (`run` is the
+  replicate index; each trial always ran the full `iterations_budget`)
 - `U`, `V` — returned subgraph vertex ids (used to re-seed pivot)
 - `construction.missing_at_size` — missing-edge count when subgraph first reaches each size
 

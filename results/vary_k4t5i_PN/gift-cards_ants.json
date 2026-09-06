@@ -1,0 +1,63 @@
+{
+  "aco_status": "timeout",
+  "theta": 5,
+  "aco_timed_out": true,
+  "vary": "ant-count",
+  "prefer_smaller_side": true,
+  "run_pivot": false,
+  "ants_range": [
+    100
+  ],
+  "edge_count": 152431,
+  "trials": [],
+  "aco_tabu": false,
+  "elite_pheromone": false,
+  "graph": {
+    "frozen_bytes": 9096896,
+    "reduced_edges": 151010,
+    "reduced_nV": 1894,
+    "reduced_max_degree": 36508,
+    "edges": 152431,
+    "reduction_time_s": 5.9428,
+    "reduced_avg_degree": 2.2434,
+    "reduced_nU": 132732,
+    "nV": 1894,
+    "mutable_bytes": 43024712,
+    "nU": 132732
+  },
+  "mmas": false,
+  "aco_runs": 6,
+  "k": 4,
+  "aco_timeout_s": 600.0,
+  "base_seed": "1",
+  "dataset": "amazon/gift-cards",
+  "neighbor_scope_limit": true,
+  "heuristic": {
+    "final_edges": 22,
+    "V": [
+      29,
+      66,
+      91,
+      247,
+      252
+    ],
+    "allocated_bytes": 19061552,
+    "rss_delta_bytes": 393216,
+    "wall_time_s": 0.0227,
+    "missing": 3,
+    "matched_optimal": false,
+    "U": [
+      517,
+      567,
+      7722,
+      58830,
+      90994
+    ],
+    "optimal_edges": null,
+    "theta_feasible": true,
+    "nV": 5,
+    "nU": 5
+  },
+  "seed": "1",
+  "reduction": "simple"
+}

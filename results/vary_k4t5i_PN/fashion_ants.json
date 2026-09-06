@@ -1,0 +1,60 @@
+{
+  "aco_status": "timeout",
+  "theta": 5,
+  "aco_timed_out": true,
+  "vary": "ant-count",
+  "prefer_smaller_side": true,
+  "run_pivot": false,
+  "ants_range": [
+    100
+  ],
+  "edge_count": 2500960,
+  "trials": [],
+  "aco_tabu": false,
+  "elite_pheromone": false,
+  "graph": {
+    "frozen_bytes": 193123424,
+    "reduced_edges": 2475715,
+    "reduced_nV": 874297,
+    "reduced_max_degree": 5958,
+    "edges": 2500960,
+    "reduction_time_s": 6.971,
+    "reduced_avg_degree": 1.7016,
+    "reduced_nU": 2035490,
+    "nV": 874297,
+    "mutable_bytes": 876023640,
+    "nU": 2035490
+  },
+  "mmas": false,
+  "aco_runs": 6,
+  "k": 4,
+  "aco_timeout_s": 600.0,
+  "base_seed": "1",
+  "dataset": "amazon/fashion",
+  "neighbor_scope_limit": true,
+  "heuristic": {
+    "final_edges": 7,
+    "V": [
+      894,
+      909
+    ],
+    "allocated_bytes": 431794432,
+    "rss_delta_bytes": 0,
+    "wall_time_s": 1.212,
+    "missing": 3,
+    "matched_optimal": false,
+    "U": [
+      243,
+      870,
+      7093,
+      11320,
+      1441319
+    ],
+    "optimal_edges": null,
+    "theta_feasible": false,
+    "nV": 2,
+    "nU": 5
+  },
+  "seed": "1",
+  "reduction": "simple"
+}
