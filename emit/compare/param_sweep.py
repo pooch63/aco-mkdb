@@ -14,9 +14,10 @@ Plot groups
     typically 3), comparing available θ values.
 
   density-wins
-    Rolling ACO win rate vs reduced edge density
+    Per-observation ACO win/loss vs reduced edge density
     $\\text{den}(G_R) = |E_R|/(|U_R|\\cdot|V_R|)$ (derived from JSON sizes/edges),
-    pooled over all graph$\\times$suite observations across $(k, \\theta)$.
+    pooled over all graph$\\times$suite observations across $(k, \\theta)$,
+    with a sliding-window win-rate curve (window size stated in the caption).
 
   param-density
     Two-panel log-scale boxplots of $\\text{den}(G_R)$: vary $k$ at fixed $\\theta$ |
@@ -332,7 +333,7 @@ def _sweep_figure(
 
     caption = (
         f"{caption_lead} at fixed {fixed_note} on {n} graphs matched across "
-        f"all shown settings (100 ants, ACO-PN). Left: edge ratio "
+        f"all shown settings (100 ants, ACO-N). Left: edge ratio "
         f"$|E_{{\\mathrm{{ACO}}}}|/|E_{{\\theta}}|$ (log scale; dashed "
         f"parity). Right: ACO win rate vs.\\ the $\\theta$-heuristic. "
         f"{takeaway}"
@@ -522,8 +523,8 @@ def density_wins_figure(
     pooled_window=DENSITY_WIN_POOLED_WINDOW,
 ):
     """
-    Rolling ACO win rate vs reduced density, pooled over all $(k, \\theta)$
-    graph×suite observations. No per-graph scatter.
+    Binary ACO win/loss vs reduced density for every graph×suite observation,
+    plus a count-based sliding-window win-rate curve (window size disclosed).
     """
     if not meta or not by_label:
         return [r"% density-wins: no usable param directories"]
@@ -558,16 +559,24 @@ def density_wins_figure(
         )
         return [r"% density-wins: insufficient points for rolling curve"]
 
+    # Binary outcomes at 0/100% so every observation is visible under the curve.
+    scatter_pts = [
+        (float(dens), 100.0 if won else 0.0) for dens, won in pooled_pts
+    ]
+    n_obs = len(pooled_pts)
     caption = (
-        r"ACO-PN win rate against the $\theta$-heuristic (100 ants) "
-        r"versus reduced edge density "
+        r"ACO-N vs.\ the $\theta$-heuristic (100 ants) on every "
+        rf"graph$\times$suite observation ($n={n_obs}$). "
+        r"Marks are binary outcomes (win $=100\%$, else $0\%$). "
+        rf"The curve is a sliding-window win rate over $W={pooled_w}$ "
+        r"consecutive observations sorted by reduced edge density "
         r"$\text{den}(G_R) = |E_R|/(|U_R|\,|V_R|)$ "
-        r"(sliding-window rate over all graph$\times$suite observations; "
-        r"$x$ is the window-median density). "
+        r"($x$ = window-median density). "
         r"Win rate falls as reduced density rises."
     )
 
-    coords = scatter_coords(pooled_roll)
+    scatter_xy = scatter_coords(scatter_pts)
+    curve_xy = scatter_coords(pooled_roll)
     lines = [
         r"\begin{figure}[htbp]",
         r"  \centering",
@@ -577,16 +586,28 @@ def density_wins_figure(
         r"    height=0.48\textwidth,",
         r"    grid=major,",
         r"    xmode=log,",
-        r"    ymin=0,",
-        r"    ymax=105,",
-        r"    xlabel={$\text{den}(G_R)$ (window median)},",
-        r"    ylabel={ACO win rate (\%)},",
+        r"    ymin=-5,",
+        r"    ymax=110,",
+        r"    xlabel={$\text{den}(G_R)$},",
+        r"    ylabel={ACO win (\%)},",
         r"    ylabel style={align=center, font=\small},",
         r"    title={Across all $(k,\theta)$},",
         r"    title style={font=\small},",
+        r"    legend style={",
+        r"      at={(0.02,0.98)},",
+        r"      anchor=north west,",
+        r"      font=\scriptsize,",
+        r"      draw=none,",
+        r"      fill=none,",
+        r"    },",
         r"  ]",
-        rf"  \addplot[very thick, mark=*, mark size=1.2pt, "
-        rf"color=black!75] coordinates {{{coords}}};",
+        rf"  \addplot[only marks, mark=*, mark size=1.05pt, "
+        rf"opacity=0.28, mark options={{opacity=0.28}}, "
+        rf"color=black!55] coordinates {{{scatter_xy}}};",
+        rf"  \addlegendentry{{graph$\times$suite}}",
+        rf"  \addplot[very thick, mark=none, color=blue!70!black] "
+        rf"coordinates {{{curve_xy}}};",
+        rf"  \addlegendentry{{win rate ($W={pooled_w}$)}}",
         r"  \end{axis}",
         r"  \end{tikzpicture}",
         rf"  \caption{{{caption}}}",
@@ -936,7 +957,7 @@ def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None):
         return [r"% param-runtime: no usable k or θ sweep directories"]
 
     caption = (
-        r"ACO-PN discovery cost versus the $\theta$-heuristic (100 ants) "
+        r"ACO-N discovery cost versus the $\theta$-heuristic (100 ants) "
         r"across $(k, \theta)$ suites. Top: ratio "
         r"$T_{\mathrm{ACO}}/T_{\theta}$ (log scale). Bottom: absolute ACO "
         r"discovery time (log scale). Left: vary $k$ at fixed "

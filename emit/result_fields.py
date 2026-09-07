@@ -27,6 +27,8 @@ COMPARE_PLOT_REQUIREMENTS = {
     "max-deg-time": ("reduced_max_degree",),
     # Uses reduced_nU/nV/edges and aco discovery time from summarize_file.
     "deg-size-time": (),
+    "practical-bound-time": (),
+    "naive-bound-time": (),
 }
 
 

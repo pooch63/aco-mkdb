@@ -1,0 +1,150 @@
+Loading graph from: data/konect-small/edit-wowiktionary/indexed_interactions.csv
+Parameters: k=3 θ=7
+Inject: u=7 v=7 k=3 (in-memory; CSV unchanged)
+Mode: benchmark (aco,heuristic)
+ACO: ants=100 iterations=5 pheromone=1 evaporation=0.95 subspecies=1
+Reduction: progressive
+Graph edges: 17778
+Injected biclique: u=7 v=7 k=3 (existing=2 inserted=44 missing=3)
+  planted U: [7, 14, 23, 69, 96, 147, 183]
+  planted V: [263, 1034, 1594, 2523, 2614, 2819, 3118]
+  reserved missing: [(7, 1594), (14, 2819), (96, 1034)]
+nU=193, nV=3646, |E|=17822
+
+==================== BENCHMARK ====================
+targets=aco,heuristic  k=3  θ=7
+reduction=all_reductions  (applied once; solvers use none)
+
+Warming up (excluded from timings)…
+Progressive reductions took 2 iterations (0 new reduces)
+Prefer smaller side: false
+Neighbor scope limit: true
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512 found_at_iter=1 found_at_t=0.0971s
+ACO global best found at iteration 1 (t=0.0971s, score=512)
+Progressive reductions took 2 iterations (0 new reduces)
+
+Reducing graph once (shared across solvers)…
+Progressive reductions took 7 iterations (3 new reduces)
+
+── Graph reduction ──
+  wall_time_s                  0.0216s
+  allocated_bytes              6.01 MiB  (6300368 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  reduced_nU                   27
+  reduced_nV                   1018
+
+── Graph structure ──
+  nU                           193
+  nV                           3646
+  edges                        17822
+  mutable_graph_bytes          1.55 MiB  (1624248 bytes)
+  frozen_after_reduction_bytes 153.17 KiB  (156848 bytes)
+  reduced_nU                   27
+  reduced_nV                   1018
+
+θ-heuristic warmup (excluded from timings)…
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0017s
+  allocated_bytes              485.44 KiB  (497088 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               888.26 MiB  (931409920 bytes)
+  solution                     |U|=7 |V|=121 edges=844 missing=3 (k=3)
+  final_edges                  844
+  optimal_edges                —
+  matched_optimal              false
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0018s
+  allocated_bytes              485.44 KiB  (497088 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               888.26 MiB  (931409920 bytes)
+  solution                     |U|=7 |V|=121 edges=844 missing=3 (k=3)
+  final_edges                  844
+  optimal_edges                —
+  matched_optimal              false
+
+ACO warmup on reduced graph (excluded from timings)…
+
+Running ACO (ants=100 iterations=5 pheromone=1 evaporation=0.95 subspecies=1 prefer_smaller_side=false neighbor_scope_limit=true elite_seed=true elite_pheromone=false aco_tabu=false mmas=false)…
+Prefer smaller side: false
+Neighbor scope limit: true
+Size of reduced graphs27 1018
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=7 |V|=121 score=5929 found_at_iter=2 found_at_t=0.4602s
+ACO global best found at iteration 2 (t=0.4602s, score=5929)
+
+── ACO ──
+  wall_time_s                  0.8179s
+  time_to_best_s               0.4602s
+  allocated_bytes              307.72 MiB  (322669832 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               888.26 MiB  (931409920 bytes)
+  ants                         100
+  iterations_budget            5
+  iterations_to_best           2
+  iterations_to_optimal        —
+  best_source                  ACO search (iteration 2)
+  matched_optimal_note         no pivot optimum provided
+  solution                     |U|=7 |V|=121 edges=844 missing=3 (k=3)
+  final_edges                  844
+  optimal_edges                —
+  matched_optimal              false
+
+  ACO final solution found at iteration 2 (0.4602s; budget 5, total wall 0.8179s).
+
+Running ACO (ants=100 iterations=5 pheromone=1 evaporation=0.95 subspecies=1 prefer_smaller_side=false neighbor_scope_limit=true elite_seed=true elite_pheromone=false aco_tabu=false mmas=false)…
+Prefer smaller side: false
+Neighbor scope limit: true
+Size of reduced graphs27 1018
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=7 |V|=121 score=5929 found_at_iter=2 found_at_t=0.4213s
+ACO global best found at iteration 2 (t=0.4214s, score=5929)
+
+── ACO ──
+  wall_time_s                  0.7750s
+  time_to_best_s               0.4213s
+  allocated_bytes              311.2 MiB  (326316376 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               888.26 MiB  (931409920 bytes)
+  ants                         100
+  iterations_budget            5
+  iterations_to_best           2
+  iterations_to_optimal        —
+  best_source                  ACO search (iteration 2)
+  matched_optimal_note         no pivot optimum provided
+  solution                     |U|=7 |V|=121 edges=844 missing=3 (k=3)
+  final_edges                  844
+  optimal_edges                —
+  matched_optimal              false
+
+  ACO final solution found at iteration 2 (0.4213s; budget 5, total wall 0.7750s).
+
+==================== SUMMARY ======================
+  reduction time       : 0.0216s
+  graph mutable memory : 1.55 MiB
+  graph frozen memory  : 153.17 KiB
+  heuristic time       : 0.0018s
+  heuristic allocated  : 485.44 KiB
+  heuristic RSS Δ      : 0.0 B
+  heuristic edges      : 844
+  ACO time             : 0.7750s
+  ACO time → best      : 0.4213s
+  ACO allocated        : 311.2 MiB
+  ACO RSS Δ           : 0.0 B
+  ACO ants             : 100
+  ACO iters → best     : 2
+  ACO iters → optimal  : not found
+  ACO final edges      : 844
+===================================================
+Random seed: --seed=1
+a = 2403489352

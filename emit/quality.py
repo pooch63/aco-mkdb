@@ -2,17 +2,20 @@
 quality mode — vary.jl ant-count format → groupplot:
 
   Top row (side by side):
-  - % deviation from θ-heuristic (feasible trials): Q1 / median / Q3
-  - % theta-feasible trials: Q1 / median / Q3
+  - % deviation from θ-heuristic (all graphs; θ-infeasible → −100%):
+    Q1 / median / Q3
+  - % theta-feasible graphs: Q1 / median / Q3
 
   Bottom row:
   - wall-clock time vs ant count: Q1 / median / Q3
 
   Optional: % deviation from optimum is included when present
   (placed before the heuristic panel), also as IQR summary lines.
+  Optimum panel still uses θ-feasible trials only.
 
-  Each panel aggregates across graphs (one mean-per-graph point at each
-  ant count) into lower quartile, median, and upper quartile.
+  Each panel is per-graph: one value per graph at each ant count
+  (mean over that graph's counted replicates), then Q1 / median / Q3
+  across graphs. Not a pool of individual replicate trials.
 """
 
 from __future__ import annotations
@@ -76,15 +79,17 @@ def summarize_file(data):
 
     pct_by_ants: {ants: mean % deviation from optimum}, feasible trials only.
 
-    heur_pct_by_ants: {ants: mean % deviation from θ-heuristic}, feasible
-                      trials only. Empty when the file has no heuristic block.
+    heur_pct_by_ants: {ants: mean % deviation from θ-heuristic}. θ-feasible
+                      counted replicates use the usual relative edge change;
+                      θ-infeasible ones contribute −100%. Empty when the
+                      file has no heuristic block. One value per graph.
 
-    feasible_pct_by_ants: {ants: % of trials at that ant count that were
-                           theta_feasible == True}, over trials that had
-                           either a usable optimum or a heuristic baseline.
+    feasible_pct_by_ants: {ants: % of this graph's counted replicates that
+                           were theta_feasible == True}. One value per
+                           graph (0 or 100 when a single replicate is kept).
 
-    time_by_ants: {ants: mean wall_time_s}, over trials with usable quality
-                  baselines.
+    time_by_ants: {ants: mean wall_time_s}, over counted replicates with
+                  usable quality baselines. One value per graph.
 
     When aco_runs > 1, run 1 at each ant count is omitted from every panel
     (Julia JIT on the first measured replicate).
@@ -109,21 +114,26 @@ def summarize_file(data):
             continue
 
         pct = pct_deviation(final, optimal)
-        heur_pct = pct_deviation(final, heur_edges)
+        feasible = bool(t.get("theta_feasible"))
+        if heur_edges is None:
+            heur_pct = None
+        elif not feasible:
+            # Keep infeasible runs in the θ-heuristic panel as a full miss.
+            heur_pct = -100.0
+        else:
+            heur_pct = pct_deviation(final, heur_edges)
 
         # Need a non-zero baseline against which we can compute a % deviation.
         if pct is None and heur_pct is None:
             continue
 
         any_usable = True
-
-        feasible = bool(t.get("theta_feasible"))
         feasible_flags[ants].append(feasible)
 
         if feasible and pct is not None:
             pct_vals[ants].append(pct)
 
-        if feasible and heur_pct is not None:
+        if heur_pct is not None:
             heur_pct_vals[ants].append(heur_pct)
 
         wall_time = t.get("wall_time_s")
@@ -250,7 +260,7 @@ def build_combined_latex(
       - Run time (IQR across graphs)
 
       Optional optimum-quality panel is included when present and shares
-      the bottom row with runtime.
+      the bottom row with runtime. All panels use one value per graph.
     """
 
     ordered_names = [name for name, _ in IQR_SERIES]
@@ -288,7 +298,7 @@ def build_combined_latex(
                 "lookup": feasible_lookup,
                 "opts": [
                     r"    xlabel={Number of ants},",
-                    r"    ylabel={Feasible trials (\%)},",
+                    r"    ylabel={Feasible graphs (\%)},",
                     r"    ylabel style={align=center, font=\small},",
                     r"    title={$\theta$-feasibility rate},",
                     r"    title style={font=\small},",
@@ -307,7 +317,7 @@ def build_combined_latex(
                     r"    xlabel={Number of ants},",
                     r"    ylabel={Dev. from optimum (\%)},",
                     r"    ylabel style={align=center, font=\small},",
-                    r"    title={Solution quality (feasible trials only)},",
+                    r"    title={Solution quality (feasible graphs only)},",
                     r"    title style={font=\small},",
                 ],
                 "legend": False,
@@ -320,7 +330,7 @@ def build_combined_latex(
                 "lookup": time_lookup,
                 "opts": [
                     r"    xlabel={Number of ants},",
-                    r"    ylabel={Mean WCT (s)},",
+                    r"    ylabel={WCT (s)},",
                     r"    ylabel style={align=center, font=\small},",
                     r"    title={Run time},",
                     r"    title style={font=\small},",
@@ -378,13 +388,14 @@ def build_combined_latex(
     lines += [
         r"\end{groupplot}",
         r"\end{tikzpicture}",
-        r"  \caption{ACO-PN solution quality vs.\ the $\theta$-heuristic, "
+        r"  \caption{ACO-N solution quality vs.\ the $\theta$-heuristic, "
         r"$\theta$-feasibility rate, and wall-clock time vs.\ ant count. "
         r"Each panel shows the cross-graph first quartile, median, and "
-        r"third quartile (per-graph means over counted replicates; JIT "
-        r"warmup omitted). Quality and feasibility generally rise with "
-        r"colony size but often plateau before the largest $n_S$; runtime "
-        r"scales roughly linearly.}",
+        r"third quartile of per-graph values (not pooled replicate "
+        r"trials; JIT warmup omitted). $\theta$-infeasible outcomes count "
+        r"as $-100\%$ deviation from the $\theta$-heuristic. Quality and "
+        r"feasibility generally rise with colony size but often plateau "
+        r"before the largest $n_S$; runtime scales roughly linearly.}",
         r"  \label{fig:quality-groupplot}",
         r"\end{figure}",
     ]

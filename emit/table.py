@@ -119,6 +119,10 @@ def summarize_file(data, ants=None):
         "aco_nV": None if best is None else best.get("nV"),
         "aco_edges": None if best is None else best.get("final_edges"),
         "aco_time": discovery,
+        "aco_ants": None if best is None else best.get("ants"),
+        "aco_iterations_budget": (
+            None if best is None else best.get("iterations_budget")
+        ),
         "aco_itb": None if best is None else best.get("iterations_to_best"),
         "aco_ttb": None if best is None else best.get("time_to_best_s"),
         "heur_nU": heuristic.get("nU"),
@@ -249,7 +253,7 @@ def tabular_header_lines():
         r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
         r"    \toprule",
         r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
-        r" & \multicolumn{6}{c}{ACO-PN} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
+        r" & \multicolumn{6}{c}{ACO-N} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
         r"    \cmidrule(lr){8-13} \cmidrule(lr){14-17}",
         r"    & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ETB & TimTB"
         r" & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\",
@@ -347,8 +351,8 @@ def build_table(named_rows, subset=SUBSET_FULL):
             raise ValueError("No highlight rows to emit for ACO vs θ table")
         return build_table_tex(
             (
-                rf"Representative ACO-PN vs.\ $\theta$-heuristic comparisons "
-                rf"({kt}). Top: largest relative $|E(D^*)|$ gains for ACO-PN. "
+                rf"Representative ACO-N vs.\ $\theta$-heuristic comparisons "
+                rf"({kt}). Top: largest relative $|E(D^*)|$ gains for ACO-N. "
                 rf"Bottom: closest $\theta$-heuristic wins (smallest edge "
                 rf"deficits). Full results are in Table~\ref{{{full_label}}}."
             ),

@@ -26,7 +26,7 @@ is a conservative lower bound.
 Plot group
 ----------
   iteration-budget
-    3-panel groupplot at fixed ant count (default 100) for ACO-PN:
+    3-panel groupplot at fixed ant count (default 100) for ACO-N:
       Left: percentage of **graphs** where ACO beats the θ-heuristic,
             and percentage that admit a θ-feasible ACO solution, as a
             function of credited epoch budget E ∈ {1…n_E}.
@@ -34,13 +34,12 @@ Plot group
       Middle: mean and median percent edge increase of ACO over the
             θ-heuristic among θ-feasible **graphs**, log-scaled
             y-axis, as E grows (same per-graph best).
-      Right: CDF of epochs-to-best over **replicates** (counted
-            non-JIT trials): for each E, the percentage of replicates
-            whose eventual best was already reached by epoch E.
-            This panel can rise while the middle panel stays flat:
-            late-ETB replicates on a graph do not change that graph's
-            contribution once an earlier replicate already matched
-            the same (or better) edges.
+      Right: CDF of epochs-to-best over **graphs**: for each graph,
+            take the counted replicate(s) with that graph's best
+            final_edges, then the earliest ETB among those ties; for
+            each E, the percentage of graphs whose epochs-to-best is
+            ≤ E (i.e. the eventual best-of-replicates edge count was
+            already achieved by epoch E).
 
 Methodology
 -----------
@@ -88,18 +87,30 @@ def _max_budget(trials, default=DEFAULT_MAX_BUDGET):
     return max(default, max(itbs) if itbs else default)
 
 
+def _epochs_to_best(trials):
+    """
+    Per-graph epochs-to-best: earliest ETB among replicates that match
+    the graph's best final_edges (conservative / fastest claim on ties).
+    """
+    if not trials:
+        return None
+    best_edges = max(int(t["final_edges"]) for t in trials)
+    return min(
+        int(t["iterations_to_best"])
+        for t in trials
+        if int(t["final_edges"]) == best_edges
+    )
+
+
 def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
     """
     Aggregate per-budget win / feasibility / ETB-CDF stats.
 
-    Units (do not mix these up):
-      - Left / middle panels: one value per **graph** (best eligible
-        replicate under the ETB ≤ E credit rule).
-      - Right CDF: one observation per **replicate** (counted trial).
+    All panels are per **graph**.
 
     Returns None when no usable files exist; otherwise a dict with:
       n_graphs, n_trials, budgets, wins, feasible_graphs,
-      reach_trials, mean_pct, median_pct, full_wins
+      reach_graphs, mean_pct, median_pct, full_wins
     """
     skipped = []
     loaded = []
@@ -136,7 +147,7 @@ def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
     by_budget_wins = defaultdict(int)
     by_budget_feas = defaultdict(int)
     by_budget_pct = defaultdict(list)
-    reach_trials = defaultdict(int)
+    reach_graphs = defaultdict(int)
     n_trials = 0
     full_wins = 0
 
@@ -150,12 +161,11 @@ def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
             if best_full > heur:
                 full_wins += 1
 
-        # CDF: count replicates (not graphs) whose ETB ≤ E.
-        for t in trials:
-            itb = int(t["iterations_to_best"])
-            for budget in range(1, max_budget + 1):
-                if itb <= budget:
-                    reach_trials[budget] += 1
+        # CDF: one ETB per graph (earliest among best-edge replicates).
+        etb = _epochs_to_best(trials)
+        if etb is not None:
+            for budget in range(etb, max_budget + 1):
+                reach_graphs[budget] += 1
 
         # Win / feas / % increase: one best replicate per graph per E.
         for budget in range(1, max_budget + 1):
@@ -184,7 +194,7 @@ def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
         "budgets": budgets,
         "wins": [by_budget_wins[b] for b in budgets],
         "feasible_graphs": [by_budget_feas[b] for b in budgets],
-        "reach_trials": [reach_trials[b] for b in budgets],
+        "reach_graphs": [reach_graphs[b] for b in budgets],
         "mean_pct": [
             statistics.mean(by_budget_pct[b]) if by_budget_pct[b] else None
             for b in budgets
@@ -222,24 +232,24 @@ def _pct_coords(budgets, values):
 def _caption(summary):
     ants = summary["ants"]
     budgets = summary["budgets"]
-    n_trials = summary["n_trials"]
-    reach_by_budget = dict(zip(budgets, summary["reach_trials"]))
-    # Right-panel CDF: share of counted replicates with ETB ≤ 3.
+    n_graphs = summary["n_graphs"]
+    reach_by_budget = dict(zip(budgets, summary["reach_graphs"]))
+    # Right-panel CDF: share of graphs whose best-of-replicates ETB ≤ 3.
     epoch_ref = 3
-    if epoch_ref in reach_by_budget and n_trials:
-        reach_pct = f"{_as_pct(reach_by_budget[epoch_ref], n_trials):.1f}\\%"
+    if epoch_ref in reach_by_budget and n_graphs:
+        reach_pct = f"{_as_pct(reach_by_budget[epoch_ref], n_graphs):.1f}\\%"
     else:
         reach_pct = "--"
 
     return (
         f"Retrospective epoch-budget analysis at {ants} ants "
-        f"($k{{=}}2, \\theta{{=}}5, n_E{{=}}5$). "
-        f"Most of ACO-PN's advantage over the $\\theta$-heuristic requires "
+        f"($k{{=}}2, \\theta{{=}}5, n_E\\in\\{{1,\ldots,5\\}}$). "
+        f"Most of ACO-N's advantage over the $\\theta$-heuristic requires "
         f"few epochs. Win rate and $\\theta$-feasibility largely plateau by "
         f"3 epochs. Median and mean edge increase slightly after 3 epochs, but "
         f"the majority of increase happens in the first 3 epochs. Indeed, by "
-        f"epoch 3, {reach_pct} of replicates have already found their best "
-        f"solutions."
+        f"epoch 3, {reach_pct} of graphs have already reached their best edge count "
+        f"over all counted replicates."
     )
 
 
@@ -253,11 +263,10 @@ def iteration_budget_figure(summary):
 
     budgets = summary["budgets"]
     n_graphs = summary["n_graphs"]
-    n_trials = summary["n_trials"]
     win_pct = [_as_pct(w, n_graphs) for w in summary["wins"]]
     feas_pct = [_as_pct(f, n_graphs) for f in summary["feasible_graphs"]]
     reach_pct = [
-        _as_pct(r, n_trials) for r in summary["reach_trials"]
+        _as_pct(r, n_graphs) for r in summary["reach_graphs"]
     ]
 
     win_coords = " ".join(
@@ -356,7 +365,7 @@ def iteration_budget_figure(summary):
         )
     lines += [
         r"\nextgroupplot[",
-        r"    ylabel={Replicates at eventual best (\%)},",
+        r"    ylabel={Graphs at eventual best (\%)},",
         r"    title={CDF of epochs-to-best},",
         r"    title style={font=\small},",
         r"    ymin=0,",

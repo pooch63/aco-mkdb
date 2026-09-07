@@ -6,7 +6,9 @@ Data model (read this before changing anything)
 Each vary.jl ``*_ants.json`` trial is one independent **replicate**
 (``run`` / seed). When ``aco_runs > 1``, run 1 (or ``jit_warmup=true``)
 is the real-graph Julia JIT warmup and is **never** used here — only
-``counted_trials`` remain.
+``counted_trials`` remain. Process-wide ``max_replicates`` is ignored
+here (``max_replicates=None``) so the figure can always show
+``R = 1…R_max`` over the full recorded counted set.
 
 Counted replicates on a graph are ordered by ascending ``run``. Credited
 replicate budget ``R`` means: keep only the first ``R`` counted
@@ -21,14 +23,14 @@ the best ``final_edges`` among all counted replicates on that graph.
 Plot group
 ----------
   replicate-budget
-    3-panel groupplot at fixed ant count (default 100) for ACO-PN:
+    3-panel groupplot at fixed ant count (default 100) for ACO-N:
       Left: percentage of **graphs** where ACO beats the θ-heuristic,
             and percentage that admit a θ-feasible ACO solution, as a
             function of credited replicate budget R ∈ {1…R_max}.
             Per graph: best among the first R counted replicates.
-      Middle: mean, median, and best (max) percent edge increase of
-            ACO over the θ-heuristic among θ-feasible **graphs**,
-            log-scaled y-axis, as R grows (same per-graph best).
+      Middle: mean and median percent edge increase of ACO over the
+            θ-heuristic among θ-feasible **graphs**, log-scaled
+            y-axis, as R grows (same per-graph best).
       Right: CDF of replicates-to-best over **graphs**: for each R,
             the percentage of graphs whose eventual best among all
             counted replicates was already reached by counted
@@ -54,10 +56,15 @@ def _ordered_counted_at_ants(data, ants):
 
     JIT warmup is excluded via counted_trials. Ordering by ``run`` makes
     R=1 the first *counted* seed (typically raw run 2), never the warmup.
+
+    Always uses the full counted set (``max_replicates=None``): this plot's
+    job is to show R = 1…R_max, so it ignores the process-wide emit cap.
     """
     trials = [
         t
-        for t in counted_trials(data.get("trials") or [], data)
+        for t in counted_trials(
+            data.get("trials") or [], data, max_replicates=None
+        )
         if t.get("ants") == ants and t.get("final_edges") is not None
     ]
     return sorted(trials, key=lambda t: int(t.get("run", 10**9)))
@@ -82,7 +89,7 @@ def summarize_replicate_budget(json_paths, *, ants=DEFAULT_ANTS):
 
     Returns None when no usable files exist; otherwise a dict with:
       n_graphs, n_replicates, budgets, wins, feasible_graphs,
-      reach_graphs, mean_pct, median_pct, best_pct, full_wins
+      reach_graphs, mean_pct, median_pct, full_wins
     """
     skipped = []
     loaded = []
@@ -170,10 +177,6 @@ def summarize_replicate_budget(json_paths, *, ants=DEFAULT_ANTS):
             statistics.median(by_budget_pct[b]) if by_budget_pct[b] else None
             for b in budgets
         ],
-        "best_pct": [
-            max(by_budget_pct[b]) if by_budget_pct[b] else None
-            for b in budgets
-        ],
         "full_wins": full_wins,
     }
     return summary, skipped
@@ -240,7 +243,6 @@ def replicate_budget_figure(summary):
     )
     mean_coords = _pct_coords(budgets, summary["mean_pct"])
     median_coords = _pct_coords(budgets, summary["median_pct"])
-    best_coords = _pct_coords(budgets, summary["best_pct"])
     cdf_coords = " ".join(
         f"({b},{p:.4f})" for b, p in zip(budgets, reach_pct)
     )
@@ -251,7 +253,6 @@ def replicate_budget_figure(summary):
         for v in (
             list(summary["mean_pct"])
             + list(summary["median_pct"])
-            + list(summary["best_pct"])
         )
         if v is not None and v > 0
     ]
@@ -321,13 +322,7 @@ def replicate_budget_figure(summary):
             rf"teal!70!black] coordinates {{{median_coords}}};"
         )
         lines.append(r"  \addlegendentry{median}")
-    if best_coords:
-        lines.append(
-            rf"  \addplot[thick, densely dotted, mark=diamond*, "
-            rf"violet!75!black] coordinates {{{best_coords}}};"
-        )
-        lines.append(r"  \addlegendentry{best}")
-    if not mean_coords and not median_coords and not best_coords:
+    if not mean_coords and not median_coords:
         lines.append(
             r"  % no positive percent-increase aggregates to plot"
         )

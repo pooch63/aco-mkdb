@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-ACO_LABEL = "ACO-PN"
+ACO_LABEL = "ACO-N"
 HEUR_LABEL = r"$\theta$-Heuristic"
 
 _SERIES_COLORS = (
