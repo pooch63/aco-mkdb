@@ -333,7 +333,7 @@ def _sweep_figure(
 
     caption = (
         f"{caption_lead} at fixed {fixed_note} on {n} graphs matched across "
-        f"all shown settings (100 ants, ACO-N). Left: edge ratio "
+        f"all shown settings (100 ants, $F_N$). Left: edge ratio "
         f"$|E_{{\\mathrm{{ACO}}}}|/|E_{{\\theta}}|$ (log scale; dashed "
         f"parity). Right: ACO win rate vs.\\ the $\\theta$-heuristic. "
         f"{takeaway}"
@@ -565,7 +565,7 @@ def density_wins_figure(
     ]
     n_obs = len(pooled_pts)
     caption = (
-        r"ACO-N vs.\ the $\theta$-heuristic (100 ants) on every "
+        r"$F_N$ vs.\ the $\theta$-heuristic (100 ants) on every "
         rf"graph$\times$suite observation ($n={n_obs}$). "
         r"Marks are binary outcomes (win $=100\%$, else $0\%$). "
         rf"The curve is a sliding-window win rate over $W={pooled_w}$ "
@@ -957,7 +957,7 @@ def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None):
         return [r"% param-runtime: no usable k or θ sweep directories"]
 
     caption = (
-        r"ACO-N discovery cost versus the $\theta$-heuristic (100 ants) "
+        r"$F_N$ discovery cost versus the $\theta$-heuristic (100 ants) "
         r"across $(k, \theta)$ suites. Top: ratio "
         r"$T_{\mathrm{ACO}}/T_{\theta}$ (log scale). Bottom: absolute ACO "
         r"discovery time (log scale). Left: vary $k$ at fixed "

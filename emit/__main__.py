@@ -5,7 +5,8 @@ Emit LaTeX figures and tables from ACO benchmark JSON.
 Modes
 -----
   quality
-      Vary.jl ant-count format → 2-column groupplot (IQR across graphs):
+      Vary.jl ant-count format → 2-column groupplot (IQR of per-graph
+      values, not pooled replicates):
         Top row: θ-heuristic deviation | θ-feasibility rate
         Bottom row: wall-clock time (optimum-quality panel if present)
         Each panel: 1st quartile / median / 3rd quartile vs ant count
@@ -28,20 +29,24 @@ Modes
       closest θ-heuristic wins.
 
   compare
-      Vary.jl ant-count JSON → complexity figures (ACO-PN).
+      Vary.jl ant-count JSON → complexity figures ($F_N$).
       Plot groups (pass comma-separated via --plots):
-        theta-time, deg-size-time, density-size,
-        max-deg-time, flag-ablation, flag-feasibility, iteration-budget,
+        theta-time, deg-size-time, bound-time, density-size,
+        max-deg-time, flag-ablation, flag-ablation-replicates,
+        flag-feasibility, flag-feasibility-replicates, iteration-budget,
         replicate-budget, k-sweep, theta-sweep, density-wins, param-density,
         param-runtime
       Pass a single results directory, e.g. vary_k2t5i_PN.
-      flag-ablation / flag-feasibility use --flag-dir=LABEL=DIR.
+      flag-ablation / flag-feasibility (and *-replicates) use
+      --flag-dir=LABEL=DIR.
       k-sweep / theta-sweep / density-wins / param-density / param-runtime use
       --param-dir=LABEL=DIR (see build.json).
       iteration-budget retrospectively truncates full-budget
       replicates by recorded iterations_to_best (ETB) on counted
       (non-JIT) replicates; replicate-budget prefixes the ordered
       counted (non-JIT) replicate sequence by budget R.
+      --max-replicates=R optionally prefixes counted replicates for
+      all modes except replicate-budget (which always plots full R).
 
   statistics
       Vary.jl ant-count JSON → inline LaTeX for %%STATISTICS:field%%
@@ -49,12 +54,13 @@ Modes
       θ-feasibility rates, construction missing-at-size means, pivot
       coverage among ACO wins). Fields include:
       aco-wins, heur-wins, ties, n-graphs, aco-nonwins, variance,
-      wilcoxon, aco-theta-feasibility-rate,
-      theta-heuristic-feasibility-rate, aco-missing-at-5,
-      aco-n-missing-at-5, pivot-tested-wins, pivot-excluded-wins,
+      wilcoxon, median-edge-pct, aco-theta-feasibility-rate,
+      theta-heuristic-feasibility-rate, missing-at-5, missing-at-10,
+      aco-missing-at-5, aco-n-missing-at-5, aco-missing-at-10,
+      aco-n-missing-at-10, pivot-tested-wins, pivot-excluded-wins,
       pivot-*-mean-nR, pivot-*-mean-eR
 
-      missing-at-5 fields read pre-recorded JSON only (no Julia at build
+      missing-at-* fields read pre-recorded JSON only (no Julia at build
       time). Pivot-coverage fields also need --compare-dir.
 
 Usage:
@@ -74,7 +80,7 @@ from __future__ import annotations
 import argparse
 
 from . import MODES
-from .common import list_json_paths
+from .common import list_json_paths, set_max_replicates
 
 
 def main(argv=None):
@@ -113,6 +119,17 @@ def main(argv=None):
              "(table / compare modes)",
     )
     parser.add_argument(
+        "--max-replicates",
+        type=int,
+        default=None,
+        metavar="R",
+        help="Retrospectively keep only the first R counted (non-JIT) "
+             "replicates per ant count, ordered by run (default: all). "
+             "Affects quality / table / statistics / seed-compare / "
+             "compare except replicate-budget, which always plots the "
+             "full R curve.",
+    )
+    parser.add_argument(
         "--subset",
         default="full",
         choices=("full", "highlights"),
@@ -123,9 +140,11 @@ def main(argv=None):
         "--plots",
         default=None,
         help="compare mode: comma-separated plot groups "
-             "(theta-time, deg-size-time, density-size, "
+             "(theta-time, deg-size-time, bound-time, density-size, "
              "max-deg-time, "
-             "flag-ablation, flag-feasibility, iteration-budget, "
+             "flag-ablation, flag-ablation-replicates, "
+             "flag-feasibility, flag-feasibility-replicates, "
+             "iteration-budget, "
              "replicate-budget, k-sweep, theta-sweep, density-wins, "
              "param-density, param-runtime)",
     )
@@ -134,8 +153,9 @@ def main(argv=None):
         action="append",
         metavar="LABEL=DIR",
         default=None,
-        help="compare flag-ablation / flag-feasibility: variant directory "
-             "(repeat for ACO, ACO-P, ACO-N, ACO-PN)",
+        help="compare flag-ablation / flag-feasibility (and *-replicates): "
+             "variant directory "
+             "(repeat for ACO, $F_P$, $F_N$, $F_{PN}$)",
     )
     parser.add_argument(
         "--param-dir",
@@ -153,7 +173,8 @@ def main(argv=None):
              "(aco-wins, heur-wins, ties, n-graphs, aco-nonwins, variance, "
              "wilcoxon, aco-theta-feasibility-rate, "
              "theta-heuristic-feasibility-rate, missing-at-5, "
-             "aco-missing-at-5, aco-n-missing-at-5, pivot-tested-wins, "
+             "missing-at-10, aco-missing-at-5, aco-n-missing-at-5, "
+             "aco-missing-at-10, aco-n-missing-at-10, pivot-tested-wins, "
              "pivot-excluded-wins, pivot-*-mean-nR, pivot-*-mean-eR)",
     )
     parser.add_argument(
@@ -170,6 +191,12 @@ def main(argv=None):
     )
 
     args = parser.parse_args(argv)
+
+    if args.max_replicates is not None:
+        try:
+            set_max_replicates(args.max_replicates)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
 
     if args.mode == "quality":
         json_paths = list_json_paths(args.directory)
@@ -227,7 +254,9 @@ def main(argv=None):
         multi_only = plot_names and all(
             p in (
                 "flag-ablation",
+                "flag-ablation-replicates",
                 "flag-feasibility",
+                "flag-feasibility-replicates",
                 "k-sweep",
                 "theta-sweep",
                 "density-wins",

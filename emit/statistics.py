@@ -12,11 +12,16 @@ Fields (pass via --field=… or placeholder args):
     with the min–max range of those per-graph stds
   wilcoxon — sentence on paired Wilcoxon signed-rank test vs θ-heuristic
     (non-θ-feasible solutions scored as 0 edges)
+  median-edge-pct — median % |E(D*)| change of best ACO vs θ-heuristic
+    among θ-feasible ACO outcomes (same definition as iteration/replicate
+    budget middle panels)
   aco-theta-feasibility-rate — % of counted trials that are θ-feasible
   theta-heuristic-feasibility-rate — % of graphs where the θ-heuristic is
     θ-feasible
-  missing-at-5 — full sentence comparing ACO-N vs plain ACO at |S|=5
-  aco-missing-at-5, aco-n-missing-at-5 — numeric means only
+  missing-at-5 — full sentence comparing $F_N$ vs plain ACO at |S|=5
+  missing-at-10 — continuation sentence at |S|=10
+  aco-missing-at-5, aco-n-missing-at-5 — numeric means only at |S|=5
+  aco-missing-at-10, aco-n-missing-at-10 — numeric means only at |S|=10
   pivot-tested-wins, pivot-excluded-wins — ACO-win graphs with / without a
     completed θ vs ACO-seed pivot comparison (compare-seeds JSON; dual
     timeouts and missing compare files count as excluded)
@@ -24,7 +29,7 @@ Fields (pass via --field=… or placeholder args):
     |U_R|+|V_R| among those win subsets
   pivot-tested-wins-mean-eR, pivot-excluded-wins-mean-eR — mean |E_R|
 
-missing-at-5 fields read pre-recorded missing_at_size from vary JSON only.
+missing-at-* fields read pre-recorded missing_at_size from vary JSON only.
 Pivot-coverage fields also read compare-seeds JSON via --compare-dir.
 """
 
@@ -32,6 +37,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import statistics
 import sys
 
@@ -43,6 +49,7 @@ from .common import (
     report_skipped,
     write_tex,
 )
+from .quality import pct_deviation
 from .result_fields import pool_missing_at_size_mean, validate_missing_at_size_dirs
 from .seed_compare import (
     both_pivots_timed_out,
@@ -67,11 +74,15 @@ FIELDS = (
     "aco-nonwins",
     "variance",
     "wilcoxon",
+    "median-edge-pct",
     "aco-theta-feasibility-rate",
     "theta-heuristic-feasibility-rate",
     "missing-at-5",
+    "missing-at-10",
     "aco-missing-at-5",
     "aco-n-missing-at-5",
+    "aco-missing-at-10",
+    "aco-n-missing-at-10",
     "pivot-tested-wins",
     "pivot-excluded-wins",
     "pivot-tested-wins-mean-nR",
@@ -85,8 +96,30 @@ FEASIBILITY_RATE_FIELDS = frozenset(
 )
 
 MISSING_AT_SIZE_FIELDS = frozenset(
-    {"missing-at-5", "aco-missing-at-5", "aco-n-missing-at-5"}
+    {
+        "missing-at-5",
+        "missing-at-10",
+        "aco-missing-at-5",
+        "aco-n-missing-at-5",
+        "aco-missing-at-10",
+        "aco-n-missing-at-10",
+    }
 )
+
+# aco-n- before aco- so "aco-n-missing-at-10" is not parsed as aco + "n-…".
+_MISSING_AT_FIELD_RE = re.compile(
+    r"^(?:(?P<kind>aco-n|aco)-)?missing-at-(?P<size>\d+)$"
+)
+
+
+def parse_missing_at_field(field):
+    """Return (kind, size) for missing-at-* fields, or None."""
+    match = _MISSING_AT_FIELD_RE.match(field)
+    if not match:
+        return None
+    kind = match.group("kind") or "sentence"
+    return kind, int(match.group("size"))
+
 
 PIVOT_COVERAGE_FIELDS = frozenset(
     {
@@ -346,8 +379,8 @@ def theta_feasibility_rates(rows):
     return aco_rate, heur_rate, aco_ok, aco_tot, heur_ok, heur_tot
 
 
-def measure_missing_at_5(vary_base, *, ants=100, target_size=5):
-    """Pooled mean missing at |S|=target_size for base ACO vs ACO-N (JSON only)."""
+def measure_missing_at_size(vary_base, *, ants=100, target_size=5):
+    """Pooled mean missing at |S|=target_size for base ACO vs $F_N$ (JSON only)."""
     aco_dir = os.path.abspath(vary_base.rstrip(os.sep))
     aco_n_dir = aco_dir + "N"
     if not os.path.isdir(aco_dir):
@@ -358,7 +391,7 @@ def measure_missing_at_5(vary_base, *, ants=100, target_size=5):
         return None, None
     if not os.path.isdir(aco_n_dir):
         print(
-            f"Warning: missing ACO-N vary directory: {aco_n_dir}",
+            f"Warning: missing $F_N$ vary directory: {aco_n_dir}",
             file=sys.stderr,
         )
         return None, None
@@ -375,21 +408,41 @@ def measure_missing_at_5(vary_base, *, ants=100, target_size=5):
     )
     print(
         f"# statistics: missing-at-{target_size} from JSON "
-        f"(ACO {n_aco}/{total_aco}, ACO-N {n_n}/{total_n} graphs)",
+        f"(ACO {n_aco}/{total_aco}, $F_N$ {n_n}/{total_n} graphs)",
         file=sys.stderr,
     )
     return mean_aco, mean_n
 
 
-def build_missing_at_5_text(mean_aco, mean_aco_n):
+# Back-compat alias used by older call sites / notebooks.
+measure_missing_at_5 = measure_missing_at_size
+
+
+def build_missing_at_size_text(mean_aco, mean_aco_n, target_size):
     if mean_aco is None or mean_aco_n is None:
         return "Missing-at-size construction statistics were not available."
+    if target_size == 5:
+        return (
+            "Indeed, we find that with $F_N$, the average number of missing "
+            "edges after a subgraph has reached 5 vertices is "
+            f"{fmt_missing(mean_aco_n)}, much smaller than the average of "
+            f"{fmt_missing(mean_aco)} edges using plain ACO."
+        )
+    if target_size == 10:
+        return (
+            "At $|S|=10$, the corresponding averages are "
+            f"{fmt_missing(mean_aco_n)} with $F_N$ and "
+            f"{fmt_missing(mean_aco)} with plain ACO."
+        )
     return (
-        "Indeed, we find that with ACO-N, the average number of missing edges "
-        "after a subgraph has reached 5 vertices is "
-        f"{fmt_missing(mean_aco_n)}, much smaller than the average of "
-        f"{fmt_missing(mean_aco)} edges using plain ACO."
+        f"At $|S|={target_size}$, the average number of missing edges is "
+        f"{fmt_missing(mean_aco_n)} with $F_N$ versus "
+        f"{fmt_missing(mean_aco)} with plain ACO."
     )
+
+
+def build_missing_at_5_text(mean_aco, mean_aco_n):
+    return build_missing_at_size_text(mean_aco, mean_aco_n, 5)
 
 
 def build_variance_text(rows):
@@ -397,7 +450,7 @@ def build_variance_text(rows):
     if not stds:
         return "Cross-run edge-count variability was not available."
     return (
-        "Across the five replicates per graph, $|E(D^*)|$ had a mean "
+        "Across the five replicates per graph, $|E(D_{best})|$ had a mean "
         f"within-graph standard deviation of {fmt_num(statistics.mean(stds))} "
         f"(range {fmt_num(min(stds))}--{fmt_num(max(stds))})."
     )
@@ -435,10 +488,29 @@ def build_wilcoxon_text(rows):
 
     direction = "favors ACO" if sum(diffs) > 0 else "does not favor ACO"
     return (
-        f"A Wilcoxon signed-rank test on paired $|E(D^*)|$ counts "
+        f"A Wilcoxon signed-rank test on paired $|E(D_{best})|$ counts "
         f"(scoring non-$\\theta$-feasible solutions as $0$) {direction} "
         f"({fmt_p_value(p)})."
     )
+
+
+def median_edge_pct(rows):
+    """
+    Median percent |E| change of best ACO vs θ-heuristic.
+
+    Only θ-feasible ACO outcomes (same pool as the iteration/replicate
+    budget percent-increase panels). Returns None when empty.
+    """
+    pcts = []
+    for row in rows:
+        if not row.get("aco_theta_feasible"):
+            continue
+        pct = pct_deviation(row.get("aco_edges"), row.get("heur_edges"))
+        if pct is not None:
+            pcts.append(float(pct))
+    if not pcts:
+        return None
+    return statistics.median(pcts)
 
 
 def render_field(field, rows, *, vary_base=None, ants=None, compare_dir=None):
@@ -457,6 +529,15 @@ def render_field(field, rows, *, vary_base=None, ants=None, compare_dir=None):
         return build_variance_text(rows)
     if field == "wilcoxon":
         return build_wilcoxon_text(rows)
+    if field == "median-edge-pct":
+        med = median_edge_pct(rows)
+        if med is None:
+            print(
+                "Warning: no θ-feasible ACO outcomes for median-edge-pct",
+                file=sys.stderr,
+            )
+            return "--"
+        return fmt_rate(med)
     if field in FEASIBILITY_RATE_FIELDS:
         aco_rate, heur_rate, *_ = theta_feasibility_rates(rows)
         if field == "aco-theta-feasibility-rate":
@@ -473,22 +554,24 @@ def render_field(field, rows, *, vary_base=None, ants=None, compare_dir=None):
             )
         return fmt_rate(heur_rate)
     if field in MISSING_AT_SIZE_FIELDS:
+        parsed = parse_missing_at_field(field)
+        kind, target_size = parsed if parsed else ("sentence", 5)
         if vary_base is None:
             print(
                 f"Warning: statistics field {field!r} requires vary_base in build.json",
                 file=sys.stderr,
             )
-            if field == "missing-at-5":
+            if kind == "sentence":
                 return "Missing-at-size construction statistics were not available."
             return "--"
-        mean_aco, mean_aco_n = measure_missing_at_5(
-            vary_base, ants=ants or 100
+        mean_aco, mean_aco_n = measure_missing_at_size(
+            vary_base, ants=ants or 100, target_size=target_size
         )
-        if field == "aco-missing-at-5":
+        if kind == "aco":
             return fmt_missing(mean_aco)
-        if field == "aco-n-missing-at-5":
+        if kind == "aco-n":
             return fmt_missing(mean_aco_n)
-        return build_missing_at_5_text(mean_aco, mean_aco_n)
+        return build_missing_at_size_text(mean_aco, mean_aco_n, target_size)
     if field in PIVOT_COVERAGE_FIELDS:
         if not compare_dir or not os.path.isdir(compare_dir):
             print(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-ACO_LABEL = "ACO-N"
+ACO_LABEL = r"$F_N$"
 HEUR_LABEL = r"$\theta$-Heuristic"
 
 _SERIES_COLORS = (
@@ -264,7 +264,7 @@ def size_figure(
     caption,
     label,
     legend_name=None,
-    ylabel=r"Solution size $|E(D^*)|$",
+    ylabel=r"Solution size $|E(D_{best})|$",
     width="0.88\\textwidth",
     height="0.52\\textwidth",
     log_axes=True,

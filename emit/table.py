@@ -253,10 +253,10 @@ def tabular_header_lines():
         r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
         r"    \toprule",
         r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
-        r" & \multicolumn{6}{c}{ACO-N} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
+        r" & \multicolumn{6}{c}{$F_N$} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
         r"    \cmidrule(lr){8-13} \cmidrule(lr){14-17}",
-        r"    & & & & & & & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Discovery & ETB & TimTB"
-        r" & $|U_{D^*}|$ & $|V_{D^*}|$ & $|E(D^*)|$ & Time \\",
+        r"    & & & & & & & $|U_{D_{best}}|$ & $|V_{D_{best}}|$ & $|E(D_{best})|$ & Discovery & ETB & TimTB"
+        r" & $|U_{D_{best}}|$ & $|V_{D_{best}}|$ & $|E(D_{best})|$ & Time \\",
         r"    \midrule",
     ]
 
@@ -351,8 +351,8 @@ def build_table(named_rows, subset=SUBSET_FULL):
             raise ValueError("No highlight rows to emit for ACO vs θ table")
         return build_table_tex(
             (
-                rf"Representative ACO-N vs.\ $\theta$-heuristic comparisons "
-                rf"({kt}). Top: largest relative $|E(D^*)|$ gains for ACO-N. "
+                rf"Representative $F_N$ vs.\ $\theta$-heuristic comparisons "
+                rf"({kt}). Top: largest relative $|E(D_{{best}})|$ gains for $F_N$. "
                 rf"Bottom: closest $\theta$-heuristic wins (smallest edge "
                 rf"deficits). Full results are in Table~\ref{{{full_label}}}."
             ),

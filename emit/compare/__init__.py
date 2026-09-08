@@ -8,34 +8,49 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
     - θ-heuristic wall time vs θ(|U_R|+|V_R|)+|E_R|
 
   deg-size-time
-    - 2-panel ratio of discovery time to each bound (matched graphs);
-      naive bound n_R^2; practical bound n_E·n_R+|E_R| (n_E=5);
-      panels vs n_R and vs |E_R|
+    - 2-panel log--log discovery-time scaling (matched graphs);
+      left: raw t vs n; right: t vs candidate bounds
+      (naive n^2; practical T·n+m with T=5)
+
+  bound-time
+    - 2-panel log--log normalized discovery time t/(n_S·T):
+      left vs naive n^2; right vs practical T·n+m
 
   density-size
-    - edge density vs |E(D*)|
+    - edge density vs |E(D_{best})|
 
   max-deg-time
-    - max reduced degree vs ACO-PN discovery time
+    - max reduced degree vs $F_N$ discovery time
 
   flag-ablation
-    - 2-panel groupplot (quality | discovery time) across ACO, ACO-P,
-      ACO-N, and ACO-PN at a fixed ant count. Requires --flag-dir for
+    - 2-panel groupplot (quality | discovery time) across ACO, $F_P$,
+      $F_N$, and $F_{PN}$ at a fixed ant count. Requires --flag-dir for
       each variant (see build.json flag_dirs). Quality averages scored
-      edges (θ-infeasible trials count as 0).
+      edges (θ-infeasible trials count as 0). Ordered/colored by N.
+
+  flag-ablation-replicates
+    - Same layout as flag-ablation, but each boxplot observation is a
+      counted replicate (scored |E| and wall_time_s) rather than a
+      per-graph mean / discovery sum.
 
   flag-feasibility
-    - 1-panel boxplot of per-graph θ-feasibility rate across the same
-      four variants (ordered ACO, ACO-N, ACO-P, ACO-PN; grouped by P).
+    - 1-panel bar chart: % of matched graphs with ≥1 θ-feasible counted
+      replicate, across the same four variants (ordered ACO, $F_P$,
+      $F_N$, $F_{PN}$; grouped by $F_N$).
+
+  flag-feasibility-replicates
+    - Same layout, but the rate is % of counted replicates that are
+      θ-feasible (pooled over matched graphs).
 
   iteration-budget
-    - 3-panel groupplot of ACO-PN quality vs. θ-heuristic (as a
+    - 3-panel groupplot of $F_N$ quality vs. θ-heuristic (as a
       percentage of graphs), log-scaled percent edge increase vs.
       the θ-heuristic, and the epochs-to-best CDF as the credited
-      epoch budget E varies from 1 to n_E. Each JSON trial is a
-      full-budget replicate; E is a retrospective ETB ≤ E credit
-      rule (not a separately measured shorter run). Left/middle
-      panels are per-graph; the CDF is per-replicate.
+      epoch budget T varies from 1 to T_max. Each JSON trial is a
+      full-budget replicate; T is a retrospective ETB ≤ T credit
+      rule (not a separately measured shorter run). All three
+      panels are per-graph; the CDF uses each graph's earliest ETB
+      among counted replicates that match its best final_edges.
 
   replicate-budget
     - Companion 3-panel groupplot as the credited replicate budget R
@@ -69,7 +84,7 @@ Layout
 ------
   helpers.py            shared metrics and pgfplots primitives
   complexity.py         time / complexity scaling figures
-  flag_ablation.py      P/N flag ablation figure
+  flag_ablation.py      F_P/F_N flag ablation figure
   iteration_budget.py   epoch-budget / ETB figure
   replicate_budget.py   replicate-budget / RTB figure
   param_sweep.py        k / θ sweep figures
@@ -183,8 +198,9 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
     if FLAG_ABLATION_PLOTS.intersection(selected):
         if not flag_dirs:
             raise SystemExit(
-                "flag-ablation / flag-feasibility plots require "
-                "--flag-dir=LABEL=DIR for ACO, ACO-P, ACO-N, and ACO-PN"
+                "flag-ablation / flag-feasibility (and *-replicates) "
+                "plots require "
+                "--flag-dir=LABEL=DIR for ACO, $F_P$, $F_N$, and $F_{PN}$"
             )
         matched_ablation, flag_skipped = (
             flag_ablation.load_flag_ablation_matched(flag_dirs, ants=ants)
@@ -223,7 +239,7 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             print(
                 f"# iteration-budget: {iter_summary['n_graphs']} graph(s), "
                 f"{iter_summary['n_trials']} trial(s), ants={iter_ants}; "
-                f"wins@E={dict(zip(iter_summary['budgets'], iter_summary['wins']))}",
+                f"wins@T={dict(zip(iter_summary['budgets'], iter_summary['wins']))}",
                 file=sys.stderr,
             )
 

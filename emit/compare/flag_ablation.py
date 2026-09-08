@@ -1,13 +1,13 @@
 """
-P/N flag-ablation compare figures.
+F_P / F_N flag-ablation compare figures.
 
 Plot groups
 -----------
   flag-ablation
-    2-panel groupplot (quality | discovery time) across ACO, ACO-P,
-    ACO-N, and ACO-PN at a fixed ant count. Requires --flag-dir for each
+    2-panel groupplot (quality | discovery time) across ACO, $F_P$,
+    $F_N$, and $F_{PN}$ at a fixed ant count. Requires --flag-dir for each
     variant (see build.json flag_dirs). All panels are ordered and
-    colored by neighbor-scope N (ACO, ACO-P | ACO-N, ACO-PN).
+    colored by neighbor-scope $F_N$ (ACO, $F_P$ | $F_N$, $F_{PN}$).
 
     Quality is the per-graph mean of scored edge counts over counted
     replicates: θ-infeasible trials contribute 0 edges but remain in the
@@ -21,7 +21,7 @@ Plot groups
   flag-feasibility
     1-panel bar chart: percentage of matched graphs that admit at least
     one θ-feasible counted replicate, for the same four variants ordered
-    ACO, ACO-P, ACO-N, ACO-PN (grouped by N).
+    ACO, $F_P$, $F_N$, $F_{PN}$ (grouped by $F_N$).
 
   flag-feasibility-replicates
     Same layout, but the rate is the percentage of counted replicates
@@ -37,10 +37,10 @@ import statistics
 from ..common import counted_trials, list_json_paths, load_json, aco_timed_out
 from ..table import summarize_file
 
-FLAG_VARIANTS = ("ACO", "ACO-P", "ACO-N", "ACO-PN")
-# Group by neighbor-scope N: N off (ACO, ACO-P) then N on (ACO-N, ACO-PN).
-FLAG_ORDER = ("ACO", "ACO-P", "ACO-N", "ACO-PN")
-FLAG_N_OFF = frozenset({"ACO", "ACO-P"})
+FLAG_VARIANTS = ("ACO", r"$F_P$", r"$F_N$", r"$F_{PN}$")
+# Group by neighbor-scope F_N: off (ACO, F_P) then on (F_N, F_PN).
+FLAG_ORDER = ("ACO", r"$F_P$", r"$F_N$", r"$F_{PN}$")
+FLAG_N_OFF = frozenset({"ACO", r"$F_P$"})
 
 PLOT_GROUPS = (
     "flag-ablation",
@@ -192,7 +192,7 @@ def load_flag_ablation_matched(flag_dirs, *, ants=100):
 
 
 def _variant_color(label):
-    """Color by neighbor-scope N (off = blue, on = orange)."""
+    """Color by neighbor-scope F_N (off = blue, on = orange)."""
     return "blue!70!black" if label in FLAG_N_OFF else "orange!85!black"
 
 
@@ -219,7 +219,8 @@ def _addplot_boxplot(x, stats, *, color):
 def _pgf_xticklabels(labels):
     parts = []
     for label in labels:
-        if "-" in label or " " in label:
+        # Brace labels with special chars so pgfplots parses math / hyphens.
+        if any(c in label for c in "- $_{}"):
             parts.append("{" + label + "}")
         else:
             parts.append(label)
@@ -228,8 +229,8 @@ def _pgf_xticklabels(labels):
 
 def _n_group_labels():
     return [
-        r"  \node[font=\scriptsize] at (rel axis cs:0.25,-0.10) {N off};",
-        r"  \node[font=\scriptsize] at (rel axis cs:0.75,-0.10) {N on};",
+        r"  \node[font=\scriptsize] at (rel axis cs:0.25,-0.10) {$F_N$ off};",
+        r"  \node[font=\scriptsize] at (rel axis cs:0.75,-0.10) {$F_N$ on};",
     ]
 
 
@@ -266,7 +267,7 @@ def _flag_ablation_caption(matched, *, unit):
             rf"($\theta$-infeasible trials count as 0 edges but stay in the mean). "
             rf"Right: per-graph discovery time (sum of counted replicate "
             rf"wall times). Both panels are ordered and colored by "
-            rf"neighbor-scope N."
+            rf"neighbor-scope $F_N$."
         )
     n_repl = sum(g["ACO"]["n_trials"] for g in matched)
     return (
@@ -274,12 +275,12 @@ def _flag_ablation_caption(matched, *, unit):
         rf"{n} matched graphs ({n_repl} replicates per variant). "
         rf"Left: scored $|E|$ per replicate ($\theta$-infeasible trials "
         rf"count as 0). Right: per-replicate wall time. Both panels are "
-        rf"ordered and colored by neighbor-scope N."
+        rf"ordered and colored by neighbor-scope $F_N$."
     )
 
 
 def flag_ablation_figure(matched, *, unit="graph"):
-    """2-panel groupplot for P/N flag ablation (quality | time)."""
+    """2-panel groupplot for F_P/F_N flag ablation (quality | time)."""
     label_name = (
         "flag-ablation" if unit == "graph" else "flag-ablation-replicates"
     )
@@ -394,15 +395,15 @@ def _flag_feasibility_caption(matched, *, unit):
         return (
             rf"Percentage of {n} matched graphs with at least one "
             rf"$\theta$-feasible counted replicate at 100 ants. Variants are "
-            rf"ordered ACO, ACO-P, ACO-N, ACO-PN and colored by "
-            rf"neighbor-scope N."
+            rf"ordered ACO, $F_P$, $F_N$, $F_{{PN}}$ and colored by "
+            rf"neighbor-scope $F_N$."
         )
     n_repl = sum(g["ACO"]["n_trials"] for g in matched)
     return (
         rf"Percentage of counted replicates that are $\theta$-feasible at "
         rf"100 ants, pooled over {n} matched graphs ({n_repl} replicates "
-        rf"per variant). Variants are ordered ACO, ACO-P, ACO-N, ACO-PN "
-        rf"and colored by neighbor-scope N."
+        rf"per variant). Variants are ordered ACO, $F_P$, $F_N$, $F_{{PN}}$ "
+        rf"and colored by neighbor-scope $F_N$."
     )
 
 
@@ -479,8 +480,8 @@ def flag_feasibility_figure(matched, *, unit="graph"):
         )
 
     lines += [
-        r"  \node[font=\scriptsize] at (rel axis cs:0.25,-0.10) {N off};",
-        r"  \node[font=\scriptsize] at (rel axis cs:0.75,-0.10) {N on};",
+        r"  \node[font=\scriptsize] at (rel axis cs:0.25,-0.10) {$F_N$ off};",
+        r"  \node[font=\scriptsize] at (rel axis cs:0.75,-0.10) {$F_N$ on};",
         r"  \end{axis}",
         r"  \end{tikzpicture}",
         rf"  \caption{{{_flag_feasibility_caption(matched, unit=unit)}}}",

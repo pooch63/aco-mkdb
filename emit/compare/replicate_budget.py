@@ -23,10 +23,10 @@ the best ``final_edges`` among all counted replicates on that graph.
 Plot group
 ----------
   replicate-budget
-    3-panel groupplot at fixed ant count (default 100) for ACO-N:
+    3-panel groupplot at fixed ant count (default 100) for $F_N$:
       Left: percentage of **graphs** where ACO beats the θ-heuristic,
             and percentage that admit a θ-feasible ACO solution, as a
-            function of credited replicate budget R ∈ {1…R_max}.
+            function of replicate budget R ∈ {1…R_max}.
             Per graph: best among the first R counted replicates.
       Middle: mean and median percent edge increase of ACO over the
             θ-heuristic among θ-feasible **graphs**, log-scaled
@@ -208,7 +208,7 @@ def _caption(summary):
     budgets = summary["budgets"]
 
     return (
-        f"Credited replicate budget at {ants} ants "
+        f"Replicate budget at {ants} ants "
         f"($k{{=}}2$, $\\theta{{=}}5$; best among the first $R$ counted "
         f"replicates, up to $R_{{\\max}}{{=}}{budgets[-1]}$). "
         f"A single counted replicate already recovers essentially all "
@@ -272,7 +272,7 @@ def replicate_budget_figure(summary):
         r"    width=0.28\textwidth,",
         r"    height=0.40\textwidth,",
         r"    grid=major,",
-        r"    xlabel={Credited replicate budget $R$},",
+        r"    xlabel={Replicate budget $R$},",
         r"    ylabel style={font=\small},",
         rf"    xtick={xtick},",
         r"    xmin=0.5,",

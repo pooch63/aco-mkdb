@@ -5,11 +5,11 @@ Data model (read this before changing anything)
 ----------------------------------------------
 Each vary.jl ``*_ants.json`` trial is one independent **replicate**
 (``run`` / seed), always executed for the full colony budget
-``iterations_budget`` (= ``n_E`` epochs, typically 5). The JSON does
-**not** contain separate experiments that stopped early at E=1,2,….
+``iterations_budget`` (= ``T`` epochs, typically 5). The JSON does
+**not** contain separate experiments that stopped early at T=1,2,….
 
 Within each replicate, ``iterations_to_best`` (ETB) is the epoch index
-in ``1…n_E`` at which that replicate first reached the ``final_edges``
+in ``1…T`` at which that replicate first reached the ``final_edges``
 it reports. So:
 
   - ``run``              → which replicate (stochastic restart)
@@ -18,34 +18,34 @@ it reports. So:
                              eventual best |E| first appeared
 
 This figure is a **retrospective truncation** of those full-budget
-replicates: for credited budget E we keep only replicates with
-ETB ≤ E and use their recorded ``final_edges``. Intermediate edge
+replicates: for credited budget T we keep only replicates with
+ETB ≤ T and use their recorded ``final_edges``. Intermediate edge
 counts between epoch 1 and ETB are not stored, so short-budget quality
 is a conservative lower bound.
 
 Plot group
 ----------
   iteration-budget
-    3-panel groupplot at fixed ant count (default 100) for ACO-N:
+    3-panel groupplot at fixed ant count (default 100) for $F_N$:
       Left: percentage of **graphs** where ACO beats the θ-heuristic,
             and percentage that admit a θ-feasible ACO solution, as a
-            function of credited epoch budget E ∈ {1…n_E}.
-            Per graph: best among counted replicates with ETB ≤ E.
+            function of credited epoch budget T ∈ {1…T_max}.
+            Per graph: best among counted replicates with ETB ≤ T.
       Middle: mean and median percent edge increase of ACO over the
             θ-heuristic among θ-feasible **graphs**, log-scaled
-            y-axis, as E grows (same per-graph best).
+            y-axis, as T grows (same per-graph best).
       Right: CDF of epochs-to-best over **graphs**: for each graph,
             take the counted replicate(s) with that graph's best
             final_edges, then the earliest ETB among those ties; for
-            each E, the percentage of graphs whose epochs-to-best is
-            ≤ E (i.e. the eventual best-of-replicates edge count was
-            already achieved by epoch E).
+            each T, the percentage of graphs whose epochs-to-best is
+            ≤ T (i.e. the eventual best-of-replicates edge count was
+            already achieved by epoch T).
 
 Methodology
 -----------
-Each vary.jl trial runs a fixed epoch budget (typically n_E = 5) and
-records iterations_to_best (epochs-to-best). For budget E we credit a
-trial's final_edges only when ETB ≤ E — a conservative lower bound on
+Each vary.jl trial runs a fixed epoch budget (typically T = 5) and
+records iterations_to_best (epochs-to-best). For budget T we credit a
+trial's final_edges only when ETB ≤ T — a conservative lower bound on
 quality under a shorter budget, because intermediate edge counts before
 ETB are not stored. JIT warmup replicates are omitted via counted_trials.
 """
@@ -167,7 +167,7 @@ def summarize_iteration_budget(json_paths, *, ants=DEFAULT_ANTS):
             for budget in range(etb, max_budget + 1):
                 reach_graphs[budget] += 1
 
-        # Win / feas / % increase: one best replicate per graph per E.
+        # Win / feas / % increase: one best replicate per graph per T.
         for budget in range(1, max_budget + 1):
             eligible = [
                 t
@@ -243,8 +243,8 @@ def _caption(summary):
 
     return (
         f"Retrospective epoch-budget analysis at {ants} ants "
-        f"($k{{=}}2, \\theta{{=}}5, n_E\\in\\{{1,\ldots,5\\}}$). "
-        f"Most of ACO-N's advantage over the $\\theta$-heuristic requires "
+        f"($k{{=}}2, \\theta{{=}}5, T\\in\\{{1,\\ldots,5\\}}$). "
+        f"Most of $F_N$'s advantage over the $\\theta$-heuristic requires "
         f"few epochs. Win rate and $\\theta$-feasibility largely plateau by "
         f"3 epochs. Median and mean edge increase slightly after 3 epochs, but "
         f"the majority of increase happens in the first 3 epochs. Indeed, by "
@@ -307,9 +307,9 @@ def iteration_budget_figure(summary):
         r"    width=0.28\textwidth,",
         r"    height=0.40\textwidth,",
         r"    grid=major,",
-        # E is a retrospective credit threshold on full-budget replicates,
+        # T is a retrospective credit threshold on full-budget replicates,
         # not a separately measured shorter-budget experiment.
-        r"    xlabel={Credited epoch budget $E$},",
+        r"    xlabel={Epoch budget $T$},",
         r"    ylabel style={font=\small},",
         rf"    xtick={xtick},",
         r"    xmin=0.5,",
@@ -394,7 +394,7 @@ def build_from_paths(json_paths, *, ants=DEFAULT_ANTS):
     print(
         f"# iteration-budget: {summary['n_graphs']} graph(s), "
         f"{summary['n_trials']} replicate(s), ants={ants}; "
-        f"wins@E={dict(zip(summary['budgets'], summary['wins']))}",
+        f"wins@T={dict(zip(summary['budgets'], summary['wins']))}",
         file=sys.stderr,
     )
     return iteration_budget_figure(summary), skipped

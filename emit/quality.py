@@ -388,7 +388,7 @@ def build_combined_latex(
     lines += [
         r"\end{groupplot}",
         r"\end{tikzpicture}",
-        r"  \caption{ACO-N solution quality vs.\ the $\theta$-heuristic, "
+        r"  \caption{$F_N$ solution quality vs.\ the $\theta$-heuristic, "
         r"$\theta$-feasibility rate, and wall-clock time vs.\ ant count. "
         r"Each panel shows the cross-graph first quartile, median, and "
         r"third quartile of per-graph values (not pooled replicate "

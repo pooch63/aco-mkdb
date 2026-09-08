@@ -4,32 +4,30 @@ Complexity / scaling compare figures.
 Plot groups
 -----------
   theta-time
-    θ-heuristic wall time vs θ(|U_R|+|V_R|)+|E_R|
+    θ-heuristic wall time vs θ(|U|+|V|)+|E|
 
   deg-size-time
     2-panel log--log discovery-time scaling on matched graphs;
-    left: raw T vs n_R with empirical power-law fit;
-    right: T vs each candidate bound (naive n_R^2; practical
-    n_E·n_R+|E_R| with n_E from iterations_budget) — slope ≈ 1
+    left: raw t vs n with empirical power-law fit;
+    right: t vs each candidate bound (naive n^2; practical
+    T·n+m with T from iterations_budget) — slope ≈ 1
     means proportional
 
-  practical-bound-time
-    single-panel log--log normalized discovery time
-    T/(n_S·n_E) vs the practical proxy n_E·n_R+|E_R|
-
-  naive-bound-time
-    single-panel log--log normalized discovery time
-    T/(n_S·n_E) vs the naive bound n_R^2
+  bound-time
+    2-panel log--log normalized discovery time t/(n_S·T):
+    left vs naive bound n^2; right vs practical proxy
+    T·n+m — shared y-axis so slopes can be compared
 
   density-size
-    edge density vs |E(D*)|
+    edge density vs |E(D_{best})|
 
   max-deg-time
-    max reduced degree vs ACO-N discovery time
+    max reduced degree vs $F_N$ discovery time
 """
 
 from __future__ import annotations
 
+import math
 import sys
 
 from .helpers import (
@@ -50,17 +48,16 @@ _BOUND_COLORS = ("blue", "red")
 PLOT_GROUPS = (
     "theta-time",
     "deg-size-time",
-    "practical-bound-time",
-    "naive-bound-time",
+    "bound-time",
     "density-size",
     "max-deg-time",
 )
 
 # Fallback epoch budget only when JSON omits iterations_budget.
-_FALLBACK_N_E = 5
+_FALLBACK_T = 5
 
-_NAIVE_LABEL = r"$n_R^2$"
-_PRACTICAL_LABEL = r"$n_E\cdot n_R+|E_R|$"
+_NAIVE_LABEL = r"$n^2$"
+_PRACTICAL_LABEL = r"$T\cdot n+m$"
 _BOUND_SERIES_ORDER = (_NAIVE_LABEL, _PRACTICAL_LABEL)
 _BOUND_SERIES_MARKS = {
     _NAIVE_LABEL: "*",
@@ -77,38 +74,38 @@ def _row_ants(row):
 
 
 def _row_epochs(row):
-    n_e = row.get("aco_iterations_budget")
-    if n_e is None:
+    t = row.get("aco_iterations_budget")
+    if t is None:
         return None
-    n_e = float(n_e)
-    return n_e if n_e > 0 else None
+    t = float(t)
+    return t if t > 0 else None
 
 
 def _normalized_discovery_time(row):
     """
-    Discovery wall time per ant per epoch: T / (n_S · n_E).
+    Discovery wall time per ant per epoch: t / (n_S · T).
 
     Uses ants and iterations_budget from the winning trial JSON fields
     (via summarize_file). Returns None if any factor is missing/invalid.
     """
     time_s = row.get("aco_time")
     ants = _row_ants(row)
-    n_e = _row_epochs(row)
-    if time_s is None or ants is None or n_e is None:
+    t = _row_epochs(row)
+    if time_s is None or ants is None or t is None:
         return None
     time_s = float(time_s)
     if time_s <= 0:
         return None
-    return time_s / (ants * n_e)
+    return time_s / (ants * t)
 
 
 def discovery_bound_row(row):
     """
     Per-graph discovery time and complexity proxies, or None if incomplete.
 
-    naive_bound = (|U_R|+|V_R|)^2
-    practical_bound = n_E · (|U_R|+|V_R|) + |E_R|
-    with n_E from iterations_budget (fallback _FALLBACK_N_E only if missing)
+    naive_bound = (|U|+|V|)^2
+    practical_bound = T · (|U|+|V|) + |E|
+    with T from iterations_budget (fallback _FALLBACK_T only if missing)
     """
     n_r = reduced_node_count(row)
     time_s = row.get("aco_time")
@@ -121,21 +118,21 @@ def discovery_bound_row(row):
     m_r = float(edges)
     if n_r <= 0 or m_r < 0:
         return None
-    n_e = _row_epochs(row)
-    if n_e is None:
+    t = _row_epochs(row)
+    if t is None:
         print(
             "Warning: missing aco_iterations_budget; "
-            f"falling back to n_E={_FALLBACK_N_E} for practical bound",
+            f"falling back to T={_FALLBACK_T} for practical bound",
             file=sys.stderr,
         )
-        n_e = float(_FALLBACK_N_E)
-    practical_bound = n_e * n_r + m_r
+        t = float(_FALLBACK_T)
+    practical_bound = t * n_r + m_r
     if practical_bound <= 0:
         return None
     return {
         "n_R": n_r,
         "m_R": m_r,
-        "n_E": n_e,
+        "T": t,
         "time": float(time_s),
         "naive_bound": n_r * n_r,
         "practical_bound": practical_bound,
@@ -154,7 +151,7 @@ def matched_discovery_bound_points(named_rows):
 
 def matched_normalized_bound_points(named_rows):
     """
-    Graphs with normalized discovery time T/(n_S·n_E) and complexity bounds.
+    Graphs with normalized discovery time t/(n_S·T) and complexity bounds.
     """
     points = []
     for name, row in named_rows:
@@ -193,25 +190,25 @@ def _common_budget(matched, key):
 
 
 def _budget_caption_bits(matched):
-    """LaTeX scraps describing the shared (n_S, n_E) budget when uniform."""
+    """LaTeX scraps describing the shared (n_S, T) budget when uniform."""
     n_s = _common_budget(matched, "n_S")
-    n_e = _common_budget(matched, "n_E")
-    if n_s is not None and n_e is not None:
+    t = _common_budget(matched, "T")
+    if n_s is not None and t is not None:
         return (
-            rf"$n_S = {int(n_s)}$, $n_E = {int(n_e)}$",
-            rf"($n_E{{=}}{int(n_e)}$)",
+            rf"$n_S = {int(n_s)}$, $T = {int(t)}$",
+            rf"($T{{=}}{int(t)}$)",
         )
-    return ("recorded $n_S$ and $n_E$", "")
+    return ("recorded $n_S$ and $T$", "")
 
 
 def _bound_vs_time_series(matched):
-    """(bound, T) points and log--log regression stats for each candidate."""
+    """(bound, t) points and log--log regression stats for each candidate."""
     naive_pts = [(p["naive_bound"], p["time"]) for p in matched]
     practical_pts = [(p["practical_bound"], p["time"]) for p in matched]
-    n_e = _common_budget(matched, "n_E")
+    t = _common_budget(matched, "T")
     practical_label = _PRACTICAL_LABEL
-    if n_e is not None:
-        practical_label = rf"$n_E\cdot n_R+|E_R|$ ($n_E{{=}}{int(n_e)}$)"
+    if t is not None:
+        practical_label = rf"$T\cdot n+m$ ($T{{=}}{int(t)}$)"
     return {
         _NAIVE_LABEL: naive_pts,
         practical_label: practical_pts,
@@ -222,19 +219,19 @@ def _bound_vs_time_series(matched):
 
 
 def _emit_raw_time_vs_n_panel(*, title, points, stats):
-    """Left panel: raw discovery time vs n_R with log--log trend."""
+    """Left panel: raw discovery time vs n with log--log trend."""
     lines = [
         r"\nextgroupplot[",
         rf"    title={{{title}}},",
         r"    title style={font=\small},",
-        r"    xlabel={$n_R = |U_R|+|V_R|$},",
+        r"    xlabel={$n = |U|+|V|$},",
         r"    ylabel={Discovery time (s)},",
         r"    xmode=log,",
         r"    ymode=log,",
         r"  ]",
     ]
     lines += addplot_scatter(
-        "ACO-N",
+        ACO_LABEL,
         points,
         with_legend=False,
         alpha=0.6,
@@ -253,7 +250,7 @@ def _emit_raw_time_vs_n_panel(*, title, points, stats):
 
 
 def _emit_bound_panel(*, title, series, series_order, legend_name=None):
-    """Right panel: T vs each candidate bound (slope ≈ 1 ⇒ proportional)."""
+    """Right panel: t vs each candidate bound (slope ≈ 1 ⇒ proportional)."""
     lines = [
         r"\nextgroupplot[",
         rf"    title={{{title}}},",
@@ -291,30 +288,30 @@ def _emit_bound_panel(*, title, series, series_order, legend_name=None):
 
 
 def discovery_scaling_figure(*, matched):
-    """Raw discovery time vs n_R and vs candidate bounds (2-panel)."""
+    """Raw discovery time vs n and vs candidate bounds (2-panel)."""
     n = len(matched)
     time_vs_n = [(p["n_R"], p["time"]) for p in matched]
     stats_n = log_log_regression_stats(time_vs_n)
     series_bound, stats_bound, series_order = _bound_vs_time_series(matched)
     legend_name = "compareDiscoveryScalingLegend"
-    n_e = _common_budget(matched, "n_E")
-    n_e_tex = int(n_e) if n_e is not None else _FALLBACK_N_E
+    n_e = _common_budget(matched, "T")
+    n_e_tex = int(n_e) if n_e is not None else _FALLBACK_T
     practical_lab = series_order[1]
 
     caption = (
-        rf"ACO-N discovery time on the {n} $(k, \theta) = (2, 5)$ graphs "
-        rf"(log--log). Left: raw time vs.\ reduced nodes $n_R$, with a "
+        rf"$F_N$ discovery time on the {n} $(k, \theta) = (2, 5)$ graphs "
+        rf"(log--log). Left: raw time vs.\ nodes $n$, with a "
         rf"least-squares power-law fit "
         rf"({_fmt_log_log_regression(stats_n)}). Right: the same times "
         rf"plotted against each candidate complexity bound; a tight bound "
         rf"should give slope $\approx 1$ (proportional growth). Fitting "
-        rf"$\log T = \alpha\log(\mathrm{{bound}}) + c$ yields "
+        rf"$\log t = \alpha\log(\mathrm{{bound}}) + c$ yields "
         rf"{_fmt_log_log_regression(stats_bound[_NAIVE_LABEL])} for the "
-        rf"naive $n_R^2$ bound and "
+        rf"naive $n^2$ bound and "
         rf"{_fmt_log_log_regression(stats_bound[practical_lab])} for "
-        rf"the practical proxy $n_E\cdot n_R+|E_R|$ with $n_E = {n_e_tex}$. "
+        rf"the practical proxy $T\cdot n+m$ with $T = {n_e_tex}$. "
         rf"The practical slope is closer to $1$, matching the claim that "
-        rf"observed runtimes scale linearly with $|E_R|$ rather than "
+        rf"observed runtimes scale linearly with $m$ rather than "
         rf"quadratically as the worst-case bound suggests."
     )
 
@@ -334,7 +331,7 @@ def discovery_scaling_figure(*, matched):
         r"  ]",
     ]
     lines += _emit_raw_time_vs_n_panel(
-        title=r"Empirical scaling vs.\ $n_R$",
+        title=r"Empirical scaling vs.\ $n$",
         points=time_vs_n,
         stats=stats_n,
     )
@@ -371,7 +368,7 @@ def density_size_figure(named_rows):
         heur_size=[],
         xlabel=r"Edge density $|E|/(|U|\,|V|)$",
         legend_name="compareSizeLegend",
-        caption=r"ACO-N solution size vs.\ graph edge density.",
+        caption=r"$F_N$ solution size vs.\ graph edge density.",
         label="fig:compare-density-size",
     )
 
@@ -386,11 +383,11 @@ def theta_time_figure(named_rows):
         aco_order=[],
         aco_size={},
         heur_size=theta_heur_time,
-        xlabel=r"$\theta(|U_R|+|V_R|)+|E_R|$",
+        xlabel=r"$\theta(|U|+|V|)+|E|$",
         ylabel=r"Time (s)",
         caption=(
             r"$\theta$-heuristic wall time vs.\ "
-            r"$\theta(|U_R|+|V_R|)+|E_R|$."
+            r"$\theta(|U|+|V|)+|E|$."
         ),
         label="fig:compare-theta-nm-time",
         width="0.72\\textwidth",
@@ -412,7 +409,7 @@ def max_deg_time_figure(named_rows):
         ylabel=r"Discovery time (s)",
         legend_name="compareMaxDegTimeLegend",
         caption=(
-            r"ACO-N discovery time vs.\ maximum degree in the reduced graph."
+            r"$F_N$ discovery time vs.\ maximum degree in the reduced graph."
         ),
         label="fig:compare-max-deg-time",
     )
@@ -423,55 +420,29 @@ def deg_size_time_figure(named_rows):
     return discovery_scaling_figure(matched=matched)
 
 
-def _normalized_bound_figure(
+def _emit_normalized_bound_panel(
     *,
-    matched,
-    x_key,
+    title,
     xlabel,
-    bound_name_tex,
-    log_bound_tex,
-    label,
-    annotate_n_e_on_xlabel=False,
+    points,
+    stats,
+    ylabel=None,
 ):
-    """
-    Single-panel log--log plot of T/(n_S·n_E) vs a complexity proxy.
-    """
-    points = [(p[x_key], p["norm_time"]) for p in matched]
-    stats = log_log_regression_stats(points)
-    n = len(matched)
-    budget_tex, n_e_paren = _budget_caption_bits(matched)
-    xlabel_full = (
-        f"{xlabel} {n_e_paren}"
-        if annotate_n_e_on_xlabel and n_e_paren
-        else xlabel
-    )
-    caption = (
-        rf"ACO-N discovery time normalized by ant count and epoch budget "
-        rf"$T/(n_S\cdot n_E)$ vs.\ {bound_name_tex} on the {n} "
-        rf"$(k, \theta) = (2, 5)$ graphs (log--log; {budget_tex} from "
-        rf"recorded trials). Fitting "
-        rf"$\log\!\bigl(T/(n_S\cdot n_E)\bigr) = "
-        rf"\alpha\log({log_bound_tex}) + c$ yields "
-        rf"{_fmt_log_log_regression(stats)}. Slope $\approx 1$ would "
-        rf"indicate proportional growth with the bound."
-    )
-
+    """One groupplot panel: t/(n_S·T) vs a complexity proxy."""
     lines = [
-        r"\begin{figure}[H]",
-        r"  \centering",
-        r"  \begin{tikzpicture}",
-        r"  \begin{axis}[",
-        r"    width=0.72\textwidth,",
-        r"    height=0.48\textwidth,",
-        rf"    xlabel={{{xlabel_full}}},",
-        r"    ylabel={Normalized discovery time $T/(n_S\cdot n_E)$ (s)},",
+        r"\nextgroupplot[",
+        rf"    title={{{title}}},",
+        r"    title style={font=\small},",
+        rf"    xlabel={{{xlabel}}},",
         r"    xmode=log,",
         r"    ymode=log,",
-        r"    grid=major,",
-        r"  ]",
     ]
+    if ylabel is not None:
+        lines.append(rf"    ylabel={{{ylabel}}},")
+        lines.append(r"    ylabel style={font=\small, align=center},")
+    lines.append(r"  ]")
     lines += addplot_scatter(
-        "ACO-N",
+        ACO_LABEL,
         points,
         with_legend=False,
         alpha=0.6,
@@ -486,42 +457,102 @@ def _normalized_bound_figure(
             rf"at (rel axis cs:0.04,0.96) "
             rf"{{$\alpha = {slope:.2f}$\\$R^2 = {r2:.2f}$}};"
         )
-    lines += [
-        r"  \end{axis}",
-        r"  \end{tikzpicture}",
-        r"",
-        rf"  \caption{{{caption}}}",
-        rf"  \label{{{label}}}",
-        r"\end{figure}",
-    ]
     return lines
 
 
-def practical_bound_time_figure(named_rows):
-    """Normalized discovery time vs n_E·n_R+|E_R|."""
-    matched = matched_normalized_bound_points(named_rows)
-    return _normalized_bound_figure(
-        matched=matched,
-        x_key="practical_bound",
-        xlabel=r"$n_E\cdot n_R+|E_R|$",
-        bound_name_tex=r"the practical complexity proxy $n_E\cdot n_R+|E_R|$",
-        log_bound_tex=r"n_E\cdot n_R+|E_R|",
-        label="fig:compare-practical-bound-time",
-        annotate_n_e_on_xlabel=True,
-    )
+def _log_pad_limits(values, *, pad=0.15):
+    """Padded log-axis (ymin, ymax) from positive values, or None."""
+    pos = [float(v) for v in values if v is not None and float(v) > 0]
+    if not pos:
+        return None
+    lo, hi = min(pos), max(pos)
+    if lo == hi:
+        return 0.5 * lo, 2.0 * hi
+    log_lo, log_hi = math.log10(lo), math.log10(hi)
+    span = log_hi - log_lo
+    return 10 ** (log_lo - pad * span), 10 ** (log_hi + pad * span)
 
 
-def naive_bound_time_figure(named_rows):
-    """Normalized discovery time vs n_R^2."""
+def bound_time_figure(named_rows):
+    """
+    Normalized discovery time vs naive and practical bounds (2-panel).
+
+    Left: t/(n_S·T) vs n^2 (theoretical worst case).
+    Right: same times vs T·n+m (practical proxy).
+    Shared y-axis lets the fitted slopes be compared directly.
+    """
     matched = matched_normalized_bound_points(named_rows)
-    return _normalized_bound_figure(
-        matched=matched,
-        x_key="naive_bound",
-        xlabel=r"$n_R^2$",
-        bound_name_tex=r"the naive bound $n_R^2$",
-        log_bound_tex=r"n_R^2",
-        label="fig:compare-naive-bound-time",
+    n = len(matched)
+    naive_pts = [(p["naive_bound"], p["norm_time"]) for p in matched]
+    practical_pts = [(p["practical_bound"], p["norm_time"]) for p in matched]
+    stats_naive = log_log_regression_stats(naive_pts)
+    stats_practical = log_log_regression_stats(practical_pts)
+    budget_tex, n_e_paren = _budget_caption_bits(matched)
+    practical_xlabel = (
+        rf"$T\cdot n+m$ {n_e_paren}"
+        if n_e_paren
+        else r"$T\cdot n+m$"
     )
+    y_limits = _log_pad_limits(p["norm_time"] for p in matched)
+
+    caption = (
+        rf"$F_N$ discovery time normalized by ant count and epoch budget "
+        rf"$t/(n_S\cdot T)$ on the {n} $(k, \theta) = (2, 5)$ graphs "
+        rf"(log--log; {budget_tex} from recorded trials). Left: vs.\ the "
+        rf"naive theoretical bound $n^2$ "
+        rf"({_fmt_log_log_regression(stats_naive)}). Right: vs.\ the "
+        rf"practical proxy $T\cdot n+m$ "
+        rf"({_fmt_log_log_regression(stats_practical)}). Fitting "
+        rf"$\log\!\bigl(t/(n_S\cdot T)\bigr) = "
+        rf"\alpha\log(\mathrm{{bound}}) + c$, slope $\approx 1$ would "
+        rf"indicate proportional growth. The practical slope is closer to "
+        rf"$1$ than the naive $n^2$ fit, so while still loose the "
+        rf"practical bound is a significantly better complexity scale."
+    )
+
+    ylabel = r"Normalized discovery time $t/(n_S\cdot T)$ (s)"
+    lines = [
+        r"\begin{figure}[H]",
+        r"  \centering",
+        r"  \begin{tikzpicture}",
+        r"  \begin{groupplot}[",
+        r"    group style={",
+        r"      group size=2 by 1,",
+        r"      horizontal sep=52pt,",
+        r"      ylabels at=edge left,",
+        r"      yticklabels at=edge left},",
+        r"    width=0.45\textwidth,",
+        r"    height=0.42\textwidth,",
+        r"    grid=major,",
+        r"    xlabel style={font=\small},",
+    ]
+    if y_limits is not None:
+        ymin, ymax = y_limits
+        lines.append(rf"    ymin={ymin:.6g},")
+        lines.append(rf"    ymax={ymax:.6g},")
+    lines.append(r"  ]")
+    lines += _emit_normalized_bound_panel(
+        title=r"Naive bound $n^2$",
+        xlabel=r"$n^2$",
+        points=naive_pts,
+        stats=stats_naive,
+        ylabel=ylabel,
+    )
+    lines += _emit_normalized_bound_panel(
+        title=r"Practical proxy $T\cdot n+m$",
+        xlabel=practical_xlabel,
+        points=practical_pts,
+        stats=stats_practical,
+    )
+    lines += [
+        r"  \end{groupplot}",
+        r"  \end{tikzpicture}",
+        r"",
+        rf"  \caption{{{caption}}}",
+        r"  \label{fig:compare-bound-time}",
+        r"\end{figure}",
+    ]
+    return lines
 
 
 BUILDERS = {
@@ -529,6 +560,5 @@ BUILDERS = {
     "theta-time": theta_time_figure,
     "max-deg-time": max_deg_time_figure,
     "deg-size-time": deg_size_time_figure,
-    "practical-bound-time": practical_bound_time_figure,
-    "naive-bound-time": naive_bound_time_figure,
+    "bound-time": bound_time_figure,
 }

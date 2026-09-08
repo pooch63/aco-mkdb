@@ -27,8 +27,7 @@ COMPARE_PLOT_REQUIREMENTS = {
     "max-deg-time": ("reduced_max_degree",),
     # Uses reduced_nU/nV/edges and aco discovery time from summarize_file.
     "deg-size-time": (),
-    "practical-bound-time": (),
-    "naive-bound-time": (),
+    "bound-time": (),
 }
 
 
@@ -160,7 +159,7 @@ def validate_compare_directory(json_paths, plots):
 def validate_missing_at_size_dirs(aco_dir, aco_n_dir, *, ants=100, target_size=5):
     """Warn if missing-at-size means are not recorded in JSON (non-fatal)."""
     problems = []
-    for label, directory in (("ACO", aco_dir), ("ACO-N", aco_n_dir)):
+    for label, directory in (("ACO", aco_dir), (r"$F_N$", aco_n_dir)):
         mean, n_graphs, n_files, missing = pool_missing_at_size_mean(
             directory, ants=ants, target_size=target_size
         )

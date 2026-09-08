@@ -6,6 +6,15 @@ import glob
 import json
 import os
 import sys
+from collections import defaultdict
+
+# None = keep every counted (non-JIT) replicate. Set via set_max_replicates /
+# --max-replicates / build.json max_replicates to retrospectively prefix the
+# ordered counted runs per ant count (same rule as replicate-budget R).
+_max_replicates = None
+# Sentinel: omit max_replicates= to use the process default; pass None to
+# keep all counted replicates even when a default cap is set.
+_MAX_REPLICATES_UNSET = object()
 
 
 def list_json_paths(directory):
@@ -166,13 +175,58 @@ def is_jit_warmup_trial(t, data=None, *, n_runs=None):
     return int(t.get("run", 1)) == 1
 
 
-def counted_trials(trials, data=None, *, n_runs=None):
-    """Trials excluding the per-ant-count JIT warmup replicate."""
-    return [
+def set_max_replicates(n):
+    """
+    Cap counted replicates per ant count for this process (None = all).
+
+    When set to R ≥ 1, counted_trials keeps only the first R non-JIT
+    replicates at each ant count (ordered by ascending ``run``), matching
+    the replicate-budget prefix rule. Call from emit CLI / build before
+    loading JSON.
+    """
+    global _max_replicates
+    if n is None:
+        _max_replicates = None
+        return
+    n = int(n)
+    if n < 1:
+        raise ValueError(f"max_replicates must be >= 1 or None, got {n}")
+    _max_replicates = n
+
+
+def get_max_replicates():
+    """Current process-wide counted-replicate cap, or None for all."""
+    return _max_replicates
+
+
+def counted_trials(trials, data=None, *, n_runs=None, max_replicates=_MAX_REPLICATES_UNSET):
+    """
+    Trials excluding the per-ant-count JIT warmup replicate.
+
+    Optional ``max_replicates`` keeps only the first R counted replicates
+    per ant count (ordered by ``run``). Omit the argument to use the
+    process default from set_max_replicates; pass ``max_replicates=None``
+    to keep every counted replicate even when a default cap is set.
+    """
+    kept = [
         t
         for t in (trials or [])
         if not is_jit_warmup_trial(t, data, n_runs=n_runs)
     ]
+    if max_replicates is _MAX_REPLICATES_UNSET:
+        max_replicates = _max_replicates
+    if max_replicates is None:
+        return kept
+
+    by_ants = defaultdict(list)
+    for t in kept:
+        by_ants[t.get("ants")].append(t)
+
+    out = []
+    for group in by_ants.values():
+        ordered = sorted(group, key=lambda t: int(t.get("run", 10**9)))
+        out.extend(ordered[: int(max_replicates)])
+    return out
 
 
 def select_best_trial_any(trials):
