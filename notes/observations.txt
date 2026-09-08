@@ -165,3 +165,7 @@ we just seed them each from different nodes). This way, they don't get stuck in 
 GREAT IDEA:
 
 Use upper bounding techniques on the ants. So if it's provably not possible to continue with an ant's solution and beat the current best, just stop the ant (and maybe even reduce its pheromones), because we know that it can't be the best solution.
+
+9.7.26
+
+Ant pheromone allows them to adapt to a changing environment, the pheromones will just update. So what if we test ACO vs the theta heuristic on a graph and then add in a solution after it's already run and see how quickly they can get the solution
