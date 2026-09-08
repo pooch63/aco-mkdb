@@ -213,35 +213,50 @@ Generally, real-world data often introduces noise to graphs, and structures with
     \label{fig:k-defective-biclique}
 \end{figure}
 
-Maximizing edge count alone is not enough for these applications. Without a lower bound on each side's size, the optimum is often a lopsided subgraph with many edges but little real-world significance. In the case of fraud, a single popular item purchased by thousands of unrelated users could be a massive biclique with one vertex opposite many others, yet it signals mass-market demand rather than a coordinated ring. We therefore seek only $\theta$-feasible \mbox{$k$-DB}: \mbox{$k$-DB} where both sides have at least $\theta$ vertices.
 
-The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm that can run in polynomial time and is guaranteed to find the maximum solution. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques.
+Maximizing edge count alone is not enough for real-world interpretability. Without a lower bound on each side's size, the optimum is often a lopsided subgraph with many edges but little practical significance. In the case of fraud, a single popular item purchased by thousands of unrelated users could be a massive biclique with one vertex opposite many others, but it signals mass-market demand rather than a coordinated ring. We therefore seek only $\theta$-feasible \mbox{$k$-DB}: \mbox{$k$-DB} where both sides have at least $\theta$ vertices, where $\theta$ is a user-defined parameter.
+
+
+The $k$-MDB problem is NP-hard. Unless P = NP, there is no algorithm that can run in polynomial time and is guaranteed to find the maximum solution. When the absolute optimum is not necessary, approximation techniques are useful to significantly reduce computation while providing meaningfully large bicliques. The only heuristic in literature for this problem is proposed by Cui et al., referred to in this paper as the $\theta$-heuristic. Cui et al. also propose a brute-force algorithm to find the $k$-MDB called branch-and-pivot.
+
 
 Dorigo et al. [2] proposed a metaheuristic known as Ant Colony Optimization (ACO) for exploring graphs. Initially used on finding the shortest path in the Traveling Salesman Problem, ACO has been adapted to many graph problems, such as vehicle routing [5], quadratic assignment [6], graph coloring [7], and the maximum clique problem [8].
 
-We introduce an Ant Colony Optimization (ACO) heuristic for the $k$-defective maximum edge biclique ($k$-MDB) problem, incorporating a neighbor-scope restriction that reduces the candidate set considered during construction. Across 37 benchmark graphs, ACO frequently finds larger and more often $\theta$-feasible solutions than the existing $\theta$-heuristic, although at substantially higher computational cost. We further show that these stronger solutions can improve downstream branch-and-pivot search, reducing its wall-clock time by up to $56\%$ on tested instances. Together, these results demonstrate ACO as a complementary approach to existing $k$-MDB heuristics, trading increased search cost for improved solution quality.
+
+We introduce an ACO-inspired heuristic for the $k$-defective maximum edge biclique ($k$-MDB) problem, incorporating a neighbor-scope restriction that reduces the set of vertices considered during construction. Across 37 benchmark graphs, ACO frequently finds larger and more often $\theta$-feasible solutions than the existing $\theta$-heuristic, although at substantially higher computational cost. We further show that these stronger solutions can improve branch-and-pivot search, reducing its wall-clock time by up to $56\%$ on tested instances. Together, these results demonstrate ACO as a complementary approach to existing $k$-MDB heuristics, trading increased search cost for improved solution quality.
+
 
 \section{Background}
 
 \subsection{Definitions}
 
-Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Define $n = |U| + |V|$ and $m = |E|$. Let $S = (U_S, V_S)$ denote a subset of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $G(S) = (U_S, V_S, E_S)$ be the induced subgraph of $S$ where $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$. Because every possible edge runs between the two sides of a $k$-DB, a subgraph with $|U_S|$ and $|V_S|$ vertices has at most $|U_S||V_S|$ edges. For a $k$-defective biclique, $|E(S)|=|U_S||V_S|-|\bar E(S)|$, with $|\bar E(S)|\le k$.
+
+Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a set of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$ be the set of edges in a subgraph $S$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$. Because every possible edge runs between the two sides of a biclique, a subgraph with $|U_S|$ and $|V_S|$ vertices has at most $|U_S||V_S|$ edges. For a $k$-defective biclique, $|E(S)|=|U_S||V_S|-|\bar E(S)|$, with $|\bar E(S)|\le k$.
+
 
 Define the neighbors of a vertex $u$ in a subgraph $S$ as $N_S(u) = \{v \in S \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a vertex as $\bar{N}_S(u) = \{v \in S \mid (u, v) \not\in E(S)\}$. Define the degree of a vertex as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
 
-Define a maximal $k$-DB as a subgraph $S$ that cannot be expanded. That is, for any vertex $v \in G \setminus S$, $|\bar{E}(S \cup \{v\})| > k$. Define the maximum $k$-MDB as the maximal $k$-DB with the largest number of edges in a graph $G$. Let $\theta$ be a user-defined minimum side size. The algorithms proposed in this paper seek the maximum $k$-MDB among subgraphs with $|U_S| \geq \theta$ and $|V_S| \geq \theta$. As described in Section~1, on real-world graphs, unconstrained \mbox{$k$-DB} often concentrate edges on disproportionate sides [1], which limits their interpretability. Note that $\theta$ must be larger than $k$. A vertex on one side can have at most $|V_S|$ missing edges. If $|V_S| \le k$, then even a vertex with zero neighbors can satisfy the $k$-defective constraint. Therefore requiring $\theta>k$ ensures every vertex in a $\theta$-feasible $k$-DB must have at least one neighbor.
+
+Define the maximum $k$-MDB as the $k$-DB with the largest number of edges in a graph $G$. Let $\theta$ be a user-defined minimum side size. The algorithms proposed in this paper seek the maximum $k$-MDB $D^*$ with $|U_{D^*}| \geq \theta$ and $|V_{D^*}| \geq \theta$ as described in Section~1. We require that $\theta > k$. A vertex on one side can have at most $|V_S|$ missing edges. If $|V_S| \le k$, then even a vertex with zero neighbors can satisfy the $k$-defective constraint. Therefore requiring $\theta>k$ ensures every vertex in a $\theta$-feasible $k$-DB must have at least one neighbor.
+
 
 \subsection{Computational Complexity}
 
-Finding the maximum $k$-MDB on a bipartite graph is an NP-hard optimization problem. The maximum clique, a well-known NP-hard problem, reduces to the $k$-MDB problem [1]. Because maximum clique is NP-hard, the $k$-MDB problem is NP-hard as well.
+
+Finding the maximum $k$-MDB on a bipartite graph is an NP-hard optimization problem. The maximum clique problem reduces to the $k$-MDB problem [1]. Because the maximum clique is NP-hard, the $k$-MDB problem is NP-hard as well.
+
 
 \subsection{Previous Work}
 
-Similar dense subgraph models provide precedent for the $k$-MDB formulation. In unipartite graphs, \emph{defective cliques}, cliques that are missing up to a certain number of edges, have been used to recover nearly complete structure from noisy biological interaction graphs [12]. Exact algorithms for the maximum $k$-defective clique problem have primarily used branch-and-bound techniques with graph reduction and upper-bound pruning [13], [14]. On bipartite graphs, relaxed models include $k$-biplexes, which permit each vertex up to $k$ nonneighbors in the biplex [15], and $k$-defective bicliques, which have a tighter restriction of only allowing up to $k$ total missing edges. The $k$-MDB generalizes to the maximum edge biclique when $k = 0$ [1], [11].
 
-Cui et al. [1] proposed a brute-force approach to the $k$-MDB problem, as well as an initial heuristic designed to find a $k$-MDB with exactly $\theta$ vertices on one side of the graph. Concurrently, Wang et al. [11] studied the related problem of finding a $k$-defective biclique with the largest vertex count rather than edge count. Because their objective differs from ours, we do not benchmark directly against their algorithm.
+Similar dense subgraph models provide precedent for the $k$-MDB. In non-partite graphs, \emph{defective cliques}, cliques that are missing up to a certain number of edges, have been used to recover nearly complete structures from noisy biological interaction graphs [12]. On bipartite graphs, relaxed models include $k$-biplexes, which permit each vertex up to $k$ nonneighbors in the biplex [15], and $k$-defective bicliques, which have a tighter restriction of only allowing up to $k$ total missing edges. The $k$-MDB generalizes to the maximum edge biclique when $k = 0$ [1], [11].
 
-Ant Colony Optimization is a natural metaheuristic for problems where high-quality solutions are built incrementally by adding vertices under local feasibility constraints. In the maximum clique problem, ACO algorithms construct cliques greedily while using pheromone to reinforce vertices that are likely to appear in large solutions [8]. The $k$-MDB problem structure lends itself well to this algorithm: an ant can grow a near-biclique one vertex at a time, checking at each step whether the defect budget permits another addition. We also considered a genetic algorithm adapted from GCLIQUE [3], but our implementation performed poorly on the larger graphs in our benchmark. These considerations motivate our choice of ACO over alternative metaheuristics for identifying large $k$-DB.
+
+Cui et al. [1] proposed a brute-force approach to the $k$-MDB problem, as well as an initial heuristic designed to find a $k$-MDB with exactly $\theta$ vertices on one side of the graph, described in Section~1. Concurrently, Wang et al. [11] studied the related problem of finding a $k$-defective biclique with the largest vertex count rather than edge count. Because their objective differs from ours, we do not benchmark against their algorithm.
+
+
+Ant Colony Optimization is a natural metaheuristic for problems where high-quality solutions are built by iteratively adding vertices to a subgraph. In the maximum clique problem, ACO algorithms construct cliques greedily while using pheromone to reinforce vertices that are likely to appear in large solutions [8]. The $k$-MDB problem structure lends itself well to this algorithm: an ant can grow a near-biclique one vertex at a time, checking at each step whether the defect budget permits another addition. These considerations motivate our choice of ACO over alternative metaheuristics for identifying large $k$-DB.
+
 
 To our knowledge, the $\theta$-heuristic of Cui et al. [1] is the only published heuristic algorithm for the $k$-MDB problem. ACO is therefore compared against the only existing heuristic baseline in the literature.
 
@@ -251,79 +266,90 @@ To our knowledge, the $\theta$-heuristic of Cui et al. [1] is the only published
 
 \subsubsection{Overview of Algorithm}
 
-ACO traditionally uses a set of agents, called ``ants'', that traverse a graph and build a solution that must meet certain constraints. The ants leave pheromone on the vertices they visit, attracting other ants to follow their path. As the ants explore the solution space, they all converge on one particular path as the quantity of pheromones on that path becomes increasingly larger.
+
+ACO traditionally uses a set of agents, called ``ants'', that traverse a graph and build a solution that must meet certain constraints. The ants leave pheromone on the vertices they visit, attracting other ants to follow their path. As the ants explore the solution space, they all converge on the same vertices as the quantity of pheromones on that path becomes increasingly larger.
+
 
 We adapt the ACO algorithm to the $k$-MDB problem. A population of ants iteratively adds vertices from $G$ to a subgraph $S$, preferring vertices with higher subgraph degree $d_S$, higher global degree $d_G$, and higher pheromone $\tau$. Across ants and epochs, vertices repeatedly selected in high-quality solutions accumulate pheromone, increasing their likelihood of future selection.
 
-We also add an optional control that improves practical runtime. Flag $F_N$ (neighbor-scope limit) restricts candidates to the intersection of the $k$-feasible candidate set and the last-added vertex's neighbors when that intersection is nonempty, reducing the set of vertices an ant must score at each step. Suppose an ant has constructed $S$ and its last added vertex is $v_{last}$. If candidates $u_1,u_2,u_3$ preserve the $k$-defect bound but only $u_1,u_2$ are adjacent to $v_{last}$, the neighbor-scope rule restricts the ant to $\{u_1,u_2\}$. It then samples between them according to their pheromone and desirability scores, adds the selected vertex, and repeats until no feasible candidate remains. $F_N$ enables this flag and is our default for complexity-validation plots and main experiments unless noted otherwise.
+
+We also add an optional control that improves practical runtime and performance. Flag $F_N$ (neighbor-scope restriction) restricts candidates to the intersection of the $k$-feasible candidate set and the last-added vertex's neighbors when that intersection is nonempty, substantially reducing the set of vertices an ant must score at each step.
+
+
+As an example, consider an ant has constructed $S$ and its last added vertex is $v_{last}$. If candidates $u_1,u_2,u_3$ preserve the $k$-defect bound but only $u_1,u_2$ are adjacent to $v_{last}$, the neighbor-scope rule restricts the ant to $\{u_1,u_2\}$. It then samples between them according to their pheromone and desirability scores, adds the selected vertex, and repeats until no feasible candidate remains. $F_N$ enables this flag and is our default for all experiments unless noted otherwise.
+
 
 \subsubsection{Algorithm Pseudocode}
 
-Here, $\sigma(x) = 1/(1+e^{-x})$ denotes the standard logistic sigmoid, used to dampen the impact of a vertex's degree with the entire graph as the size of the subgraph grows. Algorithm~\ref{alg:aco} implements the colony loop with optional neighbor-scope limit~$F_N$; Algorithm~\ref{alg:desirability} implements desirability.
+
+Algorithm~\ref{alg:aco} implements the ant colony loop with optional neighbor-scope restriction~$F_N$. Here, $\sigma(x) = 1/(1+e^{-x})$ denotes the standard logistic sigmoid, used to dampen the impact of a vertex's degree with the entire graph as the size of the subgraph grows. Algorithm~\ref{alg:desirability} implements desirability.
+
 
 \begin{algorithm}[H]
 \caption{ACO}
 \label{alg:aco}
 \begin{minipage}{\textwidth}
 \begin{algorithmic}
-    \Require A bipartite graph $G$; hyperparameters $T$, $A$, $F_N$, $\rho$, and $\Delta\tau$; parameters $k$ and $\theta$
-    \Ensure a $k$-MDB of $G$, if one could be found
-    
-    
-    \Function{ACO}{$G$, $T$, $A$, $F_N$, $\rho$, $\Delta\tau$}
-        \Comment{$F_N$: neighbor-scope flag}
-        \ForAll{$u \in G$}
-            \State $\tau(u) \gets 1$
-        \EndFor    
-    
-        \State $B \gets \{\}$
-    
-    
-        \For{$e \gets 1,\ldots,T$}
-            \State $\mathcal{S} \gets A$ empty subgraphs
-            \State $\tau_C \gets \tau$
-    
-    
-            \ForPar{$S_i \in \mathcal{S}$}
-                \State $C \gets \{u \in G \mathrel{\text{s.t.}} |\bar{E}(S_i \cup \{u\})| \leq k\}$
-                \While{$|C| > 0$}
-                    \If{$S_i = \emptyset$}
-                        \State $search \gets C$
-                    \Else
-                        \State $v_{last} \gets$ the last vertex that was appended to $S_i$
-                        \State $C_{v_{last}} \gets N(v_{last})$
-        
-        
-                        \If{$|C \cap C_{v_{last}}| > 0$ and $F_N$}
-                            \State $search \gets C \cap C_{v_{last}}$
-                        \Else
-                            \State $search \gets C$
-                        \EndIf
-                    \EndIf
-    
-                    \State $next \gets \text{linear sample of } u \in search$ based on  $\Call{desirability}{u, S_i, \tau_C}$
-                    \State add $next$ to $S_i$
-                    \State $\tau_C(next) \gets \tau_C(next) + \Delta\tau$
-    
-                    \State $C \gets \{u \in G \mid k \geq |\bar{E}(S_i \cup \{u\})|\}$
-                \EndWhile
-            \EndForPar
+   \Require A bipartite graph $G$; hyperparameters $T$, $A$, $F_N$, $\rho$, and $\Delta\tau$; parameters $k$ and $\theta$
+   \Ensure a $k$-MDB of $G$, if one could be found
+  
+  
+   \Function{ACO}{$G$, $T$, $A$, $F_N$, $\rho$, $\Delta\tau$}
+       \Comment{$F_N$: neighbor-scope flag}
+       \ForAll{$u \in G$}
+           \State $\tau(u) \gets 1$
+       \EndFor   
+  
+       \State $B \gets \{\}$
+  
+  
+       \For{$e \gets 1,\ldots,T$}
+           \State $\mathcal{S} \gets A$ empty subgraphs
+           \State $\tau_C \gets \tau$
+  
+  
+           \ForPar{$S_i \in \mathcal{S}$}
+               \State $C \gets \{u \in G \mathrel{\text{s.t.}} |\bar{E}(S_i \cup \{u\})| \leq k\}$
+               \While{$|C| > 0$}
+                   \If{$S_i = \emptyset$}
+                       \State $search \gets C$
+                   \Else
+                       \State $v_{last} \gets$ the last vertex that was appended to $S_i$
+                       \State $C_{v_{last}} \gets N(v_{last})$
+      
+      
+                       \If{$|C \cap C_{v_{last}}| > 0$ and $F_N$}
+                           \State $search \gets C \cap C_{v_{last}}$
+                       \Else
+                           \State $search \gets C$
+                       \EndIf
+                   \EndIf
+  
+                   \State $next \gets \text{linear sample of } u \in search$ based on  $\Call{desirability}{u, S_i, \tau_C}$
+                   \State add $next$ to $S_i$
+                   \State $\tau_C(next) \gets \tau_C(next) + \Delta\tau$ \Comment{updates to $\tau_C$ are atomic}
 
-            \State $S_B \gets \text{argmax}_{S_i \in \mathcal{S}}{|E(S_i)|}$ \Comment{$S_B$ is guaranteed to have at least one vertex}
-    
-            \If{$B = \emptyset$ or $E(S_B) > E(B)$}
-                \State $B \gets S_B$
-            \EndIf
-    
-            \State $\tau \gets \tau_C$
-    
-            \ForAll{$u \in G$}
-                \State $\tau(u) \gets \tau(u) \times (1 - \rho)$
-            \EndFor
-        \EndFor
-        \State \Return $B$
-    \EndFunction
-\end{algorithmic}     
+
+                   \State $C \gets \{u \in G \mid k \geq |\bar{E}(S_i \cup \{u\})|\}$
+               \EndWhile
+           \EndForPar
+
+
+           \State $S_B \gets \text{argmax}_{S_i \in \mathcal{S}}{|E(S_i)|}$ \Comment{$S_B$ is guaranteed to have at least one vertex}
+  
+           \If{$E(S_B) > E(B)$}
+               \State $B \gets S_B$
+           \EndIf
+  
+           \State $\tau \gets \tau_C$
+  
+           \ForAll{$u \in G$}
+               \State $\tau(u) \gets \tau(u) \times (1 - \rho)$
+           \EndFor
+       \EndFor
+       \State \Return $B$
+   \EndFunction
+\end{algorithmic}    
 \end{minipage}
 \end{algorithm}
 
@@ -336,8 +362,8 @@ We introduce a desirability function that prefers vertices with higher $d_S$, hi
 \begin{algorithmic}
 
 \Function{Desirability}{$next, S, \tau$}
-    \State $\eta \gets d_S(next) + d_G(next) \times (1 - \sigma(|U_S| + |V_S|))$
-    \State \Return $\tau(next) \times \eta^3$
+   \State $\eta \gets d_S(next) + d_G(next) \times (1 - \sigma(|U_S| + |V_S|))$
+   \State \Return $\tau(next) \times \eta^3$
 \EndFunction
 
 \end{algorithmic}
@@ -346,9 +372,9 @@ We introduce a desirability function that prefers vertices with higher $d_S$, hi
 
 The $\eta$ exponent was ablated over $\{1, 2, 3\}$, and $3$ demonstrated the best quality.
 
-We also tried elitist pheromone deposition, local tabu search, the MAX-MIN Ant System [4], a genetic algorithm adapted from GCLIQUE [3], and a prefer-smaller-side desirability bias (flag~$F_P$) that multiplies $\eta$ by a constant when exactly one side of the ant's subgraph has reached $\theta$ and the candidate lies on the deficient side.
-None of the first four outperformed base ACO; the genetic algorithm failed on large graphs, indicating that it struggles with the dimensionality of large bicliques.
-Alone, $F_P$ improves solution quality over plain ACO, but once neighbor-scope limit~$F_N$ is enabled it contributes nothing further (Section~4.3).
+
+We also tried elitist pheromone deposition, local tabu search, the MAX-MIN Ant System [4], a genetic algorithm adapted from GCLIQUE [3], and a prefer-smaller-side desirability bias (flag~$F_P$) that multiplies $\eta$ by a constant when exactly one side of the ant's subgraph has reached $\theta$ and the candidate lies on the deficient side. None of the first four outperformed base ACO; the genetic algorithm failed on large graphs, indicating that it struggles with the dimensionality of large bicliques. Alone, $F_P$ improves solution quality over plain ACO, but once neighbor-scope restriction~$F_N$ is enabled it contributes nothing further (Section~4.3).
+
 
 \subsubsection{Validity Guarantee}
 
