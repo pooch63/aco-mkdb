@@ -78,7 +78,7 @@ export DEBUG
 # Prefer last-node neighbors ∩ C when nonempty (ACO default). Set false to always use full C.
 ENABLE_NEIGHBOR_SCOPE_LIMIT="${ENABLE_NEIGHBOR_SCOPE_LIMIT:-true}"
 # Bias ACO toward the smaller bipartition side (ACO default). Set false to disable.
-PREFER_SMALLER_SIDE="${PREFER_SMALLER_SIDE:-true}"
+PREFER_SMALLER_SIDE="${PREFER_SMALLER_SIDE:-false}"
 # Paper ablations — default off (baseline ACO). Set true to measure quality/runtime impact.
 ELITE_PHEROMONE="${ELITE_PHEROMONE:-false}"
 ACO_TABU="${ACO_TABU:-false}"

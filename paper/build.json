@@ -5,6 +5,7 @@
   "pdf": "build.pdf",
   "results_dir": "../results",
   "vary_base": "vary_",
+  "max_replicates": 1,
   "fragments": {
     "QUALITY": {
       "emit": "quality",
@@ -28,9 +29,9 @@
       "ants": 100,
       "flag_dirs": {
         "ACO": "vary_k2t5i_100_",
-        "ACO-P": "vary_k2t5i_P",
-        "ACO-N": "vary_k2t5i_100_N",
-        "ACO-PN": "vary_k2t5i_PN"
+        "$F_P$": "vary_k2t5i_P",
+        "$F_N$": "vary_k2t5i_100_N",
+        "$F_{PN}$": "vary_k2t5i_PN"
       },
       "param_dirs": {
         "k1t5": "vary_k1t5i_PN",

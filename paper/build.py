@@ -26,7 +26,7 @@ Experiment paths in build.json are usually bare names under results_dir
 Change results_dir once to point at another tree (e.g. ``../results_old``).
 Absolute paths and ``./`` / ``../`` paths are still resolved from paper/.
 
-STATISTICS missing-at-5 fields use missing_at_base (plain ACO dir; ACO-N is
+STATISTICS missing-at-* fields use missing_at_base (plain ACO dir; $F_N$ is
 that path + "N"). Falls back to vary_base if missing_at_base is omitted.
 STATISTICS pivot-tested / pivot-excluded fields use compare_dir (compare-seeds
 JSON) together with the vary input directory.
@@ -54,7 +54,14 @@ AUX_SUFFIXES = (".aux", ".log", ".fls", ".fdb_latexmk", ".out")
 SPECIAL_PLACEHOLDERS = frozenset({"PREAMBLE"})
 DEFAULT_RESULTS_DIR = "../results"
 # COMPARE plots that read flag_dirs / param_dirs instead of (or besides) input.
-COMPARE_FLAG_PLOTS = frozenset({"flag-ablation", "flag-feasibility"})
+COMPARE_FLAG_PLOTS = frozenset(
+    {
+        "flag-ablation",
+        "flag-ablation-replicates",
+        "flag-feasibility",
+        "flag-feasibility-replicates",
+    }
+)
 COMPARE_PARAM_PLOTS = frozenset(
     {
         "k-sweep",
@@ -65,7 +72,14 @@ COMPARE_PARAM_PLOTS = frozenset(
     }
 )
 STATISTICS_MISSING_AT_FIELDS = frozenset(
-    {"missing-at-5", "aco-missing-at-5", "aco-n-missing-at-5"}
+    {
+        "missing-at-5",
+        "missing-at-10",
+        "aco-missing-at-5",
+        "aco-n-missing-at-5",
+        "aco-missing-at-10",
+        "aco-n-missing-at-10",
+    }
 )
 
 EMIT_DIR = REPO_ROOT / "emit"
@@ -96,10 +110,13 @@ EMIT_MODE_SOURCES: dict[str, tuple[Path, ...]] = {
 COMPARE_PLOT_SOURCES: dict[str, Path] = {
     "theta-time": EMIT_DIR / "compare" / "complexity.py",
     "deg-size-time": EMIT_DIR / "compare" / "complexity.py",
+    "bound-time": EMIT_DIR / "compare" / "complexity.py",
     "density-size": EMIT_DIR / "compare" / "complexity.py",
     "max-deg-time": EMIT_DIR / "compare" / "complexity.py",
     "flag-ablation": EMIT_DIR / "compare" / "flag_ablation.py",
+    "flag-ablation-replicates": EMIT_DIR / "compare" / "flag_ablation.py",
     "flag-feasibility": EMIT_DIR / "compare" / "flag_ablation.py",
+    "flag-feasibility-replicates": EMIT_DIR / "compare" / "flag_ablation.py",
     "iteration-budget": EMIT_DIR / "compare" / "iteration_budget.py",
     "replicate-budget": EMIT_DIR / "compare" / "replicate_budget.py",
     "k-sweep": EMIT_DIR / "compare" / "param_sweep.py",
@@ -388,6 +405,10 @@ def build_emit_job(
             cmd.append(f"--subset={subset}")
     if frag.get("ants") is not None:
         cmd.append(f"--ants={frag['ants']}")
+    # Per-fragment override, else top-level build.json max_replicates.
+    max_repl = frag.get("max_replicates", cfg.get("max_replicates"))
+    if max_repl is not None:
+        cmd.append(f"--max-replicates={int(max_repl)}")
     if frag.get("flag_dirs"):
         for label, path in frag["flag_dirs"].items():
             cmd.append(
@@ -569,6 +590,12 @@ def assemble(cfg: dict) -> Path:
         if not body:
             missing.append(name if not args else f"{name}:{args}")
             return match.group(0)
+        # STATISTICS fragments are inline numbers/phrases; a trailing
+        # newline becomes a space in LaTeX and opens a gap before
+        # punctuation (e.g. "23 ," / "456 ;"). Block figures/tables
+        # keep the newline for clean line separation.
+        if name == "STATISTICS":
+            return body
         return body + "\n"
 
     built = PLACEHOLDER_RE.sub(replace, text)
@@ -591,9 +618,12 @@ def assemble(cfg: dict) -> Path:
         )
 
     output.write_text(built, encoding="utf-8")
-    if "fig:compare-bound-ratio" not in built and "%%COMPARE:deg-size-time%%" in text:
+    if (
+        "fig:compare-bound-time" not in built
+        and "%%COMPARE:bound-time%%" in text
+    ):
         raise SystemExit(
-            "assemble: bound-ratio figure missing from build.tex; "
+            "assemble: bound-time figure missing from build.tex; "
             "run: python3 paper/build.py emit"
         )
     print(f"# assembled {output.relative_to(PAPER_DIR)}", file=sys.stderr)
@@ -655,7 +685,7 @@ def remove_build_tex(cfg: dict, tex_path: Path | None = None) -> None:
 
 
 def verify_pdf(cfg: dict, tex_path: Path | None = None) -> None:
-    """Fail loudly if the bound-ratio complexity figure did not make it into the PDF."""
+    """Fail loudly if the bound-time complexity figure is missing from the PDF."""
     tex = tex_path or (PAPER_DIR / cfg["output"])
     pdf_path = PAPER_DIR / cfg.get("pdf", tex.with_suffix(".pdf").name)
     if not pdf_path.is_file():
@@ -669,28 +699,30 @@ def verify_pdf(cfg: dict, tex_path: Path | None = None) -> None:
     )
     if probe.returncode != 0:
         print(
-            "# warning: pdftotext unavailable; skipped bound-ratio PDF check",
+            "# warning: pdftotext unavailable; skipped bound-time PDF check",
             file=sys.stderr,
         )
         return
 
     text = probe.stdout
     required = (
-        "Ratio of ACO-PN discovery time to the theoretical and practical",
-        "Time / bound",
+        "normalized by ant count and epoch budget",
+        "naive theoretical bound",
+        "practical proxy",
     )
     missing = [phrase for phrase in required if phrase not in text]
     if missing:
         raise SystemExit(
-            "PDF is missing the bound-ratio complexity figure "
+            "PDF is missing the bound-time complexity figure "
             f"({', '.join(missing)}). "
             "Close and reopen paper/build.pdf in your viewer, or run: "
             "python3 paper/build.py all"
         )
 
     print(
-        "# verified bound-ratio figure in "
-        f"{pdf_path.relative_to(PAPER_DIR)} (section 3.3, fig:compare-bound-ratio)",
+        "# verified bound-time figure in "
+        f"{pdf_path.relative_to(PAPER_DIR)} "
+        "(section 3.3, fig:compare-bound-time)",
         file=sys.stderr,
     )
 
