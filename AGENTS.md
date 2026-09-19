@@ -32,16 +32,16 @@ We adapt **MAX-MIN Ant System (MMAS)**-style ACO to grow k-defective bicliques i
 
 | Flag | Name | Effect |
 |------|------|--------|
-| **P** | prefer-smaller-side | When one side has \(\geq \theta\) vertices and the other does not, boost desirability of vertices on the smaller side (factor \(P = 2\)). |
-| **N** | neighbor-scope limit | Prefer candidates in the intersection of the full candidate set and the last-added vertex's neighbors, narrowing search. |
+| **\(F_P\)** | prefer-smaller-side | When one side has \(\geq \theta\) vertices and the other does not, boost desirability of vertices on the smaller side (factor 2). |
+| **\(F_N\)** | neighbor-scope limit | Prefer candidates in the intersection of the full candidate set and the last-added vertex's neighbors, narrowing search. |
 
-**ACO-PN** = both P and N enabled — this is the **default** for main paper experiments.
+**\(F_{PN}\)** = both \(F_P\) and \(F_N\) enabled — this is the **default** for main paper experiments.
 
 **Instance fitness** rewards balanced growth once \(\theta\) is met on one side: if \(\min(|U_S|, |V_S|) \geq \theta\), fitness is \(a \times b^2\) where \(a, b = \min\max(|U_S|, |V_S|)\); otherwise \(a^2\).
 
 **Paper hyperparameters** (see `README.md` for env-var mapping):
 
-- 5 epochs, evaporation \(\rho = 0.05\), deposit \(T = 1\)
+- 5 epochs (\(T = 5\)), evaporation \(\rho = 0.05\), deposit \(\Delta\tau = 1\)
 - Ant-count sweep: \(\{1, 2, 5, 10, 20, 50, 100\}\)
 - 6 stochastic replicates per ant count (`ACO_RUNS=6`, `SEED=1`); **run 1 is a
   Julia JIT warmup** on the real graph (`jit_warmup=true` in JSON) and is
@@ -89,7 +89,7 @@ python paper/build.py assemble  # only substitute placeholders
 python paper/build.py pdf       # only compile
 ```
 
-**Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Set `results_dir` once (default `../results`); fragment paths are bare names under that tree (e.g. `vary_k2t5i_PN`). Absolute / `../…` paths still resolve from `paper/`.
+**Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Set `results_dir` once (default `../results`); fragment paths are bare names under that tree (e.g. `vary_k2t5i_PN`). Absolute / `../…` paths still resolve from `paper/`. Optional top-level `max_replicates` (or per-fragment override / `--max-replicates=R`) retrospectively prefixes counted non-JIT replicates per ant count for emit aggregates; omit/`null` keeps all. The `replicate-budget` figure always uses the full counted set.
 
 | Placeholder | Emit mode | Purpose |
 |-------------|-----------|---------|
@@ -97,15 +97,16 @@ python paper/build.py pdf       # only compile
 | `%%SEED_COMPARE%%` | `seed-compare` | Full pivot table (appendix); `:highlights` = representative rows in §4.2 |
 | `%%TABLE:k2t5i_PN%%` | `table` | Per-graph ACO vs. θ comparison (appendix); `:k2t5i_PN:highlights` = §4.3; `:k3t5i_PN` / `:k3t6i_PN` / `:k4t5i_PN` = other $(k,\theta)$ |
 | `%%COMPARE:theta-time%%` | `compare` | θ-heuristic runtime vs. \(\theta n + m\) bound |
-| `%%COMPARE:deg-size-time%%` | `compare` | ACO discovery time / $n_R^2$ and / ($n_E\cdot n_R+|E_R|$) with $n_E=5$, in a 2-panel figure vs.\ $n_R$ and vs.\ $|E_R|$ |
+| `%%COMPARE:deg-size-time%%` | `compare` | ACO discovery time on log–log axes: vs.\ $n_R$ (empirical exponent) and vs.\ candidate bounds $n_R^2$ / ($T\cdot n_R+|E_R|$) with $T=5$ (slope≈1 ⇒ proportional) |
+| `%%COMPARE:bound-time%%` | `compare` | 2-panel: normalized discovery time \(t/(n_S\cdot T)\) vs.\ naive $n_R^2$ (left) and practical $T\cdot n_R+|E_R|$ (right); shared y-axis for slope contrast |
 | `%%COMPARE:k-sweep%%` | `compare` | Log edge ratio + win rate vs. \(k\) at fixed \(\theta\) (`param_dirs`) |
 | `%%COMPARE:theta-sweep%%` | `compare` | Same vs. \(\theta\) at fixed \(k\) |
-| `%%COMPARE:density-wins%%` | `compare` | Rolling win rate vs. reduced density (pooled across $(k,\theta)$) |
+| `%%COMPARE:density-wins%%` | `compare` | Binary win/loss + sliding-window win rate ($W$ disclosed) vs. reduced density (pooled across $(k,\theta)$) |
 | `%%COMPARE:param-density%%` | `compare` | Reduced density boxplots vs. \(k\) and vs. \(\theta\) |
 | `%%COMPARE:param-runtime%%` | `compare` | ACO/θ discovery-time ratio + absolute ACO discovery vs. \(k\) and \(\theta\) (timeouts noted) |
-| `%%COMPARE:iteration-budget%%` | `compare` | Retrospective epoch credit \(E=1..n_E\) on full-budget replicates (ETB≤E): wins vs. θ-heuristic + % edge increase (log) + ETB CDF over replicates |
+| `%%COMPARE:iteration-budget%%` | `compare` | Retrospective epoch credit \(T=1..T_{\max}\) on full-budget replicates (ETB≤T): wins vs. θ-heuristic + % edge increase (log) + ETB CDF over graphs (earliest ETB among best-edge replicates) |
 | `%%COMPARE:replicate-budget%%` | `compare` | Credited counted-replicate prefix \(R=1..R_{\max}\) (JIT warmup omitted): wins vs. θ-heuristic + % edge increase (log) + replicates-to-best CDF over graphs |
-| `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, θ-feasibility rates, missing-at-size stats, pivot-tested vs excluded ACO-win size means (`compare_dir`) |
+| `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, median % edge increase (`median-edge-pct`), θ-feasibility rates, missing-at-size stats, pivot-tested vs excluded ACO-win size means (`compare_dir`) |
 
 **Important:** `emit/` must **only read pre-recorded JSON** — it must not re-run Julia or re-simulate ACO. The build must tolerate incomplete data (warn, don't crash). See `paper/AGENTS.md` for emit-specific rules.
 
@@ -118,7 +119,7 @@ All experiment output is **JSON** (plus occasional `.txt` from `scripts/evaluate
 | Directory pattern | Produced by | Contents |
 |-------------------|-------------|----------|
 | `results/vary_k2t5i_PN/` | `scripts/vary.bash` | Ant-count sweep per graph: `<graph>_ants.json` |
-| `results/vary_k2t5i_<flags>/` | `scripts/vary.bash` / `scripts/tests.bash` | Same sweep for other P/N flag combinations |
+| `results/vary_k2t5i_<flags>/` | `scripts/vary.bash` / `scripts/tests.bash` | Same sweep for other \(F_P\)/\(F_N\) flag combinations |
 | `results/compare_k2t5i_<subset>/` | `scripts/compare-seeds.bash` | Pivot timing per graph: `<graph>.json` |
 | `results/k2t5i/` | `scripts/evaluate.bash` | Quick per-graph ACO vs. θ benchmark (`.txt`) |
 
