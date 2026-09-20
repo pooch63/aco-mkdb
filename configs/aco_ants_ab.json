@@ -1,0 +1,35 @@
+{
+  "name": "aco_ants_10_vs_50",
+  "output": "results/aco_ants_ab.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "datasets": ["konect-small/moreno_health", "amazon/boxes"],
+  "skip_completed": true,
+  "inject": true,
+  "baseline": {
+    "method": "aco",
+    "label": "aco-ants-10",
+    "params": {
+      "ants": 10,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true
+    }
+  },
+  "challenger": {
+    "method": "aco",
+    "label": "aco-ants-50",
+    "params": {
+      "ants": 50,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true
+    }
+  }
+}

@@ -109,26 +109,28 @@ function describe_solution(fg::FrozenBipartite, sol::SubGraph, k::Int)
 end
 
 """
-Parse `--benchmark=aco,pivot,heuristic,ga` into a Set of symbols.
+Parse `--benchmark=aco,pivot,heuristic,ga,tabu` into a Set of symbols.
+
+Any name registered in `METHOD_REGISTRY` is accepted (plus historical aliases
+`opponent` / `branch` → `:pivot`).
 """
 function parse_benchmark_targets(raw::AbstractString)
     targets = Set{Symbol}()
+    known = Set(list_methods())
     for part in split(raw, ',')
         name = lowercase(strip(part))
         isempty(name) && continue
-        if name == "aco"
-            push!(targets, :aco)
-        elseif name == "pivot"
+        if name in ("opponent", "branch")
             push!(targets, :pivot)
-        elseif name == "heuristic"
-            push!(targets, :heuristic)
-        elseif name == "ga"
-            push!(targets, :ga)
+        elseif name in known || name in ("aco", "pivot", "heuristic", "ga", "tabu")
+            push!(targets, Symbol(name))
         else
-            throw(ArgumentError("Unknown benchmark target '$name' (expected aco, pivot, heuristic, and/or ga)"))
+            throw(ArgumentError(
+                "Unknown benchmark target '$name' (registered: $(join(sort!(collect(known)), ", ")))"))
         end
     end
-    isempty(targets) && throw(ArgumentError("--benchmark= needs at least one of: aco, pivot, heuristic, ga"))
+    isempty(targets) && throw(ArgumentError(
+        "--benchmark= needs at least one registered method (e.g. aco,pivot,heuristic,ga,tabu)"))
     return targets
 end
 
@@ -222,6 +224,9 @@ function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_opt
         ga(deepcopy(g), k_w, θ_w, min(ga_options.N, 4), ga_options.O, ga_options.k_mutate, 2;
             reduction=reduction, repair=RepairMode.mixed)
     end
+    if :tabu in targets
+        parallel_tabu(deepcopy(g), k_w, θ_w, min(4, 10); reduction=reduction)
+    end
     GC.gc()
     return nothing
 end
@@ -271,41 +276,70 @@ function benchmark_pivot!(g::BipartiteGraph, k::Int, θ::Int, reduction::Reducti
 end
 
 """
+Generic timed run of any `SolveMethod`. Prefer this when adding new algorithms;
+specialized `benchmark_*!` wrappers keep ACO early-stop / pivot optimum hooks.
+"""
+function benchmark_method!(method::SolveMethod, g::BipartiteGraph, k::Int, θ::Int,
+    reduction::ReductionMode.T; opt_edges::Union{Nothing,Int}=nothing,
+    label::AbstractString=method_id(method), kwargs...)
+    println()
+    println("Running $label…")
+    g_run = deepcopy(g)
+    m = measure_call() do
+        run_method!(method, g_run, k, θ; reduction=reduction, kwargs...)
+    end
+    result = m.value
+    g_eval = deepcopy(g)
+    fg_eval = if reduction == ReductionMode.none
+        freeze(g_eval)
+    else
+        apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
+    end
+    sc = score_result(fg_eval, result, k, θ)
+    matched = opt_edges !== nothing && is_optimal_solution(fg_eval, result.sol, k, θ, opt_edges)
+
+    print_metric_block(label;
+        wall_time_s = m.time,
+        time_to_best_s = result.time_to_best_s,
+        allocated_bytes = m.allocated,
+        rss_delta_bytes = m.rss_delta,
+        rss_peak_bytes = m.rss_peak,
+        iterations_to_best = result.iterations_to_best,
+        solution = describe_solution(fg_eval, result.sol, k),
+        final_edges = sc.edges,
+        optimal_edges = opt_edges,
+        matched_optimal = matched,
+        theta_feasible = sc.theta_feasible,
+    )
+
+    return (;
+        sol = result.sol,
+        result,
+        fg_eval,
+        time = m.time,
+        allocated = m.allocated,
+        rss_delta = m.rss_delta,
+        time_to_best = result.time_to_best_s,
+        iterations_to_best = result.iterations_to_best,
+        final_edges = sc.edges,
+        opt_edges,
+        matched_optimal = matched,
+        theta_feasible = sc.theta_feasible,
+        meta = result.meta,
+    )
+end
+
+"""
 Run the θ-based construction heuristic (`theta_based_heuristic`).
 """
 function benchmark_heuristic!(g::BipartiteGraph, k::Int, θ::Int, reduction::ReductionMode.T;
     opt_edges::Union{Nothing,Int}=nothing)
-    println()
-    println("Running θ-heuristic…")
-    g_run = deepcopy(g)
-    m = measure_call() do
-        fg = if reduction == ReductionMode.none
-            freeze(g_run)
-        else
-            apply_graph_reductions!(g_run, k, θ, nothing, nothing, true, reduction)
-        end
-        if length(fg.u_ids) < θ || length(fg.v_ids) < θ
-            return (fg, SubGraph(Set(), Set()))
-        end
-        return (fg, theta_based_heuristic(fg, k, θ; return_invalid=true))
-    end
-    fg_eval, sol = m.value
-    final_edges = Subgraph.edge_count(fg_eval, sol)
-    matched = opt_edges !== nothing && is_optimal_solution(fg_eval, sol, k, θ, opt_edges)
-
-    print_metric_block("θ-heuristic";
-        wall_time_s = m.time,
-        allocated_bytes = m.allocated,
-        rss_delta_bytes = m.rss_delta,
-        rss_peak_bytes = m.rss_peak,
-        solution = describe_solution(fg_eval, sol, k),
-        final_edges = final_edges,
-        optimal_edges = opt_edges,
-        matched_optimal = matched,
-    )
-
-    return (; sol, fg_eval, time = m.time, allocated = m.allocated, rss_delta = m.rss_delta,
-        final_edges, opt_edges, matched_optimal = matched)
+    stats = benchmark_method!(HeuristicMethod(; return_invalid=true), g, k, θ, reduction;
+        opt_edges=opt_edges, label="θ-heuristic")
+    return (; sol=stats.sol, fg_eval=stats.fg_eval, time=stats.time,
+        allocated=stats.allocated, rss_delta=stats.rss_delta,
+        final_edges=stats.final_edges, opt_edges=stats.opt_edges,
+        matched_optimal=stats.matched_optimal)
 end
 
 """
@@ -313,48 +347,30 @@ Run the genetic algorithm (`ga`), matching load.jl defaults unless `ga_options` 
 """
 function benchmark_ga!(g::BipartiteGraph, k::Int, θ::Int, reduction::ReductionMode.T,
     ga_options; opt_edges::Union{Nothing,Int}=nothing)
-    N = ga_options.N
-    O = ga_options.O
-    k_mutate = ga_options.k_mutate
-    generations = ga_options.generations
+    method = GAMethod(;
+        N=ga_options.N, O=ga_options.O, k_mutate=ga_options.k_mutate,
+        generations=ga_options.generations, repair=RepairMode.mixed)
+    stats = benchmark_method!(method, g, k, θ, reduction;
+        opt_edges=opt_edges,
+        label="GA (N=$(method.N) O=$(method.O) gens=$(method.generations))")
+    return (; sol=stats.sol, fg_eval=stats.fg_eval, time=stats.time,
+        allocated=stats.allocated, rss_delta=stats.rss_delta,
+        N=method.N, generations=method.generations,
+        final_edges=stats.final_edges, opt_edges=stats.opt_edges,
+        matched_optimal=stats.matched_optimal)
+end
 
-    println()
-    println("Running GA (N=$N O=$O generations=$generations k_mutate=$k_mutate repair=mixed)…")
-
-    # Reset GA globals that accumulate across generations/runs.
-    global U = Set{Int}()
-    global V = Set{Int}()
-
-    g_run = deepcopy(g)
-    m = measure_call() do
-        ga(g_run, k, θ, N, O, k_mutate, generations; reduction=reduction, repair=RepairMode.mixed)
-    end
-    sol = m.value
-
-    g_eval = deepcopy(g)
-    fg_eval = if reduction == ReductionMode.none
-        freeze(g_eval)
-    else
-        apply_graph_reductions!(g_eval, k, θ, nothing, nothing, true, reduction)
-    end
-    final_edges = Subgraph.edge_count(fg_eval, sol)
-    matched = opt_edges !== nothing && is_optimal_solution(fg_eval, sol, k, θ, opt_edges)
-
-    print_metric_block("GA";
-        wall_time_s = m.time,
-        allocated_bytes = m.allocated,
-        rss_delta_bytes = m.rss_delta,
-        rss_peak_bytes = m.rss_peak,
-        population_N = N,
-        generations = generations,
-        solution = describe_solution(fg_eval, sol, k),
-        final_edges = final_edges,
-        optimal_edges = opt_edges,
-        matched_optimal = matched,
-    )
-
-    return (; sol, fg_eval, time = m.time, allocated = m.allocated, rss_delta = m.rss_delta,
-        N, generations, final_edges, opt_edges, matched_optimal = matched)
+"""
+Run parallel tabu via the Method adapter.
+"""
+function benchmark_tabu!(g::BipartiteGraph, k::Int, θ::Int, reduction::ReductionMode.T;
+    N::Int=10, opt_edges::Union{Nothing,Int}=nothing)
+    stats = benchmark_method!(TabuMethod(; N=N), g, k, θ, reduction;
+        opt_edges=opt_edges, label="tabu")
+    return (; sol=stats.sol, fg_eval=stats.fg_eval, time=stats.time,
+        allocated=stats.allocated, rss_delta=stats.rss_delta,
+        N=N, final_edges=stats.final_edges, opt_edges=stats.opt_edges,
+        matched_optimal=stats.matched_optimal)
 end
 
 """
@@ -553,6 +569,11 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
         ga_stats = benchmark_ga!(g_reduced, k, θ, solver_reduction, ga_options; opt_edges=opt_edges)
     end
 
+    tabu_stats = nothing
+    if :tabu in targets
+        tabu_stats = benchmark_tabu!(g_reduced, k, θ, solver_reduction; opt_edges=opt_edges)
+    end
+
     aco_stats = nothing
     if :aco in targets
         println()
@@ -561,6 +582,16 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
             opt_edges=opt_edges, early_stop=true, reduction=solver_reduction)
         aco_stats = benchmark_aco!(g_reduced, k, θ, aco_options;
             opt_edges=opt_edges, early_stop=true, reduction=solver_reduction)
+    end
+
+    # Any other registered method symbols (future algorithms) via generic path.
+    extra_stats = Dict{Symbol,Any}()
+    builtin = Set([:aco, :pivot, :heuristic, :ga, :tabu])
+    for t in targets
+        t in builtin && continue
+        method = make_method(String(t))
+        extra_stats[t] = benchmark_method!(method, g_reduced, k, θ, solver_reduction;
+            opt_edges=opt_edges)
     end
 
     println()
@@ -588,6 +619,13 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
         println("  GA edges             : $(ga_stats.final_edges)" *
                 (ga_stats.opt_edges === nothing ? "" : " / $(ga_stats.opt_edges) optimal"))
     end
+    if tabu_stats !== nothing
+        println("  tabu time            : $(format_seconds(tabu_stats.time))s")
+        println("  tabu allocated       : $(format_bytes(tabu_stats.allocated))")
+        println("  tabu RSS Δ           : $(format_bytes(tabu_stats.rss_delta))")
+        println("  tabu edges           : $(tabu_stats.final_edges)" *
+                (tabu_stats.opt_edges === nothing ? "" : " / $(tabu_stats.opt_edges) optimal"))
+    end
     if aco_stats !== nothing
         println("  ACO time             : $(format_seconds(aco_stats.time))s")
         println("  ACO time → best      : $(format_seconds(aco_stats.time_to_best))s" *
@@ -609,9 +647,14 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
         println("  ACO final edges      : $(aco_stats.final_edges)" *
                 (aco_stats.opt_edges === nothing ? "" : " / $(aco_stats.opt_edges) optimal"))
     end
+    for (name, st) in sort!(collect(extra_stats); by=first)
+        println("  $name time           : $(format_seconds(st.time))s")
+        println("  $name edges          : $(st.final_edges)" *
+                (st.opt_edges === nothing ? "" : " / $(st.opt_edges) optimal"))
+    end
     println("===================================================")
 
-    return (; graph_stats, pivot_stats, heuristic_stats, ga_stats, aco_stats)
+    return (; graph_stats, pivot_stats, heuristic_stats, ga_stats, tabu_stats, aco_stats, extra_stats)
 end
 
 # Minimal JSON writer (avoids requiring JSON3 in load.jl).
@@ -726,6 +769,20 @@ function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
         )
     end
 
+    if hasproperty(results, :tabu_stats) && results.tabu_stats !== nothing
+        ts = results.tabu_stats
+        out["tabu"] = Dict(
+            "wall_time_s" => ts.time,
+            "allocated_bytes" => ts.allocated,
+            "rss_delta_bytes" => ts.rss_delta,
+            "population_N" => ts.N,
+            "final_edges" => ts.final_edges,
+            "optimal_edges" => ts.opt_edges,
+            "matched_optimal" => ts.matched_optimal,
+            "solution" => sol_summary(ts.fg_eval, ts.sol),
+        )
+    end
+
     if results.aco_stats !== nothing
         as = results.aco_stats
         out["aco"] = Dict(
@@ -742,6 +799,21 @@ function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
             "nU" => length(as.sol.U),
             "nV" => length(as.sol.V),
         )
+    end
+
+    if hasproperty(results, :extra_stats) && results.extra_stats !== nothing
+        for (name, st) in results.extra_stats
+            out[String(name)] = Dict(
+                "wall_time_s" => st.time,
+                "allocated_bytes" => st.allocated,
+                "rss_delta_bytes" => st.rss_delta,
+                "final_edges" => st.final_edges,
+                "optimal_edges" => st.opt_edges,
+                "matched_optimal" => get(st, :matched_optimal, nothing),
+                "theta_feasible" => get(st, :theta_feasible, nothing),
+                "solution" => sol_summary(st.fg_eval, st.sol),
+            )
+        end
     end
 
     return out

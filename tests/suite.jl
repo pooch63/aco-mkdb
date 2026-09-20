@@ -6,6 +6,9 @@ include(joinpath(@__DIR__, "generate.jl"))
 using EnumX
 using Random
 
+# Optional: `include(joinpath(SRC, "method.jl"))` then
+# `as_suite_solver(make_method("aco"; …))` for registered SolveMethods.
+
 # Named branch_oracle (not `branch`) so we do not shadow opponent.jl's `branch` function.
 # `none` skips the reference optimum (--no-optimum).
 @enumx OracleMode brute_force branch_oracle none
@@ -392,6 +395,8 @@ Run `N` random graphs against one or more labeled solvers.
 
 `solvers` maps a display label to a `(g, k, θ) -> SubGraph` function.
 A single `solve_fn` may be passed instead for the common one-solver case.
+Registered `SolveMethod`s can be adapted with `as_suite_solver(make_method("aco"))`
+(or any other registered name) so suite trials stay interchangeable.
 
 When `N`, `seed`, `oracle`, or graph kwargs are omitted, they are taken from
 CLI flags with suite defaults (see `suite_cli_defaults`).

@@ -37,6 +37,10 @@ We adapt **MAX-MIN Ant System (MMAS)**-style ACO to grow k-defective bicliques i
 
 **\(F_{PN}\)** = both \(F_P\) and \(F_N\) enabled — this is the **default** for main paper experiments.
 
+**Edge-trail variant** (`src/edges/`, method id `edges`): same colony loop as node ACO, but pheromone is stored on CSR graph edges. Candidate desirability uses the mean edge-τ into the opposite side of \(S\); deposit reinforces those cross edges (elite deposit reinforces the induced edge set).
+
+**Diffusion-guided variant** (`src/diffusion.jl`, method id `diffusion`): vertex-trail ACO with a precomputed diffusion field. Vertices start with random values in \([-0.5, 0.5]\) and iteratively average with their neighbors (`diffusion_iters`, default 20). Instance fitness and pheromone deposit are scaled by cohesion \(1/(1+\mathrm{std})\) of the subgraph's diffused values, so topologically similar vertices are rewarded.
+
 **Instance fitness** rewards balanced growth once \(\theta\) is met on one side: if \(\min(|U_S|, |V_S|) \geq \theta\), fitness is \(a \times b^2\) where \(a, b = \min\max(|U_S|, |V_S|)\); otherwise \(a^2\).
 
 **Paper hyperparameters** (see `README.md` for env-var mapping):
@@ -63,6 +67,84 @@ The **θ-heuristic** (`src/theta_heuristic.jl`) is the greedy construct-and-trim
 Complexity is \(\mathcal{O}(\theta n + m)\). It is fast but often returns smaller bicliques than ACO. Cui et al. also use it to seed **branch-and-pivot** exact search (`src/search.jl`); we compare pivot wall time when seeded by θ alone vs. θ + best ACO subgraph (`bin/compare-seeds.jl`).
 
 **θ-feasible** means \(|U_S| \geq \theta\) and \(|V_S| \geq \theta\). ACO trials are only counted as beating the heuristic when they have more edges **and** are θ-feasible.
+
+## SolveMethod contract (`src/method.jl`)
+
+All solution algorithms share one interface so they are drop-in replacements for
+interactive runs, benchmarks, and A/B tests. Paper ant-count sweeps
+(`bin/vary.jl` / emit) remain ACO-specific.
+
+**Core types**
+
+- `SolveMethod` — abstract; each algorithm is a concrete struct holding its knobs
+- `MethodResult` — best `SubGraph`, optional `all_sols`, wall / time-to-best /
+  iterations-to-best, plus a `meta` dict
+- `run_method!(m, g, k, θ; reduction=…)` — unified entry point
+- `register_method!("name", kwargs -> Method(…))` / `make_method("name"; …)` /
+  `list_methods()` — string registry (aliases: `opponent` / `branch` → pivot)
+
+**Built-ins:** `heuristic`, `aco`, `edges`, `diffusion`, `ga`, `tabu`, `vns`, `retry`, `pivot` (exact / opponent).
+
+**Adding a new algorithm**
+
+1. Implement `struct MyMethod <: SolveMethod`, `method_id`, and `run_method!`
+   returning a `MethodResult` (put the code in `src/` and `include` it from
+   `method.jl`, or register after include).
+2. Call `register_method!("my-method", (; kwargs…) -> MyMethod(; kwargs…))`.
+3. Use it anywhere methods are accepted — no further harness changes required.
+
+**How to test whether a new version outperforms an old one**
+
+```bash
+# Real graph, paper win rule (θ-feasible + more edges):
+julia bin/compare-methods.jl amazon/boxes --baseline=heuristic --challenger=aco --save=ab.json
+
+# VNS vs ACO:
+julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=vns --challenger-kmax=10 --save=vns_ab.json
+
+# Edge-trail ACO vs vertex ACO:
+julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=edges --save=edges_vs_aco.json
+
+# Diffusion ACO vs vertex ACO:
+julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=diffusion --save=diffusion_vs_aco.json
+
+# Retry vs ACO:
+julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=retry \
+  --challenger-beta=0.04 --challenger-p=1 --challenger-max-steps=10000 --save=retry_ab.json
+
+# Same method, different knobs (CLI ant overrides):
+julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=aco \
+  --baseline-ants=10 --challenger-ants=50 --save=ants_ab.json
+
+# JSON config: arbitrary params on both sides, graphs ascending by |E|,
+# checkpoint after every graph (resume with skip_completed):
+julia bin/compare-methods.jl --config=configs/aco_pheromone_ablation.json
+julia bin/compare-methods.jl --config=configs/aco_ants_ab.json
+
+# Prefix suite without a config file (still needs --save= for checkpoints).
+# Omit --prefix= / dataset to run every indexed graph under data/:
+julia bin/compare-methods.jl --prefix=konect-small --baseline=aco --challenger=vns \
+ --save=vns_vs_aco.json
+julia bin/compare-methods.jl --baseline=aco --challenger=vns --save=vns_vs_aco.json
+
+# Synthetic suite + offline JSON compare (shared --seed / --N):
+julia tests/test_ga.jl --seed=1 --N=5 --save=ga.json
+julia tests/test_theta_heuristic.jl --seed=1 --N=5 --save=heuristic.json
+julia tests/compare.jl heuristic.json ga.json
+```
+
+`beats(challenger, baseline, fg, k, θ)` encodes the paper win rule.
+`compare_results` returns `:challenger` / `:baseline` / `:tie`.
+Suite adapters: `as_suite_solver(make_method("aco"; …))` → `(g,k,θ)->SubGraph`.
+`make_method_from_dict("aco", params)` / side-specs build methods from JSON.
+
+**CLI**
+
+- `bin/load.jl --ga|--aco|--edges|--diffusion|--heuristic|--tabu|--vns|--retry` → `solver_to_method` → `MethodResult`
+  (`solve_method!`); legacy `solve!` still returns `SubGraph` / `Vector{SubGraph}`
+- `--benchmark=aco,pivot,heuristic,ga,tabu,vns,retry,edges,diffusion` (any registered name)
+- `bin/compare-methods.jl` — head-to-head; `--config=` for multi-graph A/B with
+  full hyperparameter objects (see `configs/`)
 
 ## Paper build (`paper/`)
 
@@ -174,8 +256,12 @@ Per graph where ACO beat θ (or a compact skip marker if not):
 
 | Path | Role |
 |------|------|
-| `src/` | Graph types, reduction, ACO, θ-heuristic, branch-and-pivot |
-| `bin/` | CLI: `load.jl`, `vary.jl`, `compare-seeds.jl` |
+| `src/` | Graph types, reduction, ACO, edge-ACO, θ-heuristic, branch-and-pivot |
+| `src/aco/` | Vertex-trail MAX-MIN ACO |
+| `src/edges/` | Edge-trail ACO variant (pheromone on CSR edges) |
+| `src/diffusion.jl` | Diffusion-guided vertex ACO (cohesion reward) |
+| `src/method.jl` | Unified `SolveMethod` / `MethodResult` registry + adapters |
+| `bin/` | CLI: `load.jl`, `vary.jl`, `compare-seeds.jl`, `compare-methods.jl` |
 | `emit/` | JSON → LaTeX (Python, stdlib only) |
 | `scripts/` | Batch experiment wrappers (`vary.bash`, `regenerate-paper-data.bash`, …) |
 | `data/datasets.txt` | Graph manifest |

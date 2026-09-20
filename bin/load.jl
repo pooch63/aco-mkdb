@@ -13,9 +13,20 @@ workflow on it. It accepts either:
 Solver flags (independent of branch mode):
   --ga         use the genetic algorithm
   --tabu       use parallel tabu search over an N-sized population
-  --aco        use ant colony optimization
+  --aco        use ant colony optimization (pheromone on vertices)
+  --edges      use edge-trail ACO (same loop; pheromone on graph edges)
+  --diffusion  use diffusion-guided vertex ACO (cohesion reward)
+  --vns        use variable neighborhood search (perturbation VNS)
+  --retry      use randomized neighbor-walk with probabilistic backtracking
   --heuristic  use only the initial heuristic (no search)
   (default)    use branch-and-bound (find_kmdb!)
+
+All of the above are adapters of the shared SolveMethod contract in
+`src/method.jl` (`solve_method!` → `MethodResult`). Add new algorithms there
+and register them; they become usable from load / benchmark / compare-methods.
+
+Head-to-head A/B on one dataset (does the challenger beat the baseline?):
+  julia bin/compare-methods.jl <dataset> --baseline=heuristic --challenger=aco
 
 Branch mode flags (only used by branch-and-bound):
   --pivot    pivot branching (default)
@@ -27,7 +38,8 @@ Benchmarking:
   --benchmark=aco         ACO + graph memory only (no iterations-to-optimal without pivot)
   --benchmark=heuristic   θ-heuristic + graph memory only
   --benchmark=ga          genetic algorithm + graph memory only
-  --benchmark=aco,pivot,heuristic,ga   any comma-separated mix of the above
+  --benchmark=tabu        parallel tabu + graph memory only
+  --benchmark=aco,pivot,heuristic,ga,tabu   any comma-separated mix of registered methods
   --save=NAME.json        write benchmark JSON under results/ (or an explicit path)
 
 Parameter sweeps (see vary.jl):
@@ -70,13 +82,15 @@ ACO flags:
                                      sit below the min pheromone on the pivot optimum
                                      (default: false). ACO is not told the optimum;
                                      pivot is only used afterward to score the cut.
+  --diffusion-iters=N                diffusion smoothing rounds before ACO (default: 20;
+                                     only used with --diffusion)
 
 Prerequisites:
   Ensure you have Julia and the required packages installed.
 
 How to Run from the Command Line:
   Format:
-    julia bin/load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--heuristic|--binary|--pivot] [--k=...] [--theta=...] [--inject --u=... --v=...] [--benchmark=...] [--save=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...] [--aco-reduce=...]
+    julia bin/load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--edges|--diffusion|--vns|--retry|--heuristic|--binary|--pivot] [--k=...] [--theta=...] [--inject --u=... --v=...] [--benchmark=...] [--save=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...] [--aco-reduce=...] [--kmax=...] [--beta=...] [--p=...] [--max-steps=...] [--diffusion-iters=...]
 
   Examples:
     julia bin/load.jl
@@ -85,7 +99,11 @@ How to Run from the Command Line:
     julia bin/load.jl amazon/grocery --ga --seed=12345
     julia bin/load.jl amazon/grocery --tabu
     julia bin/load.jl amazon/grocery --aco
+    julia bin/load.jl amazon/grocery --edges
+    julia bin/load.jl amazon/grocery --diffusion
+    julia bin/load.jl amazon/grocery --vns
     julia bin/load.jl amazon/grocery --aco --ants=20 --iterations=200 --evaporation=0.85
+    julia bin/load.jl amazon/grocery --edges --ants=20 --iterations=200 --evaporation=0.85
     julia bin/load.jl amazon/boxes --aco-reduce=true --ants=50 --iterations=3
     julia bin/load.jl amazon/grocery --heuristic
     julia bin/load.jl amazon/boxes --k=3 --theta=6
@@ -98,21 +116,24 @@ How to Run from the Command Line:
 =================================================================================
 =#
 
+const __LOAD_JL__ = true
+
 using Profile
 using ProfileCanvas
 using Random
 using EnumX
 
-const ROOT = dirname(@__DIR__)
-const SRC = joinpath(ROOT, "src")
+if !@isdefined(ROOT)
+    const ROOT = dirname(@__DIR__)
+end
+if !@isdefined(SRC)
+    const SRC = joinpath(ROOT, "src")
+end
 isdefined(@__MODULE__, :__PATHS_JL__) || include(joinpath(SRC, "paths.jl"))
 isdefined(@__MODULE__, :__GRAPH_JL__) || include(joinpath(SRC, "graph.jl"))
 isdefined(@__MODULE__, :__IO_JL__) || include(joinpath(SRC, "io.jl"))
-isdefined(@__MODULE__, :__OPPONENT_JL__) || include(joinpath(SRC, "opponent.jl"))
-isdefined(@__MODULE__, :__GA_JL__) || include(joinpath(SRC, "ga.jl"))
-isdefined(@__MODULE__, :__PARALLEL_TABU_JL__) || include(joinpath(SRC, "parallel_tabu.jl"))
-isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(SRC, "aco", "algorithm.jl"))
-isdefined(@__MODULE__, :__REDUCTION_JL__) || include(joinpath(SRC, "reduction.jl"))
+# method.jl pulls opponent / ga / tabu / aco / search (and thus reductions).
+isdefined(@__MODULE__, :__METHOD_JL__) || include(joinpath(SRC, "method.jl"))
 isdefined(@__MODULE__, :__BENCHMARK_JL__) || include(joinpath(@__DIR__, "benchmark.jl"))
 isdefined(@__MODULE__, :__VARY_JL__) || include(joinpath(@__DIR__, "vary.jl"))
 
@@ -132,7 +153,7 @@ const ACO_NUM_ITERATIONS = 5
 const ACO_EVAPORATION = 0.95
 const ACO_NUM_SUBSPECIES = 1
 
-@enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver
+@enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver edges_solver diffusion_solver vns_solver retry_solver
 
 function parse_reduction()
     for arg in ARGS
@@ -266,11 +287,18 @@ function parse_benchmark()
 end
 
 """
-Parse `--inject` / `--u=` / `--v=` / `--inject-attempts=`.
+Parse `--inject` / `--no-inject` / `--u=` / `--v=` / `--inject-attempts=`.
 `--k` from `parse_k_theta` is the planted missing-edge count when injection is on.
+
+When `default_nU` / `default_nV` are set (e.g. θ from compare-methods), injection
+plants a default_nU × default_nV biclique; explicit `--u=` / `--v=` still override.
+Without defaults, `--inject` requires both side sizes (load.jl / vary).
+
+`default_enabled=true` (compare-methods) plants unless `--no-inject` is passed.
 """
-function parse_inject()
-    enabled = false
+function parse_inject(; default_nU::Union{Nothing,Int}=nothing,
+    default_nV::Union{Nothing,Int}=nothing, default_enabled::Bool=false)
+    enabled = default_enabled
     nU = nothing
     nV = nothing
     attempts = 20
@@ -278,6 +306,8 @@ function parse_inject()
     for arg in ARGS
         if arg == "--inject"
             enabled = true
+        elseif arg == "--no-inject"
+            enabled = false
         elseif startswith(arg, "--u=")
             nU = parse(Int, split(arg, "=", limit=2)[2])
         elseif startswith(arg, "--v=")
@@ -289,13 +319,15 @@ function parse_inject()
 
     if !enabled
         if nU !== nothing || nV !== nothing
-            throw(ArgumentError("--u= and --v= require --inject"))
+            throw(ArgumentError("--u= and --v= require injection (omit --no-inject)"))
         end
         return (; enabled=false, nU=0, nV=0, attempts=0)
     end
 
+    nU === nothing && (nU = default_nU)
+    nV === nothing && (nV = default_nV)
     if nU === nothing || nV === nothing
-        throw(ArgumentError("--inject requires --u=N and --v=M (planted biclique sides)"))
+        throw(ArgumentError("injection requires --u=N and --v=M (planted biclique sides)"))
     end
     if nU <= 0 || nV <= 0
         throw(ArgumentError("--u and --v must be positive, got u=$nU v=$nV"))
@@ -305,6 +337,56 @@ function parse_inject()
     end
 
     return (; enabled=true, nU, nV, attempts)
+end
+
+function parse_kmax(default::Int=10)
+    for arg in ARGS
+        startswith(arg, "--kmax=") || continue
+        kmax = parse(Int, split(arg, "=", limit=2)[2])
+        kmax >= 1 || throw(ArgumentError("--kmax must be ≥ 1, got $kmax"))
+        return kmax
+    end
+    return default
+end
+
+function parse_beta(default::Float64=0.04)
+    for arg in ARGS
+        startswith(arg, "--beta=") || continue
+        β = parse(Float64, split(arg, "=", limit=2)[2])
+        (0.0 <= β < 1.0) || throw(ArgumentError("--beta must be in [0, 1), got $β"))
+        return β
+    end
+    return default
+end
+
+function parse_max_steps(default::Int=10_000)
+    for arg in ARGS
+        startswith(arg, "--max-steps=") || continue
+        n = parse(Int, split(arg, "=", limit=2)[2])
+        n >= 1 || throw(ArgumentError("--max-steps must be ≥ 1, got $n"))
+        return n
+    end
+    return default
+end
+
+function parse_retry_p(default::Float64=1.0)
+    for arg in ARGS
+        startswith(arg, "--p=") || continue
+        p = parse(Float64, split(arg, "=", limit=2)[2])
+        p > 0.0 || throw(ArgumentError("--p must be > 0, got $p"))
+        return p
+    end
+    return default
+end
+
+function parse_diffusion_iters(default::Int=5)
+    for arg in ARGS
+        startswith(arg, "--diffusion-iters=") || continue
+        n = parse(Int, split(arg, "=", limit=2)[2])
+        n >= 0 || throw(ArgumentError("--diffusion-iters must be ≥ 0, got $n"))
+        return n
+    end
+    return default
 end
 
 function parse_args()
@@ -320,6 +402,11 @@ function parse_args()
     vary = parse_vary()
     save_path = parse_benchmark_save()
     inject = parse_inject()
+    kmax = parse_kmax()
+    beta = parse_beta()
+    retry_p = parse_retry_p()
+    max_steps = parse_max_steps()
+    diffusion_iters = parse_diffusion_iters()
     aco_reduce = parse_bool_eq("aco-reduce", false)
     ants_range = parse_ants_range()
     vary_run_pivot = parse_vary_run_pivot()
@@ -333,6 +420,14 @@ function parse_args()
             solver = Solver.tabu_solver
         elseif arg == "--aco"
             solver = Solver.aco_solver
+        elseif arg == "--edges"
+            solver = Solver.edges_solver
+        elseif arg == "--diffusion"
+            solver = Solver.diffusion_solver
+        elseif arg == "--vns"
+            solver = Solver.vns_solver
+        elseif arg == "--retry"
+            solver = Solver.retry_solver
         elseif arg == "--heuristic"
             solver = Solver.heuristic_solver
         elseif arg == "--pivot"
@@ -341,7 +436,8 @@ function parse_args()
             mode = BranchMode.binary
         elseif arg == "--profile"
             profile = true
-        elseif arg == "--inject" || startswith(arg, "--u=") || startswith(arg, "--v=") ||
+        elseif arg == "--inject" || arg == "--no-inject" ||
+               startswith(arg, "--u=") || startswith(arg, "--v=") ||
                startswith(arg, "--inject-attempts=") ||
                startswith(arg, "--reduce=") || startswith(arg, "--seed=") ||
                startswith(arg, "--k=") || startswith(arg, "--theta=") ||
@@ -357,7 +453,10 @@ function parse_args()
                startswith(arg, "--aco-reduce=") ||
                startswith(arg, "--vary=") || startswith(arg, "--ants-range=") ||
                startswith(arg, "--vary-pivot=") || startswith(arg, "--aco-runs=") ||
-               startswith(arg, "--aco-timeout=")
+               startswith(arg, "--aco-timeout=") || startswith(arg, "--kmax=") ||
+               startswith(arg, "--beta=") || startswith(arg, "--p=") ||
+               startswith(arg, "--max-steps=") ||
+               startswith(arg, "--diffusion-iters=")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -384,7 +483,7 @@ function parse_args()
         throw(ArgumentError("--vary cannot be combined with --aco-reduce"))
     end
 
-    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout
+    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout, kmax, beta, retry_p, max_steps, diffusion_iters
 end
 
 """
@@ -468,49 +567,79 @@ function load_graph_maybe_inject(graph_path::String, inject, k::Int, rng::Abstra
 end
 
 """
+Map the CLI `Solver` enum (+ branch mode / ACO options) onto a `SolveMethod`.
+"""
+function solver_to_method(solver::Solver.T, mode::BranchMode.T, aco_options;
+    num_solutions::Int=1, kmax::Int=10, beta::Float64=0.04, p::Float64=1.0,
+    max_steps::Int=10_000, diffusion_iters::Int=20)
+    if solver == Solver.ga_solver
+        return GAMethod(; N=GA_N, O=2, k_mutate=0.02, generations=500,
+            repair=RepairMode.mixed)
+    elseif solver == Solver.tabu_solver
+        return TabuMethod(; N=GA_N)
+    elseif solver == Solver.aco_solver
+        return aco_method_from_options(aco_options; parallelize=false)
+    elseif solver == Solver.edges_solver
+        return edges_method_from_options(aco_options; parallelize=false)
+    elseif solver == Solver.diffusion_solver
+        return diffusion_method_from_options(aco_options; parallelize=false,
+            diffusion_iters=diffusion_iters)
+    elseif solver == Solver.vns_solver
+        return VNSMethod(; kmax=kmax)
+    elseif solver == Solver.retry_solver
+        return RetryMethod(; beta=beta, p=p, max_steps=max_steps)
+    elseif solver == Solver.heuristic_solver
+        return HeuristicMethod(; return_invalid=true)
+    else
+        return PivotMethod(; mode=mode, use_heuristic=true,
+            num_solutions=num_solutions)
+    end
+end
+
+"""
+Run the selected solver in-place on `g`, returning a `MethodResult`.
+Prefer this over `solve!` when you need timing / meta / multi-sols uniformly.
+"""
+function solve_method!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1,
+    kmax::Int=10, beta::Float64=0.04, p::Float64=1.0, max_steps::Int=10_000,
+    diffusion_iters::Int=20, injected_biclique=nothing, kwargs...)
+    m = solver_to_method(solver, mode, aco_options; num_solutions=num_solutions,
+        kmax=kmax, beta=beta, p=p, max_steps=max_steps,
+        diffusion_iters=diffusion_iters)
+    return run_method!(m, g, k, θ; reduction=reduction,
+        injected_biclique=injected_biclique, kwargs...)
+end
+
+"""
 Run the selected solver in-place on `g`, returning the best SubGraph found
 (or a `Vector{SubGraph}` for ACO / branch-and-bound multi-solution modes).
 Branch-and-bound uses `mode`; GA, tabu, and heuristic ignore it.
+
+New code should prefer `solve_method!` → `MethodResult`.
 """
 function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1)
-    pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
-
-    if solver == Solver.ga_solver
-        return ga(g, k, θ, GA_N, 2, 0.02, 500; repair=RepairMode.mixed)
-    elseif solver == Solver.tabu_solver
-        result = parallel_tabu(g, k, θ, GA_N; reduction=reduction)
-        return result.best_fitness
-    elseif solver == Solver.aco_solver
-        remapped, _iterations, _times, _pheromones, _remapping = aco(g, pheremone, num_ants, num_iterations, evaporation, k, θ, num_subspecies;
-            parallelize=false,
-            prefer_smaller_side=aco_options.prefer_smaller_side,
-            neighbor_scope_limit=aco_options.neighbor_scope_limit,
-            elite_seed=aco_options.elite_seed,
-            elite_seed_ants=aco_options.elite_seed_ants,
-            elite_seed_remove=aco_options.elite_seed_remove,
-            elite_pheromone=aco_options.elite_pheromone,
-            aco_tabu=aco_options.aco_tabu,
-            mmas=aco_options.mmas)
-        return remapped
-    elseif solver == Solver.heuristic_solver
-        fg = if reduction == ReductionMode.none
-            freeze(g)
-        else
-            apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
-        end
-        if length(fg.u_ids) < θ || length(fg.v_ids) < θ
-            return SubGraph(Set(), Set())
-        end
-        return theta_based_heuristic(fg, k, θ; return_invalid=true)
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1,
+    kmax::Int=10, beta::Float64=0.04, p::Float64=1.0, max_steps::Int=10_000,
+    diffusion_iters::Int=20, injected_biclique=nothing, kwargs...)
+    result = solve_method!(g, solver, mode, k, θ, reduction, aco_options;
+        num_solutions=num_solutions, kmax=kmax, beta=beta, p=p, max_steps=max_steps,
+        diffusion_iters=diffusion_iters, injected_biclique=injected_biclique, kwargs...)
+    if solver == Solver.aco_solver || solver == Solver.edges_solver ||
+       solver == Solver.diffusion_solver || solver == Solver.branch_solver
+        return result.all_sols
     else
-        return find_kmdb!(g, true, mode, k, θ, reduction; num_solutions=num_solutions)
+        return result.sol
     end
 end
 
 function solve(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
-    k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1)
-    return solve!(deepcopy(g), solver, mode, k, θ, reduction, aco_options; num_solutions=num_solutions)
+    k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1,
+    kmax::Int=10, beta::Float64=0.04, p::Float64=1.0, max_steps::Int=10_000,
+    diffusion_iters::Int=20, injected_biclique=nothing, kwargs...)
+    return solve!(deepcopy(g), solver, mode, k, θ, reduction, aco_options;
+        num_solutions=num_solutions, kmax=kmax, beta=beta, p=p, max_steps=max_steps,
+        diffusion_iters=diffusion_iters, injected_biclique=injected_biclique, kwargs...)
 end
 
 """
@@ -569,7 +698,7 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout =
+    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout, kmax, beta, retry_p, max_steps, diffusion_iters =
         parse_args()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
@@ -586,8 +715,13 @@ function main()
 
     # Seed early when injection or a stochastic solver needs reproducibility.
     needs_seed = inject.enabled || aco_reduce || vary !== nothing ||
-        (benchmark !== nothing && (:aco in benchmark || :ga in benchmark)) ||
-        solver == Solver.ga_solver || solver == Solver.tabu_solver || solver == Solver.aco_solver
+        (benchmark !== nothing && (:aco in benchmark || :edges in benchmark ||
+            :diffusion in benchmark ||
+            :ga in benchmark || :vns in benchmark || :retry in benchmark)) ||
+        solver == Solver.ga_solver || solver == Solver.tabu_solver ||
+        solver == Solver.aco_solver || solver == Solver.edges_solver ||
+        solver == Solver.diffusion_solver ||
+        solver == Solver.vns_solver || solver == Solver.retry_solver
     if needs_seed
         seed = seed === nothing ? UInt64(time_ns()) : seed
         Random.seed!(seed)
@@ -633,6 +767,16 @@ function main()
     elseif solver == Solver.aco_solver
         println("Solver: ant colony optimization")
         println("ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
+    elseif solver == Solver.edges_solver
+        println("Solver: edge-trail ACO (pheromone on edges)")
+        println("edges-ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies")
+    elseif solver == Solver.diffusion_solver
+        println("Solver: diffusion-guided vertex ACO")
+        println("diffusion-ACO: ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies diffusion_iters=$diffusion_iters")
+    elseif solver == Solver.vns_solver
+        println("Solver: variable neighborhood search (kmax=$kmax)")
+    elseif solver == Solver.retry_solver
+        println("Solver: retry search (beta=$beta p=$retry_p max_steps=$max_steps)")
     elseif solver == Solver.heuristic_solver
         println("Solver: initial heuristic only")
     else
@@ -688,7 +832,9 @@ function main()
             # Warm up: run the search once on a very small slice to compile methods
             # (skip inject — the truncated graph may be too small to plant into).
             gw, edges = load_bipartite_graph(graph_path; max_lines = 50)
-            Dw = solve!(gw, solver, mode, k, θ, reduction, aco_options)
+            Dw = solve!(gw, solver, mode, k, θ, reduction, aco_options;
+                kmax=kmax, beta=beta, p=retry_p, max_steps=max_steps,
+                diffusion_iters=diffusion_iters)
 
             # Load full graph for the actual profiled run
             g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
@@ -696,7 +842,9 @@ function main()
             println("Starting profiling run — this may take a while...")
             Profile.clear()
             @profile begin
-                D = solve(g, solver, mode, k, θ, reduction, aco_options)
+                D = solve(g, solver, mode, k, θ, reduction, aco_options;
+                    kmax=kmax, beta=beta, p=retry_p, max_steps=max_steps,
+                    diffusion_iters=diffusion_iters)
             end
 
             # Always write a stable HTML path; view() alone only opens a temp file.
@@ -715,11 +863,13 @@ function main()
             end
             @show D
         else
-            g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
+            g, edges, plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
 
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             
-            D = solve!(g, solver, mode, k, θ, reduction, aco_options)
+            D = solve!(g, solver, mode, k, θ, reduction, aco_options;
+                kmax=kmax, beta=beta, p=retry_p, max_steps=max_steps,
+                diffusion_iters=diffusion_iters, injected_biclique=plant)
 
             if D isa AbstractVector
                 fg = freeze(g)

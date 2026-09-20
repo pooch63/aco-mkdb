@@ -1,0 +1,39 @@
+{
+  "name": "aco_pheromone_ablation",
+  "output": "results/aco_pheromone_ab.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "prefix": "konect-small",
+  "skip_completed": true,
+  "inject": true,
+  "baseline": {
+    "method": "aco",
+    "label": "aco+pheromone",
+    "params": {
+      "ants": 50,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true,
+      "parallelize": false,
+      "mmas": false
+    }
+  },
+  "challenger": {
+    "method": "aco",
+    "label": "aco-no-pheromone",
+    "params": {
+      "ants": 50,
+      "iterations": 5,
+      "pheromone": 0,
+      "evaporation": 1.0,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true,
+      "parallelize": false,
+      "mmas": false
+    }
+  }
+}

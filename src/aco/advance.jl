@@ -128,7 +128,8 @@ end
 function advance_ants!(fg::FrozenBipartite, pheromones::ColonyPheromones, pheromone::Int,
     ants::Vector{Ant}, k::Int, θ::Int, ant_chunk; prefer_smaller_side::Bool=true,
     neighbor_scope_limit::Bool=true,
-    trace_target::Union{Nothing,SubGraph}=nothing)
+    trace_target::Union{Nothing,SubGraph}=nothing,
+    deposit_scale=nothing)
     # Thread-local storage to prevent data races
     additions = zero_colony_pheromones(fg, length(pheromones.species))
     local_invalid_ants = Int[]
@@ -138,7 +139,8 @@ function advance_ants!(fg::FrozenBipartite, pheromones::ColonyPheromones, pherom
         if !advance_ant!(fg, pheromones, additions, pheromone, ants[idx], k, θ;
             prefer_smaller_side=prefer_smaller_side,
             neighbor_scope_limit=neighbor_scope_limit,
-            ant_id=idx, trace_target=trace_target)
+            ant_id=idx, trace_target=trace_target,
+            deposit_scale=deposit_scale)
             push!(local_invalid_ants, idx)
         end
     end
@@ -207,7 +209,8 @@ end
 function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additions::ColonyPheromones,
     pheromone::Int, ant::Ant, k::Int, θ::Int; prefer_smaller_side::Bool=true,
     neighbor_scope_limit::Bool=true,
-    ant_id::Int=0, trace_target::Union{Nothing,SubGraph}=nothing)
+    ant_id::Int=0, trace_target::Union{Nothing,SubGraph}=nothing,
+    deposit_scale=nothing)
     depth = Subgraph.vertex_count(ant.explored)
     missing = ant.missing
     candidates = ant.candidates
@@ -347,8 +350,12 @@ function advance_ant!(fg::FrozenBipartite, pheromones::ColonyPheromones, additio
     reduce_candidates!(ant.candidates, fg, next_with_deg, k - ant.missing,
                        length(ant.explored.U), length(ant.explored.V))
 
-    add_pheromone!(additions.species[ant.species], next, pheromone)
-    add_pheromone!(additions.shared, next, pheromone * SHARED_PHEROMONE_FACTOR)
+    dep = Float64(pheromone)
+    if deposit_scale !== nothing
+        dep *= Float64(deposit_scale(fg, ant.explored))
+    end
+    add_pheromone!(additions.species[ant.species], next, dep)
+    add_pheromone!(additions.shared, next, dep * SHARED_PHEROMONE_FACTOR)
     return true
 end
 
@@ -366,7 +373,7 @@ function prefer_smaller_side_prefer_u(sg::SubGraph, θ::Int)::Union{Nothing,Bool
 end
 
 function seed_ants_from_elites!(ants::Vector{Ant}, best_subgraphs::Vector{SubGraph},
-    best_subgraph::SubGraph, best_scores::Vector{Int}, n_seed::Int, n_remove::Int,
+    best_subgraph::SubGraph, best_scores::AbstractVector{<:Real}, n_seed::Int, n_remove::Int,
     fg::FrozenBipartite, k::Int)
     n_seed <= 0 && return
     Subgraph.vertex_count(best_subgraph) == 0 && return

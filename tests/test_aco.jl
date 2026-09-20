@@ -2,7 +2,7 @@ using Test
 using Base.Threads
 
 include(joinpath(@__DIR__, "suite.jl"))
-isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath(@__DIR__, "..", "src", "aco", "algorithm.jl"))
+isdefined(@__MODULE__, :__METHOD_JL__) || include(joinpath(@__DIR__, "..", "src", "method.jl"))
 
 const SAVE_PATH = parse_save()
 const TIME_MODE = "--time" in ARGS
@@ -40,13 +40,13 @@ const PARALLELIZE = parse_parallelize(true)
 # Accumulated wall time across trials when --time is set.
 const TIMINGS = Float64[]
 
-function pick_best_aco(g::FrozenBipartite, sols::Vector{SubGraph})
-    return argmax(s -> instance_fitness(g, s, missing), sols)
-end
-
-function solve_aco(g::FrozenBipartite, k::Int, θ::Int)
-    mutable_graph = build_mutable_graph(g)
-    kwargs = (
+function make_aco_method()
+    return ACOMethod(;
+        pheromone=ACO_PHEROMONE,
+        ants=ACO_ANTS,
+        iterations=ACO_ITERATIONS,
+        evaporation=ACO_EVAPORATION,
+        subspecies=ACO_SUBSPECIES,
         parallelize=PARALLELIZE,
         prefer_smaller_side=ACO_PREFER_SMALLER_SIDE,
         neighbor_scope_limit=ACO_NEIGHBOR_SCOPE_LIMIT,
@@ -54,18 +54,19 @@ function solve_aco(g::FrozenBipartite, k::Int, θ::Int)
         elite_seed_ants=ACO_ELITE_SEED_ANTS,
         elite_seed_remove=ACO_ELITE_SEED_REMOVE,
     )
+end
+
+function solve_aco(g::FrozenBipartite, k::Int, θ::Int)
+    method = make_aco_method()
     if TIME_MODE
         t = @elapsed begin
-            sols, _iterations, _times, _pheromones, _remapping = aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
-                kwargs...)
+            sol = as_suite_solver(method)(g, k, θ)
         end
         push!(TIMINGS, t)
         println("  aco time: $(round(t; digits=3))s  (parallelize=$(PARALLELIZE), threads=$(nthreads()))")
-        return pick_best_aco(g, sols)
+        return sol
     else
-        sols, _iterations, _times, _pheromones, _remapping = aco(mutable_graph, ACO_PHEROMONE, ACO_ANTS, ACO_ITERATIONS, ACO_EVAPORATION, k, θ, ACO_SUBSPECIES;
-            kwargs...)
-        return pick_best_aco(g, sols)
+        return as_suite_solver(method)(g, k, θ)
     end
 end
 
