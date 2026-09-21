@@ -37,14 +37,14 @@ end
 argmax_nodes(f, sg::SubGraph) = arg_nodes(f, true, sg)
 argmin_nodes(f, sg::SubGraph) = arg_nodes(f, false, sg)
 
-@enumx ReductionMode all_reductions simple progressive quartile none
+@enumx ReductionMode all_reductions simple progressive quartile neighborhood none
 
 function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
     num_U::Union{Int, Nothing}, num_V::Union{Int, Nothing},
     use_heuristic::Bool, reduction::ReductionMode.T)
 
-    num_U = num_U === nothing ? length(g.adjU) : num_U
-    num_V = num_V === nothing ? length(g.adjV) : num_V
+    num_U = num_U === nothing ? (isempty(g.adjU) ? 0 : maximum(keys(g.adjU))) : num_U
+    num_V = num_V === nothing ? (isempty(g.adjV) ? 0 : maximum(keys(g.adjV))) : num_V
 
     if reduction == ReductionMode.none
         return freeze(g)
@@ -53,6 +53,16 @@ function apply_graph_reductions!(g::BipartiteGraph, k::Int, θ::Int,
     if reduction == ReductionMode.quartile
         # Apply quartile-based edge weight reduction
         quartile_edge_reduction!(g, 0.2, 20)
+        # Apply common-neighbor reduction to prune remaining non-biclique nodes
+        max_u = isempty(g.adjU) ? 0 : maximum(keys(g.adjU))
+        max_v = isempty(g.adjV) ? 0 : maximum(keys(g.adjV))
+        reduce_graph!(g, k, θ, max_u, max_v)
+        return freeze(g)
+    end
+
+    if reduction == ReductionMode.neighborhood
+        # Apply neighbourhood-Jaccard (S_C) edge-score reduction
+        neighborhood_edge_reduction!(g, 0.2; θ=θ)
         # Apply common-neighbor reduction to prune remaining non-biclique nodes
         max_u = isempty(g.adjU) ? 0 : maximum(keys(g.adjU))
         max_v = isempty(g.adjV) ? 0 : maximum(keys(g.adjV))

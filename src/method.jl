@@ -37,6 +37,7 @@ isdefined(@__MODULE__, :__RETRY_JL__) || include("retry.jl")
 isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath("aco", "algorithm.jl"))
 isdefined(@__MODULE__, :__EDGES_ACO_JL__) || include(joinpath("edges", "algorithm.jl"))
 isdefined(@__MODULE__, :__DIFFUSION_JL__) || include("diffusion.jl")
+isdefined(@__MODULE__, :__TUG_JL__) || include("tug.jl")
 
 using EnumX
 
@@ -343,6 +344,7 @@ method_id(::HeuristicMethod) = "heuristic"
 
 function run_method!(m::HeuristicMethod, g::BipartiteGraph, k::Int, θ::Int;
     reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    t0 = time()
     fg = if reduction == ReductionMode.none
         freeze(g)
     else
@@ -354,7 +356,8 @@ function run_method!(m::HeuristicMethod, g::BipartiteGraph, k::Int, θ::Int;
         theta_based_heuristic(fg, k, θ;
             incremental=m.incremental, return_invalid=m.return_invalid)
     end
-    return MethodResult("heuristic", sol; meta=Dict{String,Any}(
+    wall_time = time() - t0
+    return MethodResult("heuristic", sol; wall_time_s=wall_time, meta=Dict{String,Any}(
         "incremental" => m.incremental,
         "return_invalid" => m.return_invalid,
     ))
@@ -858,6 +861,67 @@ function run_method!(m::DiffusionMethod, g::BipartiteGraph, k::Int, θ::Int;
         meta=meta)
 end
 
+# ── Tug-of-War (Alternating Best-Response) ──────────────────────────────────
+
+struct TugOfWarMethod <: SolveMethod
+    seed_source::Symbol
+    num_seeds::Int
+    max_shakes::Int
+    seed::Union{Nothing,Int}
+    peel::Bool
+end
+
+function TugOfWarMethod(; seed_source::Union{Symbol,AbstractString}=:sc,
+                        num_seeds::Int=10,
+                        max_shakes::Int=3,
+                        seed::Union{Nothing,Int}=nothing,
+                        peel::Bool=true)
+    src_sym = Symbol(lowercase(String(seed_source)))
+    return TugOfWarMethod(src_sym, num_seeds, max_shakes, seed, peel)
+end
+
+method_id(::TugOfWarMethod) = "tug"
+
+function run_method!(m::TugOfWarMethod, g::BipartiteGraph, k::Int, θ::Int;
+                     reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    t0 = time()
+
+    if m.peel
+        peel_degrees!(g, θ - k)
+        if length(g.adjU) < θ || length(g.adjV) < θ
+            return MethodResult("tug", SubGraph(Set(), Set()); wall_time_s=time() - t0)
+        end
+    end
+
+    fg = if reduction == ReductionMode.none
+        freeze(g)
+    else
+        apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+    end
+
+    sol = if length(fg.u_ids) < θ || length(fg.v_ids) < θ
+        SubGraph(Set(), Set())
+    else
+        tug_of_war_solve(fg, k, θ;
+                         seed_source=m.seed_source,
+                         num_seeds=m.num_seeds,
+                         max_shakes=m.max_shakes,
+                         seed=m.seed)
+    end
+
+    wall_time = time() - t0
+
+    return MethodResult("tug", sol;
+        wall_time_s=wall_time,
+        meta=Dict{String,Any}(
+            "seed_source" => string(m.seed_source),
+            "num_seeds" => m.num_seeds,
+            "max_shakes" => m.max_shakes,
+            "peel" => m.peel,
+        )
+    )
+end
+
 # Aliases: "opponent" / "branch" map to pivot (exact search).
 function _register_builtins!()
     register_method!("heuristic", (; kwargs...) -> HeuristicMethod(; kwargs...))
@@ -871,6 +935,9 @@ function _register_builtins!()
     register_method!("aco", (; kwargs...) -> ACOMethod(; kwargs...))
     register_method!("edges", (; kwargs...) -> EdgesMethod(; kwargs...))
     register_method!("diffusion", (; kwargs...) -> DiffusionMethod(; kwargs...))
+    register_method!("tug", (; kwargs...) -> TugOfWarMethod(; kwargs...))
+    register_method!("tow", (; kwargs...) -> TugOfWarMethod(; kwargs...))
+    register_method!("alternation", (; kwargs...) -> TugOfWarMethod(; kwargs...))
 end
 
 _register_builtins!()

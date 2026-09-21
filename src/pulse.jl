@@ -17,6 +17,54 @@ using Statistics
 
 isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 isdefined(@__MODULE__, :__IO_JL__) || include("io.jl")
+isdefined(@__MODULE__, :__NEIGHBORHOOD_JL__) || include("neighborhood.jl")
+
+
+const PULSE_FORMULA_REGISTRY = Dict{String,Function}()
+
+"""Register a pulse weighting formula under a lowercase key."""
+function register_pulse_formula!(name::AbstractString, fn::Function)
+    key = lowercase(strip(String(name)))
+    isempty(key) && throw(ArgumentError("pulse formula name must be non-empty"))
+    PULSE_FORMULA_REGISTRY[key] = fn
+    return key
+end
+
+list_pulse_formulas() = sort!(collect(keys(PULSE_FORMULA_REGISTRY)))
+
+function make_pulse_formula(name::AbstractString)
+    key = lowercase(strip(String(name)))
+    fn = get(PULSE_FORMULA_REGISTRY, key, nothing)
+    if fn === nothing
+        known = join(list_pulse_formulas(), ", ")
+        throw(ArgumentError("Unknown pulse formula '$name'. Registered: $known"))
+    end
+    return fn
+end
+
+function _pulse_weight_standard(u_weight::Float64, v_weight::Float64, u_deg::Int, v_deg::Int)
+    return u_deg > 0 ? u_weight / u_deg : 0.0
+end
+
+function _pulse_weight_degree_sq(u_weight::Float64, v_weight::Float64, u_deg::Int, v_deg::Int)
+    return u_deg > 0 ? u_weight / (u_deg * u_deg) : 0.0
+end
+
+function _pulse_weight_product(u_weight::Float64, v_weight::Float64, u_deg::Int, v_deg::Int)
+    if u_deg <= 0 || v_deg <= 0
+        return 0.0
+    end
+    return (u_weight * v_weight) / (u_deg * v_deg)
+end
+
+function _pulse_weight_uniform(u_weight::Float64, v_weight::Float64, u_deg::Int, v_deg::Int)
+    return 1.0
+end
+
+register_pulse_formula!("degree_sq", _pulse_weight_degree_sq)
+register_pulse_formula!("product", _pulse_weight_product)
+register_pulse_formula!("standard", _pulse_weight_standard)
+register_pulse_formula!("uniform", _pulse_weight_uniform)
 
 """
 Run pulse propagation on a frozen bipartite graph.
@@ -30,7 +78,8 @@ Returns:
 - Dictionary with statistics including mean edge weights in biclique vs overall
 """
 function pulse_propagation(fg::FrozenBipartite, iterations::Int=20,
-                           injected_biclique::Union{Nothing,SubGraph}=nothing)
+                           injected_biclique::Union{Nothing,SubGraph}=nothing;
+                           formula::AbstractString="standard")
     nU = length(fg.u_ids)
     nV = length(fg.v_ids)
     
@@ -49,29 +98,35 @@ function pulse_propagation(fg::FrozenBipartite, iterations::Int=20,
         println("Planted biclique: |U|=$(length(injected_biclique.U)), |V|=$(length(injected_biclique.V))")
     end
     
+    pulse_fn = make_pulse_formula(formula)
+
     for iter in 1:iterations
         # Phase 1: U sends pulses to V
         for ui in 1:nU
             u_weight = u_weights[ui]
+            u_deg = length(neighbor_range_u(fg, ui))
             for k in neighbor_range_u(fg, ui)
                 vi = fg.v_adj[k]
+                v_weight = v_weights[vi]
+                v_deg = length(neighbor_range_v(fg, vi))
                 # Pulse hits V vertex
                 v_weights[vi] += 1.0
-                # Edge count increases by vertex weight
-                edge_weights[k] += u_weight
+                # Edge count increases by the selected pulse formula
+                edge_weights[k] += pulse_fn(u_weight, v_weight, u_deg, v_deg)
             end
         end
         
         # Phase 2: V sends pulses to U
         for vi in 1:nV
             v_weight = v_weights[vi]
+            v_deg = length(neighbor_range_v(fg, vi))
             for k in neighbor_range_v(fg, vi)
                 ui = fg.u_adj[k]
+                u_weight = u_weights[ui]
+                u_deg = length(neighbor_range_u(fg, ui))
                 # Pulse hits U vertex
                 u_weights[ui] += 1.0
-                # Edge count increases by vertex weight
-                # Note: u_adj stores the reverse CSR slot, need to map to forward slot
-                # For simplicity, we'll track both directions separately
+                # The reverse pass keeps the same propagation semantics without changing edge weights.
             end
         end
         
@@ -273,7 +328,7 @@ Arguments:
 Returns:
 - Vector of edge weights (parallel to fg.v_adj / fg.edge_data)
 """
-function pulse_edge_weights(fg::FrozenBipartite, iterations::Int=20)
+function pulse_edge_weights(fg::FrozenBipartite, iterations::Int=20; formula::AbstractString="standard")
     nU = length(fg.u_ids)
     nV = length(fg.v_ids)
     
@@ -283,26 +338,32 @@ function pulse_edge_weights(fg::FrozenBipartite, iterations::Int=20)
     
     # Edge weights (start at 0.0)
     edge_weights = zeros(Float64, length(fg.v_adj))
+    pulse_fn = make_pulse_formula(formula)
     
     for iter in 1:iterations
         # Phase 1: U sends pulses to V
         for ui in 1:nU
             u_weight = u_weights[ui]
+            u_deg = length(neighbor_range_u(fg, ui))
             for k in neighbor_range_u(fg, ui)
                 vi = fg.v_adj[k]
+                v_weight = v_weights[vi]
+                v_deg = length(neighbor_range_v(fg, vi))
                 # Pulse hits V vertex
                 v_weights[vi] += 1.0
-                # Edge count increases by vertex weight
-                edge_weights[k] += u_weight
+                # Edge count increases by the selected pulse formula
+                edge_weights[k] += pulse_fn(u_weight, v_weight, u_deg, v_deg)
             end
         end
         
         # Phase 2: V sends pulses to U
         for vi in 1:nV
             v_weight = v_weights[vi]
+            v_deg = length(neighbor_range_v(fg, vi))
             for k in neighbor_range_v(fg, vi)
                 ui = fg.u_adj[k]
-                # Pulse hits U vertex
+                u_weight = u_weights[ui]
+                u_deg = length(neighbor_range_u(fg, ui))
                 u_weights[ui] += 1.0
             end
         end
@@ -323,7 +384,8 @@ Returns:
 - Number of edges kept
 - Number of vertices kept on each side
 """
-function quartile_edge_reduction!(g::BipartiteGraph, quartile::Float64=0.2, iterations::Int=20)
+function quartile_edge_reduction!(g::BipartiteGraph, quartile::Float64=0.2, iterations::Int=20;
+    formula::AbstractString="standard")
     quartile > 0.0 || throw(ArgumentError("quartile must be > 0, got $quartile"))
     quartile <= 1.0 || throw(ArgumentError("quartile must be <= 1, got $quartile"))
     
@@ -331,7 +393,7 @@ function quartile_edge_reduction!(g::BipartiteGraph, quartile::Float64=0.2, iter
     fg = freeze(g)
     
     # Run pulse propagation to get edge weights
-    edge_weights = pulse_edge_weights(fg, iterations)
+    edge_weights = pulse_edge_weights(fg, iterations; formula=formula)
     
     # Find the threshold for the top quartile
     # Create list of (weight, u_orig, v_orig) tuples
@@ -394,6 +456,91 @@ function quartile_edge_reduction!(g::BipartiteGraph, quartile::Float64=0.2, iter
     println("  Removed $edges_removed edges, $u_removed U-nodes, $v_removed V-nodes")
     println("  Kept $n_edges_kept edges, $n_u_kept U-nodes, $n_v_kept V-nodes")
     
+    return n_edges_kept, n_u_kept, n_v_kept
+end
+
+"""
+Apply neighborhood-Jaccard edge-score reduction to a BipartiteGraph.
+
+Computes S_C(u, v) = C_U(u, v) · C_V(u, v) for every edge, where C_U / C_V
+are the mean Jaccard similarities of a vertex's neighbour-set to each of its
+co-neighbours' neighbour-sets.  Keeps the top `top_fraction` fraction of edges
+by S_C score, then removes isolated vertices.
+
+Arguments:
+- g: BipartiteGraph to reduce (modified in-place)
+- top_fraction: fraction of highest-scoring edges to keep (default 0.2)
+
+Returns:
+- Number of edges kept
+- Number of U-vertices kept
+- Number of V-vertices kept
+"""
+function neighborhood_edge_reduction!(g::BipartiteGraph, top_fraction::Float64=0.2; θ::Int=5, theta::Int=θ)
+    actual_θ = theta != 5 ? theta : θ
+    top_fraction > 0.0 || throw(ArgumentError("top_fraction must be > 0, got $top_fraction"))
+    top_fraction <= 1.0 || throw(ArgumentError("top_fraction must be <= 1, got $top_fraction"))
+
+    fg = freeze(g)
+    scores = neighborhood_scores(fg; θ=actual_θ)
+
+    # Build (score, u_orig, v_orig) list
+    edge_list = Tuple{Float64, Int, Int}[]
+    sizehint!(edge_list, length(fg.v_adj))
+    for ui in 1:length(fg.u_ids)
+        u_orig = fg.u_ids[ui]
+        for k in neighbor_range_u(fg, ui)
+            v_orig = fg.v_ids[fg.v_adj[k]]
+            push!(edge_list, (scores[k], u_orig, v_orig))
+        end
+    end
+
+    sort!(edge_list, by=x->x[1], rev=true)
+
+    n_edges = length(edge_list)
+    n_keep  = max(1, floor(Int, top_fraction * n_edges))
+
+    println("Neighborhood reduction: keeping top $(round(100*top_fraction; digits=1))% edges by S_C score")
+    println("  Total edges: $n_edges, keeping: $n_keep")
+
+    keep_edges = Set{Tuple{Int,Int}}()
+    for i in 1:n_keep
+        _, u_orig, v_orig = edge_list[i]
+        push!(keep_edges, (u_orig, v_orig))
+    end
+
+    edges_removed = 0
+    for (u, nbrs) in copy(g.adjU)
+        for v in copy(nbrs)
+            if (u, v) ∉ keep_edges
+                rem_edge_structural!(g, u, v)
+                edges_removed += 1
+            end
+        end
+    end
+
+    u_removed = 0
+    v_removed = 0
+    for u in collect(keys(g.adjU))
+        if isempty(g.adjU[u])
+            rem_u_structural!(g, u)
+            u_removed += 1
+        end
+    end
+    for v in collect(keys(g.adjV))
+        if isempty(g.adjV[v])
+            rem_v_structural!(g, v)
+            v_removed += 1
+        end
+    end
+
+    n_edges_kept = length(keep_edges)
+    n_u_kept     = length(g.adjU)
+    n_v_kept     = length(g.adjV)
+
+    println("  Removed $edges_removed edges, $u_removed U-nodes, $v_removed V-nodes")
+    println("  Kept $n_edges_kept edges, $n_u_kept U-nodes, $n_v_kept V-nodes")
+
     return n_edges_kept, n_u_kept, n_v_kept
 end
 

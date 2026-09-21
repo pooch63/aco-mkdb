@@ -1,6 +1,74 @@
 using Test
 
+include(joinpath(@__DIR__, "..", "src", "pulse.jl"))
 include(joinpath(@__DIR__, "suite.jl"))
+
+const REGISTERED_PULSE_FORMULAS = list_pulse_formulas()
+
+function print_help()
+    println("Usage: julia tests/test_quartile_reduction.jl [--help|-h] [--formula=<name> | --formula <name> | --formulas=<name[,name...]>]")
+    println("")
+    println("Registered pulse formulas:")
+    for name in REGISTERED_PULSE_FORMULAS
+        println("  $(name)")
+    end
+    println("")
+    println("Flags:")
+    println("  -h, --help      Show this help message and exit.")
+end
+
+function parse_formula_args()
+    selected = String[]
+    i = 1
+    while i <= length(ARGS)
+        arg = ARGS[i]
+        if arg == "-h" || arg == "--help"
+            print_help()
+            exit(0)
+        elseif startswith(arg, "--formula=")
+            value = split(arg, "=", limit=2)[2]
+            append!(selected, split(value, ','))
+        elseif arg == "--formula" || arg == "--formulas"
+            i == length(ARGS) && begin
+                print_help()
+                error("Missing value for $(arg).")
+            end
+            append!(selected, split(ARGS[i + 1], ','))
+            i += 1
+        elseif startswith(arg, "--formulas=")
+            value = split(arg, "=", limit=2)[2]
+            append!(selected, split(value, ','))
+        elseif startswith(arg, "--") || startswith(arg, "-")
+            print_help()
+            error("Unknown option: $(arg)")
+        end
+        i += 1
+    end
+
+    isempty(selected) && return ["standard"]
+
+    normalized = String[]
+    for name in selected
+        cleaned = strip(name)
+        if !isempty(cleaned)
+            push!(normalized, cleaned)
+        end
+    end
+
+    isempty(normalized) && return ["standard"]
+
+    valid = Set(REGISTERED_PULSE_FORMULAS)
+    for name in normalized
+        name in valid || begin
+            print_help()
+            error("Unknown pulse formula: $(name)")
+        end
+    end
+
+    return normalized
+end
+
+const SELECTED_FORMULAS = parse_formula_args()
 
 """
 Test quartile-based edge weight reduction.
@@ -76,6 +144,8 @@ end
 
 # Run tests
 @testset "Quartile Reduction Tests" begin
-    test_quartile_reduction()
-    test_quartile_reduction_integration()
+    for formula in unique(SELECTED_FORMULAS)
+        test_quartile_reduction()
+        test_quartile_reduction_integration()
+    end
 end
