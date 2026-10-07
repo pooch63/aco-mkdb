@@ -1,0 +1,2560 @@
+Discovering graphs (ascending by edges)…
+Found 39 graphs
+ACO replicates per ant count: 6 (run 1 = JIT warmup; emit uses the rest)
+Run pivot for optimum: 0
+Neighbor scope limit: true
+Prefer smaller side: true
+Elite pheromone (emit): false
+ACO tabu repair: false
+MMAS bounds: false
+DEBUG (post-reduction plant check): true
+Writing vary results under results/vary_k2t5i_PN/
+
+[1/39] konect-small/moreno → results/vary_k2t5i_PN/moreno_ants.json
+Skipping (exists): results/vary_k2t5i_PN/moreno_ants.json
+
+[2/39] konect-small/facebook → results/vary_k2t5i_PN/facebook_ants.json
+Skipping (exists): results/vary_k2t5i_PN/facebook_ants.json
+
+[3/39] konect-small/maayan-vidal → results/vary_k2t5i_PN/maayan-vidal_ants.json
+Skipping (exists): results/vary_k2t5i_PN/maayan-vidal_ants.json
+
+[4/39] konect-small/edit-zuwiktionary → results/vary_k2t5i_PN/edit-zuwiktionary_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-zuwiktionary_ants.json
+
+[5/39] konect-small/edit-srwikiquote → results/vary_k2t5i_PN/edit-srwikiquote_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-srwikiquote_ants.json
+
+[6/39] konect-small/edit-vewiki → results/vary_k2t5i_PN/edit-vewiki_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-vewiki_ants.json
+
+[7/39] konect-small/edit-guwikiquote → results/vary_k2t5i_PN/edit-guwikiquote_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-guwikiquote_ants.json
+
+[8/39] konect-small/dnc-corecipient → results/vary_k2t5i_PN/dnc-corecipient_ants.json
+Skipping (exists): results/vary_k2t5i_PN/dnc-corecipient_ants.json
+
+[9/39] konect-small/moreno_health → results/vary_k2t5i_PN/moreno_health_ants.json
+Skipping (exists): results/vary_k2t5i_PN/moreno_health_ants.json
+
+[10/39] konect-small/edit-mkwikisource → results/vary_k2t5i_PN/edit-mkwikisource_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-mkwikisource_ants.json
+
+[11/39] konect-small/edit-mrwiktionary → results/vary_k2t5i_PN/edit-mrwiktionary_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-mrwiktionary_ants.json
+
+[12/39] amazon/boxes → results/vary_k2t5i_PN/boxes_ants.json
+Skipping (exists): results/vary_k2t5i_PN/boxes_ants.json
+
+[13/39] konect-small/petster-hamster → results/vary_k2t5i_PN/petster-hamster_ants.json
+Skipping (exists): results/vary_k2t5i_PN/petster-hamster_ants.json
+
+[14/39] konect-small/edit-nowikinews → results/vary_k2t5i_PN/edit-nowikinews_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-nowikinews_ants.json
+
+[15/39] konect-small/edit-jamwiki → results/vary_k2t5i_PN/edit-jamwiki_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-jamwiki_ants.json
+
+[16/39] konect-small/edit-wowiktionary → results/vary_k2t5i_PN/edit-wowiktionary_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-wowiktionary_ants.json
+
+[17/39] konect-small/edit-rowikibooks → results/vary_k2t5i_PN/edit-rowikibooks_ants.json
+Skipping (exists): results/vary_k2t5i_PN/edit-rowikibooks_ants.json
+
+[18/39] konect-small/moreno_blogs → results/vary_k2t5i_PN/moreno_blogs_ants.json
+Skipping (exists): results/vary_k2t5i_PN/moreno_blogs_ants.json
+
+[19/39] konect/bitcoin → results/vary_k2t5i_PN/bitcoin_ants.json
+Skipping (exists): results/vary_k2t5i_PN/bitcoin_ants.json
+
+[20/39] konect/pgp-arenas → results/vary_k2t5i_PN/pgp-arenas_ants.json
+Skipping (exists): results/vary_k2t5i_PN/pgp-arenas_ants.json
+
+[21/39] konect-small/p2p-Gnutella09 → results/vary_k2t5i_PN/p2p-Gnutella09_ants.json
+Skipping (exists): results/vary_k2t5i_PN/p2p-Gnutella09_ants.json
+
+[22/39] konect/wiki_talk_nds → results/vary_k2t5i_PN/wiki_talk_nds_ants.json
+Skipping (exists): results/vary_k2t5i_PN/wiki_talk_nds_ants.json
+
+[23/39] konect/dimacs-polblogs → results/vary_k2t5i_PN/dimacs-polblogs_ants.json
+Skipping (exists): results/vary_k2t5i_PN/dimacs-polblogs_ants.json
+
+[24/39] konect/gnutella → results/vary_k2t5i_PN/gnutella_ants.json
+Skipping (exists): results/vary_k2t5i_PN/gnutella_ants.json
+
+[25/39] konect/ciaodvd → results/vary_k2t5i_PN/ciaodvd_ants.json
+Skipping (exists): results/vary_k2t5i_PN/ciaodvd_ants.json
+
+[26/39] konect/dblp_cite → results/vary_k2t5i_PN/dblp_cite_ants.json
+Skipping (exists): results/vary_k2t5i_PN/dblp_cite_ants.json
+
+[27/39] konect/matter → results/vary_k2t5i_PN/matter_ants.json
+Skipping (exists): results/vary_k2t5i_PN/matter_ants.json
+
+[28/39] konect/openflights → results/vary_k2t5i_PN/openflights_ants.json
+Skipping (exists): results/vary_k2t5i_PN/openflights_ants.json
+
+[29/39] konect-small/nawiki → results/vary_k2t5i_PN/nawiki_ants.json
+Skipping (exists): results/vary_k2t5i_PN/nawiki_ants.json
+
+[30/39] amazon/magazine → results/vary_k2t5i_PN/magazine_ants.json
+Loading graph from: data/amazon/magazine/indexed_interactions.csv
+Parameters: k=2 θ=5
+Inject: u=5 v=5 k=2 (in-memory; CSV unchanged)
+Mode: vary ant-count (range=1,2,5,10,20,50,100, aco_runs=6)
+ACO: iterations=5 pheromone=1 evaporation=0.95 subspecies=1
+Pivot for quality baseline: no
+Save: /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/magazine_ants.json
+Reduction: simple
+Graph edges: 71497
+Injected biclique: u=5 v=5 k=2 (existing=0 inserted=23 missing=2)
+  planted U: [666, 12313, 42675, 51889, 59682]
+  planted V: [1546, 1962, 2797, 3197, 3273]
+  reserved missing: [(666, 3273), (51889, 3273)]
+nU=60144, nV=3391, |E|=71520
+
+==================== VARY ant-count ====================
+dataset=amazon/magazine  k=2  θ=5  iterations=5
+ants-range=1,2,5,10,20,50,100  run_pivot=false  aco_runs=6
+base_seed=1
+prefer_smaller_side=true  neighbor_scope_limit=true
+elite_pheromone=false  aco_tabu=false  mmas=false
+reduction=simple (CNN / one-shot; progressive disabled)
+DEBUG=true  plant_check=true
+
+Warming up (excluded from timings)…
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512 found_at_iter=1 found_at_t=0.0989s
+ACO global best found at iteration 1 (t=0.0989s, score=512)
+
+Reducing graph once (CNN)…
+DEBUG: planted solution still in graph after reduction: yes dataset=amazon/magazine
+  plant U=[666, 12313, 42675, 51889, 59682]  V=[1546, 1962, 2797, 3197, 3273]
+
+── Graph reduction ──
+  wall_time_s                  0.0173s
+  allocated_bytes              9.07 MiB  (9510632 bytes)
+  reduced_nU                   248
+  reduced_nV                   76
+  reduced_edges                922
+  reduced_max_degree           47
+  reduced_avg_degree           5.691358024691358
+
+── Graph structure ──
+  nU                           60144
+  nV                           3391
+  edges                        71520
+  reduced_nU                   248
+  reduced_nV                   76
+  reduced_edges                922
+  reduced_max_degree           47
+  reduced_avg_degree           5.691358024691358
+  mutable_graph_bytes          21.78 MiB  (22833704 bytes)
+  frozen_after_reduction_bytes 30.72 KiB  (31456 bytes)
+
+θ-heuristic warmup (excluded from timings)…
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0003s
+  allocated_bytes              63.84 KiB  (65376 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               825.13 MiB  (865214464 bytes)
+  solution                     |U|=5 |V|=3 edges=14 missing=1 (k=2)
+  final_edges                  14
+  optimal_edges                —
+  matched_optimal              false
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0003s
+  allocated_bytes              63.84 KiB  (65376 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               825.13 MiB  (865214464 bytes)
+  solution                     |U|=5 |V|=3 edges=14 missing=1 (k=2)
+  final_edges                  14
+  optimal_edges                —
+  matched_optimal              false
+
+── ACO ants=1  run 1/6  seed=1  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.1193s  to_best=0.0001s  iters→best=1  edges=16  vs heur=14  [warmup]
+
+── ACO ants=1  run 2/6  seed=2 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=4 score=9 found_at_iter=4 found_at_t=0.0002s
+ACO global best found at iteration 4 (t=0.0002s, score=9)
+  wall=0.0005s  to_best=0.0002s  iters→best=4  edges=10  vs heur=14
+
+── ACO ants=1  run 3/6  seed=3 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=10  vs heur=14
+
+── ACO ants=1  run 4/6  seed=4 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=3 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=4  vs heur=14
+
+── ACO ants=1  run 5/6  seed=5 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=4 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=10  vs heur=14
+
+── ACO ants=1  run 6/6  seed=6 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=10  vs heur=14
+
+── ACO ants=2  run 1/6  seed=7  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=10  vs heur=14  [warmup]
+
+── ACO ants=2  run 2/6  seed=8 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=12 |V|=2 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=22  vs heur=14
+
+── ACO ants=2  run 3/6  seed=9 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=16  vs heur=14
+
+── ACO ants=2  run 4/6  seed=10 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=15  vs heur=14
+
+── ACO ants=2  run 5/6  seed=11 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=13  vs heur=14
+
+── ACO ants=2  run 6/6  seed=12 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=4 score=16 found_at_iter=3 found_at_t=0.0002s
+ACO global best found at iteration 3 (t=0.0002s, score=16)
+  wall=0.0005s  to_best=0.0002s  iters→best=3  edges=18  vs heur=14
+
+── ACO ants=5  run 1/6  seed=13  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=4 found_at_t=0.0007s
+ACO global best found at iteration 4 (t=0.0007s, score=125)
+  wall=0.0011s  to_best=0.0007s  iters→best=4  edges=23  vs heur=14 (beats)  [warmup]
+
+── ACO ants=5  run 2/6  seed=14 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=3 found_at_t=0.0004s
+ACO global best found at iteration 3 (t=0.0004s, score=16)
+  wall=0.0009s  to_best=0.0004s  iters→best=3  edges=14  vs heur=14
+
+── ACO ants=5  run 3/6  seed=15 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=16)
+  wall=0.0010s  to_best=0.0002s  iters→best=1  edges=14  vs heur=14
+
+── ACO ants=5  run 4/6  seed=16 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=11 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0010s  to_best=0.0002s  iters→best=1  edges=31  vs heur=14
+
+── ACO ants=5  run 5/6  seed=17 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0009s  to_best=0.0002s  iters→best=1  edges=7  vs heur=14
+
+── ACO ants=5  run 6/6  seed=18 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=3 score=9 found_at_iter=2 found_at_t=0.0004s
+ACO global best found at iteration 2 (t=0.0004s, score=9)
+  wall=0.0009s  to_best=0.0004s  iters→best=2  edges=22  vs heur=14
+
+── ACO ants=10  run 1/6  seed=19  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0007s
+ACO global best found at iteration 2 (t=0.0007s, score=16)
+  wall=0.0018s  to_best=0.0007s  iters→best=2  edges=14  vs heur=14  [warmup]
+
+── ACO ants=10  run 2/6  seed=20 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=3 score=9 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=9)
+  wall=0.0018s  to_best=0.0004s  iters→best=1  edges=16  vs heur=14
+
+── ACO ants=10  run 3/6  seed=21 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0008s
+ACO global best found at iteration 2 (t=0.0008s, score=125)
+  wall=0.0019s  to_best=0.0008s  iters→best=2  edges=23  vs heur=14 (beats)
+
+── ACO ants=10  run 4/6  seed=22 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=4 score=16 found_at_iter=3 found_at_t=0.001s
+ACO global best found at iteration 3 (t=0.001s, score=16)
+  wall=0.0019s  to_best=0.0010s  iters→best=3  edges=18  vs heur=14
+
+── ACO ants=10  run 5/6  seed=23 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=4 score=16 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=16)
+  wall=0.0018s  to_best=0.0004s  iters→best=1  edges=22  vs heur=14
+
+── ACO ants=10  run 6/6  seed=24 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=4 found_at_t=0.0014s
+ACO global best found at iteration 4 (t=0.0014s, score=16)
+  wall=0.0019s  to_best=0.0014s  iters→best=4  edges=14  vs heur=14
+
+── ACO ants=20  run 1/6  seed=25  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=5 found_at_t=0.0033s
+ACO global best found at iteration 5 (t=0.0033s, score=125)
+  wall=0.0036s  to_best=0.0033s  iters→best=5  edges=23  vs heur=14 (beats)  [warmup]
+
+── ACO ants=20  run 2/6  seed=26 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0034s  to_best=0.0007s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=20  run 3/6  seed=27 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0013s
+ACO global best found at iteration 2 (t=0.0013s, score=16)
+  wall=0.0035s  to_best=0.0013s  iters→best=2  edges=14  vs heur=14
+
+── ACO ants=20  run 4/6  seed=28 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=125)
+  wall=0.0034s  to_best=0.0007s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=20  run 5/6  seed=29 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0014s
+ACO global best found at iteration 2 (t=0.0014s, score=16)
+  wall=0.0035s  to_best=0.0014s  iters→best=2  edges=14  vs heur=14
+
+── ACO ants=20  run 6/6  seed=30 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=16)
+  wall=0.0034s  to_best=0.0007s  iters→best=1  edges=14  vs heur=14
+
+── ACO ants=50  run 1/6  seed=31  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0086s  to_best=0.0016s  iters→best=1  edges=23  vs heur=14 (beats)  [warmup]
+
+── ACO ants=50  run 2/6  seed=32 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0017s
+ACO global best found at iteration 1 (t=0.0017s, score=125)
+  wall=0.0086s  to_best=0.0017s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=50  run 3/6  seed=33 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0084s  to_best=0.0016s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=50  run 4/6  seed=34 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=4 score=16 found_at_iter=2 found_at_t=0.0032s
+ACO global best found at iteration 2 (t=0.0032s, score=16)
+  wall=0.0081s  to_best=0.0032s  iters→best=2  edges=18  vs heur=14
+
+── ACO ants=50  run 5/6  seed=35 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0017s
+ACO global best found at iteration 1 (t=0.0017s, score=125)
+  wall=0.0084s  to_best=0.0017s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=50  run 6/6  seed=36 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0015s
+ACO global best found at iteration 1 (t=0.0015s, score=125)
+  wall=0.0082s  to_best=0.0015s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=100  run 1/6  seed=37  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0032s
+ACO global best found at iteration 1 (t=0.0032s, score=125)
+  wall=0.0174s  to_best=0.0032s  iters→best=1  edges=23  vs heur=14 (beats)  [warmup]
+
+── ACO ants=100  run 2/6  seed=38 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0031s
+ACO global best found at iteration 1 (t=0.0031s, score=125)
+  wall=0.0163s  to_best=0.0031s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=100  run 3/6  seed=39 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0032s
+ACO global best found at iteration 1 (t=0.0032s, score=125)
+  wall=0.0163s  to_best=0.0032s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=100  run 4/6  seed=40 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0032s
+ACO global best found at iteration 1 (t=0.0032s, score=125)
+  wall=0.0166s  to_best=0.0032s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=100  run 5/6  seed=41 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0032s
+ACO global best found at iteration 1 (t=0.0032s, score=125)
+  wall=0.0162s  to_best=0.0032s  iters→best=1  edges=23  vs heur=14 (beats)
+
+── ACO ants=100  run 6/6  seed=42 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs248 76
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0032s
+ACO global best found at iteration 1 (t=0.0032s, score=125)
+  wall=0.0164s  to_best=0.0032s  iters→best=1  edges=23  vs heur=14 (beats)
+
+==================== SUMMARY ======================
+θ-heuristic edges=14  θ-feasible=false  |U|=5 |V|=3
+ants    run   time        iters   edges     >heur   optimal
+1       1     0.1193s     1       16        no      —
+1       2     0.0005s     4       10        no      —
+1       3     0.0004s     1       10        no      —
+1       4     0.0005s     1       4         no      —
+1       5     0.0004s     1       10        no      —
+1       6     0.0004s     1       10        no      —
+2       1     0.0005s     1       10        no      —
+2       2     0.0005s     1       22        no      —
+2       3     0.0005s     1       16        no      —
+2       4     0.0005s     1       15        no      —
+2       5     0.0005s     1       13        no      —
+2       6     0.0005s     3       18        no      —
+5       1     0.0011s     4       23        yes     —
+5       2     0.0009s     3       14        no      —
+5       3     0.0010s     1       14        no      —
+5       4     0.0010s     1       31        no      —
+5       5     0.0009s     1       7         no      —
+5       6     0.0009s     2       22        no      —
+10      1     0.0018s     2       14        no      —
+10      2     0.0018s     1       16        no      —
+10      3     0.0019s     2       23        yes     —
+10      4     0.0019s     3       18        no      —
+10      5     0.0018s     1       22        no      —
+10      6     0.0019s     4       14        no      —
+20      1     0.0036s     5       23        yes     —
+20      2     0.0034s     1       23        yes     —
+20      3     0.0035s     2       14        no      —
+20      4     0.0034s     1       23        yes     —
+20      5     0.0035s     2       14        no      —
+20      6     0.0034s     1       14        no      —
+50      1     0.0086s     1       23        yes     —
+50      2     0.0086s     1       23        yes     —
+50      3     0.0084s     1       23        yes     —
+50      4     0.0081s     2       18        no      —
+50      5     0.0084s     1       23        yes     —
+50      6     0.0082s     1       23        yes     —
+100     1     0.0174s     1       23        yes     —
+100     2     0.0163s     1       23        yes     —
+100     3     0.0163s     1       23        yes     —
+100     4     0.0166s     1       23        yes     —
+100     5     0.0162s     1       23        yes     —
+100     6     0.0164s     1       23        yes     —
+===================================================
+
+Best ACO trial (by edges): ants=5  run=4  edges=31  discovery=0.0047s  ITB=1  TTB=0.0002s  θ-feasible=false
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/magazine_ants.json
+Random seed: --seed=1
+a = 3016147136
+
+[31/39] amazon/music → results/vary_k2t5i_PN/music_ants.json
+Skipping (exists): results/vary_k2t5i_PN/music_ants.json
+
+[32/39] amazon/gift-cards → results/vary_k2t5i_PN/gift-cards_ants.json
+Loading graph from: data/amazon/gift-cards/indexed_interactions.csv
+Parameters: k=2 θ=5
+Inject: u=5 v=5 k=2 (in-memory; CSV unchanged)
+Mode: vary ant-count (range=1,2,5,10,20,50,100, aco_runs=6)
+ACO: iterations=5 pheromone=1 evaporation=0.95 subspecies=1
+Pivot for quality baseline: no
+Save: /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/gift-cards_ants.json
+Reduction: simple
+Graph edges: 152410
+Injected biclique: u=5 v=5 k=2 (existing=0 inserted=23 missing=2)
+  planted U: [41901, 44204, 63963, 73473, 93278]
+  planted V: [47, 66, 682, 853, 955]
+  reserved missing: [(44204, 66), (73473, 682)]
+nU=132732, nV=1894, |E|=152433
+
+==================== VARY ant-count ====================
+dataset=amazon/gift-cards  k=2  θ=5  iterations=5
+ants-range=1,2,5,10,20,50,100  run_pivot=false  aco_runs=6
+base_seed=1
+prefer_smaller_side=true  neighbor_scope_limit=true
+elite_pheromone=false  aco_tabu=false  mmas=false
+reduction=simple (CNN / one-shot; progressive disabled)
+DEBUG=true  plant_check=true
+
+Warming up (excluded from timings)…
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512 found_at_iter=1 found_at_t=0.097s
+ACO global best found at iteration 1 (t=0.097s, score=512)
+
+Reducing graph once (CNN)…
+DEBUG: planted solution still in graph after reduction: yes dataset=amazon/gift-cards
+  plant U=[41901, 44204, 63963, 73473, 93278]  V=[47, 66, 682, 853, 955]
+
+── Graph reduction ──
+  wall_time_s                  0.1645s
+  allocated_bytes              19.3 MiB  (20236072 bytes)
+  reduced_nU                   620
+  reduced_nV                   96
+  reduced_edges                2260
+  reduced_max_degree           189
+  reduced_avg_degree           6.312849162011173
+
+── Graph structure ──
+  nU                           132732
+  nV                           1894
+  edges                        152433
+  reduced_nU                   620
+  reduced_nV                   96
+  reduced_edges                2260
+  reduced_max_degree           189
+  reduced_avg_degree           6.312849162011173
+  mutable_graph_bytes          41.03 MiB  (43024712 bytes)
+  frozen_after_reduction_bytes 119.38 KiB  (122240 bytes)
+
+θ-heuristic warmup (excluded from timings)…
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0005s
+  allocated_bytes              139.27 KiB  (142616 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               872.88 MiB  (915283968 bytes)
+  solution                     |U|=5 |V|=4 edges=18 missing=2 (k=2)
+  final_edges                  18
+  optimal_edges                —
+  matched_optimal              false
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0004s
+  allocated_bytes              139.27 KiB  (142616 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               872.88 MiB  (915283968 bytes)
+  solution                     |U|=5 |V|=4 edges=18 missing=2 (k=2)
+  final_edges                  18
+  optimal_edges                —
+  matched_optimal              false
+
+── ACO ants=1  run 1/6  seed=1  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.1181s  to_best=0.0002s  iters→best=1  edges=22  vs heur=18  [warmup]
+
+── ACO ants=1  run 2/6  seed=2 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=21 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=61  vs heur=18
+
+── ACO ants=1  run 3/6  seed=3 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=18 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0007s  to_best=0.0002s  iters→best=1  edges=52  vs heur=18
+
+── ACO ants=1  run 4/6  seed=4 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=16)
+  wall=0.0007s  to_best=0.0001s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=1  run 5/6  seed=5 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0002s, score=16)
+  wall=0.0006s  to_best=0.0001s  iters→best=2  edges=14  vs heur=18
+
+── ACO ants=1  run 6/6  seed=6 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=11 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=31  vs heur=18
+
+── ACO ants=2  run 1/6  seed=7  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=9 |V|=2 score=4 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=4)
+  wall=0.0009s  to_best=0.0002s  iters→best=1  edges=16  vs heur=18  [warmup]
+
+── ACO ants=2  run 2/6  seed=8 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=5 found_at_t=0.0004s
+ACO global best found at iteration 5 (t=0.0004s, score=16)
+  wall=0.0009s  to_best=0.0004s  iters→best=5  edges=14  vs heur=18
+
+── ACO ants=2  run 3/6  seed=9 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=7  vs heur=18
+
+── ACO ants=2  run 4/6  seed=10 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=3 score=9 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=9)
+  wall=0.0009s  to_best=0.0003s  iters→best=1  edges=10  vs heur=18
+
+── ACO ants=2  run 5/6  seed=11 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=3 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0009s  to_best=0.0002s  iters→best=1  edges=13  vs heur=18
+
+── ACO ants=2  run 6/6  seed=12 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=6 score=16 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=16)
+  wall=0.0008s  to_best=0.0002s  iters→best=1  edges=22  vs heur=18
+
+── ACO ants=5  run 1/6  seed=13  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=16)
+  wall=0.0018s  to_best=0.0004s  iters→best=1  edges=14  vs heur=18  [warmup]
+
+── ACO ants=5  run 2/6  seed=14 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=3 score=9 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=9)
+  wall=0.0023s  to_best=0.0004s  iters→best=1  edges=22  vs heur=18
+
+── ACO ants=5  run 3/6  seed=15 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=3 score=9 found_at_iter=1 found_at_t=0.0005s
+ACO global best found at iteration 1 (t=0.0005s, score=9)
+  wall=0.0024s  to_best=0.0005s  iters→best=1  edges=16  vs heur=18
+
+── ACO ants=5  run 4/6  seed=16 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=11 |V|=3 score=9 found_at_iter=2 found_at_t=0.0008s
+ACO global best found at iteration 2 (t=0.0008s, score=9)
+  wall=0.0020s  to_best=0.0008s  iters→best=2  edges=31  vs heur=18
+
+── ACO ants=5  run 5/6  seed=17 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0007s
+ACO global best found at iteration 2 (t=0.0007s, score=16)
+  wall=0.0020s  to_best=0.0007s  iters→best=2  edges=14  vs heur=18
+
+── ACO ants=5  run 6/6  seed=18 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=3 score=9 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=9)
+  wall=0.0022s  to_best=0.0007s  iters→best=1  edges=22  vs heur=18
+
+── ACO ants=10  run 1/6  seed=19  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=4 score=16 found_at_iter=1 found_at_t=0.0008s
+ACO global best found at iteration 1 (t=0.0008s, score=16)
+  wall=0.0042s  to_best=0.0008s  iters→best=1  edges=30  vs heur=18  [warmup]
+
+── ACO ants=10  run 2/6  seed=20 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0019s
+ACO global best found at iteration 2 (t=0.0019s, score=16)
+  wall=0.0045s  to_best=0.0019s  iters→best=2  edges=14  vs heur=18
+
+── ACO ants=10  run 3/6  seed=21 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0007s
+ACO global best found at iteration 1 (t=0.0007s, score=16)
+  wall=0.0044s  to_best=0.0007s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=10  run 4/6  seed=22 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=4 score=16 found_at_iter=1 found_at_t=0.0012s
+ACO global best found at iteration 1 (t=0.0012s, score=16)
+  wall=0.0053s  to_best=0.0012s  iters→best=1  edges=30  vs heur=18
+
+── ACO ants=10  run 5/6  seed=23 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=5 found_at_t=0.0033s
+ACO global best found at iteration 5 (t=0.0033s, score=16)
+  wall=0.0038s  to_best=0.0033s  iters→best=5  edges=14  vs heur=18
+
+── ACO ants=10  run 6/6  seed=24 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=4 score=16 found_at_iter=2 found_at_t=0.002s
+ACO global best found at iteration 2 (t=0.002s, score=16)
+  wall=0.0049s  to_best=0.0020s  iters→best=2  edges=18  vs heur=18
+
+── ACO ants=20  run 1/6  seed=25  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=4 score=16 found_at_iter=2 found_at_t=0.0031s
+ACO global best found at iteration 2 (t=0.0031s, score=16)
+  wall=0.0096s  to_best=0.0031s  iters→best=2  edges=18  vs heur=18  [warmup]
+
+── ACO ants=20  run 2/6  seed=26 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.003s
+ACO global best found at iteration 2 (t=0.003s, score=16)
+  wall=0.0082s  to_best=0.0030s  iters→best=2  edges=14  vs heur=18
+
+── ACO ants=20  run 3/6  seed=27 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0017s
+ACO global best found at iteration 1 (t=0.0017s, score=16)
+  wall=0.0085s  to_best=0.0017s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=20  run 4/6  seed=28 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=4 score=16 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=16)
+  wall=0.0086s  to_best=0.0016s  iters→best=1  edges=22  vs heur=18
+
+── ACO ants=20  run 5/6  seed=29 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=4 found_at_t=0.0067s
+ACO global best found at iteration 4 (t=0.0067s, score=16)
+  wall=0.0087s  to_best=0.0067s  iters→best=4  edges=14  vs heur=18
+
+── ACO ants=20  run 6/6  seed=30 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=16)
+  wall=0.0087s  to_best=0.0016s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=50  run 1/6  seed=31  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.004s
+ACO global best found at iteration 1 (t=0.004s, score=125)
+  wall=0.0219s  to_best=0.0040s  iters→best=1  edges=23  vs heur=18 (beats)  [warmup]
+
+── ACO ants=50  run 2/6  seed=32 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0047s
+ACO global best found at iteration 1 (t=0.0047s, score=16)
+  wall=0.0224s  to_best=0.0047s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=50  run 3/6  seed=33 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0037s
+ACO global best found at iteration 1 (t=0.0037s, score=16)
+  wall=0.0218s  to_best=0.0037s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=50  run 4/6  seed=34 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0077s
+ACO global best found at iteration 2 (t=0.0077s, score=16)
+  wall=0.0219s  to_best=0.0077s  iters→best=2  edges=14  vs heur=18
+
+── ACO ants=50  run 5/6  seed=35 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0046s
+ACO global best found at iteration 1 (t=0.0046s, score=16)
+  wall=0.0223s  to_best=0.0046s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=50  run 6/6  seed=36 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0036s
+ACO global best found at iteration 1 (t=0.0036s, score=16)
+  wall=0.0215s  to_best=0.0036s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=100  run 1/6  seed=37  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=4 score=16 found_at_iter=1 found_at_t=0.0083s
+ACO global best found at iteration 1 (t=0.0083s, score=16)
+  wall=0.0441s  to_best=0.0083s  iters→best=1  edges=18  vs heur=18  [warmup]
+
+── ACO ants=100  run 2/6  seed=38 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=4 score=16 found_at_iter=1 found_at_t=0.0077s
+ACO global best found at iteration 1 (t=0.0077s, score=16)
+  wall=0.0413s  to_best=0.0077s  iters→best=1  edges=30  vs heur=18
+
+── ACO ants=100  run 3/6  seed=39 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0075s
+ACO global best found at iteration 1 (t=0.0075s, score=16)
+  wall=0.0420s  to_best=0.0075s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=100  run 4/6  seed=40 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0093s
+ACO global best found at iteration 1 (t=0.0093s, score=16)
+  wall=0.0473s  to_best=0.0093s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=100  run 5/6  seed=41 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.008s
+ACO global best found at iteration 1 (t=0.008s, score=16)
+  wall=0.0446s  to_best=0.0080s  iters→best=1  edges=14  vs heur=18
+
+── ACO ants=100  run 6/6  seed=42 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs620 96
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=7 |V|=4 score=16 found_at_iter=1 found_at_t=0.0084s
+ACO global best found at iteration 1 (t=0.0084s, score=16)
+  wall=0.0449s  to_best=0.0084s  iters→best=1  edges=26  vs heur=18
+
+==================== SUMMARY ======================
+θ-heuristic edges=18  θ-feasible=false  |U|=5 |V|=4
+ants    run   time        iters   edges     >heur   optimal
+1       1     0.1181s     1       22        no      —
+1       2     0.0008s     1       61        no      —
+1       3     0.0007s     1       52        no      —
+1       4     0.0007s     1       14        no      —
+1       5     0.0006s     2       14        no      —
+1       6     0.0008s     1       31        no      —
+2       1     0.0009s     1       16        no      —
+2       2     0.0009s     5       14        no      —
+2       3     0.0008s     1       7         no      —
+2       4     0.0009s     1       10        no      —
+2       5     0.0009s     1       13        no      —
+2       6     0.0008s     1       22        no      —
+5       1     0.0018s     1       14        no      —
+5       2     0.0023s     1       22        no      —
+5       3     0.0024s     1       16        no      —
+5       4     0.0020s     2       31        no      —
+5       5     0.0020s     2       14        no      —
+5       6     0.0022s     1       22        no      —
+10      1     0.0042s     1       30        no      —
+10      2     0.0045s     2       14        no      —
+10      3     0.0044s     1       14        no      —
+10      4     0.0053s     1       30        no      —
+10      5     0.0038s     5       14        no      —
+10      6     0.0049s     2       18        no      —
+20      1     0.0096s     2       18        no      —
+20      2     0.0082s     2       14        no      —
+20      3     0.0085s     1       14        no      —
+20      4     0.0086s     1       22        no      —
+20      5     0.0087s     4       14        no      —
+20      6     0.0087s     1       14        no      —
+50      1     0.0219s     1       23        yes     —
+50      2     0.0224s     1       14        no      —
+50      3     0.0218s     1       14        no      —
+50      4     0.0219s     2       14        no      —
+50      5     0.0223s     1       14        no      —
+50      6     0.0215s     1       14        no      —
+100     1     0.0441s     1       18        no      —
+100     2     0.0413s     1       30        no      —
+100     3     0.0420s     1       14        no      —
+100     4     0.0473s     1       14        no      —
+100     5     0.0446s     1       14        no      —
+100     6     0.0449s     1       26        no      —
+===================================================
+
+Best ACO trial (by edges): ants=1  run=2  edges=61  discovery=0.0037s  ITB=1  TTB=0.0002s  θ-feasible=false
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/gift-cards_ants.json
+Random seed: --seed=1
+a = 3462562088
+
+[33/39] amazon/health → results/vary_k2t5i_PN/health_ants.json
+Loading graph from: data/amazon/health/indexed_interactions.csv
+Parameters: k=2 θ=5
+Inject: u=5 v=5 k=2 (in-memory; CSV unchanged)
+Mode: vary ant-count (range=1,2,5,10,20,50,100, aco_runs=6)
+ACO: iterations=5 pheromone=1 evaporation=0.95 subspecies=1
+Pivot for quality baseline: no
+Save: /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/health_ants.json
+Reduction: simple
+Graph edges: 494121
+Injected biclique: u=5 v=5 k=2 (existing=0 inserted=23 missing=2)
+  planted U: [27605, 40693, 71768, 135706, 340386]
+  planted V: [906, 9324, 15979, 47923, 54832]
+  reserved missing: [(27605, 54832), (71768, 15979)]
+nU=461656, nV=62597, |E|=494144
+
+==================== VARY ant-count ====================
+dataset=amazon/health  k=2  θ=5  iterations=5
+ants-range=1,2,5,10,20,50,100  run_pivot=false  aco_runs=6
+base_seed=1
+prefer_smaller_side=true  neighbor_scope_limit=true
+elite_pheromone=false  aco_tabu=false  mmas=false
+reduction=simple (CNN / one-shot; progressive disabled)
+DEBUG=true  plant_check=true
+
+Warming up (excluded from timings)…
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512 found_at_iter=1 found_at_t=0.0981s
+ACO global best found at iteration 1 (t=0.0981s, score=512)
+
+Reducing graph once (CNN)…
+DEBUG: planted solution still in graph after reduction: yes dataset=amazon/health
+  plant U=[27605, 40693, 71768, 135706, 340386]  V=[906, 9324, 15979, 47923, 54832]
+
+── Graph reduction ──
+  wall_time_s                  0.1818s
+  allocated_bytes              71.93 MiB  (75428816 bytes)
+  reduced_nU                   57
+  reduced_nV                   87
+  reduced_edges                330
+  reduced_max_degree           37
+  reduced_avg_degree           4.583333333333333
+
+── Graph structure ──
+  nU                           461656
+  nV                           62597
+  edges                        494144
+  reduced_nU                   57
+  reduced_nV                   87
+  reduced_edges                330
+  reduced_max_degree           37
+  reduced_avg_degree           4.583333333333333
+  mutable_graph_bytes          158.58 MiB  (166283080 bytes)
+  frozen_after_reduction_bytes 14.41 KiB  (14752 bytes)
+
+θ-heuristic warmup (excluded from timings)…
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0003s
+  allocated_bytes              34.58 KiB  (35408 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.12 GiB  (1197953024 bytes)
+  solution                     |U|=5 |V|=2 edges=8 missing=2 (k=2)
+  final_edges                  8
+  optimal_edges                —
+  matched_optimal              false
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0001s
+  allocated_bytes              34.58 KiB  (35408 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.12 GiB  (1197953024 bytes)
+  solution                     |U|=5 |V|=2 edges=8 missing=2 (k=2)
+  final_edges                  8
+  optimal_edges                —
+  matched_optimal              false
+
+── ACO ants=1  run 1/6  seed=1  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.1215s  to_best=0.0001s  iters→best=1  edges=7  vs heur=8  [warmup]
+
+── ACO ants=1  run 2/6  seed=2 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=9  vs heur=8
+
+── ACO ants=1  run 3/6  seed=3 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0000s  iters→best=1  edges=9  vs heur=8
+
+── ACO ants=1  run 4/6  seed=4 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=1  edges=7  vs heur=8
+
+── ACO ants=1  run 5/6  seed=5 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=2 |V|=9 score=4 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=4)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=16  vs heur=8
+
+── ACO ants=1  run 6/6  seed=6 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=10  vs heur=8
+
+── ACO ants=2  run 1/6  seed=7  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=16)
+  wall=0.0003s  to_best=0.0001s  iters→best=2  edges=14  vs heur=8  [warmup]
+
+── ACO ants=2  run 2/6  seed=8 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=4 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=10  vs heur=8
+
+── ACO ants=2  run 3/6  seed=9 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=16)
+  wall=0.0003s  to_best=0.0001s  iters→best=2  edges=14  vs heur=8
+
+── ACO ants=2  run 4/6  seed=10 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=10  vs heur=8
+
+── ACO ants=2  run 5/6  seed=11 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=16)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=14  vs heur=8
+
+── ACO ants=2  run 6/6  seed=12 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=16)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=14  vs heur=8
+
+── ACO ants=5  run 1/6  seed=13  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=23  vs heur=8 (beats)  [warmup]
+
+── ACO ants=5  run 2/6  seed=14 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0006s  to_best=0.0002s  iters→best=2  edges=23  vs heur=8 (beats)
+
+── ACO ants=5  run 3/6  seed=15 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0006s  to_best=0.0002s  iters→best=2  edges=23  vs heur=8 (beats)
+
+── ACO ants=5  run 4/6  seed=16 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=3 found_at_t=0.0004s
+ACO global best found at iteration 3 (t=0.0004s, score=125)
+  wall=0.0006s  to_best=0.0004s  iters→best=3  edges=23  vs heur=8 (beats)
+
+── ACO ants=5  run 5/6  seed=17 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=5 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=13  vs heur=8
+
+── ACO ants=5  run 6/6  seed=18 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=5 found_at_t=0.0005s
+ACO global best found at iteration 5 (t=0.0005s, score=125)
+  wall=0.0006s  to_best=0.0005s  iters→best=5  edges=23  vs heur=8 (beats)
+
+── ACO ants=10  run 1/6  seed=19  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0011s  to_best=0.0003s  iters→best=1  edges=23  vs heur=8 (beats)  [warmup]
+
+── ACO ants=10  run 2/6  seed=20 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=16)
+  wall=0.0011s  to_best=0.0002s  iters→best=1  edges=14  vs heur=8
+
+── ACO ants=10  run 3/6  seed=21 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0005s
+ACO global best found at iteration 2 (t=0.0005s, score=16)
+  wall=0.0011s  to_best=0.0005s  iters→best=2  edges=14  vs heur=8
+
+── ACO ants=10  run 4/6  seed=22 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0010s  to_best=0.0002s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=10  run 5/6  seed=23 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0004s
+ACO global best found at iteration 2 (t=0.0004s, score=16)
+  wall=0.0011s  to_best=0.0004s  iters→best=2  edges=14  vs heur=8
+
+── ACO ants=10  run 6/6  seed=24 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0011s  to_best=0.0002s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=20  run 1/6  seed=25  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0021s  to_best=0.0004s  iters→best=1  edges=23  vs heur=8 (beats)  [warmup]
+
+── ACO ants=20  run 2/6  seed=26 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0019s  to_best=0.0004s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=20  run 3/6  seed=27 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0021s  to_best=0.0004s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=20  run 4/6  seed=28 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0019s  to_best=0.0004s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=20  run 5/6  seed=29 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0019s  to_best=0.0004s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=20  run 6/6  seed=30 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=16)
+  wall=0.0020s  to_best=0.0004s  iters→best=1  edges=14  vs heur=8
+
+── ACO ants=50  run 1/6  seed=31  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0008s
+ACO global best found at iteration 1 (t=0.0008s, score=125)
+  wall=0.0048s  to_best=0.0008s  iters→best=1  edges=23  vs heur=8 (beats)  [warmup]
+
+── ACO ants=50  run 2/6  seed=32 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0049s  to_best=0.0009s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=50  run 3/6  seed=33 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0017s
+ACO global best found at iteration 2 (t=0.0017s, score=16)
+  wall=0.0049s  to_best=0.0017s  iters→best=2  edges=14  vs heur=8
+
+── ACO ants=50  run 4/6  seed=34 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0049s  to_best=0.0009s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=50  run 5/6  seed=35 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0048s  to_best=0.0009s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=50  run 6/6  seed=36 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0049s  to_best=0.0009s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=100  run 1/6  seed=37  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0092s  to_best=0.0016s  iters→best=1  edges=23  vs heur=8 (beats)  [warmup]
+
+── ACO ants=100  run 2/6  seed=38 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0093s  to_best=0.0016s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=100  run 3/6  seed=39 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0017s
+ACO global best found at iteration 1 (t=0.0017s, score=125)
+  wall=0.0096s  to_best=0.0017s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=100  run 4/6  seed=40 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0017s
+ACO global best found at iteration 1 (t=0.0017s, score=125)
+  wall=0.0095s  to_best=0.0017s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=100  run 5/6  seed=41 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0017s
+ACO global best found at iteration 1 (t=0.0017s, score=125)
+  wall=0.0095s  to_best=0.0017s  iters→best=1  edges=23  vs heur=8 (beats)
+
+── ACO ants=100  run 6/6  seed=42 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs57 87
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0017s
+ACO global best found at iteration 1 (t=0.0017s, score=125)
+  wall=0.0095s  to_best=0.0017s  iters→best=1  edges=23  vs heur=8 (beats)
+
+==================== SUMMARY ======================
+θ-heuristic edges=8  θ-feasible=false  |U|=5 |V|=2
+ants    run   time        iters   edges     >heur   optimal
+1       1     0.1215s     1       7         no      —
+1       2     0.0003s     1       9         no      —
+1       3     0.0002s     1       9         no      —
+1       4     0.0002s     1       7         no      —
+1       5     0.0003s     1       16        no      —
+1       6     0.0003s     1       10        no      —
+2       1     0.0003s     2       14        no      —
+2       2     0.0003s     1       10        no      —
+2       3     0.0003s     2       14        no      —
+2       4     0.0003s     1       10        no      —
+2       5     0.0003s     1       14        no      —
+2       6     0.0003s     1       14        no      —
+5       1     0.0005s     1       23        yes     —
+5       2     0.0006s     2       23        yes     —
+5       3     0.0006s     2       23        yes     —
+5       4     0.0006s     3       23        yes     —
+5       5     0.0005s     1       13        no      —
+5       6     0.0006s     5       23        yes     —
+10      1     0.0011s     1       23        yes     —
+10      2     0.0011s     1       14        no      —
+10      3     0.0011s     2       14        no      —
+10      4     0.0010s     1       23        yes     —
+10      5     0.0011s     2       14        no      —
+10      6     0.0011s     1       23        yes     —
+20      1     0.0021s     1       23        yes     —
+20      2     0.0019s     1       23        yes     —
+20      3     0.0021s     1       23        yes     —
+20      4     0.0019s     1       23        yes     —
+20      5     0.0019s     1       23        yes     —
+20      6     0.0020s     1       14        no      —
+50      1     0.0048s     1       23        yes     —
+50      2     0.0049s     1       23        yes     —
+50      3     0.0049s     2       14        no      —
+50      4     0.0049s     1       23        yes     —
+50      5     0.0048s     1       23        yes     —
+50      6     0.0049s     1       23        yes     —
+100     1     0.0092s     1       23        yes     —
+100     2     0.0093s     1       23        yes     —
+100     3     0.0096s     1       23        yes     —
+100     4     0.0095s     1       23        yes     —
+100     5     0.0095s     1       23        yes     —
+100     6     0.0095s     1       23        yes     —
+===================================================
+
+Best ACO trial (by edges): ants=10  run=4  edges=23  discovery=0.0054s  ITB=1  TTB=0.0002s  θ-feasible=true
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/health_ants.json
+Random seed: --seed=1
+a = 3902521648
+
+[34/39] amazon/beauty → results/vary_k2t5i_PN/beauty_ants.json
+Loading graph from: data/amazon/beauty/indexed_interactions.csv
+Parameters: k=2 θ=5
+Inject: u=5 v=5 k=2 (in-memory; CSV unchanged)
+Mode: vary ant-count (range=1,2,5,10,20,50,100, aco_runs=6)
+ACO: iterations=5 pheromone=1 evaporation=0.95 subspecies=1
+Pivot for quality baseline: no
+Save: /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/beauty_ants.json
+Reduction: simple
+Graph edges: 701528
+Injected biclique: u=5 v=5 k=2 (existing=0 inserted=23 missing=2)
+  planted U: [312191, 478129, 508678, 595082, 607938]
+  planted V: [31774, 36057, 72337, 107051, 115060]
+  reserved missing: [(478129, 31774), (607938, 31774)]
+nU=631986, nV=115709, |E|=701551
+
+==================== VARY ant-count ====================
+dataset=amazon/beauty  k=2  θ=5  iterations=5
+ants-range=1,2,5,10,20,50,100  run_pivot=false  aco_runs=6
+base_seed=1
+prefer_smaller_side=true  neighbor_scope_limit=true
+elite_pheromone=false  aco_tabu=false  mmas=false
+reduction=simple (CNN / one-shot; progressive disabled)
+DEBUG=true  plant_check=true
+
+Warming up (excluded from timings)…
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512 found_at_iter=1 found_at_t=0.0983s
+ACO global best found at iteration 1 (t=0.0983s, score=512)
+
+Reducing graph once (CNN)…
+DEBUG: planted solution still in graph after reduction: yes dataset=amazon/beauty
+  plant U=[312191, 478129, 508678, 595082, 607938]  V=[31774, 36057, 72337, 107051, 115060]
+
+── Graph reduction ──
+  wall_time_s                  0.2067s
+  allocated_bytes              102.73 MiB  (107716168 bytes)
+  reduced_nU                   103
+  reduced_nV                   137
+  reduced_edges                536
+  reduced_max_degree           45
+  reduced_avg_degree           4.466666666666667
+
+── Graph structure ──
+  nU                           631986
+  nV                           115709
+  edges                        701551
+  reduced_nU                   103
+  reduced_nV                   137
+  reduced_edges                536
+  reduced_max_degree           45
+  reduced_avg_degree           4.466666666666667
+  mutable_graph_bytes          215.53 MiB  (225999336 bytes)
+  frozen_after_reduction_bytes 21.25 KiB  (21760 bytes)
+
+θ-heuristic warmup (excluded from timings)…
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0001s
+  allocated_bytes              51.52 KiB  (52752 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.22 GiB  (1311518720 bytes)
+  solution                     |U|=5 |V|=3 edges=13 missing=2 (k=2)
+  final_edges                  13
+  optimal_edges                —
+  matched_optimal              false
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0001s
+  allocated_bytes              51.52 KiB  (52752 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.22 GiB  (1311518720 bytes)
+  solution                     |U|=5 |V|=3 edges=13 missing=2 (k=2)
+  final_edges                  13
+  optimal_edges                —
+  matched_optimal              false
+
+── ACO ants=1  run 1/6  seed=1  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0746s  to_best=0.0001s  iters→best=1  edges=9  vs heur=13  [warmup]
+
+── ACO ants=1  run 2/6  seed=2 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=3 score=9 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=10  vs heur=13
+
+── ACO ants=1  run 3/6  seed=3 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=5 score=9 found_at_iter=1 found_at_t=0.0s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0003s  to_best=0.0000s  iters→best=1  edges=13  vs heur=13
+
+── ACO ants=1  run 4/6  seed=4 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=6 score=9 found_at_iter=2 found_at_t=0.0001s
+ACO global best found at iteration 2 (t=0.0001s, score=9)
+  wall=0.0002s  to_best=0.0001s  iters→best=2  edges=16  vs heur=13
+
+── ACO ants=1  run 5/6  seed=5 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=6 score=9 found_at_iter=1 found_at_t=0.0s
+ACO global best found at iteration 1 (t=0.0s, score=9)
+  wall=0.0003s  to_best=0.0000s  iters→best=1  edges=16  vs heur=13
+
+── ACO ants=1  run 6/6  seed=6 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=3 score=9 found_at_iter=1 found_at_t=0.0s
+ACO global best found at iteration 1 (t=0.0s, score=9)
+  wall=0.0002s  to_best=0.0000s  iters→best=1  edges=18  vs heur=13
+
+── ACO ants=2  run 1/6  seed=7  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=5 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=13  vs heur=13  [warmup]
+
+── ACO ants=2  run 2/6  seed=8 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=4 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=10  vs heur=13
+
+── ACO ants=2  run 3/6  seed=9 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=10 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=28  vs heur=13
+
+── ACO ants=2  run 4/6  seed=10 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0003s  to_best=0.0001s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=2  run 5/6  seed=11 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=6 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=16  vs heur=13
+
+── ACO ants=2  run 6/6  seed=12 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=3 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0004s  to_best=0.0001s  iters→best=1  edges=7  vs heur=13
+
+── ACO ants=5  run 1/6  seed=13  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=7 score=9 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=9)
+  wall=0.0006s  to_best=0.0001s  iters→best=1  edges=19  vs heur=13  [warmup]
+
+── ACO ants=5  run 2/6  seed=14 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=5 found_at_t=0.0006s
+ACO global best found at iteration 5 (t=0.0006s, score=16)
+  wall=0.0007s  to_best=0.0006s  iters→best=5  edges=14  vs heur=13
+
+── ACO ants=5  run 3/6  seed=15 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=4 score=16 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=16)
+  wall=0.0005s  to_best=0.0002s  iters→best=2  edges=22  vs heur=13
+
+── ACO ants=5  run 4/6  seed=16 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0001s
+ACO global best found at iteration 1 (t=0.0001s, score=125)
+  wall=0.0005s  to_best=0.0001s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=5  run 5/6  seed=17 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0005s  to_best=0.0002s  iters→best=2  edges=23  vs heur=13 (beats)
+
+── ACO ants=5  run 6/6  seed=18 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0002s
+ACO global best found at iteration 2 (t=0.0002s, score=125)
+  wall=0.0006s  to_best=0.0002s  iters→best=2  edges=23  vs heur=13 (beats)
+
+── ACO ants=10  run 1/6  seed=19  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0010s  to_best=0.0002s  iters→best=1  edges=23  vs heur=13 (beats)  [warmup]
+
+── ACO ants=10  run 2/6  seed=20 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0009s  to_best=0.0002s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=10  run 3/6  seed=21 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=3 found_at_t=0.0007s
+ACO global best found at iteration 3 (t=0.0007s, score=16)
+  wall=0.0013s  to_best=0.0007s  iters→best=3  edges=14  vs heur=13
+
+── ACO ants=10  run 4/6  seed=22 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=16)
+  wall=0.0011s  to_best=0.0002s  iters→best=1  edges=14  vs heur=13
+
+── ACO ants=10  run 5/6  seed=23 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=125)
+  wall=0.0010s  to_best=0.0002s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=10  run 6/6  seed=24 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=3 |V|=4 score=9 found_at_iter=1 found_at_t=0.0002s
+ACO global best found at iteration 1 (t=0.0002s, score=9)
+  wall=0.0012s  to_best=0.0002s  iters→best=1  edges=10  vs heur=13
+
+── ACO ants=20  run 1/6  seed=25  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=6 |V|=4 score=16 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=16)
+  wall=0.0019s  to_best=0.0003s  iters→best=1  edges=22  vs heur=13  [warmup]
+
+── ACO ants=20  run 2/6  seed=26 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0020s  to_best=0.0004s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=20  run 3/6  seed=27 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=2 found_at_t=0.0008s
+ACO global best found at iteration 2 (t=0.0008s, score=16)
+  wall=0.0021s  to_best=0.0008s  iters→best=2  edges=14  vs heur=13
+
+── ACO ants=20  run 4/6  seed=28 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0003s
+ACO global best found at iteration 1 (t=0.0003s, score=125)
+  wall=0.0017s  to_best=0.0003s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=20  run 5/6  seed=29 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=16)
+  wall=0.0019s  to_best=0.0004s  iters→best=1  edges=14  vs heur=13
+
+── ACO ants=20  run 6/6  seed=30 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0004s
+ACO global best found at iteration 1 (t=0.0004s, score=125)
+  wall=0.0020s  to_best=0.0004s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=50  run 1/6  seed=31  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0048s  to_best=0.0009s  iters→best=1  edges=23  vs heur=13 (beats)  [warmup]
+
+── ACO ants=50  run 2/6  seed=32 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0008s
+ACO global best found at iteration 1 (t=0.0008s, score=125)
+  wall=0.0046s  to_best=0.0008s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=50  run 3/6  seed=33 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=2 found_at_t=0.0022s
+ACO global best found at iteration 2 (t=0.0022s, score=125)
+  wall=0.0055s  to_best=0.0022s  iters→best=2  edges=23  vs heur=13 (beats)
+
+── ACO ants=50  run 4/6  seed=34 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0047s  to_best=0.0009s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=50  run 5/6  seed=35 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=4 |V|=4 score=16 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=16)
+  wall=0.0048s  to_best=0.0009s  iters→best=1  edges=14  vs heur=13
+
+── ACO ants=50  run 6/6  seed=36 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0009s
+ACO global best found at iteration 1 (t=0.0009s, score=125)
+  wall=0.0052s  to_best=0.0009s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=100  run 1/6  seed=37  (JIT warmup; recorded but discarded in emit) ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0015s
+ACO global best found at iteration 1 (t=0.0015s, score=125)
+  wall=0.0092s  to_best=0.0015s  iters→best=1  edges=23  vs heur=13 (beats)  [warmup]
+
+── ACO ants=100  run 2/6  seed=38 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0091s  to_best=0.0016s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=100  run 3/6  seed=39 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0090s  to_best=0.0016s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=100  run 4/6  seed=40 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0015s
+ACO global best found at iteration 1 (t=0.0015s, score=125)
+  wall=0.0088s  to_best=0.0015s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=100  run 5/6  seed=41 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0090s  to_best=0.0016s  iters→best=1  edges=23  vs heur=13 (beats)
+
+── ACO ants=100  run 6/6  seed=42 ──
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125 found_at_iter=1 found_at_t=0.0016s
+ACO global best found at iteration 1 (t=0.0016s, score=125)
+  wall=0.0091s  to_best=0.0016s  iters→best=1  edges=23  vs heur=13 (beats)
+
+==================== SUMMARY ======================
+θ-heuristic edges=13  θ-feasible=false  |U|=5 |V|=3
+ants    run   time        iters   edges     >heur   optimal
+1       1     0.0746s     1       9         no      —
+1       2     0.0002s     2       10        no      —
+1       3     0.0003s     1       13        no      —
+1       4     0.0002s     2       16        no      —
+1       5     0.0003s     1       16        no      —
+1       6     0.0002s     1       18        no      —
+2       1     0.0004s     1       13        no      —
+2       2     0.0003s     1       10        no      —
+2       3     0.0004s     1       28        no      —
+2       4     0.0003s     1       23        yes     —
+2       5     0.0005s     1       16        no      —
+2       6     0.0004s     1       7         no      —
+5       1     0.0006s     1       19        no      —
+5       2     0.0007s     5       14        no      —
+5       3     0.0005s     2       22        no      —
+5       4     0.0005s     1       23        yes     —
+5       5     0.0005s     2       23        yes     —
+5       6     0.0006s     2       23        yes     —
+10      1     0.0010s     1       23        yes     —
+10      2     0.0009s     1       23        yes     —
+10      3     0.0013s     3       14        no      —
+10      4     0.0011s     1       14        no      —
+10      5     0.0010s     1       23        yes     —
+10      6     0.0012s     1       10        no      —
+20      1     0.0019s     1       22        no      —
+20      2     0.0020s     1       23        yes     —
+20      3     0.0021s     2       14        no      —
+20      4     0.0017s     1       23        yes     —
+20      5     0.0019s     1       14        no      —
+20      6     0.0020s     1       23        yes     —
+50      1     0.0048s     1       23        yes     —
+50      2     0.0046s     1       23        yes     —
+50      3     0.0055s     2       23        yes     —
+50      4     0.0047s     1       23        yes     —
+50      5     0.0048s     1       14        no      —
+50      6     0.0052s     1       23        yes     —
+100     1     0.0092s     1       23        yes     —
+100     2     0.0091s     1       23        yes     —
+100     3     0.0090s     1       23        yes     —
+100     4     0.0088s     1       23        yes     —
+100     5     0.0090s     1       23        yes     —
+100     6     0.0091s     1       23        yes     —
+===================================================
+
+Best ACO trial (by edges): ants=2  run=3  edges=28  discovery=0.0018s  ITB=1  TTB=0.0001s  θ-feasible=false
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/beauty_ants.json
+Random seed: --seed=1
+a = 4395395704
+
+[35/39] amazon/appliances → results/vary_k2t5i_PN/appliances_ants.json
+Skipping (exists): results/vary_k2t5i_PN/appliances_ants.json
+
+[36/39] amazon/software → results/vary_k2t5i_PN/software_ants.json
+
+[451416] signal 2: Interrupt
+in expression starting at /home/kiyaanpillai/Documents/aco-mkdb/bin/load.jl:733
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+jl_parallel_gc_threadfun at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/gc-stock.c:3640
+unknown function (ip: 0x7de2214a4079) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de22153772b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+jl_parallel_gc_threadfun at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/gc-stock.c:3640
+unknown function (ip: 0x7de2214a4079) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de22153772b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+jl_parallel_gc_threadfun at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/gc-stock.c:3640
+unknown function (ip: 0x7de2214a4079) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de22153772b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+jl_parallel_gc_threadfun at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/gc-stock.c:3640
+unknown function (ip: 0x7de2214a4079) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de22153772b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+jl_parallel_gc_threadfun at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/gc-stock.c:3640
+unknown function (ip: 0x7de2214a4079) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de22153772b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+jl_parallel_gc_threadfun at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/gc-stock.c:3640
+unknown function (ip: 0x7de2214a4079) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de22153772b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+jl_parallel_gc_threadfun at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/gc-stock.c:3640
+unknown function (ip: 0x7de2214a4079) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de22153772b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7de2214aca80) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a058b) at /usr/lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7de2214a0966) at /usr/lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /usr/lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+task_done_hook at ./task.jl:868
+jfptr_task_done_hook_59905.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+jl_finish_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:341
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1263
+unknown function (ip: (nil)) at (unknown file)
+ijl_egal__bitstag at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/builtins.c:244
+setindex! at ./iddict.jl:86 [inlined]
+_summarysize at ./summarysize.jl:100
+SummarySize at ./summarysize.jl:93
+jfptr_SummarySize_63164.1 at /home/kiyaanpillai/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+#summarysize#823 at ./summarysize.jl:87
+summarysize at ./summarysize.jl:38 [inlined]
+#run_vary_ant_count!#221 at /home/kiyaanpillai/Documents/aco-mkdb/bin/vary.jl:408
+run_vary_ant_count! at /home/kiyaanpillai/Documents/aco-mkdb/bin/vary.jl:370
+unknown function (ip: 0x7de19d5300ed) at (unknown file)
+#main##2 at /home/kiyaanpillai/Documents/aco-mkdb/bin/load.jl:645
+unknown function (ip: 0x7de1be7becb4) at (unknown file)
+jl_apply at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/julia.h:2391 [inlined]
+start_task at /cache/build/builder-amdci5-4/julialang/julia-release-1-dot-12/src/task.c:1252
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 110575968 (Pool: 110575576; Big: 392); GC: 38
+Loading graph from: data/amazon/software/indexed_interactions.csv
+Parameters: k=2 θ=5
+Inject: u=5 v=5 k=2 (in-memory; CSV unchanged)
+Mode: vary ant-count (range=1,2,5,10,20,50,100, aco_runs=6)
+ACO: iterations=5 pheromone=1 evaporation=0.95 subspecies=1
+Pivot for quality baseline: no
+Save: /home/kiyaanpillai/Documents/aco-mkdb/results/vary_k2t5i_PN/software_ants.json
+Reduction: simple
+Graph edges: 4880181
+Injected biclique: u=5 v=5 k=2 (existing=0 inserted=23 missing=2)
+  planted U: [45279, 165817, 251552, 1334630, 1649174]
+  planted V: [26614, 33118, 57685, 66663, 78174]
+  reserved missing: [(1334630, 66663), (1334630, 78174)]
+nU=2589466, nV=90359, |E|=4880204
+
+==================== VARY ant-count ====================
+dataset=amazon/software  k=2  θ=5  iterations=5
+ants-range=1,2,5,10,20,50,100  run_pivot=false  aco_runs=6
+base_seed=1
+prefer_smaller_side=true  neighbor_scope_limit=true
+elite_pheromone=false  aco_tabu=false  mmas=false
+reduction=simple (CNN / one-shot; progressive disabled)
+DEBUG=true  plant_check=true
+
+Warming up (excluded from timings)…
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512 found_at_iter=1 found_at_t=0.0666s
+ACO global best found at iteration 1 (t=0.0666s, score=512)

@@ -1,0 +1,193 @@
+Loading graph from: data/amazon/beauty/indexed_interactions.csv
+Parameters: k=2 θ=5
+Inject: u=5 v=5 k=2 (in-memory; CSV unchanged)
+Mode: benchmark (aco,heuristic,tow)
+ACO: ants=10 iterations=5 pheromone=1 evaporation=0.95 subspecies=1
+TOW: seed_source=sc num_seeds=10 max_shakes=3 peel=true seed=1
+Save: /home/kiyaanpillai/Documents/aco-mkdb/results/k2t5i_heuristic-aco-tow/beauty.json
+Reduction: progressive
+Graph edges: 701528
+Injected biclique: u=5 v=5 k=2 (existing=0 inserted=23 missing=2)
+  planted U: [312191, 478129, 508678, 595082, 607938]
+  planted V: [31774, 36057, 72337, 107051, 115060]
+  reserved missing: [(478129, 31774), (607938, 31774)]
+nU=631986, nV=115709, |E|=701551
+
+==================== BENCHMARK ====================
+targets=aco,heuristic,tow  k=2  θ=5
+reduction=all_reductions  (applied once; solvers use none)
+
+Warming up (excluded from timings)…
+Progressive reductions took 2 iterations (0 new reduces)
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs9 9
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=8 |V|=8 score=512.0 found_at_iter=1 found_at_t=0.2721s
+ACO global best found at iteration 1 (t=0.2721s, score=512.0)
+Progressive reductions took 2 iterations (0 new reduces)
+
+Reducing graph once (shared across solvers)…
+Progressive reductions took 3 iterations (0 new reduces)
+
+── Graph reduction ──
+  wall_time_s                  0.2205s
+  allocated_bytes              102.9 MiB  (107900784 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  reduced_nU                   103
+  reduced_nV                   137
+
+── Graph structure ──
+  nU                           631986
+  nV                           115709
+  edges                        701551
+  mutable_graph_bytes          215.53 MiB  (225999336 bytes)
+  frozen_after_reduction_bytes 21.25 KiB  (21760 bytes)
+  reduced_nU                   103
+  reduced_nV                   137
+
+θ-heuristic warmup (excluded from timings)…
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0001s
+  time_to_best_s               —
+  allocated_bytes              52.08 KiB  (53328 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.29 GiB  (1388281856 bytes)
+  iterations_to_best           —
+  solution                     |U|=5 |V|=3 edges=13 missing=2 (k=2)
+  final_edges                  13
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+
+Running θ-heuristic…
+
+── θ-heuristic ──
+  wall_time_s                  0.0001s
+  time_to_best_s               —
+  allocated_bytes              52.08 KiB  (53328 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.29 GiB  (1388281856 bytes)
+  iterations_to_best           —
+  solution                     |U|=5 |V|=3 edges=13 missing=2 (k=2)
+  final_edges                  13
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+
+ACO warmup on reduced graph (excluded from timings)…
+
+Running ACO (ants=10 iterations=5 pheromone=1 evaporation=0.95 subspecies=1 prefer_smaller_side=true neighbor_scope_limit=true elite_seed=true elite_pheromone=false aco_tabu=false mmas=false)…
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125.0 found_at_iter=1 found_at_t=0.1742s
+ACO global best found at iteration 1 (t=0.1742s, score=125.0)
+
+── ACO ──
+  wall_time_s                  0.1750s
+  time_to_best_s               0.1742s
+  allocated_bytes              12.66 MiB  (13273864 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.29 GiB  (1388281856 bytes)
+  ants                         10
+  iterations_budget            5
+  iterations_to_best           1
+  iterations_to_optimal        —
+  best_source                  ACO search (iteration 1)
+  matched_optimal_note         no pivot optimum provided
+  solution                     |U|=5 |V|=5 edges=23 missing=2 (k=2)
+  final_edges                  23
+  optimal_edges                —
+  matched_optimal              false
+
+  ACO final solution found at iteration 1 (0.1742s; budget 5, total wall 0.1750s).
+
+Running ACO (ants=10 iterations=5 pheromone=1 evaporation=0.95 subspecies=1 prefer_smaller_side=true neighbor_scope_limit=true elite_seed=true elite_pheromone=false aco_tabu=false mmas=false)…
+Prefer smaller side: true
+Neighbor scope limit: true
+Size of reduced graphs103 137
+ACO MMAS disabled: species pheromone unbounded [0, +∞) (θ-heuristic not run for ACO)
+ACO ablations: elite_pheromone=false tabu=false mmas=false
+ACO subspecies 1 best: |U|=5 |V|=5 score=125.0 found_at_iter=2 found_at_t=0.0004s
+ACO global best found at iteration 2 (t=0.0004s, score=125.0)
+
+── ACO ──
+  wall_time_s                  0.0010s
+  time_to_best_s               0.0004s
+  allocated_bytes              1.78 MiB  (1866768 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.29 GiB  (1388281856 bytes)
+  ants                         10
+  iterations_budget            5
+  iterations_to_best           2
+  iterations_to_optimal        —
+  best_source                  ACO search (iteration 2)
+  matched_optimal_note         no pivot optimum provided
+  solution                     |U|=5 |V|=5 edges=23 missing=2 (k=2)
+  final_edges                  23
+  optimal_edges                —
+  matched_optimal              false
+
+  ACO final solution found at iteration 2 (0.0004s; budget 5, total wall 0.0010s).
+
+tow warmup on reduced graph (excluded from timings)…
+
+Running tow (warmup)…
+
+── tow (warmup) ──
+  wall_time_s                  0.0012s
+  time_to_best_s               —
+  allocated_bytes              2.54 MiB  (2662656 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.29 GiB  (1388281856 bytes)
+  iterations_to_best           —
+  solution                     |U|=5 |V|=5 edges=23 missing=2 (k=2)
+  final_edges                  23
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+
+Running tow…
+
+── tow ──
+  wall_time_s                  0.0012s
+  time_to_best_s               —
+  allocated_bytes              2.54 MiB  (2662656 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.29 GiB  (1388281856 bytes)
+  iterations_to_best           —
+  solution                     |U|=5 |V|=5 edges=23 missing=2 (k=2)
+  final_edges                  23
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+
+==================== SUMMARY ======================
+  reduction time       : 0.2205s
+  graph mutable memory : 215.53 MiB
+  graph frozen memory  : 21.25 KiB
+  heuristic time       : 0.0001s
+  heuristic allocated  : 52.08 KiB
+  heuristic RSS Δ      : 0.0 B
+  heuristic edges      : 13
+  ACO time             : 0.0010s
+  ACO time → best      : 0.0004s
+  ACO allocated        : 1.78 MiB
+  ACO RSS Δ           : 0.0 B
+  ACO ants             : 10
+  ACO iters → best     : 2
+  ACO iters → optimal  : not found
+  ACO final edges      : 23
+  tow time           : 0.0012s
+  tow edges          : 23
+===================================================
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/k2t5i_heuristic-aco-tow/beauty.json
+Random seed: --seed=1
+a = 4239479544
