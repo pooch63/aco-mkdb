@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import math
 
-ACO_LABEL = r"$F_N$"
+from ..common import (
+    COLUMN_HEIGHT,
+    COLUMN_WIDTH,
+    begin_float,
+    begin_tikz,
+    end_float,
+    end_tikz,
+)
+
+ACO_LABEL = r"ACO"
 HEUR_LABEL = r"$\theta$-Heuristic"
 
 _SERIES_COLORS = (
@@ -265,8 +274,8 @@ def size_figure(
     label,
     legend_name=None,
     ylabel=r"Solution size $|E(D_{best})|$",
-    width="0.88\\textwidth",
-    height="0.52\\textwidth",
+    width=None,
+    height=None,
     log_axes=True,
     log_y=None,
     y_equals_one=False,
@@ -274,13 +283,17 @@ def size_figure(
     xmax=None,
     mark_alpha=None,
     trend_lines=False,
-    placement="H",
+    placement=None,
     series_marks=None,
+    star=False,
 ):
-    lines = [
-        rf"\begin{{figure}}[{placement}]",
-        r"  \centering",
-        r"  \begin{tikzpicture}",
+    if width is None:
+        width = COLUMN_WIDTH
+    if height is None:
+        height = COLUMN_HEIGHT
+    env, lines = begin_float("figure", star=star, placement=placement)
+    lines += begin_tikz()
+    lines += [
         r"  \begin{axis}[",
         rf"    width={width},",
         rf"    height={height},",
@@ -333,9 +346,9 @@ def size_figure(
         )
     lines += [
         r"  \end{axis}",
-        r"  \end{tikzpicture}",
-        r"",
     ]
+    lines += end_tikz()
+    lines.append("")
     if legend_name:
         lines += [
             r"  \begin{center}",
@@ -345,6 +358,6 @@ def size_figure(
     lines += [
         rf"  \caption{{{caption}}}",
         rf"  \label{{{label}}}",
-        r"\end{figure}",
     ]
+    lines += end_float(env)
     return lines

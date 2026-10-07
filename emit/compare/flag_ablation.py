@@ -34,7 +34,21 @@ import math
 import os
 import statistics
 
-from ..common import counted_trials, list_json_paths, load_json, aco_timed_out
+from ..common import (
+    COLUMN_HEIGHT,
+    COLUMN_WIDTH,
+    COL2_HEIGHT,
+    COL2_VSEP,
+    COL2_WIDTH,
+    aco_timed_out,
+    begin_float,
+    begin_tikz,
+    counted_trials,
+    end_float,
+    end_tikz,
+    list_json_paths,
+    load_json,
+)
 from ..table import summarize_file
 
 FLAG_VARIANTS = ("ACO", r"$F_P$", r"$F_N$", r"$F_{PN}$")
@@ -263,9 +277,9 @@ def _flag_ablation_caption(matched, *, unit):
     if unit == "graph":
         return (
             rf"Flag ablation at 100 ants on {n} matched graphs. "
-            rf"Left: per-graph mean scored $|E|$ over counted replicates "
+            rf"Top: per-graph mean scored $|E|$ over counted replicates "
             rf"($\theta$-infeasible trials count as 0 edges but stay in the mean). "
-            rf"Right: per-graph discovery time (sum of counted replicate "
+            rf"Bottom: per-graph discovery time (sum of counted replicate "
             rf"wall times). Both panels are ordered and colored by "
             rf"neighbor-scope $F_N$."
         )
@@ -273,8 +287,8 @@ def _flag_ablation_caption(matched, *, unit):
     return (
         rf"Flag ablation at 100 ants: counted replicates pooled over "
         rf"{n} matched graphs ({n_repl} replicates per variant). "
-        rf"Left: scored $|E|$ per replicate ($\theta$-infeasible trials "
-        rf"count as 0). Right: per-replicate wall time. Both panels are "
+        rf"Top: scored $|E|$ per replicate ($\theta$-infeasible trials "
+        rf"count as 0). Bottom: per-replicate wall time. Both panels are "
         rf"ordered and colored by neighbor-scope $F_N$."
     )
 
@@ -290,8 +304,6 @@ def flag_ablation_figure(matched, *, unit="graph"):
         ]
 
     xticks = list(FLAG_ORDER)
-    width = 0.42
-    height = 0.36
     quality_ylabel = (
         r"Mean scored $|E|$" if unit == "graph" else r"Scored $|E|$"
     )
@@ -302,14 +314,13 @@ def flag_ablation_figure(matched, *, unit="graph"):
         r"fig:flag-ablation" if unit == "graph" else r"fig:flag-ablation-replicates"
     )
 
-    lines = [
-        r"\begin{figure}[H]",
-        r"  \centering",
-        r"  \begin{tikzpicture}",
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz()
+    lines += [
         r"  \begin{groupplot}[",
-        r"    group style={group size=2 by 1, horizontal sep=52pt},",
-        rf"    width={width:.2f}\textwidth,",
-        rf"    height={height:.2f}\textwidth,",
+        rf"    group style={{group size=1 by 2, vertical sep={COL2_VSEP}}},",
+        rf"    width={COL2_WIDTH},",
+        rf"    height={COL2_HEIGHT},",
         r"    grid=major,",
         r"    ylabel style={font=\small, align=center},",
         r"    y tick label style={font=\scriptsize},",
@@ -361,11 +372,13 @@ def flag_ablation_figure(matched, *, unit="graph"):
     lines += _n_group_labels()
     lines += [
         r"  \end{groupplot}",
-        r"  \end{tikzpicture}",
+    ]
+    lines += end_tikz()
+    lines += [
         rf"  \caption{{{_flag_ablation_caption(matched, unit=unit)}}}",
         rf"  \label{{{fig_label}}}",
-        r"\end{figure}",
     ]
+    lines += end_float(env)
     return lines
 
 
@@ -420,8 +433,6 @@ def flag_feasibility_figure(matched, *, unit="graph"):
         ]
 
     xticks = list(FLAG_ORDER)
-    width = 0.55
-    height = 0.36
     rate_fn = (
         _graph_theta_feasibility_rate
         if unit == "graph"
@@ -443,14 +454,12 @@ def flag_feasibility_figure(matched, *, unit="graph"):
         else r"fig:flag-feasibility-replicates"
     )
 
-    lines = [
-        r"\begin{figure}[H]",
-        r"  \centering",
-        r"  \vspace{1.5em}",
-        r"  \begin{tikzpicture}",
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz()
+    lines += [
         r"  \begin{axis}[",
-        rf"    width={width:.2f}\textwidth,",
-        rf"    height={height:.2f}\textwidth,",
+        rf"    width={COLUMN_WIDTH},",
+        rf"    height={COLUMN_HEIGHT},",
         r"    grid=major,",
         rf"    ylabel={{{ylabel}}},",
         r"    ylabel style={align=center},",
@@ -483,11 +492,13 @@ def flag_feasibility_figure(matched, *, unit="graph"):
         r"  \node[font=\scriptsize] at (rel axis cs:0.25,-0.10) {$F_N$ off};",
         r"  \node[font=\scriptsize] at (rel axis cs:0.75,-0.10) {$F_N$ on};",
         r"  \end{axis}",
-        r"  \end{tikzpicture}",
+    ]
+    lines += end_tikz()
+    lines += [
         rf"  \caption{{{_flag_feasibility_caption(matched, unit=unit)}}}",
         rf"  \label{{{fig_label}}}",
-        r"\end{figure}",
     ]
+    lines += end_float(env)
     return lines
 
 

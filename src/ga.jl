@@ -10,10 +10,13 @@ using EnumX
 using Random
 using StatsBase
 
-const COLLECT_METRICS = true
+# Per-generation logs. Off unless GA_METRICS=1 so suite runs stay quiet.
+const COLLECT_METRICS = get(ENV, "GA_METRICS", "") == "1"
 # Off by default so headless / benchmark runs do not pull in Makie.
 # Set GA_GRAPH=1 (or flip this const) to plot metrics after search.
 const GRAPH = get(ENV, "GA_GRAPH", "") == "1"
+
+ga_log(msg...) = COLLECT_METRICS && println(msg...)
 
 if GRAPH
     include("plot_metrics.jl")
@@ -78,11 +81,12 @@ function ga(g::BipartiteGraph, k::Int, θ::Int, N::Int, O::Int, k_mutate::Float6
         generations
     )
 
-    println("After graph, reductions, G=(U,V)=($(length(fg.u_ids)), $(length(fg.v_ids)))")
-
-    println(length(U), " ", length(V))
-    @show U
-    @show V
+    ga_log("After graph, reductions, G=(U,V)=($(length(fg.u_ids)), $(length(fg.v_ids)))")
+    ga_log(length(U), " ", length(V))
+    if COLLECT_METRICS
+        @show U
+        @show V
+    end
 
     # fg.u_ids = U
     # fg.v_ids = V
@@ -144,26 +148,36 @@ end
 
 function evolve(instances::Vector{Instance}, fg::FrozenBipartite, max_k::Int, θ::Int, N::Int,
     H::Int, O::Int, k_mutate::Float64, repair::RepairMode.T, tt::Int, tabu_patience::Int)
-    next = Instance[]
+    # One slot per child. push! from @threads races and drops offspring.
+    n_children = N - 2
+    children = Vector{Instance}(undef, max(n_children, 0))
+    if n_children > 0
+        @threads for i in 1:n_children
+            male, female = softmax_sample(instance -> instance_fitness(fg, instance.subgraph, θ), instances, 2)
 
-    @threads for _ in 1:N-2
-        male, female = softmax_sample(instance -> instance_fitness(fg, instance.subgraph, θ), instances, 2)
-        
-        k = rand(1, 2) == 1 ? male.k : female.k
+            k = rand(1, 2) == 1 ? male.k : female.k
 
-        if rand() < k_mutate
-            if rand(1, 2) == 1
-                k = min(max_k, k + 1)
-            else
-                k = max(0, k - 1)
+            if rand() < k_mutate
+                if rand(1, 2) == 1
+                    k = min(max_k, k + 1)
+                else
+                    k = max(0, k - 1)
+                end
             end
+
+            COLLECT_METRICS && @show k
+
+            offspring = crossover(fg, male.subgraph, female.subgraph, k, θ, repair, tt, tabu_patience)
+            if COLLECT_METRICS
+                @show instance_fitness(fg, offspring, θ)
+            end
+            children[i] = Instance(offspring, k)
         end
+    end
 
-        @show k
-
-        offspring = crossover(fg, male.subgraph, female.subgraph, k, θ, repair, tt, tabu_patience)
-        @show instance_fitness(fg, offspring, θ)
-        push!(next, Instance(offspring, k))
+    next = Instance[]
+    for child in children
+        push!(next, child)
     end
 
     elites = softmax_sample(instance -> instance_fitness(fg, instance.subgraph, θ), instances, 2)
@@ -210,14 +224,14 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
         Subgraph.remove_node!(next, is_u, node)
     end
 
-    println("Before greedily add, next=", Subgraph.vertex_count(next))
+    ga_log("Before greedily add, next=", Subgraph.vertex_count(next))
 
     last = deepcopy(next)
     greedily_add!(fg, next, k)
-    println("Greedy score: $(instance_fitness(fg, next, θ))")
+    ga_log("Greedy score: $(instance_fitness(fg, next, θ))")
     next = deepcopy(last)
     tabu_repair!(fg, next, k, θ, tt, tabu_patience)
-    println("Tabu score: $(instance_fitness(fg, next, θ))")
+    ga_log("Tabu score: $(instance_fitness(fg, next, θ))")
     next = last
 
     if repair == RepairMode.greedy
@@ -248,7 +262,7 @@ function crossover(fg::FrozenBipartite, male::SubGraph, female::SubGraph, k::Int
         end
     end
 
-    println("After greedily add, next=", Subgraph.vertex_count(next))
+    ga_log("After greedily add, next=", Subgraph.vertex_count(next))
 
     return next
 end

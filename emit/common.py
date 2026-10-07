@@ -204,7 +204,8 @@ def counted_trials(trials, data=None, *, n_runs=None, max_replicates=_MAX_REPLIC
     Trials excluding the per-ant-count JIT warmup replicate.
 
     Optional ``max_replicates`` keeps only the first R counted replicates
-    per ant count (ordered by ``run``). Omit the argument to use the
+    per ant count, or per (ant count, ``param_value``) when a trial records
+    a hyperparameter sweep (ordered by ``run``). Omit the argument to use the
     process default from set_max_replicates; pass ``max_replicates=None``
     to keep every counted replicate even when a default cap is set.
     """
@@ -220,7 +221,12 @@ def counted_trials(trials, data=None, *, n_runs=None, max_replicates=_MAX_REPLIC
 
     by_ants = defaultdict(list)
     for t in kept:
-        by_ants[t.get("ants")].append(t)
+        ants = t.get("ants")
+        if t.get("param_value") is not None:
+            key = (ants, float(t["param_value"]))
+        else:
+            key = (ants, None)
+        by_ants[key].append(t)
 
     out = []
     for group in by_ants.values():
@@ -283,3 +289,57 @@ def aco_discovery_cost(trials, winning_trial, until_found=False, data=None):
         total += float(wt)
         any_time = True
     return total if any_time else None
+
+
+# IEEEtran two-column layout. Most plots are a regular figure
+# (\columnwidth). Only wide multi-panel plots (the 3-panel budget
+# figures) use figure* (\textwidth). IEEEtran places figure* at the
+# top of the page. pgfplots `width` includes axis descriptions unless
+# `scale only axis` is set. Groupplot fractions stay under 1, and tikz
+# is wrapped in \resizebox{\linewidth}{!} so a slight overflow still
+# fits the float.
+IEEE_STAR_PLACE = "!t"
+IEEE_COL_PLACE = "!t"
+# Full-width 3-panel groupplot (iteration / replicate budget).
+PANEL3_WIDTH = "0.24\\textwidth"
+PANEL3_HEIGHT = "0.30\\textwidth"
+PANEL3_HSEP = "36pt"
+# One plot in a single column (quality, density-wins, and similar).
+COLUMN_WIDTH = "0.92\\columnwidth"
+COLUMN_HEIGHT = "0.62\\columnwidth"
+# Two panels stacked in one column. Side-by-side panels collide once
+# the float is only \columnwidth wide; each panel is a normal column
+# plot, with the second underneath the first.
+COL2_WIDTH = COLUMN_WIDTH
+COL2_HEIGHT = "0.50\\columnwidth"
+COL2_VSEP = "42pt"
+# Log tick labels hang further below the axis than a short categorical
+# xlabel, so stacked log--log panels need a wider gap.
+COL2_VSEP_LOG = "68pt"
+
+
+def begin_float(kind, *, star=False, placement=None, vspace=None):
+    """Open a figure/table or starred (two-column) environment."""
+    env = f"{kind}*" if star else kind
+    if placement is None:
+        placement = IEEE_STAR_PLACE if star else IEEE_COL_PLACE
+    lines = [rf"\begin{{{env}}}[{placement}]", r"  \centering"]
+    if vspace:
+        lines.append(rf"  \vspace{{{vspace}}}")
+    return env, lines
+
+
+def end_float(env):
+    return [rf"\end{{{env}}}"]
+
+
+def begin_tikz(*, resize=True):
+    if resize:
+        return [r"  \resizebox{\linewidth}{!}{%", r"  \begin{tikzpicture}"]
+    return [r"  \begin{tikzpicture}"]
+
+
+def end_tikz(*, resize=True):
+    if resize:
+        return [r"  \end{tikzpicture}%", r"  }"]
+    return [r"  \end{tikzpicture}"]

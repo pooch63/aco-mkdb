@@ -5,11 +5,11 @@ Emit LaTeX figures and tables from ACO benchmark JSON.
 Modes
 -----
   quality
-      Vary.jl ant-count format → 2-column groupplot (IQR of per-graph
-      values, not pooled replicates):
-        Top row: θ-heuristic deviation | θ-feasibility rate
-        Bottom row: wall-clock time (optimum-quality panel if present)
-        Each panel: 1st quartile / median / 3rd quartile vs ant count
+      Vary.jl ant-count format → cross-graph median percent deviation
+      from the θ-heuristic vs ant count. Optional --ablation-dir=LABEL=DIR
+      (rho, pheromone, eta-exp) adds those sweeps as compact panels in
+      the same figure. Per-graph means, not pooled replicates;
+      θ-infeasible outcomes count as −100%.
 
   seed-compare
       compare-seeds.jl (+ vary.jl) → table:
@@ -25,8 +25,8 @@ Modes
   table
       Vary.jl ant-count JSON → paper-style LaTeX table.
       --subset=full (default) emits every dataset (appendix);
-      --subset=highlights emits the largest relative ACO wins plus the
-      closest θ-heuristic wins.
+      --subset=highlights emits the largest relative ACO wins as a
+      single-column table of $|E(D)|$ and discovery time.
 
   compare
       Vary.jl ant-count JSON → complexity figures ($F_N$).
@@ -34,17 +34,19 @@ Modes
         theta-time, deg-size-time, bound-time, density-size,
         max-deg-time, flag-ablation, flag-ablation-replicates,
         flag-feasibility, flag-feasibility-replicates, iteration-budget,
-        replicate-budget, k-sweep, theta-sweep, density-wins, param-density,
-        param-runtime
+        replicate-budget, budget-allocation, pheromone-ablation,
+        k-sweep, theta-sweep, density-wins, param-runtime
       Pass a single results directory, e.g. vary_k2t5i_PN.
       flag-ablation / flag-feasibility (and *-replicates) use
       --flag-dir=LABEL=DIR.
-      k-sweep / theta-sweep / density-wins / param-density / param-runtime use
+      k-sweep / theta-sweep / density-wins / param-runtime use
       --param-dir=LABEL=DIR (see build.json).
-      iteration-budget retrospectively truncates full-budget
-      replicates by recorded iterations_to_best (ETB) on counted
-      (non-JIT) replicates; replicate-budget prefixes the ordered
-      counted (non-JIT) replicate sequence by budget R.
+      iteration-budget, replicate-budget, budget-allocation, and
+      pheromone-ablation read per-epoch incumbent traces
+      (``epoch_trace``). pheromone-ablation also takes
+      ``--trace-dir=LABEL=DIR`` for the Δτ=0 run and any ρ sweep.
+      These plots ignore ``--max-replicates`` and use every counted
+      replicate.
       --max-replicates=R optionally prefixes counted replicates for
       all modes except replicate-budget (which always plots full R).
 
@@ -63,6 +65,12 @@ Modes
       missing-at-* fields read pre-recorded JSON only (no Julia at build
       time). Pivot-coverage fields also need --compare-dir.
 
+  methods
+      load.jl --benchmark JSON (scripts/evaluate.bash with METHODS=…) →
+      per-graph multi-method table. --methods=tow,aco,heuristic (default)
+      lists method blocks in column order; the first is the focal method
+      used to group rows and tally wins / ties / losses.
+
 Usage:
     python -m emit quality /path/to/json/dir -o plot.tex
     python -m emit seed-compare /path/to/json/dir -o seed.tex
@@ -73,6 +81,7 @@ Usage:
     python -m emit table vary_k2t5i_PN --ants=100 --subset=highlights -o highlights.tex
     python -m emit compare vary_k2t5i_PN -o compare.tex
     python -m emit compare vary_k2t5i_PN --plots=theta-time,deg-size-time -o complexity.tex
+    python -m emit methods results/k2t5i_heuristic-aco-tow --methods=tow,aco,heuristic -o tow.tex
 """
 
 from __future__ import annotations
@@ -145,8 +154,8 @@ def main(argv=None):
              "flag-ablation, flag-ablation-replicates, "
              "flag-feasibility, flag-feasibility-replicates, "
              "iteration-budget, "
-             "replicate-budget, k-sweep, theta-sweep, density-wins, "
-             "param-density, param-runtime)",
+             "replicate-budget, budget-allocation, pheromone-ablation, "
+             "k-sweep, theta-sweep, density-wins, param-runtime)",
     )
     parser.add_argument(
         "--flag-dir",
@@ -162,9 +171,25 @@ def main(argv=None):
         action="append",
         metavar="LABEL=DIR",
         default=None,
-        help="compare k-sweep / theta-sweep / density-wins / param-density / "
+        help="compare k-sweep / theta-sweep / density-wins / "
              "param-runtime: (k, θ) suite directory (repeat; labels are "
              "free-form, k/θ read from JSON)",
+    )
+    parser.add_argument(
+        "--trace-dir",
+        action="append",
+        metavar="LABEL=DIR",
+        default=None,
+        help="compare pheromone-ablation: extra epoch-trace directory "
+             "(repeat; labels such as dt0 or rho0.2)",
+    )
+    parser.add_argument(
+        "--ablation-dir",
+        action="append",
+        metavar="LABEL=DIR",
+        default=None,
+        help="quality mode: hyperparameter sweep directory "
+             "(repeat; labels rho, pheromone, eta-exp)",
     )
     parser.add_argument(
         "--field",
@@ -190,6 +215,13 @@ def main(argv=None):
              "pivot-tested / pivot-excluded win coverage fields",
     )
 
+    parser.add_argument(
+        "--methods",
+        default=None,
+        help="methods mode: comma-separated benchmark blocks in column "
+             "order; first is the focal method (default: tow,aco,heuristic)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.max_replicates is not None:
@@ -202,8 +234,18 @@ def main(argv=None):
         json_paths = list_json_paths(args.directory)
         if not json_paths:
             raise SystemExit(f"No .json files found in {args.directory}")
+        ablation_dirs = None
+        if args.ablation_dir:
+            ablation_dirs = {}
+            for item in args.ablation_dir:
+                label, sep, path = item.partition("=")
+                if not sep or not label.strip() or not path.strip():
+                    raise SystemExit(
+                        f"Invalid --ablation-dir entry {item!r}; use LABEL=DIR"
+                    )
+                ablation_dirs[label.strip()] = path.strip()
         from . import quality
-        quality.run(json_paths, args.output)
+        quality.run(json_paths, args.output, ablation_dirs=ablation_dirs)
 
     elif args.mode == "seed-compare":
         json_paths = list_json_paths(args.directory)
@@ -260,11 +302,24 @@ def main(argv=None):
                 "k-sweep",
                 "theta-sweep",
                 "density-wins",
-                "param-density",
                 "param-runtime",
+                "iteration-budget",
+                "replicate-budget",
+                "budget-allocation",
+                "pheromone-ablation",
             )
             for p in plot_names
         )
+        trace_dirs = None
+        if args.trace_dir:
+            trace_dirs = {}
+            for item in args.trace_dir:
+                label, sep, path = item.partition("=")
+                if not sep or not label.strip() or not path.strip():
+                    raise SystemExit(
+                        f"Invalid --trace-dir entry {item!r}; use LABEL=DIR"
+                    )
+                trace_dirs[label.strip()] = path.strip()
         if not json_paths and not multi_only:
             raise SystemExit(f"No .json files found in {args.directory}")
         from . import compare
@@ -275,7 +330,12 @@ def main(argv=None):
             plots=args.plots,
             flag_dirs=flag_dirs,
             param_dirs=param_dirs,
+            trace_dirs=trace_dirs,
         )
+
+    elif args.mode == "ablation":
+        from . import ablation
+        ablation.run(args.directory, args.output, field=args.field)
 
     elif args.mode == "statistics":
         json_paths = list_json_paths(args.directory)
@@ -290,6 +350,18 @@ def main(argv=None):
             vary_base=args.vary_base,
             compare_dir=args.compare_dir,
         )
+
+    elif args.mode == "methods":
+        json_paths = list_json_paths(args.directory)
+        if not json_paths:
+            raise SystemExit(f"No .json files found in {args.directory}")
+        from . import methods
+        names = (
+            [m.strip() for m in args.methods.split(",") if m.strip()]
+            if args.methods
+            else None
+        )
+        methods.run(json_paths, args.output, methods=names)
 
     else:
         raise SystemExit(f"Unknown mode: {args.mode}")

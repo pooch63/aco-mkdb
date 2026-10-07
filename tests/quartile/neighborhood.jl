@@ -3,8 +3,8 @@ Neighborhood-Jaccard (S_C) edge-scoring test on real-world graphs.
 
 For every edge e = (u, v) we compute:
 
-    C_U(u, v) = mean of top-θ J(N(u), N(u')) over u' ∈ N(v) \ {u}
-    C_V(u, v) = mean of top-θ J(N(v), N(v')) over v' ∈ N(u) \ {v}
+    C_U(u, v) = mean of top-θ J(N(u), N(u')) over u' ∈ N(v) ∖ {u}
+    C_V(u, v) = mean of top-θ J(N(v), N(v')) over v' ∈ N(u) ∖ {v}
     S_C(u, v) = C_U(u, v) · C_V(u, v)
 
 where J(A, B) = |A ∩ B| / |A ∪ B| is the Jaccard similarity.

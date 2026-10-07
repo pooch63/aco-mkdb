@@ -27,6 +27,7 @@ Paper ant-count sweeps (`bin/vary.jl` / emit) remain ACO-specific for now.
 
 const __METHOD_JL__ = true
 
+isdefined(@__MODULE__, :__CONSTANTS_JL__) || include("constants.jl")
 isdefined(@__MODULE__, :__GRAPH_JL__) || include("graph.jl")
 isdefined(@__MODULE__, :__SEARCH_JL__) || include("search.jl")
 isdefined(@__MODULE__, :__OPPONENT_JL__) || include("opponent.jl")
@@ -38,6 +39,7 @@ isdefined(@__MODULE__, :__ACO_JL__) || include(joinpath("aco", "algorithm.jl"))
 isdefined(@__MODULE__, :__EDGES_ACO_JL__) || include(joinpath("edges", "algorithm.jl"))
 isdefined(@__MODULE__, :__DIFFUSION_JL__) || include("diffusion.jl")
 isdefined(@__MODULE__, :__TUG_JL__) || include("tug.jl")
+isdefined(@__MODULE__, :__SPLIT_ACO_JL__) || include("split_aco.jl")
 
 using EnumX
 
@@ -125,7 +127,7 @@ Handles historical `pheremone` spelling, string→enum for GA `repair` and
 pivot `mode`, and Int/Float/Bool widening from JSON numbers.
 """
 const _FLOAT_METHOD_PARAMS = Set{Symbol}([
-    :evaporation, :k_mutate, :beta, :β, :p,
+    :evaporation, :k_mutate, :beta, :β, :p, :eta_exp,
 ])
 
 function coerce_method_param(method::AbstractString, key::Symbol, val)
@@ -416,6 +418,13 @@ function run_method!(m::GAMethod, g::BipartiteGraph, k::Int, θ::Int;
     # Reset GA globals that accumulate across generations/runs.
     global U = Set{Int}()
     global V = Set{Int}()
+    # @threads uses each worker's RNG. Seed them from the caller stream so
+    # Random.seed! before run_method! reproduces the GA.
+    parent = rand(UInt64)
+    nthreads = Base.Threads.nthreads()
+    Base.Threads.@threads for i in 1:nthreads
+        Random.seed!(parent + UInt64(i))
+    end
     sol = ga(g, k, θ, m.N, m.O, m.k_mutate, m.generations;
         H=m.H, use_heuristic=m.use_heuristic, reduction=reduction, repair=m.repair)
     return MethodResult("ga", sol; meta=Dict{String,Any}(
@@ -527,17 +536,29 @@ struct ACOMethod <: SolveMethod
     elite_pheromone::Bool
     aco_tabu::Bool
     mmas::Bool
+    eta_exp::Float64
+    best_only_pheromone::Bool
+    greedy_fill::Symbol
 end
 function ACOMethod(; pheromone::Int=1, ants::Int=100, iterations::Int=5,
     evaporation::Float64=0.95, subspecies::Int=1,
     parallelize::Bool=false, force_gc::Bool=false,
     prefer_smaller_side::Bool=true, neighbor_scope_limit::Bool=true,
     elite_seed::Bool=true, elite_seed_ants::Int=3, elite_seed_remove::Int=2,
-    elite_pheromone::Bool=false, aco_tabu::Bool=false, mmas::Bool=false)
+    elite_pheromone::Bool=false, aco_tabu::Bool=false, mmas::Bool=false,
+    eta_exp::Real=ETA_EXP, best_only_pheromone::Bool=false,
+    greedy_fill=:off)
+    ηexp = Float64(eta_exp)
+    isfinite(ηexp) || throw(ArgumentError("eta_exp must be finite, got $eta_exp"))
+    if best_only_pheromone && elite_pheromone
+        throw(ArgumentError(
+            "best_only_pheromone deposits only the iteration-best solution and cannot be combined with elite_pheromone"))
+    end
     return ACOMethod(pheromone, ants, iterations, evaporation, subspecies,
         parallelize, force_gc, prefer_smaller_side, neighbor_scope_limit,
         elite_seed, elite_seed_ants, elite_seed_remove,
-        elite_pheromone, aco_tabu, mmas)
+        elite_pheromone, aco_tabu, mmas, ηexp, best_only_pheromone,
+        normalize_greedy_fill(greedy_fill))
 end
 method_id(::ACOMethod) = "aco"
 
@@ -569,6 +590,9 @@ function aco_method_from_options(aco_options; ants::Union{Nothing,Int}=nothing,
         elite_pheromone=get(aco_options, :elite_pheromone, false),
         aco_tabu=get(aco_options, :aco_tabu, false),
         mmas=get(aco_options, :mmas, false),
+        eta_exp=get(aco_options, :eta_exp, ETA_EXP),
+        best_only_pheromone=get(aco_options, :best_only_pheromone, false),
+        greedy_fill=get(aco_options, :greedy_fill, :off),
     )
 end
 
@@ -587,6 +611,9 @@ function run_method!(m::ACOMethod, g::BipartiteGraph, k::Int, θ::Int;
         elite_pheromone=m.elite_pheromone,
         aco_tabu=m.aco_tabu,
         mmas=m.mmas,
+        eta_exp=m.eta_exp,
+        best_only_pheromone=m.best_only_pheromone,
+        greedy_fill=m.greedy_fill,
         reduction=reduction,
         iteration_callback=iteration_callback,
         construction_stats=construction_stats)
@@ -619,12 +646,93 @@ function run_method!(m::ACOMethod, g::BipartiteGraph, k::Int, θ::Int;
             "best_subspecies" => best_idx,
             "prefer_smaller_side" => m.prefer_smaller_side,
             "neighbor_scope_limit" => m.neighbor_scope_limit,
+            "eta_exp" => m.eta_exp,
+            "best_only_pheromone" => m.best_only_pheromone,
+            "greedy_fill" => String(m.greedy_fill),
             # Keep raw ACO extras for specialized callers (aco-reduce, etc.).
             "pheromones" => pheromones,
             "remapping" => remapping,
             "best_iterations" => best_iterations,
             "best_times" => best_times,
         ))
+end
+
+# ── Split ACO (one forced-root ACO per smaller-side vertex on its 3-hop graph) ─
+
+struct SplitACOMethod <: SolveMethod
+    pheromone::Int
+    ants::Int
+    iterations::Int
+    evaporation::Float64
+    subspecies::Int
+    parallelize::Bool
+    prefer_smaller_side::Bool
+    neighbor_scope_limit::Bool
+    forward_only::Bool
+    local_reduction::Bool
+    reduce_seeds::Bool
+    n_seeds::Int
+    one_colony::Bool
+    verbose::Bool
+    prune_by_bound::Bool
+end
+function SplitACOMethod(; pheromone::Int=1, ants::Int=10, iterations::Int=5,
+    evaporation::Float64=0.95, subspecies::Int=1, parallelize::Bool=false,
+    prefer_smaller_side::Bool=true, neighbor_scope_limit::Bool=true,
+    forward_only::Bool=false, local_reduction::Bool=true,
+    reduce_seeds::Bool=true, n_seeds::Int=50, one_colony::Bool=true,
+    verbose::Bool=false, prune_by_bound::Bool=true)
+    return SplitACOMethod(pheromone, ants, iterations, evaporation, subspecies,
+        parallelize, prefer_smaller_side, neighbor_scope_limit,
+        forward_only, local_reduction, reduce_seeds, n_seeds, one_colony,
+        verbose, prune_by_bound)
+end
+method_id(::SplitACOMethod) = "split_aco"
+
+function run_method!(m::SplitACOMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    fg = if reduction == ReductionMode.none
+        freeze(g)
+    else
+        apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+    end
+    meta = Dict{String,Any}(
+        "ants" => m.ants,
+        "iterations" => m.iterations,
+        "pheromone" => m.pheromone,
+        "evaporation" => m.evaporation,
+        "subspecies" => m.subspecies,
+        "forward_only" => m.forward_only,
+        "local_reduction" => m.local_reduction,
+        "reduce_seeds" => m.reduce_seeds,
+        "n_seeds" => m.n_seeds,
+        "one_colony" => m.one_colony,
+        "parallelize" => m.parallelize,
+        "prune_by_bound" => m.prune_by_bound,
+    )
+    if length(fg.u_ids) < θ || length(fg.v_ids) < θ
+        return MethodResult("split_aco", SubGraph(); meta=meta)
+    end
+    r = split_aco(fg, k, θ, m.pheromone, m.ants, m.iterations, m.evaporation, m.subspecies;
+        forward_only=m.forward_only,
+        local_reduction=m.local_reduction,
+        reduce_seeds=m.reduce_seeds,
+        n_seeds=m.n_seeds,
+        one_colony=m.one_colony,
+        parallelize=m.parallelize,
+        verbose=m.verbose,
+        prefer_smaller_side=m.prefer_smaller_side,
+        neighbor_scope_limit=m.neighbor_scope_limit,
+        prune_by_bound=m.prune_by_bound)
+    meta["root_side"] = r.root_is_u ? "U" : "V"
+    meta["roots"] = r.n_roots
+    meta["root_candidates"] = r.n_side
+    meta["roots_run"] = r.n_ran
+    meta["best_root"] = r.best_root
+    return MethodResult("split_aco", r.best;
+        time_to_best_s=r.time_to_best_s,
+        iterations_to_best=r.iterations_to_best,
+        meta=meta)
 end
 
 # ── Edges-ACO (pheromone on CSR edges) ────────────────────────────────────────
@@ -918,6 +1026,7 @@ function run_method!(m::TugOfWarMethod, g::BipartiteGraph, k::Int, θ::Int;
             "num_seeds" => m.num_seeds,
             "max_shakes" => m.max_shakes,
             "peel" => m.peel,
+            "seed" => m.seed,
         )
     )
 end
@@ -934,6 +1043,8 @@ function _register_builtins!()
     register_method!("retry", (; kwargs...) -> RetryMethod(; kwargs...))
     register_method!("aco", (; kwargs...) -> ACOMethod(; kwargs...))
     register_method!("edges", (; kwargs...) -> EdgesMethod(; kwargs...))
+    register_method!("split_aco", (; kwargs...) -> SplitACOMethod(; kwargs...))
+    register_method!("split-aco", (; kwargs...) -> SplitACOMethod(; kwargs...))
     register_method!("diffusion", (; kwargs...) -> DiffusionMethod(; kwargs...))
     register_method!("tug", (; kwargs...) -> TugOfWarMethod(; kwargs...))
     register_method!("tow", (; kwargs...) -> TugOfWarMethod(; kwargs...))

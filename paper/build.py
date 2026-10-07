@@ -16,8 +16,11 @@ Stale jobs run concurrently (``-j`` / ``--jobs``, default: CPU count).
 Use ``--force`` to rebuild all.
 
 Use --keep-tex to retain build.tex after compiling.
+Use --tables to also assemble and compile tables.tex (per-graph result
+tables) into tables.pdf. The default build leaves those tables out.
 
-Placeholders in main.tex use the form %%QUALITY%%, %%COMPARE:theta-time%%, etc.
+Placeholders in main.tex and tables.tex use the form %%QUALITY%%,
+%%COMPARE:theta-time%%, etc.
 %%PREAMBLE%% aggregates emit sidecar snippets (*.preamble.tex) into the
 document preamble — not a normal emit target.
 
@@ -30,8 +33,10 @@ STATISTICS missing-at-* fields use missing_at_base (plain ACO dir; $F_N$ is
 that path + "N"). Falls back to vary_base if missing_at_base is omitted.
 STATISTICS pivot-tested / pivot-excluded fields use compare_dir (compare-seeds
 JSON) together with the vary input directory.
-COMPARE k-sweep / theta-sweep / density-wins / param-density / param-runtime use param_dirs
+COMPARE k-sweep / theta-sweep / density-wins / param-runtime use param_dirs
 (labeled vary_* suites).
+METHODS:<dir> reads load.jl --benchmark JSON from results_dir/<dir>; the
+fragment's "methods" list sets column order (first = focal method).
 """
 
 from __future__ import annotations
@@ -67,8 +72,16 @@ COMPARE_PARAM_PLOTS = frozenset(
         "k-sweep",
         "theta-sweep",
         "density-wins",
-        "param-density",
         "param-runtime",
+    }
+)
+# Epoch-trace figures. Input is budget_dir, not the ant-count sweep.
+COMPARE_BUDGET_PLOTS = frozenset(
+    {
+        "iteration-budget",
+        "replicate-budget",
+        "budget-allocation",
+        "pheromone-ablation",
     }
 )
 STATISTICS_MISSING_AT_FIELDS = frozenset(
@@ -95,6 +108,8 @@ EMIT_MODE_SOURCES: dict[str, tuple[Path, ...]] = {
     "quality": (EMIT_DIR / "quality.py",),
     "seed-compare": (EMIT_DIR / "seed_compare.py",),
     "table": (EMIT_DIR / "table.py",),
+    "methods": (EMIT_DIR / "methods.py",),
+    "ablation": (EMIT_DIR / "ablation.py",),
     "statistics": (
         EMIT_DIR / "statistics.py",
         EMIT_DIR / "table.py",
@@ -117,12 +132,13 @@ COMPARE_PLOT_SOURCES: dict[str, Path] = {
     "flag-ablation-replicates": EMIT_DIR / "compare" / "flag_ablation.py",
     "flag-feasibility": EMIT_DIR / "compare" / "flag_ablation.py",
     "flag-feasibility-replicates": EMIT_DIR / "compare" / "flag_ablation.py",
-    "iteration-budget": EMIT_DIR / "compare" / "iteration_budget.py",
-    "replicate-budget": EMIT_DIR / "compare" / "replicate_budget.py",
+    "iteration-budget": EMIT_DIR / "compare" / "budget_curves.py",
+    "replicate-budget": EMIT_DIR / "compare" / "budget_curves.py",
+    "budget-allocation": EMIT_DIR / "compare" / "budget_curves.py",
+    "pheromone-ablation": EMIT_DIR / "compare" / "budget_curves.py",
     "k-sweep": EMIT_DIR / "compare" / "param_sweep.py",
     "theta-sweep": EMIT_DIR / "compare" / "param_sweep.py",
     "density-wins": EMIT_DIR / "compare" / "param_sweep.py",
-    "param-density": EMIT_DIR / "compare" / "param_sweep.py",
     "param-runtime": EMIT_DIR / "compare" / "param_sweep.py",
 }
 
@@ -198,7 +214,19 @@ def resolve_results_path(cfg: dict, path_str: str) -> Path:
 
 
 def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> Path:
-    """Resolve emit input directory; TABLE uses vary_base + k/θ/flags suffix."""
+    """
+    Resolve emit input directory; TABLE uses vary_base + k/θ/flags suffix,
+    METHODS uses its placeholder arg as the results directory name.
+    """
+    if name == "COMPARE" and args in COMPARE_BUDGET_PLOTS:
+        budget = frag.get("budget_dir")
+        if not budget:
+            raise SystemExit(
+                "COMPARE budget plots require budget_dir in build.json"
+            )
+        return resolve_results_path(cfg, budget)
+    if name == "METHODS" and args:
+        return resolve_results_path(cfg, args.strip())
     if name == "TABLE":
         base = cfg.get("vary_base")
         if not base:
@@ -293,7 +321,7 @@ def fragment_emit_source_deps(
             src = COMPARE_PLOT_SOURCES.get(plot)
             if src is not None:
                 deps.append(src)
-        # param_sweep imports boxplot helpers from flag_ablation.
+        # param_sweep imports pgfplots helpers from flag_ablation.
         if plot_names & COMPARE_PARAM_PLOTS:
             deps.append(EMIT_DIR / "compare" / "flag_ablation.py")
 
@@ -319,11 +347,17 @@ def fragment_dep_paths(
         if plot_names & COMPARE_PARAM_PLOTS and frag.get("param_dirs"):
             for path in frag["param_dirs"].values():
                 deps.append(resolve_results_path(cfg, path))
+        if plot_names & COMPARE_BUDGET_PLOTS and frag.get("ablation_dirs"):
+            for path in frag["ablation_dirs"].values():
+                deps.append(resolve_results_path(cfg, path))
         # Complexity / budget plots read the primary vary directory.
         if plot_names - (COMPARE_FLAG_PLOTS | COMPARE_PARAM_PLOTS):
             deps.append(fragment_input_path(cfg, name, frag, args))
     else:
         deps.append(fragment_input_path(cfg, name, frag, args))
+        if name == "QUALITY" and frag.get("ablation_dirs"):
+            for path in frag["ablation_dirs"].values():
+                deps.append(resolve_results_path(cfg, path))
         if frag.get("flag_dirs"):
             for path in frag["flag_dirs"].values():
                 deps.append(resolve_results_path(cfg, path))
@@ -395,8 +429,10 @@ def build_emit_job(
             f"--vary-dir={resolve_results_path(cfg, frag['vary_dir'])}"
         )
     plots = args or frag.get("plots")
-    if plots and name not in ("SEED_COMPARE", "STATISTICS", "TABLE"):
+    if plots and name not in ("SEED_COMPARE", "STATISTICS", "TABLE", "METHODS"):
         cmd.append(f"--plots={plots}")
+    if frag.get("methods"):
+        cmd.append(f"--methods={','.join(frag['methods'])}")
     if name == "SEED_COMPARE" and args:
         cmd.append(f"--subset={args}")
     if name == "TABLE":
@@ -409,6 +445,11 @@ def build_emit_job(
     max_repl = frag.get("max_replicates", cfg.get("max_replicates"))
     if max_repl is not None:
         cmd.append(f"--max-replicates={int(max_repl)}")
+    if name == "QUALITY" and frag.get("ablation_dirs"):
+        for label, path in frag["ablation_dirs"].items():
+            cmd.append(
+                f"--ablation-dir={label}={resolve_results_path(cfg, path)}"
+            )
     if frag.get("flag_dirs"):
         for label, path in frag["flag_dirs"].items():
             cmd.append(
@@ -419,7 +460,14 @@ def build_emit_job(
             cmd.append(
                 f"--param-dir={label}={resolve_results_path(cfg, path)}"
             )
+    if name == "COMPARE" and args == "pheromone-ablation":
+        for label, path in (frag.get("ablation_dirs") or {}).items():
+            cmd.append(
+                f"--trace-dir={label}={resolve_results_path(cfg, path)}"
+            )
     if name == "STATISTICS" and args:
+        cmd.append(f"--field={args}")
+    if name == "ABLATION" and args:
         cmd.append(f"--field={args}")
     if name == "STATISTICS" and args in STATISTICS_MISSING_AT_FIELDS:
         missing_at_base = (
@@ -475,15 +523,31 @@ def _run_emit_job(job: EmitJob) -> str:
     return f"# emit {job.label} → {rel}"
 
 
+def source_names(cfg: dict, *, tables: bool) -> list[str]:
+    """LaTeX sources whose placeholders should be emitted and assembled."""
+    names = [cfg["source"]]
+    if tables:
+        names.append(cfg.get("tables_source", "tables.tex"))
+    return names
+
+
+def read_source(name: str) -> str:
+    path = PAPER_DIR / name
+    if not path.is_file():
+        raise SystemExit(f"Missing LaTeX source: {name}")
+    return path.read_text(encoding="utf-8")
+
+
 def run_emit(
     cfg: dict,
     *,
     force: bool = False,
     jobs: int | None = None,
+    sources: list[str] | None = None,
 ) -> None:
     generated = resolve(cfg["generated_dir"])
     generated.mkdir(parents=True, exist_ok=True)
-    source_text = (PAPER_DIR / cfg["source"]).read_text(encoding="utf-8")
+    source_text = "\n".join(read_source(name) for name in (sources or [cfg["source"]]))
 
     planned: list[EmitJob] = []
     for name, args in placeholders_in_source(source_text):
@@ -564,11 +628,16 @@ def collect_preamble(generated: Path, source_text: str) -> str:
     return "\n\n".join(snippets) + "\n"
 
 
-def assemble(cfg: dict) -> Path:
-    source = PAPER_DIR / cfg["source"]
-    output = PAPER_DIR / cfg["output"]
+def assemble(
+    cfg: dict,
+    *,
+    source_name: str | None = None,
+    output_name: str | None = None,
+) -> Path:
+    source = PAPER_DIR / (source_name or cfg["source"])
+    output = PAPER_DIR / (output_name or cfg["output"])
     generated = resolve(cfg["generated_dir"])
-    text = source.read_text(encoding="utf-8")
+    text = read_source(source.name)
 
     missing: list[str] = []
 
@@ -613,27 +682,24 @@ def assemble(cfg: dict) -> Path:
     } - set(cfg["fragments"]) - SPECIAL_PLACEHOLDERS
     if unknown:
         raise SystemExit(
-            "Placeholders in main.tex with no build.json entry: "
+            f"Placeholders in {source.name} with no build.json entry: "
             + ", ".join(sorted(unknown))
         )
 
     output.write_text(built, encoding="utf-8")
-    if (
-        "fig:compare-bound-time" not in built
-        and "%%COMPARE:bound-time%%" in text
-    ):
-        raise SystemExit(
-            "assemble: bound-time figure missing from build.tex; "
-            "run: python3 paper/build.py emit"
-        )
     print(f"# assembled {output.relative_to(PAPER_DIR)}", file=sys.stderr)
     return output
 
 
-def job_stem(cfg: dict, tex_path: Path | None = None) -> str:
+def job_stem(
+    cfg: dict,
+    tex_path: Path | None = None,
+    *,
+    pdf_name: str | None = None,
+) -> str:
     tex = tex_path or (PAPER_DIR / cfg["output"])
-    pdf_name = cfg.get("pdf", tex.with_suffix(".pdf").name)
-    return Path(pdf_name).stem
+    name = pdf_name or cfg.get("pdf", tex.with_suffix(".pdf").name)
+    return Path(name).stem
 
 
 def run_quiet(
@@ -658,10 +724,15 @@ def run_quiet(
     return result
 
 
-def clean_aux_files(cfg: dict, tex_path: Path | None = None) -> None:
+def clean_aux_files(
+    cfg: dict,
+    tex_path: Path | None = None,
+    *,
+    pdf_name: str | None = None,
+) -> None:
     """Remove LaTeX auxiliary files; keeps the PDF."""
     tex = tex_path or (PAPER_DIR / cfg["output"])
-    stem = job_stem(cfg, tex)
+    stem = job_stem(cfg, tex, pdf_name=pdf_name)
 
     if subprocess.run(["which", "latexmk"], capture_output=True).returncode == 0:
         run_quiet(
@@ -684,57 +755,15 @@ def remove_build_tex(cfg: dict, tex_path: Path | None = None) -> None:
         print(f"# removed {tex.relative_to(PAPER_DIR)}", file=sys.stderr)
 
 
-def verify_pdf(cfg: dict, tex_path: Path | None = None) -> None:
-    """Fail loudly if the bound-time complexity figure is missing from the PDF."""
-    tex = tex_path or (PAPER_DIR / cfg["output"])
-    pdf_path = PAPER_DIR / cfg.get("pdf", tex.with_suffix(".pdf").name)
-    if not pdf_path.is_file():
-        raise SystemExit(f"PDF not found after compile: {pdf_path}")
-
-    probe = subprocess.run(
-        ["pdftotext", str(pdf_path), "-"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if probe.returncode != 0:
-        print(
-            "# warning: pdftotext unavailable; skipped bound-time PDF check",
-            file=sys.stderr,
-        )
-        return
-
-    text = probe.stdout
-    required = (
-        "normalized by ant count and epoch budget",
-        "naive theoretical bound",
-        "practical proxy",
-    )
-    missing = [phrase for phrase in required if phrase not in text]
-    if missing:
-        raise SystemExit(
-            "PDF is missing the bound-time complexity figure "
-            f"({', '.join(missing)}). "
-            "Close and reopen paper/build.pdf in your viewer, or run: "
-            "python3 paper/build.py all"
-        )
-
-    print(
-        "# verified bound-time figure in "
-        f"{pdf_path.relative_to(PAPER_DIR)} "
-        "(section 3.3, fig:compare-bound-time)",
-        file=sys.stderr,
-    )
-
-
 def compile_pdf(
     cfg: dict,
     tex_path: Path | None = None,
     *,
     keep_aux: bool = False,
+    pdf_name: str | None = None,
 ) -> None:
     tex = tex_path or (PAPER_DIR / cfg["output"])
-    pdf_name = cfg.get("pdf", tex.with_suffix(".pdf").name)
+    pdf_name = pdf_name or cfg.get("pdf", tex.with_suffix(".pdf").name)
     tex.touch()
     for tool in ("latexmk", "pdflatex"):
         if subprocess.run(["which", tool], capture_output=True).returncode == 0:
@@ -750,22 +779,28 @@ def compile_pdf(
             "-pdf",
             "-interaction=nonstopmode",
             "-file-line-error",
-            f"-jobname={job_stem(cfg, tex)}",
+            f"-jobname={job_stem(cfg, tex, pdf_name=pdf_name)}",
             tex.name,
         ]
     else:
-        cmd = ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex.name]
+        cmd = [
+            "pdflatex",
+            "-interaction=nonstopmode",
+            "-file-line-error",
+            f"-jobname={job_stem(cfg, tex, pdf_name=pdf_name)}",
+            tex.name,
+        ]
         run_quiet(cmd, cwd=PAPER_DIR)
         run_quiet(cmd, cwd=PAPER_DIR)
         print(f"# wrote {pdf_name}", file=sys.stderr)
         if not keep_aux:
-            clean_aux_files(cfg, tex)
+            clean_aux_files(cfg, tex, pdf_name=pdf_name)
         return
 
     run_quiet(cmd, cwd=PAPER_DIR)
     print(f"# wrote {pdf_name}", file=sys.stderr)
     if not keep_aux:
-        clean_aux_files(cfg, tex)
+        clean_aux_files(cfg, tex, pdf_name=pdf_name)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -801,19 +836,42 @@ def main(argv: list[str] | None = None) -> None:
         metavar="N",
         help="parallel emit workers (default: CPU count)",
     )
+    parser.add_argument(
+        "--tables",
+        action="store_true",
+        help="also assemble and compile tables.tex into tables.pdf",
+    )
     args = parser.parse_args(argv)
     cfg = load_config()
+    sources = source_names(cfg, tables=args.tables)
 
-    tex_path: Path | None = None
     if args.step in ("all", "emit"):
-        run_emit(cfg, force=args.force, jobs=args.jobs)
-    if args.step in ("all", "assemble"):
-        tex_path = assemble(cfg)
-    if args.step in ("all", "pdf"):
-        if tex_path is None:
-            tex_path = assemble(cfg)
-        compile_pdf(cfg, tex_path, keep_aux=args.keep_aux)
-        verify_pdf(cfg, tex_path)
+        run_emit(cfg, force=args.force, jobs=args.jobs, sources=sources)
+
+    documents: list[tuple[str, str, str | None]] = [
+        (cfg["source"], cfg["output"], cfg.get("pdf")),
+    ]
+    if args.tables:
+        documents.append(
+            (
+                cfg.get("tables_source", "tables.tex"),
+                cfg.get("tables_output", "tables-build.tex"),
+                cfg.get("tables_pdf", "tables.pdf"),
+            )
+        )
+
+    if args.step == "emit":
+        return
+
+    for source_name, output_name, pdf_name in documents:
+        tex_path = assemble(
+            cfg, source_name=source_name, output_name=output_name
+        )
+        if args.step == "assemble":
+            continue
+        compile_pdf(
+            cfg, tex_path, keep_aux=args.keep_aux, pdf_name=pdf_name
+        )
         if not args.keep_tex:
             remove_build_tex(cfg, tex_path)
 

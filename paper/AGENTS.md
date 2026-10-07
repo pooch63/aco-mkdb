@@ -14,10 +14,9 @@ The `emit/` package turns **pre-recorded** JSON from `vary.jl` / `compare-seeds.
 - **Only read** fields already present in result JSON (and documented backfill scripts when fields were added later).
 - If a value is missing from JSON, emit a placeholder or fallback sentence and **warn** on stderr — do not try to compute it another way.
 - When `aco_runs > 1`, **omit run 1** (or any trial with `jit_warmup=true`) from quality, feasibility, timing, discovery, variance, seed selection, iteration-budget, and replicate-budget aggregates — that replicate is the real-graph Julia JIT warmup.
-- Optional `max_replicates` in `build.json` (top-level or per fragment; or `--max-replicates=R`) retrospectively keeps only the first R counted replicates per ant count (ordered by `run`) for quality / table / statistics / seed-compare / compare aggregates. Omit or set `null` for all counted replicates. The `replicate-budget` plot always uses the full counted set so it can show \(R=1\ldots R_{\max}\).
-- Each vary.jl trial is one independent **replicate** (`run` / seed), always run for the full `iterations_budget` (= `T` epochs). `iterations_to_best` (ETB) is the epoch *inside that replicate* when its eventual `final_edges` first appeared — not a replicate index, and not evidence that shorter-budget experiments were run.
-- The `iteration-budget` compare plot is a **retrospective truncation** of those full-budget replicates: for credited budget `T` it keeps only replicates with `ETB ≤ T` and uses their recorded `final_edges` / `heuristic.final_edges`. All three panels are per **graph**: left/middle use the best eligible replicate; the ETB CDF uses each graph's earliest ETB among counted replicates that match its best `final_edges`. Do not invent per-epoch edge histories that were never written to JSON.
-- The `replicate-budget` compare plot prefixes the **ordered counted** (non-JIT) replicate list: for credited budget `R` it keeps only the first `R` counted seeds per graph. All three panels (wins/feas, % edge increase, replicates-to-best CDF) are per **graph**. Never put the JIT warmup replicate into the ordered prefix.
+- Optional `max_replicates` in `build.json` (top-level or per fragment; or `--max-replicates=R`) retrospectively keeps only the first R counted replicates per ant count (ordered by `run`) for quality / table / statistics / seed-compare / compare aggregates. Omit or set `null` for all counted replicates. The epoch-trace plots (`iteration-budget`, `replicate-budget`, `budget-allocation`, `pheromone-ablation`) always use the full counted set.
+- Each vary.jl trial is one independent **replicate** (`run` / seed). When `epoch_trace` is present, it is the incumbent after every completed epoch (`t`, `edges`, `theta_feasible`, `elapsed_s`). A prefix of that trace is the shorter epoch budget: Algorithm 1 has no schedule that depends on `T`. Do not invent traces that were not written. `iterations_to_best` is only the epoch at which the final incumbent first appeared; it is not a per-epoch edge history.
+- `iteration-budget`, `replicate-budget`, `budget-allocation`, and `pheromone-ablation` read `budget_dir` (and `ablation_dirs` for the pheromone control). They require `epoch_trace`. Best-of-`R` is the expected maximum over subsets drawn without replacement, not the first `R` seeds. JIT warmup replicates are omitted. If the traces are missing, emit a placeholder caption and warn — do not fall back to an ETB credit rule.
 
 ## Emit must not fail the build on incomplete data
 
@@ -32,6 +31,9 @@ The paper build (`python paper/build.py`) **must complete** even when some resul
 1. Experiments write JSON under `results/` (or another tree named by `results_dir` in `build.json`).
 2. `emit` reads JSON → `paper/generated/*.tex` (and optional `*.preamble.tex` sidecars).
 3. `build.py` substitutes `%%PLACEHOLDER%%` in `main.tex` → `build.tex` → PDF.
+   `python paper/build.py --tables` (or `make tables` from `paper/`) also
+   substitutes placeholders in `tables.tex` → `tables-build.tex` → `tables.pdf`.
+   Per-graph result tables live in `tables.tex` and are omitted from the default build.
 
 Emit is incremental: a fragment rebuilds when results JSON, `build.json`, or the
 **emit Python sources for that fragment** are newer than `paper/generated/*.tex`

@@ -1,11 +1,18 @@
 """
 table mode — vary.jl ant-count JSON → LaTeX table.
 
-Columns match the paper table:
+Full appendix columns:
 
     Dataset | |U_G| | |V_G| | |E_G| | |U_R| | |V_R| | |E_R|
             | ACO: |U(D*)| |V(D*)| |E(D*)| Discovery ETB TimTB
             | θ-Heuristic: |U(D*)| |V(D*)| |E(D*)| Time
+
+Highlights (main text) are a single-column table with no caption:
+
+    Dataset | |E(D)| | Time
+
+|E(D)| and Time are ACO's best counted solution and its discovery
+wall time. The prose above the table defines D.
 
 |U_G| / |V_G| / |E_G| come from the original graph (`graph.nU` / `graph.nV`
 and top-level `edge_count`). |U_R| / |V_R| / |E_R| are the reduced graph
@@ -13,7 +20,8 @@ sizes. ACO reports the best counted trial (max `final_edges`, then min
 `time_to_best_s`, then min `wall_time_s`). The first replicate per ant
 count is a Julia JIT warmup when `aco_runs > 1` and is omitted. Discovery
 is the sum of counted same-ant `wall_time_s` values. ETB / TimTB are from
-that winning replicate only.
+that winning replicate only. The θ-heuristic Discovery column is its
+`wall_time_s`.
 
 Rows are grouped into three sections (each sorted ascending by ACO's
 |E(D*)|), separated by midrules in one landscape table:
@@ -25,8 +33,7 @@ Rows are grouped into three sections (each sorted ascending by ACO's
      more edges without θ on both sides still counts as a failure)
 
 --subset=full (default) emits every row (appendix).
---subset=highlights emits the largest relative ACO wins plus the closest
-θ-heuristic wins (main text).
+--subset=highlights emits the largest relative ACO wins (main text).
 """
 
 from __future__ import annotations
@@ -36,8 +43,10 @@ import sys
 from .common import (
     aco_discovery_cost,
     aco_timed_out,
+    begin_float,
     counted_trials,
     display_name,
+    end_float,
     load_json,
     report_skipped,
     select_best_trial_any,
@@ -133,26 +142,33 @@ def summarize_file(data, ants=None):
     }
 
 
-def row_tex(name, row):
-    cells = [
-        name,
-        fmt_int(row["nU"]),
-        fmt_int(row["nV"]),
-        fmt_int(row["edge_count"]),
-        fmt_int(row["reduced_nU"]),
-        fmt_int(row["reduced_nV"]),
-        fmt_int(row["reduced_edges"]),
-        fmt_int(row["aco_nU"]),
-        fmt_int(row["aco_nV"]),
-        fmt_int(row["aco_edges"]),
-        fmt_time(row["aco_time"]),
-        fmt_itb(row["aco_itb"]),
-        fmt_time(row["aco_ttb"]),
-        fmt_int(row["heur_nU"]),
-        fmt_int(row["heur_nV"]),
-        fmt_int(row["heur_edges"]),
-        fmt_time(row["heur_time"]),
-    ]
+def row_tex(name, row, *, compact=False):
+    if compact:
+        cells = [
+            name,
+            fmt_int(row["aco_edges"]),
+            fmt_time(row["aco_time"]),
+        ]
+    else:
+        cells = [
+            name,
+            fmt_int(row["nU"]),
+            fmt_int(row["nV"]),
+            fmt_int(row["edge_count"]),
+            fmt_int(row["reduced_nU"]),
+            fmt_int(row["reduced_nV"]),
+            fmt_int(row["reduced_edges"]),
+            fmt_int(row["aco_nU"]),
+            fmt_int(row["aco_nV"]),
+            fmt_int(row["aco_edges"]),
+            fmt_time(row["aco_time"]),
+            fmt_itb(row["aco_itb"]),
+            fmt_time(row["aco_ttb"]),
+            fmt_int(row["heur_nU"]),
+            fmt_int(row["heur_nV"]),
+            fmt_int(row["heur_edges"]),
+            fmt_time(row["heur_time"]),
+        ]
     return "    " + " & ".join(cells) + r" \\"
 
 
@@ -245,7 +261,16 @@ def sectioned_rows(named_rows):
     )
 
 
-def tabular_header_lines():
+def tabular_header_lines(*, compact=False):
+    if compact:
+        return [
+            r"  \small",
+            r"  \setlength{\tabcolsep}{4pt}",
+            r"  \begin{tabular}{@{}lrr@{}}",
+            r"    \toprule",
+            r"    Dataset & $|E(D)|$ & Time \\",
+            r"    \midrule",
+        ]
     return [
         r"  \small",
         r"  \setlength{\tabcolsep}{2.5pt}",
@@ -253,7 +278,7 @@ def tabular_header_lines():
         r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
         r"    \toprule",
         r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
-        r" & \multicolumn{6}{c}{$F_N$} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
+        r" & \multicolumn{6}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
         r"    \cmidrule(lr){8-13} \cmidrule(lr){14-17}",
         r"    & & & & & & & $|U_{D_{best}}|$ & $|V_{D_{best}}|$ & $|E(D_{best})|$ & Discovery & ETB & TimTB"
         r" & $|U_{D_{best}}|$ & $|V_{D_{best}}|$ & $|E(D_{best})|$ & Time \\",
@@ -261,12 +286,12 @@ def tabular_header_lines():
     ]
 
 
-def tabular_body_lines(sections):
+def tabular_body_lines(sections, *, compact=False):
     """Render one or more row sections; midrule between sections, bottomrule at end."""
     lines = []
     for i, section in enumerate(sections):
         for name, row in section:
-            lines.append(row_tex(name, row))
+            lines.append(row_tex(name, row, compact=compact))
         if i < len(sections) - 1:
             lines.append(r"    \midrule")
         else:
@@ -274,25 +299,35 @@ def tabular_body_lines(sections):
     return lines
 
 
-def build_table_tex(caption, label, sections, *, landscape=True, placement="p"):
+def build_table_tex(
+    caption,
+    label,
+    sections,
+    *,
+    landscape=True,
+    placement="p",
+    star=False,
+    compact=False,
+):
     """Render the ACO vs θ comparison tabular, optionally in a landscape page."""
     lines = []
     if landscape:
         lines.append(r"\begin{landscapetable}")
-    lines += [
-        rf"\begin{{table}}[{placement}]",
-        r"  \centering",
-        rf"  \caption{{{caption}}}",
-        rf"  \label{{{label}}}",
-        r"",
-    ]
-    lines += tabular_header_lines()
-    lines += tabular_body_lines(sections)
-    lines += [
-        r"  \end{tabular}",
-        r"  }",
-        r"\end{table}",
-    ]
+        star = False
+    env, head = begin_float("table", star=star, placement=placement)
+    lines += head
+    if caption:
+        lines += [
+            rf"  \caption{{{caption}}}",
+            rf"  \label{{{label}}}",
+            r"",
+        ]
+    lines += tabular_header_lines(compact=compact)
+    lines += tabular_body_lines(sections, compact=compact)
+    lines.append(r"  \end{tabular}")
+    if not compact:
+        lines.append(r"  }")
+    lines += end_float(env)
     if landscape:
         lines.append(r"\end{landscapetable}")
     return "\n".join(lines)
@@ -337,30 +372,40 @@ def pick_highlight_sections(aco_rows, heur_rows):
     return best, least_bad
 
 
+def build_highlight_tex(rows):
+    """In-flow single-column table: dataset, ACO |E(D)|, and discovery time."""
+    lines = [
+        r"\par\vspace{0.6em}",
+        r"\begin{center}",
+        r"  \small",
+        r"  \setlength{\tabcolsep}{4pt}",
+        r"  \begin{tabular}{@{}lrr@{}}",
+        r"    \toprule",
+        r"    Dataset & $|E(D)|$ & Time \\",
+        r"    \midrule",
+    ]
+    for name, row in rows:
+        lines.append(row_tex(name, row, compact=True))
+    lines += [
+        r"    \bottomrule",
+        r"  \end{tabular}",
+        r"\end{center}",
+    ]
+    return "\n".join(lines)
+
+
 def build_table(named_rows, subset=SUBSET_FULL):
     """Build ACO vs θ LaTeX: full appendix table or main-text highlights."""
     rows_only = [row for _, row in named_rows]
     kt = caption_k_theta(rows_only)
-    full_label, highlights_label = table_labels(rows_only)
+    full_label, _highlights_label = table_labels(rows_only)
     aco_rows, heur_rows, tie_rows = sectioned_rows(named_rows)
 
     if subset == SUBSET_HIGHLIGHTS:
-        best, least_bad = pick_highlight_sections(aco_rows, heur_rows)
-        sections = [s for s in (best, least_bad) if s]
-        if not sections:
+        best, _least_bad = pick_highlight_sections(aco_rows, heur_rows)
+        if not best:
             raise ValueError("No highlight rows to emit for ACO vs θ table")
-        return build_table_tex(
-            (
-                rf"Representative $F_N$ vs.\ $\theta$-heuristic comparisons "
-                rf"({kt}). Top: largest relative $|E(D_{{best}})|$ gains for $F_N$. "
-                rf"Bottom: closest $\theta$-heuristic wins (smallest edge "
-                rf"deficits). Full results are in Table~\ref{{{full_label}}}."
-            ),
-            highlights_label,
-            sections,
-            landscape=False,
-            placement="H",
-        )
+        return build_highlight_tex(best)
 
     if subset != SUBSET_FULL:
         print(

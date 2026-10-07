@@ -124,6 +124,10 @@ function softmax_sample_nodes(f, sg::SubGraph, n::Int)
     scores = [f(node.is_u, node.id) for node in nodes]
 
     w = exp.(scores .- maximum(scores))
+    # Huge degree gaps underflow exp to 0. Sampling without replacement then
+    # refuses to draw more nodes than the remaining positive weights. A tiny
+    # floor keeps those nodes eligible while the mass stays on the top scores.
+    w = max.(w, 1e-12)
     w ./= sum(w)
 
     sampled = sample(nodes, Weights(w), n; replace=false)

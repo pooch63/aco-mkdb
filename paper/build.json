@@ -3,6 +3,9 @@
   "output": "build.tex",
   "generated_dir": "generated",
   "pdf": "build.pdf",
+  "tables_source": "tables.tex",
+  "tables_output": "tables-build.tex",
+  "tables_pdf": "tables.pdf",
   "results_dir": "../results",
   "vary_base": "vary_",
   "max_replicates": 1,
@@ -10,7 +13,12 @@
     "QUALITY": {
       "emit": "quality",
       "input": "vary_k2t5i_2_200_PN",
-      "file": "quality.tex"
+      "file": "quality.tex",
+      "ablation_dirs": {
+        "rho": "ablate_rho_k2t5i_PN",
+        "pheromone": "ablate_pheromone_k2t5i_PN",
+        "eta-exp": "ablate_eta-exp_k2t5i_PN"
+      }
     },
     "SEED_COMPARE": {
       "emit": "seed-compare",
@@ -33,6 +41,13 @@
         "$F_N$": "vary_k2t5i_100_N",
         "$F_{PN}$": "vary_k2t5i_PN"
       },
+      "budget_dir": "budget_k2t5i_PN",
+      "ablation_dirs": {
+        "dt0": "budget_k2t5i_PN_dt0",
+        "rho0.01": "budget_k2t5i_PN_rho001",
+        "rho0.2": "budget_k2t5i_PN_rho020",
+        "rho0.5": "budget_k2t5i_PN_rho050"
+      },
       "param_dirs": {
         "k1t5": "vary_k1t5i_PN",
         "k2t5": "vary_k2t5i_PN",
@@ -42,12 +57,20 @@
         "k3t7": "vary_k3t7i_PN"
       }
     },
+    "METHODS": {
+      "emit": "methods",
+      "methods": ["tow", "aco", "heuristic"]
+    },
     "STATISTICS": {
       "emit": "statistics",
       "input": "vary_k2t5i_PN",
       "ants": 100,
       "missing_at_base": "vary_k2t5i_100_",
       "compare_dir": "compare_k2t5i"
+    },
+    "ABLATION": {
+      "emit": "ablation",
+      "input": "aco_settings_ablation.json"
     }
   }
 }

@@ -30,6 +30,16 @@ from __future__ import annotations
 import math
 import sys
 
+from ..common import (
+    COL2_HEIGHT,
+    COL2_VSEP,
+    COL2_VSEP_LOG,
+    COL2_WIDTH,
+    begin_float,
+    begin_tikz,
+    end_float,
+    end_tikz,
+)
 from .helpers import (
     ACO_LABEL,
     addplot_scatter,
@@ -299,10 +309,10 @@ def discovery_scaling_figure(*, matched):
     practical_lab = series_order[1]
 
     caption = (
-        rf"$F_N$ discovery time on the {n} $(k, \theta) = (2, 5)$ graphs "
-        rf"(log--log). Left: raw time vs.\ nodes $n$, with a "
+        rf"ACO discovery time on the {n} $(k, \theta) = (2, 5)$ graphs "
+        rf"(log--log). Top: raw time vs.\ nodes $n$, with a "
         rf"least-squares power-law fit "
-        rf"({_fmt_log_log_regression(stats_n)}). Right: the same times "
+        rf"({_fmt_log_log_regression(stats_n)}). Bottom: the same times "
         rf"plotted against each candidate complexity bound; a tight bound "
         rf"should give slope $\approx 1$ (proportional growth). Fitting "
         rf"$\log t = \alpha\log(\mathrm{{bound}}) + c$ yields "
@@ -315,16 +325,15 @@ def discovery_scaling_figure(*, matched):
         rf"quadratically as the worst-case bound suggests."
     )
 
-    lines = [
-        r"\begin{figure}[H]",
-        r"  \centering",
-        r"  \begin{tikzpicture}",
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz()
+    lines += [
         r"  \begin{groupplot}[",
         r"    group style={",
-        r"      group size=2 by 1,",
-        r"      horizontal sep=52pt},",
-        r"    width=0.45\textwidth,",
-        r"    height=0.42\textwidth,",
+        r"      group size=1 by 2,",
+        rf"      vertical sep={COL2_VSEP_LOG}}},",
+        rf"    width={COL2_WIDTH},",
+        rf"    height={COL2_HEIGHT},",
         r"    grid=major,",
         r"    ylabel style={font=\small},",
         r"    xlabel style={font=\small},",
@@ -343,7 +352,9 @@ def discovery_scaling_figure(*, matched):
     )
     lines += [
         r"  \end{groupplot}",
-        r"  \end{tikzpicture}",
+    ]
+    lines += end_tikz()
+    lines += [
         r"",
         r"  \begin{center}",
         rf"  \pgfplotslegendfromname{{{legend_name}}}",
@@ -351,8 +362,8 @@ def discovery_scaling_figure(*, matched):
         r"",
         rf"  \caption{{{caption}}}",
         r"  \label{fig:compare-discovery-scaling}",
-        r"\end{figure}",
     ]
+    lines += end_float(env)
     return lines
 
 
@@ -368,7 +379,7 @@ def density_size_figure(named_rows):
         heur_size=[],
         xlabel=r"Edge density $|E|/(|U|\,|V|)$",
         legend_name="compareSizeLegend",
-        caption=r"$F_N$ solution size vs.\ graph edge density.",
+        caption=r"ACO solution size vs.\ graph edge density.",
         label="fig:compare-density-size",
     )
 
@@ -390,8 +401,6 @@ def theta_time_figure(named_rows):
             r"$\theta(|U|+|V|)+|E|$."
         ),
         label="fig:compare-theta-nm-time",
-        width="0.72\\textwidth",
-        height="0.48\\textwidth",
     )
 
 
@@ -409,7 +418,7 @@ def max_deg_time_figure(named_rows):
         ylabel=r"Discovery time (s)",
         legend_name="compareMaxDegTimeLegend",
         caption=(
-            r"$F_N$ discovery time vs.\ maximum degree in the reduced graph."
+            r"ACO discovery time vs.\ maximum degree in the reduced graph."
         ),
         label="fig:compare-max-deg-time",
     )
@@ -431,8 +440,13 @@ def _emit_normalized_bound_panel(
     """One groupplot panel: t/(n_S·T) vs a complexity proxy."""
     lines = [
         r"\nextgroupplot[",
-        rf"    title={{{title}}},",
-        r"    title style={font=\small},",
+    ]
+    if title:
+        lines += [
+            rf"    title={{{title}}},",
+            r"    title style={font=\small},",
+        ]
+    lines += [
         rf"    xlabel={{{xlabel}}},",
         r"    xmode=log,",
         r"    ymode=log,",
@@ -477,8 +491,8 @@ def bound_time_figure(named_rows):
     """
     Normalized discovery time vs naive and practical bounds (2-panel).
 
-    Left: t/(n_S·T) vs n^2 (theoretical worst case).
-    Right: same times vs T·n+m (practical proxy).
+    Top: t/(n_S·T) vs n^2 (theoretical worst case).
+    Bottom: same times vs T·n+m (practical proxy).
     Shared y-axis lets the fitted slopes be compared directly.
     """
     matched = matched_normalized_bound_points(named_rows)
@@ -496,11 +510,11 @@ def bound_time_figure(named_rows):
     y_limits = _log_pad_limits(p["norm_time"] for p in matched)
 
     caption = (
-        rf"$F_N$ discovery time normalized by ant count and epoch budget "
+        rf"ACO discovery time normalized by ant count and epoch budget "
         rf"$t/(n_S\cdot T)$ on the {n} $(k, \theta) = (2, 5)$ graphs "
-        rf"(log--log; {budget_tex} from recorded trials). Left: vs.\ the "
+        rf"(log--log; {budget_tex} from recorded trials). Top: vs.\ the "
         rf"naive theoretical bound $n^2$ "
-        rf"({_fmt_log_log_regression(stats_naive)}). Right: vs.\ the "
+        rf"({_fmt_log_log_regression(stats_naive)}). Bottom: vs.\ the "
         rf"practical proxy $T\cdot n+m$ "
         rf"({_fmt_log_log_regression(stats_practical)}). Fitting "
         rf"$\log\!\bigl(t/(n_S\cdot T)\bigr) = "
@@ -510,19 +524,16 @@ def bound_time_figure(named_rows):
         rf"practical bound is a significantly better complexity scale."
     )
 
-    ylabel = r"Normalized discovery time $t/(n_S\cdot T)$ (s)"
-    lines = [
-        r"\begin{figure}[H]",
-        r"  \centering",
-        r"  \begin{tikzpicture}",
+    ylabel = r"$t/(n_S\cdot T)$ (s)"
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz()
+    lines += [
         r"  \begin{groupplot}[",
         r"    group style={",
-        r"      group size=2 by 1,",
-        r"      horizontal sep=52pt,",
-        r"      ylabels at=edge left,",
-        r"      yticklabels at=edge left},",
-        r"    width=0.45\textwidth,",
-        r"    height=0.42\textwidth,",
+        r"      group size=1 by 2,",
+        rf"      vertical sep={COL2_VSEP_LOG}}},",
+        rf"    width={COL2_WIDTH},",
+        rf"    height={COL2_HEIGHT},",
         r"    grid=major,",
         r"    xlabel style={font=\small},",
     ]
@@ -532,26 +543,29 @@ def bound_time_figure(named_rows):
         lines.append(rf"    ymax={ymax:.6g},")
     lines.append(r"  ]")
     lines += _emit_normalized_bound_panel(
-        title=r"Naive bound $n^2$",
+        title="",
         xlabel=r"$n^2$",
         points=naive_pts,
         stats=stats_naive,
         ylabel=ylabel,
     )
     lines += _emit_normalized_bound_panel(
-        title=r"Practical proxy $T\cdot n+m$",
+        title="",
         xlabel=practical_xlabel,
         points=practical_pts,
         stats=stats_practical,
+        ylabel=ylabel,
     )
     lines += [
         r"  \end{groupplot}",
-        r"  \end{tikzpicture}",
+    ]
+    lines += end_tikz()
+    lines += [
         r"",
         rf"  \caption{{{caption}}}",
         r"  \label{fig:compare-bound-time}",
-        r"\end{figure}",
     ]
+    lines += end_float(env)
     return lines
 
 

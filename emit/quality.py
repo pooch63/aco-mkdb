@@ -1,43 +1,35 @@
 """
-quality mode — vary.jl ant-count format → groupplot:
-
-  Top row (side by side):
-  - % deviation from θ-heuristic (all graphs; θ-infeasible → −100%):
-    Q1 / median / Q3
-  - % theta-feasible graphs: Q1 / median / Q3
-
-  Bottom row:
-  - wall-clock time vs ant count: Q1 / median / Q3
-
-  Optional: % deviation from optimum is included when present
-  (placed before the heuristic panel), also as IQR summary lines.
-  Optimum panel still uses θ-feasible trials only.
-
-  Each panel is per-graph: one value per graph at each ant count
-  (mean over that graph's counted replicates), then Q1 / median / Q3
-  across graphs. Not a pool of individual replicate trials.
+quality mode — vary.jl ant-count format → median percent deviation from
+the θ-heuristic versus ant count. With ``--ablation-dir`` for ``rho``,
+``pheromone``, and ``eta-exp``, the same median is drawn with the
+ant-count curve in a one-column 2×2 (A=100 held fixed on the other
+three panels). θ-infeasible outcomes count as −100%. One value per
+graph at each axis point (mean over that graph's counted replicates),
+then the median across graphs.
 """
 
 from __future__ import annotations
 
+import math
+import os
 import statistics
 import sys
 from collections import defaultdict
 
 from .common import (
+    COLUMN_HEIGHT,
+    COLUMN_WIDTH,
     aco_timed_out,
+    begin_float,
+    begin_tikz,
     counted_trials,
+    end_float,
+    end_tikz,
+    list_json_paths,
     load_json,
     report_skipped,
     series_name,
     write_tex,
-)
-
-# Display order and pgfplots style for the three IQR summary curves.
-IQR_SERIES = (
-    ("1st quartile", "dashed, mark=triangle*, blue!55!black"),
-    ("Median", "solid, thick, mark=*, blue!80!black"),
-    ("3rd quartile", "dashed, mark=square*, blue!55!black"),
 )
 
 
@@ -71,7 +63,7 @@ def heuristic_baseline(data):
     return heuristic.get("final_edges")
 
 
-def summarize_file(data):
+def summarize_file(data, axis="ants"):
     """
     Returns
         (pct_by_ants, heur_pct_by_ants, feasible_pct_by_ants, time_by_ants)
@@ -108,7 +100,7 @@ def summarize_file(data):
     for t in trials:
         optimal = t.get("optimal_edges", file_level_opt)
         final = t.get("final_edges")
-        ants = t.get("ants")
+        ants = t.get(axis)
 
         if final is None or ants is None:
             continue
@@ -169,23 +161,11 @@ def summarize_file(data):
     return pct_by_ants, heur_pct_by_ants, feasible_pct_by_ants, time_by_ants
 
 
-def _quartile_triple(values):
-    """Return (Q1, median, Q3) for a list of numbers."""
-    if not values:
-        return None
-    if len(values) == 1:
-        v = float(values[0])
-        return v, v, v
-    q1, _, q3 = statistics.quantiles(values, n=4, method="exclusive")
-    return float(q1), float(statistics.median(values)), float(q3)
-
-
-def aggregate_iqr_series(per_graph_series):
+def aggregate_median_series(per_graph_series):
     """
-    Collapse [(name, {ants: value}), ...] into three IQR curves.
+    Collapse [(name, {ants: value}), ...] to the cross-graph median.
 
-    At each ant count, take the cross-graph distribution of per-graph
-    means and return Q1 / median / Q3 as named series matching IQR_SERIES.
+    At each ant count, take the median of the per-graph values.
     """
     by_ants = defaultdict(list)
     for _, xy in per_graph_series:
@@ -194,227 +174,263 @@ def aggregate_iqr_series(per_graph_series):
                 continue
             by_ants[ants].append(float(val))
 
-    q1_xy = {}
-    med_xy = {}
-    q3_xy = {}
+    median_xy = {}
     for ants, vals in by_ants.items():
-        triple = _quartile_triple(vals)
-        if triple is None:
+        if not vals:
             continue
-        q1, med, q3 = triple
-        q1_xy[ants] = q1
-        med_xy[ants] = med
-        q3_xy[ants] = q3
-
-    if not q1_xy:
-        return []
-
-    return [
-        (IQR_SERIES[0][0], q1_xy),
-        (IQR_SERIES[1][0], med_xy),
-        (IQR_SERIES[2][0], q3_xy),
-    ]
+        median_xy[ants] = float(statistics.median(vals))
+    return median_xy
 
 
-def _series_lookup(series_dicts):
-    return {name: xy for name, xy in series_dicts}
+def build_quality_latex(median_xy):
+    """Single-axis plot of median % deviation from the θ-heuristic."""
+    if not median_xy:
+        raise ValueError("No median series to plot")
 
+    coords = " ".join(
+        f"({x},{y:.4f})" for x, y in sorted(median_xy.items())
+    )
+    xs = sorted(median_xy)
+    xmin = xs[0] / 2
+    xmax = xs[-1] * 2
 
-def _addplots(ordered_names, series_lookup, *, with_legend=False):
-    """
-    Emit one \\addplot per IQR curve. Styles come from IQR_SERIES so
-    Q1/Q3 stay dashed and the median is solid.
-    """
-    style_by_name = {name: style for name, style in IQR_SERIES}
-    lines = []
-
-    for name in ordered_names:
-        xy = series_lookup.get(name) or {}
-        coords = " ".join(
-            f"({x},{y:.4f})"
-            for x, y in sorted(xy.items())
-        )
-        style = style_by_name.get(name, "")
-        opt = f"[{style}]" if style else ""
-        lines.append(rf"\addplot{opt} coordinates {{{coords}}};")
-        if with_legend:
-            lines.append(rf"\addlegendentry{{{name}}}")
-
-    return lines
-
-
-def build_combined_latex(
-    quality_series,
-    heuristic_series,
-    feasible_series,
-    time_series,
-):
-    """
-    Build a 2-column groupplot from whichever panels have data:
-
-      Top row (side by side):
-      - Output compared to θ-heuristic (IQR across graphs)
-      - Theta-feasibility rate (IQR across graphs)
-
-      Bottom row:
-      - Run time (IQR across graphs)
-
-      Optional optimum-quality panel is included when present and shares
-      the bottom row with runtime. All panels use one value per graph.
-    """
-
-    ordered_names = [name for name, _ in IQR_SERIES]
-
-    quality_lookup = _series_lookup(quality_series)
-    heuristic_lookup = _series_lookup(heuristic_series)
-    feasible_lookup = _series_lookup(feasible_series)
-    time_lookup = _series_lookup(time_series)
-
-    # Top row: heuristic quality | feasibility. Bottom row: runtime.
-    # Optimum quality (rare) shares the bottom row with runtime when present.
-    top_panels = []
-    bottom_panels = []
-
-    if heuristic_series:
-        top_panels.append(
-            {
-                "lookup": heuristic_lookup,
-                "opts": [
-                    r"    xlabel={Number of ants},",
-                    r"    ylabel={Dev. from $\theta$-heuristic (\%)},",
-                    r"    ylabel style={align=center, font=\small},",
-                    r"    title={Output compared to $\theta$-heuristic},",
-                    r"    title style={font=\small},",
-                    r"    legend pos=north west,",
-                    r"    legend style={font=\footnotesize, cells={anchor=west}},",
-                ],
-                "legend": True,
-            }
-        )
-
-    if feasible_series:
-        top_panels.append(
-            {
-                "lookup": feasible_lookup,
-                "opts": [
-                    r"    xlabel={Number of ants},",
-                    r"    ylabel={Feasible graphs (\%)},",
-                    r"    ylabel style={align=center, font=\small},",
-                    r"    title={$\theta$-feasibility rate},",
-                    r"    title style={font=\small},",
-                    r"    ymin=0,",
-                    r"    ymax=100,",
-                ],
-                "legend": False,
-            }
-        )
-
-    if quality_series:
-        bottom_panels.append(
-            {
-                "lookup": quality_lookup,
-                "opts": [
-                    r"    xlabel={Number of ants},",
-                    r"    ylabel={Dev. from optimum (\%)},",
-                    r"    ylabel style={align=center, font=\small},",
-                    r"    title={Solution quality (feasible graphs only)},",
-                    r"    title style={font=\small},",
-                ],
-                "legend": False,
-            }
-        )
-
-    if time_series:
-        bottom_panels.append(
-            {
-                "lookup": time_lookup,
-                "opts": [
-                    r"    xlabel={Number of ants},",
-                    r"    ylabel={WCT (s)},",
-                    r"    ylabel style={align=center, font=\small},",
-                    r"    title={Run time},",
-                    r"    title style={font=\small},",
-                    r"    ymode=log,",
-                ],
-                "legend": False,
-            }
-        )
-
-    panels = top_panels + bottom_panels
-    if not panels:
-        raise ValueError("No panels to plot")
-
-    # Side-by-side top row whenever both heuristic and feasibility exist.
-    # Keep the multi-row height modest so [!tp] can sit at the top of a
-    # page with following Results text underneath (avoids a float-only page).
-    n_cols = 2 if len(top_panels) >= 2 else 1
-    n_rows = (len(panels) + n_cols - 1) // n_cols
-    # Slightly narrower panels leave room for larger horizontal sep.
-    width = 0.44 if n_cols == 2 else 0.75
-    height = 0.28 if n_rows >= 2 else 0.44
-    hsep = 48 if n_cols == 2 else 28
-    vsep = 52 if n_rows >= 2 else 48
-
-    lines = [
-        # Prefer top of the next page so leftover space can hold §4.2+ text
-        # instead of a centered float-only page behind \FloatBarrier.
-        r"\begin{figure}[!tp]",
-        r"  \centering",
-        r"\begin{tikzpicture}",
-        r"\begin{groupplot}[",
-        (
-            rf"    group style={{group size={n_cols} by {n_rows}, "
-            rf"horizontal sep={hsep}pt, vertical sep={vsep}pt}},"
-        ),
-        r"    title style={yshift=-3pt},",
-        rf"    width={width:.2f}\textwidth,",
-        rf"    height={height:.2f}\textwidth,",
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz()
+    lines += [
+        r"\begin{axis}[",
+        rf"    width={COLUMN_WIDTH},",
+        rf"    height={COLUMN_HEIGHT},",
+        r"    xlabel={Number of ants},",
+        r"    ylabel={Dev. from $\theta$-heuristic (\%)},",
+        r"    ylabel style={align=center},",
         r"    xmode=log,",
         r"    log basis x=2,",
         r"    grid=major,",
+        rf"    xmin={xmin:g},",
+        rf"    xmax={xmax:g},",
         r"]",
+        (
+            r"\addplot[solid, thick, mark=*, blue!80!black] "
+            rf"coordinates {{{coords}}};"
+        ),
+        (
+            rf"\draw[dashed, gray] (axis cs:{xmin:g},0) -- "
+            rf"(axis cs:{xmax:g},0);"
+        ),
+        r"\end{axis}",
     ]
-
-    for panel in panels:
-        lines.append(r"\nextgroupplot[")
-        lines.extend(panel["opts"])
-        lines.append(r"]")
-        lines += _addplots(
-            ordered_names,
-            panel["lookup"],
-            with_legend=panel.get("legend", False),
-        )
-
+    lines += end_tikz()
     lines += [
-        r"\end{groupplot}",
-        r"\end{tikzpicture}",
-        r"  \caption{$F_N$ solution quality vs.\ the $\theta$-heuristic, "
-        r"$\theta$-feasibility rate, and wall-clock time vs.\ ant count. "
-        r"Each panel shows the cross-graph first quartile, median, and "
-        r"third quartile of per-graph values (not pooled replicate "
-        r"trials; JIT warmup omitted). $\theta$-infeasible outcomes count "
-        r"as $-100\%$ deviation from the $\theta$-heuristic. Quality and "
-        r"feasibility generally rise with colony size but often plateau "
-        r"before the largest $n_S$; runtime scales roughly linearly.}",
+        r"  \caption{Cross-graph median percent deviation of ACO from "
+        r"the $\theta$-heuristic versus ant count. Each point is the "
+        r"median, over graphs, of that graph's mean over counted "
+        r"replicates (JIT warmup omitted). $\theta$-infeasible outcomes "
+        r"count as $-100\%$. The dashed line is parity with the "
+        r"$\theta$-heuristic.}",
         r"  \label{fig:quality-groupplot}",
-        r"\end{figure}",
     ]
-
+    lines += end_float(env)
     return "\n".join(lines)
 
 
-def run(json_paths, output):
-    quality_series = []
-    heuristic_series = []
-    feasible_series = []
-    time_series = []
-    skipped = []
+# Paper defaults marked with a dotted line. Ant count 100 is the colony
+# size held fixed while the other three axes vary.
+_PANEL_DEFAULTS = {
+    "ants": 100.0,
+    "rho": 0.05,
+    "pheromone": 1.0,
+    "eta-exp": 3.0,
+}
 
-    for path in json_paths:
+_ROW_PANELS = (
+    ("ants", "ants", r"Number of ants", "log2"),
+    ("rho", "param_value", r"Evaporation $\rho$", "log10"),
+    ("pheromone", "param_value", r"Deposit $\Delta\tau$", "linear"),
+    ("eta-exp", "param_value", r"$\eta$ exponent", "linear"),
+)
+
+
+def _axis_limits(xs, scale):
+    """Pad a sorted numeric axis. Log scales require a positive minimum."""
+    lo, hi = float(xs[0]), float(xs[-1])
+    if scale != "linear" and lo <= 0:
+        scale = "linear"
+    if scale == "linear":
+        span = hi - lo
+        if span == 0:
+            span = 1.0 if hi == 0 else abs(hi)
+        pad = 0.12 * span
+        return lo - pad, hi + pad, "linear"
+    return lo / 2.0, hi * 2.0, scale
+
+
+def _tick_values(xs, scale):
+    """Endpoints plus one interior label. More than three collide here.
+
+    The interior label is the swept value nearest the middle of the
+    axis (geometric middle on a log axis). The dotted line marks the
+    paper default, so that default is not forced onto a tick.
+    """
+    xs = [float(x) for x in xs]
+    if len(xs) <= 3:
+        return xs
+    if scale in ("log2", "log10") and xs[0] > 0 and xs[-1] > 0:
+        target = math.exp(0.5 * (math.log(xs[0]) + math.log(xs[-1])))
+    else:
+        target = 0.5 * (xs[0] + xs[-1])
+    mid = min(xs[1:-1], key=lambda x: abs(x - target))
+    return [xs[0], mid, xs[-1]]
+
+
+def _coords(xy):
+    return " ".join(
+        f"({x:g},{y:.4f})" for x, y in sorted(xy.items(), key=lambda item: float(item[0]))
+    )
+
+
+def _shared_ylim(series):
+    vals = [float(y) for xy in series if xy for y in xy.values()]
+    if not vals:
+        return -10.0, 10.0
+    lo, hi = min(vals), max(vals)
+    lo = min(lo, 0.0)
+    hi = max(hi, 0.0)
+    span = hi - lo
+    if span == 0:
+        span = 1.0
+    pad = 0.08 * span
+    return lo - pad, hi + pad
+
+
+def _panel_plots(xy, xmin, xmax, ymin, ymax, default):
+    """Coordinate plot, parity line, and the paper-default marker."""
+    lines = []
+    if xy:
+        lines.append(
+            r"\addplot[solid, thick, mark=*, mark size=1.1pt, blue!80!black] "
+            rf"coordinates {{{_coords(xy)}}};"
+        )
+    else:
+        lines.append(
+            r"\node[font=\scriptsize, align=center, text=black!55] "
+            r"at (rel axis cs:0.5,0.55) {not recorded};"
+        )
+    lines.append(
+        rf"\draw[dashed, gray] (axis cs:{xmin:g},0) -- (axis cs:{xmax:g},0);"
+    )
+    if default is not None and xmin < float(default) < xmax:
+        lines.append(
+            rf"\draw[dotted, black!55] (axis cs:{default:g},{ymin:.4f}) -- "
+            rf"(axis cs:{default:g},{ymax:.4f});"
+        )
+    return lines
+
+
+def build_quality_row_latex(panels):
+    """
+    Four panels in a 2×2 that fits one column: ant count and evaporation
+    on the first row, deposit and the η exponent on the second. Shared
+    vertical scale, one ylabel for the left column. Missing sweeps stay
+    blank.
+
+    Axis boxes are a fraction of \\columnwidth and the picture is not
+    resized, so a short grid stays small instead of stretching to the
+    column. The shared ylabel sits left of the tick labels.
+    """
+    ymin, ymax = _shared_ylim([p["xy"] for p in panels])
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz(resize=False)
+    lines += [
+        r"\begin{groupplot}[",
+        r"  group style={group size=2 by 2,",
+        r"    horizontal sep=0.48cm, vertical sep=0.82cm},",
+        r"  scale only axis,",
+        r"  width=0.34\columnwidth,",
+        r"  height=0.26\columnwidth,",
+        r"  tick label style={font=\scriptsize, inner sep=1pt},",
+        r"  label style={font=\scriptsize, inner sep=1pt},",
+        r"  xlabel style={align=center},",
+        r"  grid=major,",
+        r"  grid style={gray!25},",
+        r"  tick align=outside,",
+        rf"  ymin={ymin:.4f},",
+        rf"  ymax={ymax:.4f},",
+        r"]",
+    ]
+    for i, panel in enumerate(panels):
+        xy = panel["xy"] or {}
+        if xy:
+            xs = sorted(float(x) for x in xy)
+            xmin, xmax, scale = _axis_limits(xs, panel["scale"])
+            xtick = "{" + ",".join(f"{x:g}" for x in _tick_values(xs, scale)) + "}"
+        else:
+            xmin, xmax, scale = panel["empty"]
+            xtick = None
+        opts = [
+            r"\nextgroupplot[",
+            rf"  xlabel={{{panel['xlabel']}}},",
+        ]
+        # Right column shares the left column's scale.
+        if i % 2 == 1:
+            opts.append(r"  yticklabels={},")
+        if scale == "log2":
+            opts += [
+                r"  xmode=log,",
+                r"  log basis x=2,",
+                r"  log ticks with fixed point,",
+            ]
+        elif scale == "log10":
+            opts += [
+                r"  xmode=log,",
+                r"  log basis x=10,",
+                r"  log ticks with fixed point,",
+            ]
+        opts.append(rf"  xmin={xmin:g},")
+        opts.append(rf"  xmax={xmax:g},")
+        if xtick is not None:
+            opts.append(rf"  xtick={xtick},")
+        opts.append(r"]")
+        lines += opts
+        lines += _panel_plots(xy, xmin, xmax, ymin, ymax, panel["default"])
+    lines += [
+        r"\end{groupplot}",
+        r"\path (group c1r1.west) -- (group c1r2.west)",
+        r"  node[midway, xshift=-32pt, rotate=90, anchor=center,",
+        r"       font=\scriptsize, inner sep=0pt]",
+        r"  {Dev.\ from $\theta$-heuristic (\%)};",
+    ]
+    lines += end_tikz(resize=False)
+    lines += [
+        r"  \caption{Cross-graph median percent deviation of ACO from "
+        r"the $\theta$-heuristic. Each point is the median, over graphs, "
+        r"of that graph's mean over counted replicates (JIT warmup omitted). "
+        r"$\theta$-infeasible outcomes count as $-100\%$. "
+        r"The ant-count panel varies $A$; the other panels hold $A=100$ and "
+        r"vary evaporation $\rho$, pheromone deposit $\Delta\tau$, or the "
+        r"exponent on $\eta$. The dashed line is parity with the "
+        r"$\theta$-heuristic. The dotted line is the value used in the "
+        r"other experiments ($A=100$, $\rho=0.05$, $\Delta\tau=1$, "
+        r"exponent $3$). A panel marked ``not recorded'' has no sweep yet.}",
+        r"  \label{fig:quality-groupplot}",
+    ]
+    lines += end_float(env)
+    return "\n".join(lines)
+
+
+def median_from_paths(paths, axis, *, expect_param=None):
+    """Median % deviation series for one directory. Returns (xy or None, skipped)."""
+    series = []
+    skipped = []
+    for path in paths:
         data = load_json(path)
         if data is None:
             skipped.append((path, "unreadable"))
             continue
+        if expect_param is not None:
+            found = data.get("param")
+            if found not in (None, expect_param):
+                skipped.append((path, f"param is {found}, expected {expect_param}"))
+                continue
         if aco_timed_out(data):
             limit = data.get("aco_timeout_s")
             reason = "aco timed out"
@@ -422,65 +438,100 @@ def run(json_paths, output):
                 reason = f"aco timed out ({limit}s)"
             skipped.append((path, reason))
             continue
-
-        result = summarize_file(data)
-
+        result = summarize_file(data, axis=axis)
         if result is None:
             skipped.append((path, "no usable optimum or heuristic"))
             continue
+        _, heur_pct, _, _ = result
+        if heur_pct:
+            series.append((series_name(path, data), heur_pct))
+    if not series:
+        return None, skipped
+    return aggregate_median_series(series), skipped
 
-        (
-            pct_by_ants,
-            heur_pct_by_ants,
-            feasible_pct_by_ants,
-            time_by_ants,
-        ) = result
-        name = series_name(path, data)
 
-        if pct_by_ants:
-            quality_series.append((name, pct_by_ants))
-
-        if heur_pct_by_ants:
-            heuristic_series.append((name, heur_pct_by_ants))
-
-        if feasible_pct_by_ants:
-            feasible_series.append((name, feasible_pct_by_ants))
-
-        if time_by_ants:
-            time_series.append((name, time_by_ants))
-
-    if (
-        not quality_series
-        and not heuristic_series
-        and not feasible_series
-        and not time_series
-    ):
-        raise SystemExit(
-            "No files had a usable optimum or heuristic -- nothing to plot."
+def run(json_paths, output, ablation_dirs=None):
+    if not ablation_dirs:
+        heuristic_series = []
+        skipped = []
+        for path in json_paths:
+            data = load_json(path)
+            if data is None:
+                skipped.append((path, "unreadable"))
+                continue
+            if aco_timed_out(data):
+                limit = data.get("aco_timeout_s")
+                reason = "aco timed out"
+                if limit is not None:
+                    reason = f"aco timed out ({limit}s)"
+                skipped.append((path, reason))
+                continue
+            result = summarize_file(data)
+            if result is None:
+                skipped.append((path, "no usable optimum or heuristic"))
+                continue
+            _, heur_pct_by_ants, _, _ = result
+            if heur_pct_by_ants:
+                heuristic_series.append((series_name(path, data), heur_pct_by_ants))
+        if not heuristic_series:
+            raise SystemExit(
+                "No files had a usable heuristic baseline -- nothing to plot."
+            )
+        median_xy = aggregate_median_series(heuristic_series)
+        write_tex(build_quality_latex(median_xy), output)
+        print(
+            f"# quality: median deviation over {len(heuristic_series)} graph(s)",
+            file=sys.stderr,
         )
+        report_skipped(skipped)
+        return
 
-    quality_iqr = aggregate_iqr_series(quality_series)
-    heuristic_iqr = aggregate_iqr_series(heuristic_series)
-    feasible_iqr = aggregate_iqr_series(feasible_series)
-    time_iqr = aggregate_iqr_series(time_series)
+    panels = []
+    skipped = []
+    for key, axis, xlabel, scale in _ROW_PANELS:
+        if key == "ants":
+            paths = json_paths
+            directory = None
+        else:
+            directory = ablation_dirs.get(key)
+            if not directory or not os.path.isdir(directory):
+                print(
+                    f"Warning: quality: no {key} sweep"
+                    + (f" at {directory}" if directory else "")
+                    + ".",
+                    file=sys.stderr,
+                )
+                paths = []
+            else:
+                paths = list_json_paths(directory)
+                if not paths:
+                    print(
+                        f"Warning: quality: no JSON in {directory}.",
+                        file=sys.stderr,
+                    )
+        xy, panel_skipped = median_from_paths(
+            paths, axis, expect_param=None if key == "ants" else key,
+        )
+        skipped.extend(panel_skipped)
+        if key == "ants" and not xy:
+            raise SystemExit(
+                "No files had a usable heuristic baseline -- nothing to plot."
+            )
+        empty = {
+            "ants": (1.0, 400.0, "log2"),
+            "rho": (0.005, 1.0, "log10"),
+            "pheromone": (-1.0, 12.0, "linear"),
+            "eta-exp": (0.5, 5.5, "linear"),
+        }[key]
+        panels.append({
+            "xy": xy,
+            "xlabel": xlabel,
+            "scale": scale,
+            "default": _PANEL_DEFAULTS[key],
+            "empty": empty,
+        })
+        status = "not recorded" if not xy else f"{len(xy)} point(s)"
+        print(f"# quality: {key}: {status}", file=sys.stderr)
 
-    combined_tex = build_combined_latex(
-        quality_iqr,
-        heuristic_iqr,
-        feasible_iqr,
-        time_iqr,
-    )
-
-    write_tex(combined_tex, output)
-    n_graphs = max(
-        len(quality_series),
-        len(heuristic_series),
-        len(feasible_series),
-        len(time_series),
-    )
-    print(
-        f"# quality: IQR summary over {n_graphs} graph(s) "
-        f"(Q1 / median / Q3 per panel)",
-        file=sys.stderr,
-    )
+    write_tex(build_quality_row_latex(panels), output)
     report_skipped(skipped)

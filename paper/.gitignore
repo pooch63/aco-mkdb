@@ -5,8 +5,10 @@
 *.synctex.gz
 *.out
 
-# Paper build outputs (source of truth is main.tex + results/)
+# Paper build outputs (source of truth is main.tex + tables.tex + results/)
 build.tex
 build.pdf
+tables-build.tex
+tables.pdf
 main.pdf
 generated/

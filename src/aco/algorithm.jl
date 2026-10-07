@@ -4,6 +4,7 @@ using Base.Threads
 
 const __ACO_JL__ = true
 
+isdefined(@__MODULE__, :__CONSTANTS_JL__) || include(joinpath(@__DIR__, "..", "constants.jl"))
 include("pheromone.jl")
 include("advance.jl")
 
@@ -27,7 +28,8 @@ const ELITE_PHEROMONE_FACTOR = 2
 const SHARED_PHEROMONE_FACTOR = 0.25
 
 # MAX-MIN Ant System (MMAS) bounds on shared and species pheromone maps.
-# Linear selection / single-ant deposit are intentionally not part of this change.
+# `best_only_pheromone` skips per-step deposits and, after evaporation, lays
+# pheromone only on the iteration-best solution.
 
 isdefined(@__MODULE__, :sorted_str) || (sorted_str(s::Set{Int}) = "{" * join(sort(collect(s)), ",") * "}")
 
@@ -74,6 +76,36 @@ function better_than_best(fg::FrozenBipartite, cand::SubGraph, curr::SubGraph, �
     end
 end
 
+"""
+Best finished ant this round, by the same rule as the colony incumbent.
+
+Bound-pruned ants and ants that lost a forced seed are skipped. The returned
+subgraph is `kept_ant_solution` (greedy fill when it wins). `(nothing, empty)`
+when every ant was discarded.
+"""
+function pick_iteration_best(ants::Vector{Ant}, fg::FrozenBipartite, θ::Int, fitness,
+    seed_compact::Union{Nothing,SubGraph}, seeds_compact::Vector{SubGraph},
+    num_ants::Int, iter::Int)
+    best_ant = nothing
+    best_kept = SubGraph()
+    for (i, ant) in enumerate(ants)
+        ant.bound_pruned && continue
+        assigned = round_robin_seed(seeds_compact, num_ants, i, iter)
+        if seed_compact !== nothing && !subgraph_has_seed(ant.explored, seed_compact)
+            continue
+        end
+        if assigned !== nothing && !subgraph_has_seed(ant.explored, assigned)
+            continue
+        end
+        kept = kept_ant_solution(ant, fg, θ, fitness, seed_compact, assigned)
+        if best_ant === nothing || better_than_best(fg, kept, best_kept, θ; fitness=fitness)
+            best_ant = ant
+            best_kept = kept
+        end
+    end
+    return best_ant, best_kept
+end
+
 function _trace_degree_nodes(nodes::Vector{DegreeNode}; limit::Int=12)
     isempty(nodes) && return "{}"
     shown = nodes[1:min(limit, length(nodes))]
@@ -100,12 +132,28 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     elite_pheromone::Bool=false,  # elitist pheromone emit on softmax elites
     aco_tabu::Bool=false,         # tabu repair on elites / new global bests
     mmas::Bool=false,             # MAX-MIN Ant System τ bounds
+    # Halt an ant when `upper_bound` cannot beat the incumbent, and subtract
+    # the pheromone that ant deposited during this construction.
+    prune_by_bound::Bool=false,
     reduction::ReductionMode.T=ReductionMode.all_reductions,
     trace_target::Union{Nothing,SubGraph}=nothing,
     # Original-id nodes to plant into every ant at the start of each construction.
     # Experimental default for the known pair under test; pass `nothing` to disable.
     seed_nodes::Union{Nothing,SubGraph}=SubGraph(Set(), Set()),
+    # One original-id subgraph per seed. Ant i on iteration t is planted with
+    # ant_seeds[mod1(i + (t-1)*num_ants, length)]. `nothing` / empty disables.
+    # Cannot be combined with a non-empty `seed_nodes`.
+    ant_seeds::Union{Nothing,AbstractVector{<:SubGraph}}=nothing,
     construction_stats::Union{Nothing,Base.RefValue}=nothing,
+    # `:off` leaves the walk as built. `:end` packs each side once when the ant
+    # stops. `:step` packs after every add onto a side that already has ≥θ
+    # vertices. The best snapshot is what the colony keeps.
+    greedy_fill::Union{Symbol,AbstractString}=:off,
+    # Exponent on heuristic desirability η in τ · η^eta_exp (default ETA_EXP).
+    eta_exp::Real=ETA_EXP,
+    # When true, ants do not deposit while walking. After the round evaporates,
+    # only the iteration-best solution receives pheromone.
+    best_only_pheromone::Bool=false,
     # Optional `(compact_fg) -> (; fitness, deposit_scale?)` hook for variants
     # (e.g. diffusion ACO). `fitness(fg, sg, θ)` replaces `instance_fitness`;
     # `deposit_scale(fg, sg)` multiplies per-step pheromone deposit (default 1).
@@ -113,6 +161,13 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     num_subspecies >= 1 || throw(ArgumentError("num_subspecies must be >= 1, got $num_subspecies"))
     elite_seed_ants >= 0 || throw(ArgumentError("elite_seed_ants must be >= 0, got $elite_seed_ants"))
     elite_seed_remove >= 0 || throw(ArgumentError("elite_seed_remove must be >= 0, got $elite_seed_remove"))
+    greedy_fill = normalize_greedy_fill(greedy_fill)
+    eta_exp = Float64(eta_exp)
+    isfinite(eta_exp) || throw(ArgumentError("eta_exp must be finite, got $eta_exp"))
+    if best_only_pheromone && elite_pheromone
+        throw(ArgumentError(
+            "best_only_pheromone deposits only the iteration-best solution and cannot be combined with elite_pheromone"))
+    end
 
     if ACO_TRACE && parallelize
         println("ACO ACO_TRACE: forcing parallelize=false so step logs stay readable")
@@ -139,6 +194,11 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         deposit_scale = hasproperty(scoring, :deposit_scale) ? scoring.deposit_scale : nothing
     end
 
+    if ant_seeds !== nothing && !isempty(ant_seeds) &&
+       seed_nodes !== nothing && Subgraph.vertex_count(seed_nodes) > 0
+        throw(ArgumentError("aco ant_seeds and seed_nodes cannot both be set"))
+    end
+
     # Map original-id seed nodes into compact space (dropped ⇒ already removed by reduction).
     seed_compact::Union{Nothing,SubGraph} = nothing
     if seed_nodes !== nothing && Subgraph.vertex_count(seed_nodes) > 0
@@ -153,6 +213,22 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         end
     end
 
+    # Per-ant seeds (split ACO's one colony). Each kept seed is one forced start;
+    # round-robin assigns them across ants and iterations.
+    seeds_compact = SubGraph[]
+    if ant_seeds !== nothing && !isempty(ant_seeds)
+        for seed in ant_seeds
+            kept, dropped_U, dropped_V = compactify_subgraph(remapping, seed)
+            if Subgraph.vertex_count(kept) == 0
+                println("ACO ant seed dropped by reduction: U=$dropped_U V=$dropped_V")
+                continue
+            end
+            push!(seeds_compact, kept)
+        end
+        println("ACO ant seeds: $(length(seeds_compact)) of $(length(ant_seeds)) kept; " *
+                "round-robin across $num_ants ants × $num_iterations iterations")
+    end
+
     best_scores = fill(0.0, num_subspecies)
     best_subgraphs = [SubGraph() for _ in 1:num_subspecies]
     # Iteration / wall time at which each subspecies / global best was last improved
@@ -165,22 +241,34 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     best_iteration::Int = 0
     best_time::Float64 = 0.0
 
-    # Forced-inclusion incumbent: every reported best must contain seed_compact.
-    # (Unlike the θ-heuristic, this is a hard constraint on admissible solutions.)
-    if seed_compact !== nothing
-        seed_score = Float64(fitness(compact_fg, seed_compact, θ))
-        best_subgraph = SubGraph(copy(seed_compact.U), copy(seed_compact.V))
+    # Forced-inclusion incumbent. A single seed_nodes subgraph must appear in
+    # every reported best. Per-ant seeds install the best seed among them; each
+    # ant then keeps its own seed, and the global best keeps whichever it grew from.
+    forced_incumbent::Union{Nothing,SubGraph} = nothing
+    if !isempty(seeds_compact)
+        forced_incumbent = seeds_compact[1]
+        for seed in seeds_compact
+            better_than_best(compact_fg, seed, forced_incumbent, θ; fitness=fitness) &&
+                (forced_incumbent = seed)
+        end
+    elseif seed_compact !== nothing
+        forced_incumbent = seed_compact
+    end
+    if forced_incumbent !== nothing
+        seed_score = Float64(fitness(compact_fg, forced_incumbent, θ))
+        best_subgraph = SubGraph(copy(forced_incumbent.U), copy(forced_incumbent.V))
         best_score = seed_score
         best_iteration = 0
         best_time = 0.0
         for s in 1:num_subspecies
-            best_subgraphs[s] = SubGraph(copy(seed_compact.U), copy(seed_compact.V))
+            best_subgraphs[s] = SubGraph(copy(forced_incumbent.U), copy(forced_incumbent.V))
             best_scores[s] = seed_score
             best_iterations[s] = 0
             best_times[s] = 0.0
         end
+        src = isempty(seeds_compact) ? "" : " (best of $(length(seeds_compact)) ant seeds)"
         println("ACO forced-seed incumbent: U=$(sorted_str(best_subgraph.U)) " *
-                "V=$(sorted_str(best_subgraph.V)) score=$seed_score")
+                "V=$(sorted_str(best_subgraph.V)) score=$seed_score$src")
     end
 
     n_nodes = length(compact_fg.u_ids) + length(compact_fg.v_ids)
@@ -217,7 +305,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         println("ACO MMAS disabled: species pheromone unbounded [0, +∞) " *
                 "(θ-heuristic not run for ACO)")
     end
-    println("ACO ablations: elite_pheromone=$elite_pheromone tabu=$aco_tabu mmas=$mmas")
+    println("ACO ablations: elite_pheromone=$elite_pheromone tabu=$aco_tabu mmas=$mmas bound_prune=$prune_by_bound greedy_fill=$greedy_fill eta_exp=$eta_exp best_only_pheromone=$best_only_pheromone")
     # println("ACO MMAS species bounds: τ_min=$(round(τ_min; digits=6)) τ_max=$(round(τ_max; digits=6))")
     # Compact-space watch target (optional). Dropped nodes mean reduction already
     # removed part of the known optimum — ACO can never recover those.
@@ -233,8 +321,17 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         end
     end
 
+    function plant_seeds!(ants, iter::Int)
+        if !isempty(seeds_compact)
+            seed_ants_round_robin!(ants, compact_fg, k, seeds_compact, iter)
+        elseif seed_compact !== nothing
+            seed_ants_with_subgraph!(ants, compact_fg, k, seed_compact)
+        end
+        return ants
+    end
+
     ants = new_ants(compact_fg, num_ants, num_subspecies)
-    seed_compact !== nothing && seed_ants_with_subgraph!(ants, compact_fg, k, seed_compact)
+    plant_seeds!(ants, 1)
     invalid_ants = Set{Int}()
 
     explored_ants = [ant for ant in ants]
@@ -244,6 +341,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
     # Wall-clock origin for time-to-best (excludes reduction / MMAS setup).
     t0 = time_ns()
+    n_bound_pruned = 0
 
     for iter in 1:num_iterations
         ACO_TRACE && println("==== ACO iter $iter/$num_iterations  best_score=$best_score " *
@@ -251,7 +349,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
 
         # Elite partial-restart overwrites forced seed_nodes; skip it while
         # forced inclusion is active so every ant keeps the required vertices.
-        if elite_seed && seed_compact === nothing
+        forced_seeds = seed_compact !== nothing || !isempty(seeds_compact)
+        if elite_seed && !forced_seeds
             seed_ants_from_elites!(ants, best_subgraphs, best_subgraph, best_scores,
                 elite_seed_ants, elite_seed_remove, compact_fg, k)
             if ACO_TRACE
@@ -266,12 +365,14 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     println(msg)
                 end
             end
-        elseif elite_seed && seed_compact !== nothing && iter == 1
-            println("ACO elite_seed disabled while seed_nodes forced-inclusion is active")
+        elseif elite_seed && forced_seeds && iter == 1
+            println("ACO elite_seed disabled while forced seed inclusion is active")
         end
 
         # Track which ants are still exploring
         active_ants = collect(1:num_ants)
+        bound_target = prune_by_bound ?
+            bound_target_from(compact_fg, best_subgraph, θ, fitness) : nothing
 
         while !isempty(active_ants)
             if parallelize
@@ -284,7 +385,13 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                         prefer_smaller_side=prefer_smaller_side,
                         neighbor_scope_limit=neighbor_scope_limit,
                         trace_target=target_compact,
-                        deposit_scale=deposit_scale)
+                        deposit_scale=deposit_scale,
+                        prune_by_bound=prune_by_bound,
+                        bound_target=bound_target,
+                        greedy_fill=greedy_fill,
+                        fitness=fitness,
+                        eta_exp=eta_exp,
+                        deposit_online=!best_only_pheromone)
                 end
 
                 # 2. Wait for all threads to finish their step
@@ -296,13 +403,32 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     prefer_smaller_side=prefer_smaller_side,
                     neighbor_scope_limit=neighbor_scope_limit,
                     trace_target=target_compact,
-                    deposit_scale=deposit_scale)]
+                    deposit_scale=deposit_scale,
+                    prune_by_bound=prune_by_bound,
+                    bound_target=bound_target,
+                    greedy_fill=greedy_fill,
+                    fitness=fitness,
+                    eta_exp=eta_exp,
+                    deposit_online=!best_only_pheromone)]
             end
             
             # 3. Safely merge the results on the main thread
             for (local_additions, local_invalids) in results
                 # Merge the local additions into the global pheromone tracker
                 merge_pheromones!(pheromones, local_additions)
+                if prune_by_bound
+                    for idx in local_invalids
+                        ant = ants[idx]
+                        if ant.bound_pruned
+                            # Deposits from earlier steps are already in `pheromones`.
+                            # This step did not deposit. Subtract so the ant leaves no trail.
+                            rollback_ant_pheromone!(pheromones, ant)
+                            n_bound_pruned += 1
+                        else
+                            raise_bound_target!(bound_target, compact_fg, ant.explored, θ, fitness)
+                        end
+                    end
+                end
                 # Cap species trails during construction so mid-iter selection stays bounded.
                 mmas && clamp_species_pheromones!(pheromones, τ_mins, τ_maxs)
                 
@@ -317,7 +443,8 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         # tabu-repair them and/or reinforce every node in the (repaired) subgraph.
         if elite_pheromone || aco_tabu
             for s in 1:num_subspecies
-                eligible = [ant for ant in ants if ant.last_visited.id != -1 && ant.species == s]
+                eligible = [ant for ant in ants if ant.last_visited.id != -1 &&
+                    ant.species == s && !ant.bound_pruned]
                 n_elite = min(3, length(eligible))
                 n_elite == 0 && continue
 
@@ -332,6 +459,12 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
                     if aco_tabu
                         tabu_repair!(compact_fg, ant.explored, k, θ, tt, tabu_patience)
                         seed_compact !== nothing && merge_seed!(ant.explored, seed_compact)
+                        if !isempty(seeds_compact)
+                            idx = findfirst(===(ant), ants)
+                            assigned = idx === nothing ? nothing :
+                                round_robin_seed(seeds_compact, num_ants, idx, iter)
+                            assigned !== nothing && merge_seed!(ant.explored, assigned)
+                        end
                         if ACO_TRACE
                             post_score = fitness(compact_fg, ant.explored, θ)
                             msg = "  elite species=$s post-repair score=$post_score " *
@@ -363,42 +496,71 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
             end
         end
 
-        for ant in ants
+        # Online deposits already happened (and were evaporated above) unless
+        # best-only mode deferred them. The iteration-best trail is laid after
+        # evaporation so it is what the next round samples.
+        if best_only_pheromone
+            winner, kept = pick_iteration_best(ants, compact_fg, θ, fitness,
+                seed_compact, seeds_compact, num_ants, iter)
+            if winner !== nothing && Subgraph.vertex_count(kept) > 0
+                dep = Float64(pheromone)
+                if deposit_scale !== nothing
+                    dep *= Float64(deposit_scale(compact_fg, kept))
+                end
+                deposit_solution_pheromone!(pheromones, kept, winner.species, dep)
+                if ACO_TRACE
+                    println("  best-only deposit species=$(winner.species) " *
+                            "|U|=$(length(kept.U)) |V|=$(length(kept.V)) dep=$dep")
+                end
+            end
+        end
+
+        for (i, ant) in enumerate(ants)
+            # A bound-pruned ant is discarded, including any partial subgraph.
+            ant.bound_pruned && continue
             # Ants only add vertices, so a forced seed at construction start stays
             # in explored; still skip any ant that lost it (e.g. future repair).
+            assigned = round_robin_seed(seeds_compact, num_ants, i, iter)
             if seed_compact !== nothing && !subgraph_has_seed(ant.explored, seed_compact)
                 continue
             end
-            score = Float64(fitness(compact_fg, ant.explored, θ))
+            if assigned !== nothing && !subgraph_has_seed(ant.explored, assigned)
+                continue
+            end
+            kept = kept_ant_solution(ant, compact_fg, θ, fitness, seed_compact, assigned)
+            score = Float64(fitness(compact_fg, kept, θ))
             s = ant.species
             # Subspecies / global incumbents: θ-feasible by edges; fitness only if
             # the current best is also not θ-feasible. (Elitism above is unchanged.)
-            if better_than_best(compact_fg, ant.explored, best_subgraphs[s], θ; fitness=fitness)
+            if better_than_best(compact_fg, kept, best_subgraphs[s], θ; fitness=fitness)
                 best_scores[s] = score
                 # Copy so later colony mutations / seeds never alias the stored best.
-                best_subgraphs[s] = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                best_subgraphs[s] = SubGraph(copy(kept.U), copy(kept.V))
                 best_iterations[s] = iter
                 best_times[s] = (time_ns() - t0) / 1e9
             end
-            if better_than_best(compact_fg, ant.explored, best_subgraph, θ; fitness=fitness)
+            if better_than_best(compact_fg, kept, best_subgraph, θ; fitness=fitness)
                 if aco_tabu
-                    tabu = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                    tabu = SubGraph(copy(kept.U), copy(kept.V))
                     tabu_repair!(compact_fg, tabu, k, θ, tt, tabu_patience)
                     if seed_compact !== nothing
                         merge_seed!(tabu, seed_compact)
                     end
+                    assigned !== nothing && merge_seed!(tabu, assigned)
                     # Prefer repaired if seed-ok and not strictly worse than unrepaired.
-                    if (seed_compact === nothing || subgraph_has_seed(tabu, seed_compact)) &&
-                       !better_than_best(compact_fg, ant.explored, tabu, θ; fitness=fitness)
+                    seed_ok = (seed_compact === nothing || subgraph_has_seed(tabu, seed_compact)) &&
+                              (assigned === nothing || subgraph_has_seed(tabu, assigned))
+                    if seed_ok &&
+                       !better_than_best(compact_fg, kept, tabu, θ; fitness=fitness)
                         best_score = Float64(fitness(compact_fg, tabu, θ))
                         best_subgraph = tabu
                     else
                         best_score = score
-                        best_subgraph = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                        best_subgraph = SubGraph(copy(kept.U), copy(kept.V))
                     end
                 else
                     best_score = score
-                    best_subgraph = SubGraph(copy(ant.explored.U), copy(ant.explored.V))
+                    best_subgraph = SubGraph(copy(kept.U), copy(kept.V))
                 end
                 best_iteration = iter
                 best_time = (time_ns() - t0) / 1e9
@@ -440,7 +602,7 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         end
 
         ants = new_ants(compact_fg, num_ants, num_subspecies)
-        seed_compact !== nothing && seed_ants_with_subgraph!(ants, compact_fg, k, seed_compact)
+        plant_seeds!(ants, iter + 1)
 
         force_gc && GC.gc()
 
@@ -458,6 +620,15 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
         end
         subgraph_has_seed(best_subgraph, seed_compact) ||
             error("ACO forced seed missing from global best after search")
+    end
+    if !isempty(seeds_compact)
+        contains_seed(sg) = any(seed -> subgraph_has_seed(sg, seed), seeds_compact)
+        for s in 1:num_subspecies
+            contains_seed(best_subgraphs[s]) ||
+                error("ACO ant seed missing from subspecies $s best after search")
+        end
+        contains_seed(best_subgraph) ||
+            error("ACO ant seed missing from global best after search")
     end
     for s in 1:num_subspecies
         sg = remapped[s]
@@ -486,6 +657,10 @@ function aco(g::BipartiteGraph, pheromone::Int, num_ants::Int, num_iterations::I
     end
     println("ACO global best found at iteration $best_iteration " *
             "(t=$(round(best_time; digits=4))s, score=$best_score)$src")
+    if prune_by_bound
+        println("ACO bound prune: halted $n_bound_pruned ant-construction(s) " *
+                "whose upper bound could not beat the incumbent")
+    end
     if construction_stats !== nothing
         construction_stats[] = (;
             missing_at_size=pooled_missing_at_size,

@@ -9,9 +9,11 @@ seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table:
   are split by a \\midrule: positive time-saved first, then waste, each
   section sorted by ascending |time saved|.
 
-  --subset=full (default) emits every remaining row (appendix).
+  --subset=full (default) emits every remaining row (appendix), including
+  graph sizes, as a full-width table*.
   --subset=highlights emits the net-savings graphs plus the smallest and
-  largest overhead cases (main text).
+  largest overhead cases as a single-column table with only time saved
+  and percent reduction (main text).
 
 Reads full pivot comparisons and beat_heuristic=false skip markers from
 compare-seeds.jl. Pass --vary-dir (or rely on compare_* → vary_* name
@@ -28,8 +30,10 @@ import sys
 
 from .common import (
     aco_discovery_cost,
+    begin_float,
     counted_trials,
     display_name,
+    end_float,
     infer_vary_dir,
     load_json,
     report_skipped,
@@ -628,42 +632,66 @@ def build_seed_compare_table(
     *,
     label,
     caption,
-    placement="htbp",
+    placement="!t",
+    star=True,
+    compact=False,
 ):
     """
-    LaTeX table: datasets with graph/reduced sizes and defined pivot savings.
+    LaTeX table of datasets with defined pivot savings.
 
     Two blocks separated by \\midrule: net end-to-end time improved (ascending
     |saved|), then no net savings / overhead.
+
+    compact drops graph-size columns and is a naturally sized single-column
+    table (Dataset, time saved, reduction). The full table keeps sizes and
+    stretches to the float width.
     """
     sections = [s for s in (improved_rows, neutral_rows) if s]
 
-    lines = [
-        rf"\begin{{table}}[{placement}]",
-        r"  \centering",
+    env, lines = begin_float("table", star=star, placement=placement)
+    lines += [
         rf"  \caption{{{caption}}}",
         rf"  \label{{{label}}}",
-        r"  \setlength{\tabcolsep}{4pt}",
-        r"  \begin{tabular}{lrrrrrr}",
-        r"    \toprule",
-        r"    Dataset & $|U_G|+|V_G|$ & $|E_G|$ & $|U_R|+|V_R|$ & $|E_R|$"
-        r" & Time saved (s) & Reduction (\%) \\",
-        r"    \midrule",
+        r"  \small",
     ]
+    if compact:
+        lines += [
+            r"  \setlength{\tabcolsep}{4pt}",
+            r"  \begin{tabular}{@{}lrr@{}}",
+            r"    \toprule",
+            r"    Dataset & Time saved (s) & Reduction (\%) \\",
+            r"    \midrule",
+        ]
+    else:
+        lines += [
+            r"  \setlength{\tabcolsep}{3pt}",
+            r"  \resizebox{\linewidth}{!}{%",
+            r"  \begin{tabular}{lrrrrrr}",
+            r"    \toprule",
+            r"    Dataset & $|U_G|+|V_G|$ & $|E_G|$ & $|U_R|+|V_R|$ & $|E_R|$"
+            r" & Time saved (s) & Reduction (\%) \\",
+            r"    \midrule",
+        ]
 
     for i, section in enumerate(sections):
         for r in section:
-            cells = [
-                _tex_escape_label(r.get("display_name") or r.get("name") or ""),
-                fmt_nodes(r.get("nU"), r.get("nV"), r.get("full_vertex_count")),
-                fmt_int(r.get("graph_edges")),
-                fmt_nodes(
-                    r.get("reduced_nU"), r.get("reduced_nV"), r.get("vertex_count")
-                ),
-                fmt_int(r.get("reduced_edges")),
-                fmt_saved_s(r),
-                fmt_pct(r),
-            ]
+            name = _tex_escape_label(r.get("display_name") or r.get("name") or "")
+            if compact:
+                cells = [name, fmt_saved_s(r), fmt_pct(r)]
+            else:
+                cells = [
+                    name,
+                    fmt_nodes(r.get("nU"), r.get("nV"), r.get("full_vertex_count")),
+                    fmt_int(r.get("graph_edges")),
+                    fmt_nodes(
+                        r.get("reduced_nU"),
+                        r.get("reduced_nV"),
+                        r.get("vertex_count"),
+                    ),
+                    fmt_int(r.get("reduced_edges")),
+                    fmt_saved_s(r),
+                    fmt_pct(r),
+                ]
             lines.append("    " + " & ".join(cells) + r" \\")
         if i < len(sections) - 1:
             lines.append(r"    \midrule")
@@ -671,8 +699,10 @@ def build_seed_compare_table(
     lines += [
         r"    \bottomrule",
         r"  \end{tabular}",
-        r"\end{table}",
     ]
+    if not compact:
+        lines.append(r"  }")
+    lines += end_float(env)
     return "\n".join(lines)
 
 
@@ -699,9 +729,11 @@ def build_seed_compare_latex(rows, subset=SUBSET_FULL):
                 r"Representative pivot seed comparisons. Top: graphs where "
                 r"ACO seeding reduced wall-clock time. Bottom: smallest and "
                 r"largest ACO-search overhead among graphs where ACO did not beat the $\theta$-heuristic. "
-                r"Full results in Table~\ref{tab:seed-compare-full}."
+                r"Full results are in the accompanying tables."
             ),
-            placement="H",
+            placement="!t",
+            star=False,
+            compact=True,
         )
 
     if subset != SUBSET_FULL:
@@ -715,7 +747,8 @@ def build_seed_compare_latex(rows, subset=SUBSET_FULL):
         neutral_rows,
         label="tab:seed-compare-full",
         caption=r"Pivot seed comparison: ACO vs.\ $\theta$-heuristic (full results)",
-        placement="H",
+        placement="!t",
+        star=True,
     )
 
 

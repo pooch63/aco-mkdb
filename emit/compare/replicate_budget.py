@@ -1,4 +1,10 @@
 """
+Superseded by ``budget_curves.py``.
+
+The paper best-of-R figure resamples counted replicates without
+replacement. This module's "first R seeds" estimator is not wired into
+``emit.compare`` anymore.
+
 Replicate-budget analysis from ordered counted (non-JIT) trials.
 
 Data model (read this before changing anything)
@@ -43,7 +49,19 @@ import statistics
 import sys
 from collections import defaultdict
 
-from ..common import counted_trials, list_json_paths, load_json, aco_timed_out
+from ..common import (
+    PANEL3_HEIGHT,
+    PANEL3_HSEP,
+    PANEL3_WIDTH,
+    aco_timed_out,
+    begin_float,
+    begin_tikz,
+    counted_trials,
+    end_float,
+    end_tikz,
+    list_json_paths,
+    load_json,
+)
 from ..quality import pct_deviation
 
 PLOT_GROUPS = ("replicate-budget",)
@@ -259,18 +277,15 @@ def replicate_budget_figure(summary):
     ymin_log = max(1.0, min(pct_vals) / 2.0) if pct_vals else 1.0
     ymax_log = max(pct_vals) * 1.5 if pct_vals else 100.0
 
-    lines = [
-        # Stacked under fig:iteration-budget in §4.6; slight pull-up.
-        r"\begin{figure}[H]",
-        r"  \vspace{-1em}",
-        r"  \centering",
-        r"  \begin{tikzpicture}",
+    env, lines = begin_float("figure", star=True)
+    lines += begin_tikz()
+    lines += [
         r"  \begin{groupplot}[",
         r"    group style={",
         r"      group size=3 by 1,",
-        r"      horizontal sep=56pt},",
-        r"    width=0.28\textwidth,",
-        r"    height=0.40\textwidth,",
+        rf"      horizontal sep={PANEL3_HSEP}}},",
+        rf"    width={PANEL3_WIDTH},",
+        rf"    height={PANEL3_HEIGHT},",
         r"    grid=major,",
         r"    xlabel={Replicate budget $R$},",
         r"    ylabel style={font=\small},",
@@ -336,11 +351,13 @@ def replicate_budget_figure(summary):
         r"  ]",
         rf"  \addplot[thick, mark=*, green!50!black] coordinates {{{cdf_coords}}};",
         r"  \end{groupplot}",
-        r"  \end{tikzpicture}",
+    ]
+    lines += end_tikz()
+    lines += [
         rf"  \caption{{{_caption(summary)}}}",
         r"  \label{fig:replicate-budget}",
-        r"\end{figure}",
     ]
+    lines += end_float(env)
     return lines
 
 
