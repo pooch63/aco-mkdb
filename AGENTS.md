@@ -53,7 +53,7 @@ We adapt **MAX-MIN Ant System (MMAS)**-style ACO to grow k-defective bicliques i
 - θ-heuristic is solved twice per graph (first discarded for JIT; second timed)
 - Optional planted biclique injection (\(u = v = 5\), \(k\) missing edges) for validation
 
-**Entry points:** `bin/load.jl` (single-graph runs), `bin/vary.jl` (ant-count sweeps), `scripts/vary.bash` (batch over all datasets).
+**Entry points:** `bin/load.jl` (single-graph runs), `bin/vary.jl` (ant-count sweeps and `--vary=param` sweeps of ρ, Δτ, and the η exponent), `scripts/vary.bash` (batch over all datasets), `scripts/param-ablation.bash` (the three hyperparameter sweeps at A=100).
 
 ## θ-heuristic (baseline)
 
@@ -159,7 +159,7 @@ results/*.json  →  emit/  →  paper/generated/*.tex  →  build.py  →  buil
 1. **Experiments** write JSON under `results/` (see below).
 2. **`python -m emit`** (or `make paper-emit`) reads JSON and writes LaTeX fragments to `paper/generated/`.
    Fragments rebuild when results JSON **or** the emit Python that produces them is newer (see `paper/build.py`).
-3. **`paper/build.py`** substitutes `%%PLACEHOLDER%%` tokens in `main.tex` with generated fragments → `build.tex` → compiles PDF.
+3. **`paper/build.py`** substitutes `%%PLACEHOLDER%%` tokens in `main.tex` with generated fragments → `build.tex` → compiles PDF. `--tables` does the same for `tables.tex` → `tables.pdf`.
 
 **Commands:**
 
@@ -169,26 +169,29 @@ cd paper && make        # same, from paper/
 python paper/build.py emit      # only regenerate fragments
 python paper/build.py assemble  # only substitute placeholders
 python paper/build.py pdf       # only compile
+python paper/build.py --tables  # also compile paper/tables.tex → tables.pdf
 ```
 
 **Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Set `results_dir` once (default `../results`); fragment paths are bare names under that tree (e.g. `vary_k2t5i_PN`). Absolute / `../…` paths still resolve from `paper/`. Optional top-level `max_replicates` (or per-fragment override / `--max-replicates=R`) retrospectively prefixes counted non-JIT replicates per ant count for emit aggregates; omit/`null` keeps all. The `replicate-budget` figure always uses the full counted set.
 
 | Placeholder | Emit mode | Purpose |
 |-------------|-----------|---------|
-| `%%QUALITY%%` | `quality` | Ant-count sweep: quality vs. θ-heuristic, θ-feasibility rate, runtime |
+| `%%QUALITY%%` | `quality` | One-column 2×2: ant count, evaporation, deposit, and η-exponent. Median % deviation from the θ-heuristic (`ablation_dirs`) |
 | `%%SEED_COMPARE%%` | `seed-compare` | Full pivot table (appendix); `:highlights` = representative rows in §4.2 |
 | `%%TABLE:k2t5i_PN%%` | `table` | Per-graph ACO vs. θ comparison (appendix); `:k2t5i_PN:highlights` = §4.3; `:k3t5i_PN` / `:k3t6i_PN` / `:k4t5i_PN` = other $(k,\theta)$ |
 | `%%COMPARE:theta-time%%` | `compare` | θ-heuristic runtime vs. \(\theta n + m\) bound |
 | `%%COMPARE:deg-size-time%%` | `compare` | ACO discovery time on log–log axes: vs.\ $n_R$ (empirical exponent) and vs.\ candidate bounds $n_R^2$ / ($T\cdot n_R+|E_R|$) with $T=5$ (slope≈1 ⇒ proportional) |
 | `%%COMPARE:bound-time%%` | `compare` | 2-panel: normalized discovery time \(t/(n_S\cdot T)\) vs.\ naive $n_R^2$ (left) and practical $T\cdot n_R+|E_R|$ (right); shared y-axis for slope contrast |
-| `%%COMPARE:k-sweep%%` | `compare` | Log edge ratio + win rate vs. \(k\) at fixed \(\theta\) (`param_dirs`) |
-| `%%COMPARE:theta-sweep%%` | `compare` | Same vs. \(\theta\) at fixed \(k\) |
-| `%%COMPARE:density-wins%%` | `compare` | Binary win/loss + sliding-window win rate ($W$ disclosed) vs. reduced density (pooled across $(k,\theta)$) |
-| `%%COMPARE:param-density%%` | `compare` | Reduced density boxplots vs. \(k\) and vs. \(\theta\) |
-| `%%COMPARE:param-runtime%%` | `compare` | ACO/θ discovery-time ratio + absolute ACO discovery vs. \(k\) and \(\theta\) (timeouts noted) |
-| `%%COMPARE:iteration-budget%%` | `compare` | Retrospective epoch credit \(T=1..T_{\max}\) on full-budget replicates (ETB≤T): wins vs. θ-heuristic + % edge increase (log) + ETB CDF over graphs (earliest ETB among best-edge replicates) |
-| `%%COMPARE:replicate-budget%%` | `compare` | Credited counted-replicate prefix \(R=1..R_{\max}\) (JIT warmup omitted): wins vs. θ-heuristic + % edge increase (log) + replicates-to-best CDF over graphs |
+| `%%COMPARE:k-sweep%%` | `compare` | Compact captionless pair: ACO win rate vs. \(k\) at fixed \(\theta\) and vs. \(\theta\) at fixed \(k\), in the text (`param_dirs`) |
+| `%%COMPARE:theta-sweep%%` | `compare` | Comment only; the \(\theta\) panel is part of `k-sweep` |
+| `%%COMPARE:density-wins%%` | `compare` | ACO win rate in equal-count bins of reduced density, and at each \(\theta - k\); each panel is labeled with the correlation of that predictor with the win/loss outcome |
+| `%%COMPARE:param-runtime%%` | `compare` | 2×2: ACO and θ-heuristic discovery time vs. \(k\) on four instances evenly spaced by \(\|U\|+\|V\|\) (timeouts noted) |
+| `%%COMPARE:iteration-budget%%` | `compare` | Anytime curve from `epoch_trace` (`budget_dir`): median and IQR of \(\|E(B_t)\|/\|E(D_\theta)\|\) vs epoch (log x), faint per-graph curves, cumulative time, and \(P(\theta\)-feasible) |
+| `%%COMPARE:replicate-budget%%` | `compare` | Best-of-\(R\): mean across graphs of \(E[\max]\) over subsets drawn without replacement, bootstrap CI, and per-graph CV of \(\|E(B)\|\) |
+| `%%COMPARE:budget-allocation%%` | `compare` | Median relative quality over \((T,R)\) with iso-cost contours \(T\cdot R=\mathrm{const}\) and those slices as curves |
+| `%%COMPARE:pheromone-ablation%%` | `compare` | Anytime median with pheromone on vs \(\Delta\tau=0\) (\(\tau\equiv 1\)) and optional \(\rho\) sweep (`ablation_dirs`) |
 | `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, median % edge increase (`median-edge-pct`), θ-feasibility rates, missing-at-size stats, pivot-tested vs excluded ACO-win size means (`compare_dir`) |
+| `%%ABLATION%%` / `%%ABLATION:summary%%` | `ablation` | Settings table rows and the Section 4.3 sentence from `aco_settings_ablation.json` (pheromone off, best-only deposit, greedy fill at the end, GA) |
 
 **Important:** `emit/` must **only read pre-recorded JSON** — it must not re-run Julia or re-simulate ACO. The build must tolerate incomplete data (warn, don't crash). See `paper/AGENTS.md` for emit-specific rules.
 
@@ -220,6 +223,7 @@ One file per graph. Top-level metadata plus `trials[]` (one entry per ant-count 
   replicate index; each trial always ran the full `iterations_budget`)
 - `U`, `V` — returned subgraph vertex ids (used to re-seed pivot)
 - `construction.missing_at_size` — missing-edge count when subgraph first reaches each size
+- `epoch_trace` — incumbent after each completed epoch: `t`, `edges`, `theta_feasible`, `elapsed_s`, `nU`, `nV`. Written by every `vary.jl` trial. `scripts/budget-trace.bash` runs the paper suite (\(T=100\), \(\ge 30\) counted replicates, optional \(\Delta\tau=0\) and \(\rho\) sweep) into `results/budget_k2t5i_PN`
 
 **Timeout fields** (optional; set when `--aco-timeout=` / `ACO_TIMEOUT` is used):
 

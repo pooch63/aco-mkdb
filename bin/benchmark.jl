@@ -10,6 +10,7 @@ Invoked from load.jl via:
   julia bin/load.jl <dataset> --benchmark=ga
   julia bin/load.jl <dataset> --benchmark=aco,pivot,heuristic,ga
   julia bin/load.jl <dataset> --benchmark=aco,ga --save=run.json
+  julia bin/load.jl <dataset> --benchmark=heuristic,aco,tow --tow-num-seeds=20 --save=run.json
 
 Reports:
   - shared graph-reduction wall time (reductions run once; solvers get
@@ -122,6 +123,8 @@ function parse_benchmark_targets(raw::AbstractString)
         isempty(name) && continue
         if name in ("opponent", "branch")
             push!(targets, :pivot)
+        elseif name in ("tow", "tug", "alternation")
+            push!(targets, :tow)
         elseif name in known || name in ("aco", "pivot", "heuristic", "ga", "tabu")
             push!(targets, Symbol(name))
         else
@@ -205,7 +208,9 @@ function warmup_benchmarks!(k::Int, θ::Int, reduction::ReductionMode.T, aco_opt
             elite_seed_remove=get(aco_options, :elite_seed_remove, 2),
             elite_pheromone=get(aco_options, :elite_pheromone, false),
             aco_tabu=get(aco_options, :aco_tabu, false),
-            mmas=get(aco_options, :mmas, false))
+            mmas=get(aco_options, :mmas, false),
+            eta_exp=Float64(get(aco_options, :eta_exp, ETA_EXP)),
+            best_only_pheromone=get(aco_options, :best_only_pheromone, false) == true)
     end
     if :heuristic in targets
         g_h = deepcopy(g)
@@ -392,11 +397,13 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     elite_pheromone = get(aco_options, :elite_pheromone, false)
     aco_tabu = get(aco_options, :aco_tabu, false)
     mmas = get(aco_options, :mmas, false)
+    eta_exp = Float64(get(aco_options, :eta_exp, ETA_EXP))
+    best_only_pheromone = get(aco_options, :best_only_pheromone, false) == true
 
     first_hit = Ref{Union{Nothing,Int}}(nothing)
 
     println()
-    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies prefer_smaller_side=$prefer_smaller_side neighbor_scope_limit=$neighbor_scope_limit elite_seed=$elite_seed elite_pheromone=$elite_pheromone aco_tabu=$aco_tabu mmas=$mmas)…")
+    println("Running ACO (ants=$num_ants iterations=$num_iterations pheromone=$pheremone evaporation=$evaporation subspecies=$num_subspecies prefer_smaller_side=$prefer_smaller_side neighbor_scope_limit=$neighbor_scope_limit elite_seed=$elite_seed elite_pheromone=$elite_pheromone aco_tabu=$aco_tabu mmas=$mmas eta_exp=$eta_exp best_only_pheromone=$best_only_pheromone)…")
 
     g_run = deepcopy(g)
     m = measure_call() do
@@ -411,6 +418,8 @@ function benchmark_aco!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             elite_pheromone=elite_pheromone,
             aco_tabu=aco_tabu,
             mmas=mmas,
+            eta_exp=eta_exp,
+            best_only_pheromone=best_only_pheromone,
             reduction=reduction,
             iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
                 if opt_edges === nothing || first_hit[] !== nothing
@@ -507,7 +516,7 @@ exclude reduction cost.
 """
 function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol},
     k::Int, θ::Int, reduction::ReductionMode.T, aco_options;
-    ga_options=(; N=10, O=2, k_mutate=0.02, generations=500))
+    ga_options=(; N=10, O=2, k_mutate=0.02, generations=500), tow_options=(;))
     println()
     println("==================== BENCHMARK ====================")
     println("targets=$(join(sort!(collect(String(t) for t in targets)), ","))  k=$k  θ=$θ")
@@ -543,6 +552,7 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
         reduced_nV = length(fg.v_ids),
     )
     graph_stats = (; mutable_bytes, frozen_bytes, fg,
+        nU = length(g.adjU), nV = length(g.adjV),
         reduction_time = m_red.time, reduction_allocated = m_red.allocated,
         reduction_rss_delta = m_red.rss_delta)
 
@@ -587,11 +597,15 @@ function run_benchmarks!(g::BipartiteGraph, edge_count::Int, targets::Set{Symbol
     # Any other registered method symbols (future algorithms) via generic path.
     extra_stats = Dict{Symbol,Any}()
     builtin = Set([:aco, :pivot, :heuristic, :ga, :tabu])
-    for t in targets
+    for t in sort!(collect(targets))
         t in builtin && continue
-        method = make_method(String(t))
+        method = t == :tow ? TugOfWarMethod(; tow_options...) : make_method(String(t))
+        println()
+        println("$t warmup on reduced graph (excluded from timings)…")
+        benchmark_method!(method, g_reduced, k, θ, solver_reduction;
+            opt_edges=opt_edges, label="$t (warmup)")
         extra_stats[t] = benchmark_method!(method, g_reduced, k, θ, solver_reduction;
-            opt_edges=opt_edges)
+            opt_edges=opt_edges, label=String(t))
     end
 
     println()
@@ -723,8 +737,11 @@ function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
     out["graph"] = Dict(
         "mutable_bytes" => gs.mutable_bytes,
         "frozen_bytes" => gs.frozen_bytes,
+        "nU" => get(gs, :nU, nothing),
+        "nV" => get(gs, :nV, nothing),
         "reduced_nU" => length(gs.fg.u_ids),
         "reduced_nV" => length(gs.fg.v_ids),
+        "reduced_edges" => length(gs.fg.v_adj),
         "reduction_time_s" => get(gs, :reduction_time, nothing),
         "reduction_allocated_bytes" => get(gs, :reduction_allocated, nothing),
         "reduction_rss_delta_bytes" => get(gs, :reduction_rss_delta, nothing),
@@ -803,7 +820,7 @@ function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
 
     if hasproperty(results, :extra_stats) && results.extra_stats !== nothing
         for (name, st) in results.extra_stats
-            out[String(name)] = Dict(
+            entry = Dict{String,Any}(
                 "wall_time_s" => st.time,
                 "allocated_bytes" => st.allocated,
                 "rss_delta_bytes" => st.rss_delta,
@@ -813,6 +830,10 @@ function benchmark_results_to_dict(results; k::Int=0, θ::Int=0,
                 "theta_feasible" => get(st, :theta_feasible, nothing),
                 "solution" => sol_summary(st.fg_eval, st.sol),
             )
+            if name == :tow
+                entry["settings"] = st.meta
+            end
+            out[String(name)] = entry
         end
     end
 

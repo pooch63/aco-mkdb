@@ -1,0 +1,128 @@
+{
+  "name": "aco_settings_ablation",
+  "output": "results/aco_settings_ablation.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "skip_completed": true,
+  "inject": true,
+  "datasets": [
+    "amazon/appliances",
+    "amazon/beauty",
+    "amazon/boxes",
+    "amazon/fashion",
+    "amazon/gift-cards",
+    "amazon/health",
+    "amazon/instruments",
+    "amazon/magazine",
+    "amazon/music",
+    "konect-small/dnc-corecipient",
+    "konect-small/edit-guwikiquote",
+    "konect-small/edit-jamwiki",
+    "konect-small/edit-mkwikisource",
+    "konect-small/edit-mrwiktionary",
+    "konect-small/edit-nowikinews",
+    "konect-small/edit-rowikibooks",
+    "konect-small/edit-srwikiquote",
+    "konect-small/edit-vewiki",
+    "konect-small/edit-wowiktionary",
+    "konect-small/edit-zuwiktionary",
+    "konect-small/facebook",
+    "konect-small/maayan-vidal",
+    "konect-small/moreno",
+    "konect-small/moreno_blogs",
+    "konect-small/moreno_health",
+    "konect-small/nawiki",
+    "konect-small/p2p-Gnutella09",
+    "konect-small/petster-hamster",
+    "konect/bitcoin",
+    "konect/ciaodvd",
+    "konect/dblp_cite",
+    "konect/dimacs-polblogs",
+    "konect/gnutella",
+    "konect/matter",
+    "konect/openflights",
+    "konect/pgp-arenas",
+    "konect/wiki_talk_nds"
+  ],
+  "methods": [
+    {
+      "id": "aco",
+      "method": "aco",
+      "label": "ACO",
+      "params": {
+        "ants": 100,
+        "iterations": 5,
+        "pheromone": 1,
+        "evaporation": 0.95,
+        "prefer_smaller_side": false,
+        "neighbor_scope_limit": true,
+        "best_only_pheromone": false,
+        "greedy_fill": "off",
+        "parallelize": false
+      }
+    },
+    {
+      "id": "no_pheromone",
+      "method": "aco",
+      "label": "No pheromone",
+      "params": {
+        "ants": 100,
+        "iterations": 5,
+        "pheromone": 0,
+        "evaporation": 1.0,
+        "prefer_smaller_side": false,
+        "neighbor_scope_limit": true,
+        "best_only_pheromone": false,
+        "greedy_fill": "off",
+        "parallelize": false
+      }
+    },
+    {
+      "id": "best_only",
+      "method": "aco",
+      "label": "Best-only deposit",
+      "params": {
+        "ants": 100,
+        "iterations": 5,
+        "pheromone": 1,
+        "evaporation": 0.95,
+        "prefer_smaller_side": false,
+        "neighbor_scope_limit": true,
+        "best_only_pheromone": true,
+        "greedy_fill": "off",
+        "parallelize": false
+      }
+    },
+    {
+      "id": "greedy_fill_end",
+      "method": "aco",
+      "label": "Greedy fill",
+      "params": {
+        "ants": 100,
+        "iterations": 5,
+        "pheromone": 1,
+        "evaporation": 0.95,
+        "prefer_smaller_side": false,
+        "neighbor_scope_limit": true,
+        "best_only_pheromone": true,
+        "greedy_fill": "end",
+        "parallelize": false
+      }
+    },
+    {
+      "id": "ga",
+      "method": "ga",
+      "label": "GA",
+      "params": {
+        "N": 10,
+        "O": 2,
+        "k_mutate": 0.02,
+        "generations": 500,
+        "repair": "mixed",
+        "use_heuristic": true
+      }
+    }
+  ]
+}

@@ -8,6 +8,11 @@ Invoked via:
 
 For `--vary=ant-count`, runs ACO once per ant count (fixed iteration budget from
 `--iterations`) and records iterations-to-best, solution quality, and wall time.
+`--vary=param` holds the ant count fixed (`--ants-range` must be a single
+integer) and sweeps `--param=rho|pheromone|eta-exp` over `--param-range`.
+`rho` is the paper evaporation rate (ACO multiplies τ by `1-ρ`). `pheromone`
+is the deposit Δτ. `eta-exp` is the exponent in τ · η^x. Each trial records
+`param_value` for that axis. Other knobs stay at the CLI defaults.
 With `--aco-runs=N` (N>1), each ant count is repeated N times with a distinct
 seed derived from `--seed`, and every replicate is written into the JSON.
 Run 1 of each ant count is a real-instance Julia JIT warmup (`jit_warmup=true`);
@@ -16,12 +21,17 @@ replicates (paper default: N=6 → 5 timed runs). When N=1, an untimed ACO solve
 still runs first so the recorded wall time excludes JIT.
 Each trial also logs the returned subgraph vertex ids (`U` / `V`) so downstream
 tools (compare-seeds.jl) can re-seed branch-and-pivot.
+Each trial logs `epoch_trace`: the incumbent after every completed epoch
+(`t`, `|E|`, θ-feasibility, cumulative search time). Shorter epoch budgets
+are prefixes of that trace — Algorithm 1 has no schedule that depends on `T`.
 The JSON also records `best_trial` (max edges among counted replicates) and
 `aco_discovery_s`: sum of counted `wall_time_s` over every replicate at that
 trial's ant count (full budget, not truncated at the winning run).
 Top-level keys `prefer_smaller_side` and `neighbor_scope_limit` mirror the
 CLI flags used for the ACO trials. Ablation flags `elite_pheromone`,
-`aco_tabu`, and `mmas` are also recorded (default false).
+`aco_tabu`, and `mmas` are also recorded (default false), as are `eta_exp`
+(default `ETA_EXP` from `src/constants.jl`) and `best_only_pheromone`
+(default false).
 Pivot is off by default (it is too slow on large graphs); enable with
 `--vary-pivot=true` to supply an optimum edge count for quality comparison.
 The θ-heuristic runs twice on the reduced graph (first discarded for JIT;
@@ -57,8 +67,11 @@ function parse_vary()
             mode = lowercase(strip(split(arg, "=", limit=2)[2]))
             if mode == "ant-count"
                 return :ant_count
+            elseif mode == "param"
+                return :param
             else
-                throw(ArgumentError("Unknown --vary mode '$mode' (expected ant-count)"))
+                throw(ArgumentError(
+                    "Unknown --vary mode '$mode' (expected ant-count or param)"))
             end
         elseif arg == "--vary"
             throw(ArgumentError("--vary requires a value, e.g. --vary=ant-count"))
@@ -88,6 +101,99 @@ function parse_ants_range()
         end
     end
     return [1, 2, 5, 10, 20, 50, 100]
+end
+
+"""
+Parse `--param=rho|pheromone|eta-exp` for `--vary=param`.
+
+`rho` is the paper evaporation rate: each epoch multiplies τ by `1 - ρ`
+(the `evaporation` argument of `aco`). `pheromone` is the deposit Δτ.
+`eta-exp` is the exponent on heuristic desirability in τ · η^x.
+"""
+function parse_param()
+    for arg in ARGS
+        if startswith(arg, "--param=")
+            name = lowercase(strip(split(arg, "=", limit=2)[2]))
+            name in ("rho", "pheromone", "eta-exp") || throw(ArgumentError(
+                "--param must be rho, pheromone, or eta-exp; got '$name'"))
+            return name
+        elseif arg == "--param"
+            throw(ArgumentError("--param requires a value, e.g. --param=rho"))
+        end
+    end
+    throw(ArgumentError("--vary=param requires --param=rho|pheromone|eta-exp"))
+end
+
+"""
+Parse `--param-range=a,b,c` into the plotted axis values for `--vary=param`.
+"""
+function parse_param_range()
+    for arg in ARGS
+        if startswith(arg, "--param-range=")
+            raw = split(arg, "=", limit=2)[2]
+            values = Float64[]
+            for part in split(raw, ',')
+                s = strip(part)
+                isempty(s) && continue
+                push!(values, parse(Float64, s))
+            end
+            isempty(values) && throw(ArgumentError("--param-range= needs at least one number"))
+            return values
+        elseif arg == "--param-range"
+            throw(ArgumentError("--param-range requires a value, e.g. --param-range=0.01,0.05,0.2"))
+        end
+    end
+    throw(ArgumentError("--vary=param requires --param-range="))
+end
+
+"""One point of a vary sweep. `x` is the value emit plots on the horizontal axis."""
+struct VarySetting
+    x::Float64
+    num_ants::Int
+    pheromone::Int
+    evaporation::Float64
+    eta_exp::Float64
+end
+
+"""Ant-count sweep: `x` is the ant count; deposit, retention, and η stay fixed."""
+function ant_count_settings(ant_counts::Vector{Int}, aco_options)
+    pheromone = Int(get(aco_options, :pheremone, get(aco_options, :pheromone, 1)))
+    evaporation = Float64(get(aco_options, :evaporation, 0.95))
+    eta_exp = Float64(get(aco_options, :eta_exp, ETA_EXP))
+    return [VarySetting(Float64(n), n, pheromone, evaporation, eta_exp) for n in ant_counts]
+end
+
+"""
+Hyperparameter sweep at one ant count.
+
+`rho` values are paper evaporation rates in ``[0, 1)``; ACO is called with
+retention ``1 - ρ``. `pheromone` values are nonnegative integer deposits.
+`eta-exp` values are finite exponents.
+"""
+function param_settings(param::AbstractString, values::Vector{Float64},
+    num_ants::Int, aco_options)
+    num_ants >= 1 || throw(ArgumentError("param sweep ant count must be >= 1, got $num_ants"))
+    pheromone = Int(get(aco_options, :pheremone, get(aco_options, :pheromone, 1)))
+    evaporation = Float64(get(aco_options, :evaporation, 0.95))
+    eta_exp = Float64(get(aco_options, :eta_exp, ETA_EXP))
+    settings = VarySetting[]
+    for x in values
+        if param == "rho"
+            0.0 <= x < 1.0 || throw(ArgumentError(
+                "rho must be in [0, 1), got $x (retention 1-ρ must lie in (0, 1])"))
+            push!(settings, VarySetting(x, num_ants, pheromone, 1.0 - x, eta_exp))
+        elseif param == "pheromone"
+            (x >= 0 && isinteger(x)) || throw(ArgumentError(
+                "pheromone deposit must be a nonnegative integer, got $x"))
+            push!(settings, VarySetting(x, num_ants, Int(x), evaporation, eta_exp))
+        elseif param == "eta-exp"
+            isfinite(x) || throw(ArgumentError("eta-exp must be finite, got $x"))
+            push!(settings, VarySetting(x, num_ants, pheromone, evaporation, x))
+        else
+            throw(ArgumentError("unknown vary param '$param'"))
+        end
+    end
+    return settings
 end
 
 """
@@ -199,17 +305,20 @@ function is_jit_warmup_trial(t; n_runs::Int=1)
 end
 
 """
-Full ACO wall time at the winning ant count: sum `wall_time_s` over every
-counted same-ants replicate (not truncated at the winning run / time-to-best;
-JIT warmup replicates omitted).
+Full ACO wall time at the winning setting: sum `wall_time_s` over every
+counted replicate with the same ant count and, when the sweep varies a
+hyperparameter, the same `param_value`. Not truncated at time-to-best.
+JIT warmup replicates are omitted.
 """
 function aco_discovery_until(trials, best; n_runs::Int=1)
     best === nothing && return nothing
     win_ants = best.num_ants
+    win_x = get(best, :param_value, nothing)
     total = 0.0
     n = 0
     for t in trials
         t.num_ants != win_ants && continue
+        win_x !== nothing && get(t, :param_value, nothing) != win_x && continue
         is_jit_warmup_trial(t; n_runs=n_runs) && continue
         total += Float64(t.wall_time_s)
         n += 1
@@ -223,6 +332,7 @@ function best_trial_summary_dict(t)
         "run" => get(t, :run, nothing),
         "seed" => get(t, :seed, nothing),
         "ants" => t.num_ants,
+        "param_value" => get(t, :param_value, nothing),
         "final_edges" => t.final_edges,
         "time_to_best_s" => t.time_to_best_s,
         "wall_time_s" => t.wall_time_s,
@@ -285,10 +395,15 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
     elite_pheromone = get(aco_options, :elite_pheromone, false)
     aco_tabu = get(aco_options, :aco_tabu, false)
     mmas = get(aco_options, :mmas, false)
+    eta_exp = Float64(get(aco_options, :eta_exp, ETA_EXP))
+    best_only_pheromone = get(aco_options, :best_only_pheromone, false) == true
 
     first_hit = Ref{Union{Nothing,Int}}(nothing)
     construction_stats = Ref{Any}(nothing)
     timed_out = Ref(false)
+    # Incumbent after each completed epoch. A prefix is the run Algorithm 1
+    # would have returned at that T (no T-dependent schedule).
+    epoch_trace = NamedTuple[]
 
     g_run = deepcopy(g)
     m = measure_call() do
@@ -303,9 +418,21 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
             elite_pheromone=elite_pheromone,
             aco_tabu=aco_tabu,
             mmas=mmas,
+            eta_exp=eta_exp,
+            best_only_pheromone=best_only_pheromone,
             reduction=reduction,
             construction_stats=construction_stats,
-            iteration_callback = (iter, best_compact, compact_fg, _remapping, _elapsed_s) -> begin
+            iteration_callback = (iter, best_compact, compact_fg, _remapping, elapsed_s) -> begin
+                edges = Subgraph.edge_count(compact_fg, best_compact)
+                θ_ok = length(best_compact.U) ≥ θ && length(best_compact.V) ≥ θ
+                push!(epoch_trace, (;
+                    t=iter,
+                    edges,
+                    theta_feasible=θ_ok,
+                    elapsed_s,
+                    nU=length(best_compact.U),
+                    nV=length(best_compact.V),
+                ))
                 if deadline_s !== nothing && time() >= deadline_s
                     timed_out[] = true
                     return false
@@ -313,11 +440,9 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
                 if opt_edges === nothing || first_hit[] !== nothing
                     return true
                 end
-                edges = Subgraph.edge_count(compact_fg, best_compact)
                 missing = Subgraph.missing_edges(compact_fg, best_compact)
-                θ_ok = (length(best_compact.U) ≥ θ && length(best_compact.V) ≥ θ) ||
-                    (opt_edges == 0 && edges == 0)
-                if missing <= k && θ_ok && edges >= opt_edges
+                opt_ok = θ_ok || (opt_edges == 0 && edges == 0)
+                if missing <= k && opt_ok && edges >= opt_edges
                     first_hit[] = iter
                 end
                 return true
@@ -360,6 +485,7 @@ function vary_aco_trial!(g::BipartiteGraph, k::Int, θ::Int, aco_options;
         missing,
         theta_feasible = θ_feasible,
         construction = construction_stats_dict(construction_stats[], remapping),
+        epoch_trace,
         timed_out = timed_out[])
 end
 
@@ -416,7 +542,10 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     n_runs::Int=1, plant=nothing,
     aco_timeout::Union{Nothing,Float64}=nothing,
     checkpoint_path::Union{Nothing,AbstractString}=nothing,
-    checkpoint_meta=nothing)
+    checkpoint_meta=nothing,
+    settings::Union{Nothing,Vector{VarySetting}}=nothing,
+    vary_kind::AbstractString="ant-count",
+    param_name::Union{Nothing,AbstractString}=nothing)
     n_runs >= 1 || throw(ArgumentError("n_runs must be >= 1, got $n_runs"))
     _, _, num_iterations, _, _ = aco_options
 
@@ -435,13 +564,28 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     elite_pheromone = get(aco_options, :elite_pheromone, false)
     aco_tabu = get(aco_options, :aco_tabu, false)
     mmas = get(aco_options, :mmas, false)
+    eta_exp = Float64(get(aco_options, :eta_exp, ETA_EXP))
+    best_only_pheromone = get(aco_options, :best_only_pheromone, false) == true
 
-    println("==================== VARY ant-count ====================")
+    println("==================== VARY $vary_kind ====================")
     println("dataset=$dataset  k=$k  θ=$θ  iterations=$num_iterations")
-    println("ants-range=$(join(ant_counts, ","))  run_pivot=$run_pivot  aco_runs=$n_runs")
-    println("base_seed=$base_seed")
+    if settings === nothing
+        settings = ant_count_settings(ant_counts, aco_options)
+    end
+    swept = [s.x for s in settings]
+    param_range = vary_kind == "param" ? swept : nothing
+    if vary_kind == "param"
+        println("param=$param_name  range=$(join(swept, ","))  ants=$(ant_counts[1])")
+    else
+        println("ants-range=$(join(ant_counts, ","))")
+    end
+    println("run_pivot=$run_pivot  aco_runs=$n_runs  base_seed=$base_seed")
     println("prefer_smaller_side=$prefer_smaller_side  neighbor_scope_limit=$neighbor_scope_limit")
+    pheromone_deposit = Int(get(aco_options, :pheremone, get(aco_options, :pheromone, 1)))
+    evaporation = Float64(get(aco_options, :evaporation, 0.95))
     println("elite_pheromone=$elite_pheromone  aco_tabu=$aco_tabu  mmas=$mmas")
+    println("eta_exp=$eta_exp  best_only_pheromone=$best_only_pheromone")
+    println("pheromone=$pheromone_deposit  evaporation=$evaporation")
     println("reduction=$reduction (CNN / one-shot; progressive disabled)")
     if aco_timeout !== nothing
         println("aco_timeout=$(aco_timeout)s (shared budget for all ACO trials)")
@@ -536,6 +680,8 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
             ant_counts, opt_edges, n_runs, base_seed=string(base_seed),
             best_trial=nothing, aco_discovery_s=nothing,
             prefer_smaller_side, neighbor_scope_limit, elite_pheromone, aco_tabu, mmas,
+            pheromone=pheromone_deposit, evaporation,
+            vary_kind, param_name, param_range,
             aco_timeout, aco_timed_out=false, aco_status="running")
         meta = checkpoint_meta === nothing ? NamedTuple() : checkpoint_meta
         payload = vary_results_to_dict(partial;
@@ -559,20 +705,28 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     aco_timed_out = false
 
     trials = NamedTuple[]
-    for (ai, n_ants) in enumerate(ant_counts)
+    n_settings = length(settings)
+    for (ai, setting) in enumerate(settings)
+        n_ants = setting.num_ants
+        point_options = merge(aco_options, (;
+            pheremone=setting.pheromone,
+            evaporation=setting.evaporation,
+            eta_exp=setting.eta_exp,
+        ))
+        axis = vary_kind == "param" ? "$(param_name)=$(setting.x)  " : ""
         if aco_deadline !== nothing && time() >= aco_deadline
             aco_timed_out = true
             println()
-            println("── ACO budget exhausted before ants=$n_ants (timeout=$(aco_timeout)s) ──")
+            println("── ACO budget exhausted before $(axis)ants=$n_ants (timeout=$(aco_timeout)s) ──")
             break
         end
         # When only one recorded replicate, still burn one untimed solve so the
         # measured wall time excludes Julia JIT on this graph.
         if n_runs == 1
             println()
-            println("── ACO ants=$n_ants  JIT warmup (excluded) ──")
+            println("── ACO $(axis)ants=$n_ants  JIT warmup (excluded) ──")
             Random.seed!(vary_run_seed(base_seed, ai, 1, 1))
-            warm = vary_aco_trial!(g_reduced, k, θ, aco_options;
+            warm = vary_aco_trial!(g_reduced, k, θ, point_options;
                 num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction,
                 deadline_s=aco_deadline)
             if get(warm, :timed_out, false)
@@ -585,7 +739,7 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
             if aco_deadline !== nothing && time() >= aco_deadline
                 aco_timed_out = true
                 println()
-                println("── ACO budget exhausted before ants=$n_ants run=$run ──")
+                println("── ACO budget exhausted before $(axis)ants=$n_ants run=$run ──")
                 break
             end
             run_seed = vary_run_seed(base_seed, ai, run, n_runs)
@@ -594,13 +748,13 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
             jit_warmup = n_runs > 1 && run == 1
             println()
             if n_runs == 1
-                println("── ACO $(ai)/$(length(ant_counts)): ants=$n_ants ──")
+                println("── ACO $(ai)/$(n_settings): $(axis)ants=$n_ants ──")
             elseif jit_warmup
-                println("── ACO ants=$n_ants  run $run/$n_runs  seed=$run_seed  (JIT warmup; recorded but discarded in emit) ──")
+                println("── ACO $(axis)ants=$n_ants  run $run/$n_runs  seed=$run_seed  (JIT warmup; recorded but discarded in emit) ──")
             else
-                println("── ACO ants=$n_ants  run $run/$n_runs  seed=$run_seed ──")
+                println("── ACO $(axis)ants=$n_ants  run $run/$n_runs  seed=$run_seed ──")
             end
-            trial = vary_aco_trial!(g_reduced, k, θ, aco_options;
+            trial = vary_aco_trial!(g_reduced, k, θ, point_options;
                 num_ants=n_ants, opt_edges=opt_edges, reduction=solver_reduction,
                 deadline_s=aco_deadline)
             if get(trial, :timed_out, false)
@@ -611,7 +765,16 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
             end
             beats_heuristic = trial.final_edges > heuristic_stats.final_edges &&
                 trial.theta_feasible
-            trial = merge(trial, (; run, seed=string(run_seed), beats_heuristic, jit_warmup))
+            stamped = (; run, seed=string(run_seed), beats_heuristic, jit_warmup)
+            if vary_kind == "param"
+                stamped = merge(stamped, (;
+                    param_value=setting.x,
+                    pheromone=setting.pheromone,
+                    evaporation=setting.evaporation,
+                    eta_exp=setting.eta_exp,
+                ))
+            end
+            trial = merge(trial, stamped)
             println("  wall=$(format_seconds(trial.wall_time_s))s  " *
                     "to_best=$(format_seconds(trial.time_to_best_s))s  " *
                     "iters→best=$(trial.iterations_to_best)  " *
@@ -640,13 +803,16 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     if aco_timed_out
         println("ACO status: TIMEOUT (limit=$(aco_timeout)s)")
     end
+    axis_name = vary_kind == "param" ? string(param_name) : "ants"
     if n_runs == 1
-        println(rpad("ants", 8), rpad("time", 12), rpad("→best", 12),
+        println(rpad(axis_name, 12), rpad("ants", 8), rpad("time", 12), rpad("→best", 12),
                 rpad("iters", 8), rpad("edges", 10), rpad(">heur", 8), "optimal")
         for t in trials
             opt_str = t.optimal_edges === nothing ? "—" :
                 (t.matched_optimal ? "yes" : "no ($(t.final_edges)/$(t.optimal_edges))")
-            println(rpad(t.num_ants, 8),
+            axis_val = vary_kind == "param" ? get(t, :param_value, "") : t.num_ants
+            println(rpad(axis_val, 12),
+                    rpad(t.num_ants, 8),
                     rpad(format_seconds(t.wall_time_s) * "s", 12),
                     rpad(format_seconds(t.time_to_best_s) * "s", 12),
                     rpad(string(t.iterations_to_best), 8),
@@ -655,12 +821,14 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
                     opt_str)
         end
     else
-        println(rpad("ants", 8), rpad("run", 6), rpad("time", 12),
+        println(rpad(axis_name, 12), rpad("ants", 8), rpad("run", 6), rpad("time", 12),
                 rpad("iters", 8), rpad("edges", 10), rpad(">heur", 8), "optimal")
         for t in trials
             opt_str = t.optimal_edges === nothing ? "—" :
                 (t.matched_optimal ? "yes" : "no ($(t.final_edges)/$(t.optimal_edges))")
-            println(rpad(t.num_ants, 8),
+            axis_val = vary_kind == "param" ? get(t, :param_value, "") : t.num_ants
+            println(rpad(axis_val, 12),
+                    rpad(t.num_ants, 8),
                     rpad(t.run, 6),
                     rpad(format_seconds(t.wall_time_s) * "s", 12),
                     rpad(string(t.iterations_to_best), 8),
@@ -678,6 +846,7 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     if best_trial !== nothing
         println()
         println("Best ACO trial (by edges): ants=$(best_trial.num_ants)  " *
+                (vary_kind == "param" ? "$(param_name)=$(get(best_trial, :param_value, "?"))  " : "") *
                 "run=$(get(best_trial, :run, "?"))  " *
                 "edges=$(best_trial.final_edges)  " *
                 "discovery=$(format_seconds(aco_discovery_s))s  " *
@@ -697,6 +866,9 @@ function run_vary_ant_count!(g::BipartiteGraph, edge_count::Int, k::Int, θ::Int
     return (; graph_stats, pivot_stats, heuristic_stats, trials, ant_counts, opt_edges,
         n_runs, base_seed=string(base_seed), best_trial, aco_discovery_s,
         prefer_smaller_side, neighbor_scope_limit, elite_pheromone, aco_tabu, mmas,
+        eta_exp, best_only_pheromone,
+        pheromone=pheromone_deposit, evaporation,
+        vary_kind, param_name, param_range,
         aco_timeout, aco_timed_out, aco_status)
 end
 
@@ -707,7 +879,9 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
     neighbor_scope_limit::Union{Nothing,Bool}=nothing,
     elite_pheromone::Union{Nothing,Bool}=nothing,
     aco_tabu::Union{Nothing,Bool}=nothing,
-    mmas::Union{Nothing,Bool}=nothing)
+    mmas::Union{Nothing,Bool}=nothing,
+    eta_exp::Union{Nothing,Float64}=nothing,
+    best_only_pheromone::Union{Nothing,Bool}=nothing)
     pss = prefer_smaller_side === nothing ?
         get(results, :prefer_smaller_side, nothing) : prefer_smaller_side
     nsl = neighbor_scope_limit === nothing ?
@@ -718,8 +892,12 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         get(results, :aco_tabu, nothing) : aco_tabu
     mm = mmas === nothing ?
         get(results, :mmas, nothing) : mmas
+    ηexp = eta_exp === nothing ?
+        get(results, :eta_exp, nothing) : eta_exp
+    bop = best_only_pheromone === nothing ?
+        get(results, :best_only_pheromone, nothing) : best_only_pheromone
     out = Dict{String,Any}(
-        "vary" => "ant-count",
+        "vary" => String(get(results, :vary_kind, "ant-count")),
         "dataset" => String(dataset),
         "k" => k,
         "theta" => θ,
@@ -734,6 +912,12 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
         "elite_pheromone" => ep,
         "aco_tabu" => at,
         "mmas" => mm,
+        "eta_exp" => ηexp,
+        "best_only_pheromone" => bop,
+        "pheromone" => get(results, :pheromone, nothing),
+        "evaporation" => get(results, :evaporation, nothing),
+        "param" => get(results, :param_name, nothing),
+        "param_range" => get(results, :param_range, nothing),
         "ants_range" => results.ant_counts,
     )
 
@@ -788,7 +972,7 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
     end
 
     out["trials"] = [
-        Dict(
+        let d = Dict(
             "run" => get(t, :run, 1),
             "seed" => get(t, :seed, nothing),
             "jit_warmup" => get(t, :jit_warmup, false),
@@ -811,7 +995,17 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
             "missing" => t.missing,
             "theta_feasible" => t.theta_feasible,
             "construction" => get(t, :construction, nothing),
-        ) for t in results.trials
+            "epoch_trace" => epoch_trace_to_json(get(t, :epoch_trace, nothing)),
+        )
+            pv = get(t, :param_value, nothing)
+            if pv !== nothing
+                d["param_value"] = pv
+                d["pheromone"] = get(t, :pheromone, nothing)
+                d["evaporation"] = get(t, :evaporation, nothing)
+                d["eta_exp"] = get(t, :eta_exp, nothing)
+            end
+            d
+        end for t in results.trials
     ]
 
     best = get(results, :best_trial, nothing)
@@ -821,6 +1015,21 @@ function vary_results_to_dict(results; k::Int=0, θ::Int=0,
     end
 
     return out
+end
+
+"""JSON list of per-epoch incumbents, or nothing when a trial has no trace."""
+function epoch_trace_to_json(trace)
+    trace === nothing && return nothing
+    return [
+        Dict{String,Any}(
+            "t" => Int(e.t),
+            "edges" => Int(e.edges),
+            "theta_feasible" => e.theta_feasible === true,
+            "elapsed_s" => Float64(e.elapsed_s),
+            "nU" => Int(e.nU),
+            "nV" => Int(e.nV),
+        ) for e in trace
+    ]
 end
 
 function save_vary_json(path::AbstractString, payload::AbstractDict)

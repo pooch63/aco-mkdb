@@ -18,6 +18,7 @@ Solver flags (independent of branch mode):
   --diffusion  use diffusion-guided vertex ACO (cohesion reward)
   --vns        use variable neighborhood search (perturbation VNS)
   --retry      use randomized neighbor-walk with probabilistic backtracking
+  --tow        use Tug-of-War (alternating best-response) heuristic
   --heuristic  use only the initial heuristic (no search)
   (default)    use branch-and-bound (find_kmdb!)
 
@@ -78,6 +79,13 @@ ACO flags:
   --elite-pheromone=true|false       elitist pheromone emit on softmax elites (default: false)
   --aco-tabu=true|false              tabu repair on elites / new global bests (default: false)
   --mmas=true|false                  MAX-MIN Ant System τ bounds (default: false)
+  --greedy-fill=off|end|step         off: keep the walk. end: pack each side when an
+                                     ant stops. step: pack after every add onto a side
+                                     that already has ≥θ vertices (default: off)
+  --eta-exp=X                        exponent on heuristic desirability η in τ·η^X
+                                     (default: ETA_EXP in src/constants.jl)
+  --best-only-pheromone=true|false   deposit only the iteration-best solution each round
+                                     (default: false; every ant deposits while it walks)
   --aco-reduce=true|false            run pivot + ACO, then score how many nodes
                                      sit below the min pheromone on the pivot optimum
                                      (default: false). ACO is not told the optimum;
@@ -85,12 +93,19 @@ ACO flags:
   --diffusion-iters=N                diffusion smoothing rounds before ACO (default: 20;
                                      only used with --diffusion)
 
+Tug-of-War flags (used by --tow and --benchmark=tow):
+  --tow-seed-source=sc|degree|random seed-edge ranking (default: sc)
+  --tow-num-seeds=N                  seed edges to expand (default: 10)
+  --tow-max-shakes=N                 shake-and-improve rounds per candidate (default: 3)
+  --tow-peel=true|false              peel vertices with degree < θ−k first (default: true)
+  --tow-seed=S                       RNG seed for seed-source=random (default: --seed)
+
 Prerequisites:
   Ensure you have Julia and the required packages installed.
 
 How to Run from the Command Line:
   Format:
-    julia bin/load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--edges|--diffusion|--vns|--retry|--heuristic|--binary|--pivot] [--k=...] [--theta=...] [--inject --u=... --v=...] [--benchmark=...] [--save=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...] [--aco-reduce=...] [--kmax=...] [--beta=...] [--p=...] [--max-steps=...] [--diffusion-iters=...]
+    julia bin/load.jl [dataset_name_or_path] [--ga|--tabu|--aco|--edges|--diffusion|--vns|--retry|--tow|--heuristic|--binary|--pivot] [--k=...] [--theta=...] [--inject --u=... --v=...] [--benchmark=...] [--save=...] [--reduce=...] [--seed=...] [--ants=...] [--iterations=...] [--pheremone=...] [--evaporation=...] [--subspecies=...] [--aco-reduce=...] [--kmax=...] [--beta=...] [--p=...] [--max-steps=...] [--diffusion-iters=...]
 
   Examples:
     julia bin/load.jl
@@ -111,6 +126,8 @@ How to Run from the Command Line:
     julia bin/load.jl amazon/boxes --benchmark=aco,pivot
     julia bin/load.jl amazon/boxes --benchmark=aco,pivot --ants=20 --iterations=200 --seed=1
     julia bin/load.jl amazon/boxes --benchmark=heuristic,ga,aco --save=boxes_compare.json
+    julia bin/load.jl amazon/boxes --tow --tow-seed-source=degree --tow-num-seeds=20
+    julia bin/load.jl amazon/boxes --benchmark=heuristic,aco,tow --save=boxes_tow.json
     julia bin/load.jl konect/bitcoin --vary=ant-count --ants-range=10,20,50,100 --save=bitcoin_ants.json
     julia bin/load.jl /path/to/indexed_interactions.csv --pivot
 =================================================================================
@@ -153,7 +170,7 @@ const ACO_NUM_ITERATIONS = 5
 const ACO_EVAPORATION = 0.95
 const ACO_NUM_SUBSPECIES = 1
 
-@enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver edges_solver diffusion_solver vns_solver retry_solver
+@enumx Solver ga_solver branch_solver heuristic_solver tabu_solver aco_solver edges_solver diffusion_solver vns_solver retry_solver tow_solver
 
 function parse_reduction()
     for arg in ARGS
@@ -251,10 +268,24 @@ function parse_aco_options()
 
     prefer_smaller_side = parse_bool_eq("prefer-smaller-side", true)
     neighbor_scope_limit = parse_bool_eq("neighbor-scope-limit", true)
+    greedy_fill = :off
+    for arg in ARGS
+        if startswith(arg, "--greedy-fill=")
+            greedy_fill = normalize_greedy_fill(split(arg, "=", limit=2)[2])
+        end
+    end
     elite_seed = parse_bool_eq("elite-seed", true)
     elite_pheromone = parse_bool_eq("elite-pheromone", false)
     aco_tabu = parse_bool_eq("aco-tabu", false)
     mmas = parse_bool_eq("mmas", false)
+    best_only_pheromone = parse_bool_eq("best-only-pheromone", false)
+    eta_exp = Float64(ETA_EXP)
+    for arg in ARGS
+        if startswith(arg, "--eta-exp=")
+            eta_exp = parse(Float64, split(arg, "=", limit=2)[2])
+        end
+    end
+    isfinite(eta_exp) || throw(ArgumentError("eta-exp must be finite, got $eta_exp"))
 
     if !(0.0 < evaporation <= 1.0)
         throw(ArgumentError("evaporation must be in (0, 1], got $evaporation"))
@@ -272,7 +303,7 @@ function parse_aco_options()
     # NamedTuple: first five fields stay positionally destructurable.
     return (; pheremone, num_ants, num_iterations, evaporation, num_subspecies,
         prefer_smaller_side, neighbor_scope_limit, elite_seed, elite_seed_ants, elite_seed_remove,
-        elite_pheromone, aco_tabu, mmas)
+        elite_pheromone, aco_tabu, mmas, greedy_fill, eta_exp, best_only_pheromone)
 end
 
 function parse_benchmark()
@@ -389,6 +420,36 @@ function parse_diffusion_iters(default::Int=5)
     return default
 end
 
+"""
+Parse `--tow-*` flags into keyword arguments for `TugOfWarMethod`.
+`seed=nothing` here is filled from `--seed` in `main` when one is set.
+"""
+function parse_tow_options()
+    seed_source = :sc
+    num_seeds = 10
+    max_shakes = 3
+    seed = nothing
+    for arg in ARGS
+        if startswith(arg, "--tow-seed-source=")
+            seed_source = Symbol(lowercase(split(arg, "=", limit=2)[2]))
+        elseif startswith(arg, "--tow-num-seeds=")
+            num_seeds = parse(Int, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--tow-max-shakes=")
+            max_shakes = parse(Int, split(arg, "=", limit=2)[2])
+        elseif startswith(arg, "--tow-seed=")
+            seed = parse(Int, split(arg, "=", limit=2)[2])
+        end
+    end
+    peel = parse_bool_eq("tow-peel", true)
+
+    seed_source in (:sc, :degree, :random) || throw(ArgumentError(
+        "--tow-seed-source must be sc, degree, or random; got $seed_source"))
+    num_seeds >= 1 || throw(ArgumentError("--tow-num-seeds must be ≥ 1, got $num_seeds"))
+    max_shakes >= 0 || throw(ArgumentError("--tow-max-shakes must be ≥ 0, got $max_shakes"))
+
+    return (; seed_source, num_seeds, max_shakes, seed, peel)
+end
+
 function parse_args()
     dataset_name = nothing
     solver = Solver.branch_solver
@@ -412,6 +473,7 @@ function parse_args()
     vary_run_pivot = parse_vary_run_pivot()
     aco_runs = parse_aco_runs()
     aco_timeout = parse_aco_timeout()
+    tow_options = parse_tow_options()
 
     for arg in ARGS
         if arg == "--ga"
@@ -428,6 +490,8 @@ function parse_args()
             solver = Solver.vns_solver
         elseif arg == "--retry"
             solver = Solver.retry_solver
+        elseif arg == "--tow"
+            solver = Solver.tow_solver
         elseif arg == "--heuristic"
             solver = Solver.heuristic_solver
         elseif arg == "--pivot"
@@ -449,14 +513,17 @@ function parse_args()
                startswith(arg, "--elite-seed=") ||
                startswith(arg, "--elite-seed-ants=") || startswith(arg, "--elite-seed-remove=") ||
                startswith(arg, "--elite-pheromone=") || startswith(arg, "--aco-tabu=") ||
-               startswith(arg, "--mmas=") ||
+               startswith(arg, "--mmas=") || startswith(arg, "--greedy-fill=") ||
+               startswith(arg, "--eta-exp=") || startswith(arg, "--best-only-pheromone=") ||
                startswith(arg, "--aco-reduce=") ||
                startswith(arg, "--vary=") || startswith(arg, "--ants-range=") ||
+               startswith(arg, "--param=") || startswith(arg, "--param-range=") ||
                startswith(arg, "--vary-pivot=") || startswith(arg, "--aco-runs=") ||
                startswith(arg, "--aco-timeout=") || startswith(arg, "--kmax=") ||
                startswith(arg, "--beta=") || startswith(arg, "--p=") ||
                startswith(arg, "--max-steps=") ||
-               startswith(arg, "--diffusion-iters=")
+               startswith(arg, "--diffusion-iters=") ||
+               startswith(arg, "--tow-")
             continue
         elseif dataset_name === nothing
             dataset_name = arg
@@ -483,7 +550,7 @@ function parse_args()
         throw(ArgumentError("--vary cannot be combined with --aco-reduce"))
     end
 
-    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout, kmax, beta, retry_p, max_steps, diffusion_iters
+    return dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout, kmax, beta, retry_p, max_steps, diffusion_iters, tow_options
 end
 
 """
@@ -571,7 +638,7 @@ Map the CLI `Solver` enum (+ branch mode / ACO options) onto a `SolveMethod`.
 """
 function solver_to_method(solver::Solver.T, mode::BranchMode.T, aco_options;
     num_solutions::Int=1, kmax::Int=10, beta::Float64=0.04, p::Float64=1.0,
-    max_steps::Int=10_000, diffusion_iters::Int=20)
+    max_steps::Int=10_000, diffusion_iters::Int=20, tow_options=(;))
     if solver == Solver.ga_solver
         return GAMethod(; N=GA_N, O=2, k_mutate=0.02, generations=500,
             repair=RepairMode.mixed)
@@ -588,6 +655,8 @@ function solver_to_method(solver::Solver.T, mode::BranchMode.T, aco_options;
         return VNSMethod(; kmax=kmax)
     elseif solver == Solver.retry_solver
         return RetryMethod(; beta=beta, p=p, max_steps=max_steps)
+    elseif solver == Solver.tow_solver
+        return TugOfWarMethod(; tow_options...)
     elseif solver == Solver.heuristic_solver
         return HeuristicMethod(; return_invalid=true)
     else
@@ -603,10 +672,10 @@ Prefer this over `solve!` when you need timing / meta / multi-sols uniformly.
 function solve_method!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
     k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1,
     kmax::Int=10, beta::Float64=0.04, p::Float64=1.0, max_steps::Int=10_000,
-    diffusion_iters::Int=20, injected_biclique=nothing, kwargs...)
+    diffusion_iters::Int=20, tow_options=(;), injected_biclique=nothing, kwargs...)
     m = solver_to_method(solver, mode, aco_options; num_solutions=num_solutions,
         kmax=kmax, beta=beta, p=p, max_steps=max_steps,
-        diffusion_iters=diffusion_iters)
+        diffusion_iters=diffusion_iters, tow_options=tow_options)
     return run_method!(m, g, k, θ; reduction=reduction,
         injected_biclique=injected_biclique, kwargs...)
 end
@@ -621,10 +690,11 @@ New code should prefer `solve_method!` → `MethodResult`.
 function solve!(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
     k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1,
     kmax::Int=10, beta::Float64=0.04, p::Float64=1.0, max_steps::Int=10_000,
-    diffusion_iters::Int=20, injected_biclique=nothing, kwargs...)
+    diffusion_iters::Int=20, tow_options=(;), injected_biclique=nothing, kwargs...)
     result = solve_method!(g, solver, mode, k, θ, reduction, aco_options;
         num_solutions=num_solutions, kmax=kmax, beta=beta, p=p, max_steps=max_steps,
-        diffusion_iters=diffusion_iters, injected_biclique=injected_biclique, kwargs...)
+        diffusion_iters=diffusion_iters, tow_options=tow_options,
+        injected_biclique=injected_biclique, kwargs...)
     if solver == Solver.aco_solver || solver == Solver.edges_solver ||
        solver == Solver.diffusion_solver || solver == Solver.branch_solver
         return result.all_sols
@@ -636,10 +706,11 @@ end
 function solve(g::BipartiteGraph, solver::Solver.T, mode::BranchMode.T,
     k::Int, θ::Int, reduction::ReductionMode.T, aco_options; num_solutions::Int=1,
     kmax::Int=10, beta::Float64=0.04, p::Float64=1.0, max_steps::Int=10_000,
-    diffusion_iters::Int=20, injected_biclique=nothing, kwargs...)
+    diffusion_iters::Int=20, tow_options=(;), injected_biclique=nothing, kwargs...)
     return solve!(deepcopy(g), solver, mode, k, θ, reduction, aco_options;
         num_solutions=num_solutions, kmax=kmax, beta=beta, p=p, max_steps=max_steps,
-        diffusion_iters=diffusion_iters, injected_biclique=injected_biclique, kwargs...)
+        diffusion_iters=diffusion_iters, tow_options=tow_options,
+        injected_biclique=injected_biclique, kwargs...)
 end
 
 """
@@ -675,6 +746,9 @@ function run_aco_reduce!(g::BipartiteGraph, k::Int, θ::Int, reduction::Reductio
         elite_pheromone=aco_options.elite_pheromone,
         aco_tabu=aco_options.aco_tabu,
         mmas=aco_options.mmas,
+        greedy_fill=aco_options.greedy_fill,
+        eta_exp=aco_options.eta_exp,
+        best_only_pheromone=aco_options.best_only_pheromone,
         reduction=reduction)
 
     fg_aco = freeze(g_aco)
@@ -698,7 +772,7 @@ function with_stacksize(f, bytes::Int)
 end
 
 function main()
-    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout, kmax, beta, retry_p, max_steps, diffusion_iters =
+    dataset_name, solver, mode, profile, reduction, seed, k, θ, aco_options, benchmark, vary, save_path, inject, aco_reduce, ants_range, vary_run_pivot, aco_runs, aco_timeout, kmax, beta, retry_p, max_steps, diffusion_iters, tow_options =
         parse_args()
     graph_path = resolve_graph_path(dataset_name)
     pheremone, num_ants, num_iterations, evaporation, num_subspecies = aco_options
@@ -716,16 +790,21 @@ function main()
     # Seed early when injection or a stochastic solver needs reproducibility.
     needs_seed = inject.enabled || aco_reduce || vary !== nothing ||
         (benchmark !== nothing && (:aco in benchmark || :edges in benchmark ||
-            :diffusion in benchmark ||
+            :diffusion in benchmark || :tow in benchmark ||
             :ga in benchmark || :vns in benchmark || :retry in benchmark)) ||
         solver == Solver.ga_solver || solver == Solver.tabu_solver ||
         solver == Solver.aco_solver || solver == Solver.edges_solver ||
-        solver == Solver.diffusion_solver ||
+        solver == Solver.diffusion_solver || solver == Solver.tow_solver ||
         solver == Solver.vns_solver || solver == Solver.retry_solver
     if needs_seed
         seed = seed === nothing ? UInt64(time_ns()) : seed
         Random.seed!(seed)
     end
+    if tow_options.seed === nothing && seed !== nothing
+        tow_options = merge(tow_options, (; seed=Int(seed % UInt64(typemax(Int)))))
+    end
+    tow_desc = "seed_source=$(tow_options.seed_source) num_seeds=$(tow_options.num_seeds) " *
+        "max_shakes=$(tow_options.max_shakes) peel=$(tow_options.peel) seed=$(tow_options.seed)"
     inject_rng = Random.default_rng()
 
     println("Loading graph from: $graph_path")
@@ -757,6 +836,9 @@ function main()
         if :ga in benchmark
             println("GA: N=$(ga_options.N) O=$(ga_options.O) generations=$(ga_options.generations) k_mutate=$(ga_options.k_mutate)")
         end
+        if :tow in benchmark
+            println("TOW: $tow_desc")
+        end
         if save_path !== nothing
             println("Save: $(resolve_benchmark_save_path(save_path))")
         end
@@ -777,6 +859,8 @@ function main()
         println("Solver: variable neighborhood search (kmax=$kmax)")
     elseif solver == Solver.retry_solver
         println("Solver: retry search (beta=$beta p=$retry_p max_steps=$max_steps)")
+    elseif solver == Solver.tow_solver
+        println("Solver: Tug-of-War ($tow_desc)")
     elseif solver == Solver.heuristic_solver
         println("Solver: initial heuristic only")
     else
@@ -789,7 +873,18 @@ function main()
             g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             run_aco_reduce!(g, k, θ, reduction, aco_options)
-        elseif vary == :ant_count
+        elseif vary == :ant_count || vary == :param
+            param_name = nothing
+            settings = nothing
+            vary_kind = "ant-count"
+            if vary == :param
+                param_name = parse_param()
+                param_values = parse_param_range()
+                length(ants_range) == 1 || throw(ArgumentError(
+                    "--vary=param sweeps one hyperparameter at a single ant count; pass --ants-range=100"))
+                settings = param_settings(param_name, param_values, ants_range[1], aco_options)
+                vary_kind = "param"
+            end
             g, edges, plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             resolved_save = save_path === nothing ? nothing :
@@ -803,7 +898,8 @@ function main()
                 plant=plant, aco_timeout=aco_timeout,
                 checkpoint_path=checkpoint,
                 checkpoint_meta=(; k, θ, dataset=String(dataset_name), seed,
-                    reduction, edge_count=edges, run_pivot=vary_run_pivot))
+                    reduction, edge_count=edges, run_pivot=vary_run_pivot),
+                settings=settings, vary_kind=vary_kind, param_name=param_name)
             if resolved_save !== nothing
                 payload = vary_results_to_dict(results;
                     k=k, θ=θ, dataset=String(dataset_name),
@@ -820,7 +916,7 @@ function main()
             g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
             println("nU=$(length(g.adjU)), nV=$(length(g.adjV)), |E|=$(edges)")
             results = run_benchmarks!(g, edges, benchmark, k, θ, reduction, aco_options;
-                ga_options=ga_options)
+                ga_options=ga_options, tow_options=tow_options)
             if save_path !== nothing
                 payload = benchmark_results_to_dict(results;
                     k=k, θ=θ, dataset=String(dataset_name), targets=benchmark,
@@ -834,7 +930,7 @@ function main()
             gw, edges = load_bipartite_graph(graph_path; max_lines = 50)
             Dw = solve!(gw, solver, mode, k, θ, reduction, aco_options;
                 kmax=kmax, beta=beta, p=retry_p, max_steps=max_steps,
-                diffusion_iters=diffusion_iters)
+                diffusion_iters=diffusion_iters, tow_options=tow_options)
 
             # Load full graph for the actual profiled run
             g, edges, _plant = load_graph_maybe_inject(graph_path, inject, k, inject_rng)
@@ -844,7 +940,7 @@ function main()
             @profile begin
                 D = solve(g, solver, mode, k, θ, reduction, aco_options;
                     kmax=kmax, beta=beta, p=retry_p, max_steps=max_steps,
-                    diffusion_iters=diffusion_iters)
+                    diffusion_iters=diffusion_iters, tow_options=tow_options)
             end
 
             # Always write a stable HTML path; view() alone only opens a temp file.
@@ -869,7 +965,8 @@ function main()
             
             D = solve!(g, solver, mode, k, θ, reduction, aco_options;
                 kmax=kmax, beta=beta, p=retry_p, max_steps=max_steps,
-                diffusion_iters=diffusion_iters, injected_biclique=plant)
+                diffusion_iters=diffusion_iters, tow_options=tow_options,
+                injected_biclique=plant)
 
             if D isa AbstractVector
                 fg = freeze(g)

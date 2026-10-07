@@ -1,0 +1,37 @@
+{
+  "name": "split_aco_vs_aco",
+  "output": "results/split_aco_vs_aco.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "skip_completed": true,
+  "inject": true,
+  "baseline": {
+    "method": "aco",
+    "label": "aco",
+    "params": {
+      "ants": 100,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true
+    }
+  },
+  "challenger": {
+    "method": "split_aco",
+    "label": "split-aco",
+    "params": {
+      "ants": 10,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true,
+      "forward_only": false,
+      "local_reduction": true,
+      "parallelize": true
+    }
+  }
+}

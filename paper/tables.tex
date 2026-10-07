@@ -1,0 +1,49 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+%%PREAMBLE%%
+\usepackage{pdflscape}
+\usepackage[margin=1in]{geometry}
+% Wide result tables: landscape PDF pages via pdflscape.
+\newenvironment{landscapetable}{%
+ \clearpage
+ \begin{landscape}%
+}{%
+ \end{landscape}%
+ \clearpage
+}
+
+\title{Tables: Ant Colony Optimization for $k$-defective Maximum Edge Bicliques}
+\author{Kiyaan Pillai}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+Per-graph result tables for the paper. Section numbers below refer to that paper.
+
+\section{ACO vs $\theta$-heuristic}
+The tables below list per-graph ACO results (100 ants, five epochs) against the $\theta$-heuristic. Table~\ref{tab:aco-heur-pn} is the primary paper setting ($k=2$, $\theta=5$); subsequent tables cover the $(k, \theta)$ sweep from Section~4.5. $|U_G|$, $|V_G|$, and $|E_G|$ are the original graph sizes; $|U_R|$, $|V_R|$, and $|E_R|$ are the reduced graph sizes on which both methods run after common-neighbor reduction.
+Rows are grouped into three blocks separated by horizontal rules---ACO wins, $\theta$-heuristic wins, and ties or mutual $\theta$-infeasibility---using the win rule in Section~4. Within each block, rows are sorted by ACO $|E(D_{best})|$.
+For ACO, \texttt{Discovery} is the cumulative wall time through the winning replicate; \texttt{ETB} is the epoch at which that replicate first reached its best $|E(D_{best})|$; \texttt{TimTB} is the elapsed time within that replicate to reach ETB. $|U_{D_{best}}|$, $|V_{D_{best}}|$, and $|E(D_{best})|$ denote the returned biclique; all times are in milliseconds.
+%%TABLE:k1t5i_PN%%
+%%TABLE:k2t5i_PN%%
+%%TABLE:k3t5i_PN%%
+%%TABLE:k4t5i_PN%%
+%%TABLE:k3t6i_PN%%
+%%TABLE:k3t7i_PN%%
+
+\section{Tug-of-War vs ACO and $\theta$-heuristic}
+Table~\ref{tab:methods-k2t5i_heuristic-aco-tow} lists per-graph results for the Tug-of-War (TOW) alternating best-response heuristic against ACO and the $\theta$-heuristic. All three methods run on the same reduced graph; $|E_G|$ is the original edge count and $|U_R|$, $|V_R|$ are the reduced side sizes. $|U_D|$, $|V_D|$, and $|E(D)|$ denote the returned biclique, and Time is the wall time of one timed run after a JIT warmup run, in milliseconds.
+%%METHODS:k2t5i_heuristic-aco-tow%%
+
+\section{Pivot seed comparison}
+Table~\ref{tab:seed-compare-full} lists branch-and-pivot timings for every graph. $|U_G|+|V_G|$ and $|E_G|$ are the vertex and edge counts of the original graph; $|U_R|+|V_R|$ and $|E_R|$ are the corresponding counts after common-neighbor reduction.
+Rows are grouped into two blocks separated by a horizontal rule: graphs where ACO seeding reduced net end-to-end time (top), and graphs with no net savings or overhead (bottom). Within each block, rows are sorted by ascending absolute time saved.
+Time saved is defined as $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$, where $T_{\mathrm{discovery}}$ is the cost of running ACO for all 5 replicates. Time saved represents the net wall-clock time change of running branch-and-pivot with an ACO seed versus running branch-and-pivot on the $\theta$-heuristic seed alone. Positive values mean the ACO-seeded pipeline is faster overall. Negative values mean ACO search did not beat the $\theta$-heuristic, in which case $\text{time saved} = -T_{ACO}$. In some small graphs, ACO did beat the $\theta$-heuristic, but the time it took to run ACO meant it did not result in overall time savings. Reduction (\%) is defined as $100 \times \text{Time saved} / T_{\mathrm{pivot}}(\theta)$. Graphs where both ACO-seeded pivot and the $\theta$-seeded pivot are omitted, as defined in Section~3.3.
+%%SEED_COMPARE%%
+
+\end{document}

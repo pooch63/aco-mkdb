@@ -31,6 +31,11 @@
 #   ACO_TABU=true ./scripts/vary.bash           # tabu repair on elites / bests (ablation; default off)
 #   MMAS=true ./scripts/vary.bash               # MAX-MIN Ant System bounds (ablation; default off)
 #   ELITE_PHEROMONE=true ACO_TABU=true MMAS=true ./scripts/vary.bash  # all three on
+#   PHEROMONE=0 EVAPORATION=1 ./scripts/vary.bash   # Δτ=0, τ stays at 1
+#   EVAPORATION=0.8 ./scripts/vary.bash            # retention (1-ρ); paper ρ=0.05 → 0.95
+#   VARY_MODE=param PARAM=rho PARAM_RANGE=0.01,0.05,0.2 ./scripts/vary.bash
+#                                              # one ant count; sweep paper ρ
+#   ./scripts/param-ablation.bash              # ρ, Δτ, and η exponent sweeps
 #
 # OUT_DIR: positional arg, else $OUT_DIR env, else results/vary_kKtTHETAi_{P?}{N?}{E?}{T?}{M?}
 # (flag letter appended when that option is true: P prefer-smaller-side, N neighbor-scope,
@@ -83,6 +88,13 @@ PREFER_SMALLER_SIDE="${PREFER_SMALLER_SIDE:-false}"
 ELITE_PHEROMONE="${ELITE_PHEROMONE:-false}"
 ACO_TABU="${ACO_TABU:-false}"
 MMAS="${MMAS:-false}"
+# Deposit Δτ and retention factor (1-ρ). Empty → load.jl defaults (1 and 0.95).
+PHEROMONE="${PHEROMONE:-}"
+EVAPORATION="${EVAPORATION:-}"
+# ant-count (default) or param. param sweeps PARAM over PARAM_RANGE at one ant count.
+VARY_MODE="${VARY_MODE:-ant-count}"
+PARAM="${PARAM:-}"
+PARAM_RANGE="${PARAM_RANGE:-}"
 PREFIX="$(normalize_prefix "${PREFIX:-}")"
 
 # Optional inject. Plant sides default to θ so the plant is θ-feasible.
@@ -156,6 +168,25 @@ validate_process_limit() {
   fi
 }
 
+if [[ "$VARY_MODE" != "ant-count" && "$VARY_MODE" != "param" ]]; then
+  echo "VARY_MODE must be ant-count or param (got: $VARY_MODE)" >&2
+  exit 1
+fi
+if [[ "$VARY_MODE" == "param" ]]; then
+  if [[ "$PARAM" != "rho" && "$PARAM" != "pheromone" && "$PARAM" != "eta-exp" ]]; then
+    echo "PARAM must be rho, pheromone, or eta-exp (got: ${PARAM:-empty})" >&2
+    exit 1
+  fi
+  if [[ -z "$PARAM_RANGE" ]]; then
+    echo "PARAM_RANGE is required when VARY_MODE=param (e.g. 0.01,0.05,0.2)" >&2
+    exit 1
+  fi
+  if [[ "$ANTS_RANGE" == *","* ]]; then
+    echo "Param sweep uses one ant count; ANTS_RANGE must be a single integer (got: $ANTS_RANGE)" >&2
+    exit 1
+  fi
+fi
+
 DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
 # OUT_DIR: results/vary_kKtTHETAi_ then P/N/E/T/M for each enabled flag.
 FLAGS=""
@@ -166,6 +197,8 @@ FLAGS=""
 [[ "$MMAS" == "true" ]] && FLAGS+="M"
 if [[ -n "$OUT_DIR_ARG" ]]; then
   OUT_DIR="$OUT_DIR_ARG"
+elif [[ "$VARY_MODE" == "param" ]]; then
+  OUT_DIR="${OUT_DIR:-results/ablate_${PARAM}_k${K}t${THETA}${INJECT_NAME}_${FLAGS}${DIR_SUFFIX}}"
 else
   OUT_DIR="${OUT_DIR:-results/vary_k${K}t${THETA}${INJECT_NAME}_${FLAGS}${DIR_SUFFIX}}"
 fi
@@ -196,6 +229,16 @@ echo "Prefer smaller side: $PREFER_SMALLER_SIDE"
 echo "Elite pheromone (emit): $ELITE_PHEROMONE"
 echo "ACO tabu repair: $ACO_TABU"
 echo "MMAS bounds: $MMAS"
+if [[ -n "$PHEROMONE" ]]; then
+  echo "Pheromone deposit Δτ: $PHEROMONE"
+fi
+if [[ -n "$EVAPORATION" ]]; then
+  echo "Evaporation retention (1-ρ): $EVAPORATION"
+fi
+echo "Vary mode: $VARY_MODE"
+if [[ "$VARY_MODE" == "param" ]]; then
+  echo "Param: $PARAM  range: $PARAM_RANGE  ants: $ANTS_RANGE"
+fi
 echo "DEBUG (post-reduction plant check): $DEBUG"
 echo "Writing vary results under $OUT_DIR/"
 
@@ -224,6 +267,27 @@ fi
 PIVOT_ARGS=(--vary-pivot=false)
 if [[ "$RUN_PIVOT" == "1" ]]; then
   PIVOT_ARGS=(--vary-pivot=true)
+fi
+
+PHERO_ARGS=()
+if [[ -n "$PHEROMONE" ]]; then
+  if ! [[ "$PHEROMONE" =~ ^[0-9]+$ ]]; then
+    echo "PHEROMONE must be a non-negative integer (got: $PHEROMONE)" >&2
+    exit 1
+  fi
+  PHERO_ARGS+=(--pheremone="$PHEROMONE")
+fi
+if [[ -n "$EVAPORATION" ]]; then
+  if ! awk -v e="$EVAPORATION" 'BEGIN { exit !(e > 0 && e <= 1) }'; then
+    echo "EVAPORATION must be in (0, 1] (got: $EVAPORATION)" >&2
+    exit 1
+  fi
+  PHERO_ARGS+=(--evaporation="$EVAPORATION")
+fi
+
+VARY_ARGS=(--vary=ant-count --ants-range="$ANTS_RANGE")
+if [[ "$VARY_MODE" == "param" ]]; then
+  VARY_ARGS=(--vary=param --param="$PARAM" --param-range="$PARAM_RANGE" --ants-range="$ANTS_RANGE")
 fi
 
 # Run one ACO-timeout pass over DATASETS. Sets ACO_TIMEOUT for skip/julia.
@@ -281,10 +345,10 @@ run_vary_pass() {
       --reduce=lo
       "${INJECT_ARGS[@]}"
       --k="$K" --theta="$THETA"
-      --vary=ant-count
-      --ants-range="$ANTS_RANGE"
+      "${VARY_ARGS[@]}"
       --iterations="$ITERATIONS"
       --aco-runs="$ACO_RUNS"
+      "${PHERO_ARGS[@]}"
       "${timeout_args[@]}"
       "${PIVOT_ARGS[@]}"
       "${SEED_ARGS[@]}"

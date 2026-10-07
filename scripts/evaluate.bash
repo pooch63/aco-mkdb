@@ -1,13 +1,26 @@
 #!/bin/bash
-# ACO vs θ-heuristic on indexed graphs (no ant-count sweep, no pivot).
-# Ordered by edge count ascending so smaller / easier graphs finish first.
+# Benchmark methods (default: ACO vs θ-heuristic) on indexed graphs (no ant-count
+# sweep, no pivot). Ordered by edge count ascending so smaller / easier graphs
+# finish first. Each graph writes a text log and a benchmark JSON side by side.
 #
 # Usage:
-#   ./scripts/test.bash
-#   PREFIX=konect-small ./scripts/test.bash
-#   JULIA_THREADS=8 PREFIX=konect-small ./scripts/test.bash
-#   SKIP_EXISTING=1 PREFIX=konect-small ./scripts/test.bash
-#   RUN_K5T6=1 PREFIX=konect-small ./scripts/test.bash
+#   ./scripts/evaluate.bash
+#   PREFIX=konect-small ./scripts/evaluate.bash
+#   JULIA_THREADS=8 PREFIX=konect-small ./scripts/evaluate.bash
+#   SKIP_EXISTING=1 PREFIX=konect-small ./scripts/evaluate.bash
+#   RUN_K5T6=1 PREFIX=konect-small ./scripts/evaluate.bash
+#
+# TOW vs θ-heuristic vs ACO:
+#   METHODS=heuristic,aco,tow \
+#   ACO_ARGS="--ants=10 --iterations=5" \
+#   TOW_ARGS="--tow-seed-source=sc --tow-num-seeds=10 --tow-max-shakes=3" \
+#   ./scripts/evaluate.bash
+#
+# Env:
+#   METHODS    comma-separated --benchmark targets (default: aco,heuristic)
+#   ACO_ARGS   extra ACO flags for load.jl (default: --prefer-smaller-side=false)
+#   TOW_ARGS   extra --tow-* flags for load.jl (default: none → TOW defaults)
+#   OUT_DIR    output directory (default: results/k{K}t{THETA}{i}[_<methods>][_<prefix>])
 
 set -euo pipefail
 
@@ -22,6 +35,12 @@ PREFIX="$(normalize_prefix "${PREFIX:-}")"
 RUN_K5T6="${RUN_K5T6:-0}"
 SEED="${SEED:-1}"
 
+METHODS="${METHODS:-aco,heuristic}"
+ACO_ARGS="${ACO_ARGS---prefer-smaller-side=false}"
+TOW_ARGS="${TOW_ARGS:-}"
+read -r -a ACO_ARGV <<< "$ACO_ARGS"
+read -r -a TOW_ARGV <<< "$TOW_ARGS"
+
 INJECT="${INJECT:-1}"
 K="${K:-2}"
 THETA="${THETA:-5}"
@@ -30,8 +49,13 @@ INJECT_V="${INJECT_V:-5}"
 INJECT_NAME=""
 [[ "$INJECT" == "1" ]] && INJECT_NAME="i"
 
+METHODS_SUFFIX=""
+if [[ "$METHODS" != "aco,heuristic" ]]; then
+  METHODS_SUFFIX="_${METHODS//,/-}"
+fi
+
 DIR_SUFFIX="$(dir_suffix_for_prefix "$PREFIX")"
-OUT_DIR="$(nest_under_results "${OUT_DIR:-results/k${K}t${THETA}${INJECT_NAME}${DIR_SUFFIX}}")"
+OUT_DIR="$(nest_under_results "${OUT_DIR:-results/k${K}t${THETA}${INJECT_NAME}${METHODS_SUFFIX}${DIR_SUFFIX}}")"
 mkdir -p "$OUT_DIR"
 
 echo "Discovering graphs (ascending by edges)…"
@@ -41,7 +65,10 @@ fi
 mapfile -t DATASETS < <(order_graph_keys "$PREFIX")
 n="${#DATASETS[@]}"
 echo "Found $n graphs"
-echo "Writing ACO vs heuristic logs under $OUT_DIR/"
+echo "Methods: $METHODS"
+echo "ACO args: ${ACO_ARGS:-<none>}"
+echo "TOW args: ${TOW_ARGS:-<none>}"
+echo "Writing logs + JSON under $OUT_DIR/"
 
 if (( n == 0 )); then
   echo "No graphs to run." >&2
@@ -60,13 +87,14 @@ run_one() {
   local theta="$4"
   local u="$5"
   local v="$6"
-  local name out
+  local name out json
   name="$(basename "$key")"
   out="${out_dir}/${name}.txt"
+  json="${out_dir}/${name}.json"
 
   echo "Processing $key → $out"
-  if [[ "$SKIP_EXISTING" == "1" && -f "$out" ]]; then
-    echo "Skipping (exists): $out"
+  if [[ "$SKIP_EXISTING" == "1" && -f "$json" ]]; then
+    echo "Skipping (exists): $json"
     return 0
   fi
 
@@ -76,11 +104,12 @@ run_one() {
   fi
 
   julia -t "$THREADS" bin/load.jl "$key" \
-    --prefer-smaller-side=false \
+    "${ACO_ARGV[@]}" \
+    "${TOW_ARGV[@]}" \
     "${inject_args[@]}" \
     --k="$k" --theta="$theta" \
     "${SEED_ARGS[@]}" \
-    --benchmark=aco,heuristic > "$out"
+    --benchmark="$METHODS" --save="$json" > "$out"
 }
 
 i=0
@@ -92,7 +121,7 @@ for key in "${DATASETS[@]}"; do
 done
 
 if [[ "$RUN_K5T6" == "1" || "$RUN_K5T6" == "true" ]]; then
-  OUT_K5="k5t6i${DIR_SUFFIX}"
+  OUT_K5="$(nest_under_results "k5t6i${METHODS_SUFFIX}${DIR_SUFFIX}")"
   mkdir -p "$OUT_K5"
   echo
   echo "Running k=5 θ=6 inject u=v=6 under $OUT_K5/"
@@ -106,4 +135,4 @@ if [[ "$RUN_K5T6" == "1" || "$RUN_K5T6" == "true" ]]; then
 fi
 
 echo
-echo "Done. Logs under ${OUT_DIR}/"
+echo "Done. Logs + JSON under ${OUT_DIR}/"

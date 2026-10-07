@@ -9,10 +9,26 @@ semantics (θ-feasible + more edges).
 JSON config (recommended for A/B / ablations):
   julia bin/compare-methods.jl --config=configs/aco_pheromone_ablation.json
 
-Single graph (CLI overrides for ants / gens / kmax / beta / p / max-steps still work):
+Single graph (CLI overrides for ants / gens / kmax / beta / p / max-steps /
+n-seeds / local-reduction / prune-by-bound / one-colony / greedy-fill /
+eta-exp / best-only-pheromone still work):
   julia bin/compare-methods.jl amazon/boxes --baseline=heuristic --challenger=aco
   julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=aco \\
       --baseline-ants=10 --challenger-ants=50 --save=aco_ants_ab.json
+  julia bin/compare-methods.jl --prefix=konect-small --baseline=aco --challenger=aco \\
+      --challenger-greedy-fill=end --save=results/aco_fill_end_vs_aco.json
+  julia bin/compare-methods.jl --baseline=aco --challenger=aco \\
+      --challenger-eta-exp=1 --challenger-best-only-pheromone=true \\
+      --save=results/aco_best_only_vs_aco.json
+  julia bin/compare-methods.jl --baseline=aco --challenger=aco \\
+      --challenger-pheromone=0 --challenger-evaporation=1 \\
+      --save=results/aco_no_pheromone_vs_aco.json
+  julia bin/compare-methods.jl --baseline=aco --challenger=ga \\
+      --save=results/ga_vs_aco.json
+  julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=split_aco \\
+      --challenger-n-seeds=50 --challenger-local-reduction=false \\
+      --challenger-prune-by-bound=false --challenger-one-colony=false \\
+      --save=split_vs_aco.json
   julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=retry \\
       --challenger-beta=0.04 --challenger-p=1 --challenger-max-steps=10000 --save=retry_ab.json
 
@@ -105,6 +121,19 @@ function parse_float_override(flag::AbstractString)
     for arg in ARGS
         startswith(arg, prefix) || continue
         return parse(Float64, split(arg, "=", limit=2)[2])
+    end
+    return nothing
+end
+
+"""`--flag=true|false`. `nothing` when the flag is omitted."""
+function parse_bool_override(flag::AbstractString)
+    prefix = "--$flag="
+    for arg in ARGS
+        startswith(arg, prefix) || continue
+        val = lowercase(strip(split(arg, "=", limit=2)[2]))
+        val in ("true", "1", "yes", "on") && return true
+        val in ("false", "0", "no", "off") && return false
+        throw(ArgumentError("Bad boolean for --$flag: $val (expected true/false)"))
     end
     return nothing
 end
@@ -208,7 +237,11 @@ function side_spec_to_dict(spec::Dict{String,Any})
         Dict{String,Any}(string(k) => v for (k, v) in spec
             if !(string(k) in ("method", "label", "params")))
     end
-    return Dict{String,Any}("method" => method, "label" => label, "params" => params)
+    out = Dict{String,Any}("method" => method, "label" => label, "params" => params)
+    if haskey(spec, "id")
+        out["id"] = String(spec["id"])
+    end
+    return out
 end
 
 function build_side_from_spec(spec::Dict{String,Any})
@@ -225,6 +258,15 @@ function build_side_cli(name::AbstractString, side::AbstractString; kwargs...)
     beta = parse_float_override("$side-beta")
     retry_p = parse_float_override("$side-p")
     max_steps = parse_int_override("$side-max-steps")
+    n_seeds = parse_int_override("$side-n-seeds")
+    local_reduction = parse_bool_override("$side-local-reduction")
+    prune_by_bound = parse_bool_override("$side-prune-by-bound")
+    one_colony = parse_bool_override("$side-one-colony")
+    greedy_fill = parse_string_flag("$side-greedy-fill")
+    eta_exp = parse_float_override("$side-eta-exp")
+    best_only_pheromone = parse_bool_override("$side-best-only-pheromone")
+    pheromone = parse_int_override("$side-pheromone")
+    evaporation = parse_float_override("$side-evaporation")
     params = Dict{String,Any}()
     for (k, v) in kwargs
         params[string(k)] = v
@@ -235,6 +277,22 @@ function build_side_cli(name::AbstractString, side::AbstractString; kwargs...)
         get!(params, "prefer_smaller_side", true)
         get!(params, "neighbor_scope_limit", true)
         get!(params, "parallelize", false)
+        greedy_fill !== nothing && (params["greedy_fill"] = greedy_fill)
+        eta_exp !== nothing && (params["eta_exp"] = eta_exp)
+        best_only_pheromone !== nothing && (params["best_only_pheromone"] = best_only_pheromone)
+        pheromone !== nothing && (params["pheromone"] = pheromone)
+        evaporation !== nothing && (params["evaporation"] = evaporation)
+    elseif name in ("split_aco", "split-aco")
+        params["ants"] = ants === nothing ? get(params, "ants", 10) : ants
+        get!(params, "iterations", 5)
+        # Top-k S_C seeds. Omitted flag keeps SplitACOMethod's default (50).
+        n_seeds !== nothing && (params["n_seeds"] = n_seeds)
+        # 3-hop common-neighbor reduction before each local ACO. Default on.
+        local_reduction !== nothing && (params["local_reduction"] = local_reduction)
+        # Upper-bound ant halt + pheromone rollback in each local ACO. Default on.
+        prune_by_bound !== nothing && (params["prune_by_bound"] = prune_by_bound)
+        # One shared colony with seeds round-robined across ants. Default on.
+        one_colony !== nothing && (params["one_colony"] = one_colony)
     elseif name == "ga"
         params["generations"] = gens === nothing ? get(params, "generations", 500) : gens
         get!(params, "N", 10)
@@ -244,6 +302,33 @@ function build_side_cli(name::AbstractString, side::AbstractString; kwargs...)
         params["beta"] = beta === nothing ? get(params, "beta", 0.04) : beta
         params["p"] = retry_p === nothing ? get(params, "p", 1.0) : retry_p
         params["max_steps"] = max_steps === nothing ? get(params, "max_steps", 10_000) : max_steps
+    end
+    if n_seeds !== nothing && !(name in ("split_aco", "split-aco"))
+        throw(ArgumentError("--$side-n-seeds applies only to split_aco"))
+    end
+    if local_reduction !== nothing && !(name in ("split_aco", "split-aco"))
+        throw(ArgumentError("--$side-local-reduction applies only to split_aco"))
+    end
+    if prune_by_bound !== nothing && !(name in ("split_aco", "split-aco"))
+        throw(ArgumentError("--$side-prune-by-bound applies only to split_aco"))
+    end
+    if one_colony !== nothing && !(name in ("split_aco", "split-aco"))
+        throw(ArgumentError("--$side-one-colony applies only to split_aco"))
+    end
+    if greedy_fill !== nothing && name != "aco"
+        throw(ArgumentError("--$side-greedy-fill applies only to aco"))
+    end
+    if eta_exp !== nothing && name != "aco"
+        throw(ArgumentError("--$side-eta-exp applies only to aco"))
+    end
+    if best_only_pheromone !== nothing && name != "aco"
+        throw(ArgumentError("--$side-best-only-pheromone applies only to aco"))
+    end
+    if pheromone !== nothing && name != "aco"
+        throw(ArgumentError("--$side-pheromone applies only to aco"))
+    end
+    if evaporation !== nothing && name != "aco"
+        throw(ArgumentError("--$side-evaporation applies only to aco"))
     end
     return make_method_from_dict(name, params)
 end
@@ -431,6 +516,126 @@ function compare_one_graph!(dataset::AbstractString, edge_hint::Int,
     )
 end
 
+"""
+Run every method in `specs` on one injected, reduced graph.
+
+The first spec is the reference. Each other spec is scored against it with
+`compare_results` (`versus[id]` is `challenger` when that method wins).
+"""
+function compare_multi_one_graph!(dataset::AbstractString, edge_hint::Int,
+    specs::Vector{Dict{String,Any}},
+    k::Int, θ::Int, reduction::ReductionMode.T, seed::UInt64, inject)
+    graph_path = resolve_graph_path(dataset)
+    isfile(graph_path) || error("Could not find graph for dataset '$dataset' at $graph_path")
+
+    g, edges, plant = load_graph_maybe_inject(graph_path, inject, k, Random.default_rng())
+    edges_eff = edges === nothing ? edge_hint : Int(edges)
+
+    println()
+    println("══════════════════════════════════════════════════")
+    println("dataset=$dataset  |E|=$edges_eff  nU=$(length(g.adjU)) nV=$(length(g.adjV))")
+    println("k=$k  θ=$θ  reduction=$(reduction_name(reduction))  seed=$seed")
+    println("methods=$(join((String(get(s, "id", get(s, "label", "?"))) for s in specs), ", "))")
+    if inject.enabled
+        println("inject: u=$(inject.nU) v=$(inject.nV) k=$k")
+    end
+
+    g_reduced = deepcopy(g)
+    fg = apply_graph_reductions!(g_reduced, k, θ, nothing, nothing, true, reduction)
+    n_u_r = length(fg.u_ids)
+    n_v_r = length(fg.v_ids)
+    m_r = length(fg.v_adj)
+    dens_r = (n_u_r * n_v_r > 0) ? Float64(m_r) / (n_u_r * n_v_r) : 0.0
+    println("reduced: nU=$n_u_r nV=$n_v_r |E_R|=$m_r (density=$(round(dens_r; digits=4)))")
+    solver_reduction = ReductionMode.none
+
+    runs = Dict{String,Any}()
+    results_by_id = Dict{String,Any}()
+    ids = String[]
+    for spec in specs
+        id = String(get(spec, "id", get(spec, "label", get(spec, "method", "method"))))
+        push!(ids, id)
+        label = String(get(spec, "label", id))
+        method = build_side_from_spec(spec)
+        println()
+        println("── $id ($label) ──")
+        Random.seed!(seed)
+        try
+            stats = benchmark_method!(method, g_reduced, k, θ, solver_reduction;
+                label=label, injected_biclique=plant)
+            d = method_result_to_dict(stats.result, fg; k=k, θ=θ)
+            d["wall_time_s"] = stats.time
+            d["label"] = label
+            d["id"] = id
+            d["status"] = "ok"
+            runs[id] = d
+            results_by_id[id] = stats.result
+            println("  $id edges=$(stats.final_edges)  θ-feasible=$(stats.theta_feasible)  " *
+                    "time=$(round(stats.time; digits=3))s")
+        catch e
+            @error "Method $id failed on $dataset" exception=(e, catch_backtrace())
+            runs[id] = Dict{String,Any}(
+                "id" => id,
+                "label" => label,
+                "method" => String(get(spec, "method", "")),
+                "status" => "error",
+                "error" => sprint(showerror, e),
+                "final_edges" => 0,
+                "theta_feasible" => false,
+                "k_valid" => false,
+                "beats_valid" => false,
+                "wall_time_s" => nothing,
+                "nU" => 0,
+                "nV" => 0,
+            )
+            results_by_id[id] = nothing
+        end
+    end
+
+    ref = ids[1]
+    versus = Dict{String,Any}()
+    for id in ids
+        id == ref && continue
+        ref_res = results_by_id[ref]
+        chal_res = results_by_id[id]
+        verdict = if ref_res === nothing && chal_res === nothing
+            "tie"
+        elseif chal_res === nothing
+            "baseline"
+        elseif ref_res === nothing
+            "challenger"
+        else
+            string(compare_results(ref_res, chal_res, fg, k, θ))
+        end
+        versus[id] = verdict
+        println("  versus $ref → $id : $verdict")
+    end
+    println("══════════════════════════════════════════════════")
+
+    return Dict{String,Any}(
+        "dataset" => String(dataset),
+        "edge_count" => edges_eff,
+        "nU" => length(g.adjU),
+        "nV" => length(g.adjV),
+        "reduced_nU" => n_u_r,
+        "reduced_nV" => n_v_r,
+        "reduced_edges" => m_r,
+        "reduced_density" => dens_r,
+        "status" => "ok",
+        "inject" => Dict{String,Any}(
+            "enabled" => inject.enabled,
+            "u" => inject.enabled ? inject.nU : nothing,
+            "v" => inject.enabled ? inject.nV : nothing,
+            "attempts" => inject.enabled ? inject.attempts : nothing,
+            "plant_U" => plant === nothing ? nothing : collect(plant.U),
+            "plant_V" => plant === nothing ? nothing : collect(plant.V),
+        ),
+        "runs" => runs,
+        "versus" => versus,
+        "reference" => ref,
+    )
+end
+
 # ── Checkpoint payload ────────────────────────────────────────────────────────
 
 function summarize_results(results::Vector)
@@ -505,8 +710,11 @@ end
 
 function load_compare_config(path::AbstractString)
     raw = json_to_dict(JSON3.read(read(path, String)))
-    haskey(raw, "baseline") || throw(ArgumentError("Config needs \"baseline\""))
-    haskey(raw, "challenger") || throw(ArgumentError("Config needs \"challenger\""))
+    has_methods = haskey(raw, "methods")
+    if !has_methods
+        haskey(raw, "baseline") || throw(ArgumentError("Config needs \"baseline\" or \"methods\""))
+        haskey(raw, "challenger") || throw(ArgumentError("Config needs \"challenger\" or \"methods\""))
+    end
 
     function normalize_side(side_raw, side_name::AbstractString)
         if side_raw isa AbstractString
@@ -519,9 +727,14 @@ function load_compare_config(path::AbstractString)
             throw(ArgumentError("\"$side_name\" needs \"method\""))
         end
         get!(d, "label", String(d["method"]))
+        if !haskey(d, "id")
+            d["id"] = String(d["label"])
+        else
+            d["id"] = String(d["id"])
+        end
         if !haskey(d, "params")
             d["params"] = Dict{String,Any}(string(k) => v for (k, v) in d
-                if !(string(k) in ("method", "label", "params")))
+                if !(string(k) in ("method", "label", "params", "id")))
         elseif !(d["params"] isa AbstractDict)
             throw(ArgumentError("\"$side_name.params\" must be an object"))
         else
@@ -530,8 +743,24 @@ function load_compare_config(path::AbstractString)
         return d
     end
 
-    baseline = normalize_side(raw["baseline"], "baseline")
-    challenger = normalize_side(raw["challenger"], "challenger")
+    methods = nothing
+    if has_methods
+        raw_methods = raw["methods"]
+        raw_methods isa AbstractVector || throw(ArgumentError("\"methods\" must be an array"))
+        isempty(raw_methods) && throw(ArgumentError("\"methods\" must be non-empty"))
+        methods = Dict{String,Any}[]
+        seen = Set{String}()
+        for (i, side_raw) in enumerate(raw_methods)
+            spec = normalize_side(side_raw, "methods[$i]")
+            id = String(spec["id"])
+            id in seen && throw(ArgumentError("Duplicate method id \"$id\""))
+            push!(seen, id)
+            push!(methods, spec)
+        end
+    end
+
+    baseline = haskey(raw, "baseline") ? normalize_side(raw["baseline"], "baseline") : nothing
+    challenger = haskey(raw, "challenger") ? normalize_side(raw["challenger"], "challenger") : nothing
 
     k = Int(get(raw, "k", 2))
     θ = Int(get(raw, "theta", 5))
@@ -556,7 +785,7 @@ function load_compare_config(path::AbstractString)
         name = name === nothing ? nothing : String(name),
         output=String(output),
         k, θ, seed, reduction, skip_completed, prefix, datasets,
-        baseline, challenger,
+        baseline, challenger, methods,
         inject_cfg=raw,
         config_path=path,
     )
@@ -661,6 +890,123 @@ function run_compare_suite(; graphs,
     return results
 end
 
+function summarize_multi(results::Vector, ref::AbstractString)
+    counts = Dict{String,Any}()
+    for r in results
+        get(r, "status", "") == "ok" || continue
+        versus = get(r, "versus", Dict{String,Any}())
+        versus isa AbstractDict || continue
+        for (id, verdict) in versus
+            bucket = get!(counts, String(id), Dict{String,Int}(
+                "challenger" => 0, "baseline" => 0, "tie" => 0))
+            key = string(verdict)
+            key in ("challenger", "baseline", "tie") || continue
+            bucket[key] += 1
+        end
+    end
+    return Dict{String,Any}(
+        "completed" => count(r -> get(r, "status", "") == "ok", results),
+        "reference" => String(ref),
+        "versus" => counts,
+    )
+end
+
+function run_multi_suite(; graphs, specs::Vector{Dict{String,Any}},
+    k::Int, θ::Int, reduction::ReductionMode.T, seed::UInt64, inject,
+    save_path::Union{Nothing,AbstractString},
+    skip_completed::Bool=true,
+    cfg_meta::Dict{String,Any}=Dict{String,Any}())
+
+    isempty(graphs) && error("No graphs to compare (check data/ index, --prefix= / datasets / dataset arg)")
+    isempty(specs) && error("Multi-method compare needs at least one method")
+
+    out_path = save_path === nothing ? nothing : resolve_benchmark_save_path(save_path)
+    results = Dict{String,Any}[]
+    if out_path !== nothing && skip_completed
+        results, _prev = load_existing_results(out_path)
+    end
+    done = Set(String(r["dataset"]) for r in results if haskey(r, "dataset") &&
+        get(r, "status", "") == "ok")
+
+    ref = String(get(specs[1], "id", get(specs[1], "label", "method")))
+    cfg_meta = merge(Dict{String,Any}(
+        "k" => k,
+        "theta" => θ,
+        "seed" => seed,
+        "reduction" => reduction_name(reduction),
+    ), cfg_meta)
+
+    planned = length(graphs)
+    println("Multi compare: $planned graph(s), $(length(specs)) methods, reference=$ref" *
+            (out_path === nothing ? "" : "  → $out_path"))
+    if !isempty(done)
+        println("Resuming: $(length(done)) already completed")
+    end
+
+    for (i, entry) in enumerate(graphs)
+        key = entry.key
+        if key in done
+            println("[$i/$planned] skip (completed): $key  (|E|=$(entry.edges))")
+            continue
+        end
+        println("[$i/$planned] $key  (|E|=$(entry.edges))")
+        Random.seed!(seed)
+        try
+            row = compare_multi_one_graph!(key, entry.edges, specs,
+                k, θ, reduction, seed, inject)
+            filter!(r -> get(r, "dataset", nothing) != key, results)
+            push!(results, row)
+        catch e
+            @error "Compare failed on $key" exception=(e, catch_backtrace())
+            filter!(r -> get(r, "dataset", nothing) != key, results)
+            push!(results, Dict{String,Any}(
+                "dataset" => key,
+                "edge_count" => entry.edges,
+                "status" => "error",
+                "error" => sprint(showerror, e),
+            ))
+        end
+
+        if out_path !== nothing
+            sort!(results; by=r -> (get(r, "edge_count", typemax(Int)),
+                String(get(r, "dataset", ""))))
+            payload = Dict{String,Any}(
+                "name" => get(cfg_meta, "name", nothing),
+                "config_path" => get(cfg_meta, "config_path", nothing),
+                "k" => k,
+                "theta" => θ,
+                "seed" => string(seed),
+                "reduction" => reduction_name(reduction),
+                "prefix" => get(cfg_meta, "prefix", nothing),
+                "reference" => ref,
+                "methods" => [side_spec_to_dict(s) for s in specs],
+                "planned" => planned,
+                "results" => results,
+                "summary" => summarize_multi(results, ref),
+            )
+            checkpoint_suite!(out_path, payload)
+        end
+    end
+
+    summary = summarize_multi(results, ref)
+    println()
+    println("==================== SUITE SUMMARY ====================")
+    println("  planned / completed  : $planned / $(summary["completed"])")
+    println("  reference            : $ref")
+    versus = summary["versus"]
+    if versus isa AbstractDict
+        for (id, bucket) in versus
+            println("  $id vs $ref : challenger=$(bucket["challenger"]) " *
+                    "baseline=$(bucket["baseline"]) tie=$(bucket["tie"])")
+        end
+    end
+    if out_path !== nothing
+        println("  checkpoint           : $out_path")
+    end
+    println("=======================================================")
+    return results
+end
+
 # ── Entry points ──────────────────────────────────────────────────────────────
 
 function main_from_config(config_path::AbstractString)
@@ -696,15 +1042,34 @@ function main_from_config(config_path::AbstractString)
         throw(ArgumentError("--k must be < u*v for injection; got k=$k, u=$(inject.nU), v=$(inject.nV)"))
     end
 
-    baseline_method = build_side_from_spec(cfg.baseline)
-    challenger_method = build_side_from_spec(cfg.challenger)
-
     graphs = resolve_graph_queue(; datasets=cfg.datasets, prefix=prefix,
         single=resolve_dataset_arg())
     if isempty(graphs)
         throw(ArgumentError(
             "No graphs to compare (check data/ index, \"prefix\" / \"datasets\", or dataset arg)"))
     end
+
+    if cfg.methods !== nothing
+        Random.seed!(seed)
+        run_multi_suite(;
+            graphs=graphs,
+            specs=cfg.methods,
+            k=k, θ=θ, reduction=reduction, seed=seed, inject=inject,
+            save_path=save_path,
+            skip_completed=cfg.skip_completed,
+            cfg_meta=Dict{String,Any}(
+                "name" => cfg.name,
+                "config_path" => cfg.config_path,
+                "prefix" => prefix,
+            ),
+        )
+        return
+    end
+
+    cfg.baseline === nothing && throw(ArgumentError("Config needs \"baseline\""))
+    cfg.challenger === nothing && throw(ArgumentError("Config needs \"challenger\""))
+    baseline_method = build_side_from_spec(cfg.baseline)
+    challenger_method = build_side_from_spec(cfg.challenger)
 
     Random.seed!(seed)
     run_compare_suite(;
@@ -769,12 +1134,30 @@ function main_from_cli()
         beta = parse_float_override("$side-beta")
         retry_p = parse_float_override("$side-p")
         max_steps = parse_int_override("$side-max-steps")
+        n_seeds = parse_int_override("$side-n-seeds")
+        local_reduction = parse_bool_override("$side-local-reduction")
+        prune_by_bound = parse_bool_override("$side-prune-by-bound")
+        one_colony = parse_bool_override("$side-one-colony")
+        greedy_fill = parse_string_flag("$side-greedy-fill")
+        eta_exp = parse_float_override("$side-eta-exp")
+        best_only_pheromone = parse_bool_override("$side-best-only-pheromone")
+        pheromone = parse_int_override("$side-pheromone")
+        evaporation = parse_float_override("$side-evaporation")
         ants !== nothing && (spec["params"]["ants"] = ants)
         gens !== nothing && (spec["params"]["generations"] = gens)
         kmax !== nothing && (spec["params"]["kmax"] = kmax)
         beta !== nothing && (spec["params"]["beta"] = beta)
         retry_p !== nothing && (spec["params"]["p"] = retry_p)
         max_steps !== nothing && (spec["params"]["max_steps"] = max_steps)
+        n_seeds !== nothing && (spec["params"]["n_seeds"] = n_seeds)
+        local_reduction !== nothing && (spec["params"]["local_reduction"] = local_reduction)
+        prune_by_bound !== nothing && (spec["params"]["prune_by_bound"] = prune_by_bound)
+        one_colony !== nothing && (spec["params"]["one_colony"] = one_colony)
+        greedy_fill !== nothing && (spec["params"]["greedy_fill"] = greedy_fill)
+        eta_exp !== nothing && (spec["params"]["eta_exp"] = eta_exp)
+        best_only_pheromone !== nothing && (spec["params"]["best_only_pheromone"] = best_only_pheromone)
+        pheromone !== nothing && (spec["params"]["pheromone"] = pheromone)
+        evaporation !== nothing && (spec["params"]["evaporation"] = evaporation)
     end
 
     Random.seed!(seed)
