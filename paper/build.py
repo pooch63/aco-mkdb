@@ -78,9 +78,7 @@ COMPARE_PARAM_PLOTS = frozenset(
 # Epoch-trace figures. Input is budget_dir, not the ant-count sweep.
 COMPARE_BUDGET_PLOTS = frozenset(
     {
-        "iteration-budget",
-        "replicate-budget",
-        "budget-allocation",
+        "budget",
         "pheromone-ablation",
     }
 )
@@ -132,9 +130,7 @@ COMPARE_PLOT_SOURCES: dict[str, Path] = {
     "flag-ablation-replicates": EMIT_DIR / "compare" / "flag_ablation.py",
     "flag-feasibility": EMIT_DIR / "compare" / "flag_ablation.py",
     "flag-feasibility-replicates": EMIT_DIR / "compare" / "flag_ablation.py",
-    "iteration-budget": EMIT_DIR / "compare" / "budget_curves.py",
-    "replicate-budget": EMIT_DIR / "compare" / "budget_curves.py",
-    "budget-allocation": EMIT_DIR / "compare" / "budget_curves.py",
+    "budget": EMIT_DIR / "compare" / "budget_curves.py",
     "pheromone-ablation": EMIT_DIR / "compare" / "budget_curves.py",
     "k-sweep": EMIT_DIR / "compare" / "param_sweep.py",
     "theta-sweep": EMIT_DIR / "compare" / "param_sweep.py",
@@ -460,6 +456,13 @@ def build_emit_job(
             cmd.append(
                 f"--param-dir={label}={resolve_results_path(cfg, path)}"
             )
+    if name == "COMPARE" and frag.get("runtime_sweeps"):
+        for spec in frag["runtime_sweeps"].get("k") or []:
+            vals = ",".join(str(int(v)) for v in spec["values"])
+            cmd.append(f"--runtime-sweep=k:{int(spec['theta'])}:{vals}")
+        for spec in frag["runtime_sweeps"].get("theta") or []:
+            vals = ",".join(str(int(v)) for v in spec["values"])
+            cmd.append(f"--runtime-sweep=theta:{int(spec['k'])}:{vals}")
     if name == "COMPARE" and args == "pheromone-ablation":
         for label, path in (frag.get("ablation_dirs") or {}).items():
             cmd.append(

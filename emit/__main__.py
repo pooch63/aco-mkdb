@@ -33,22 +33,22 @@ Modes
       Plot groups (pass comma-separated via --plots):
         theta-time, deg-size-time, bound-time, density-size,
         max-deg-time, flag-ablation, flag-ablation-replicates,
-        flag-feasibility, flag-feasibility-replicates, iteration-budget,
-        replicate-budget, budget-allocation, pheromone-ablation,
+        flag-feasibility, flag-feasibility-replicates, budget,
+        pheromone-ablation,
         k-sweep, theta-sweep, density-wins, param-runtime
       Pass a single results directory, e.g. vary_k2t5i_PN.
       flag-ablation / flag-feasibility (and *-replicates) use
       --flag-dir=LABEL=DIR.
       k-sweep / theta-sweep / density-wins / param-runtime use
       --param-dir=LABEL=DIR (see build.json).
-      iteration-budget, replicate-budget, budget-allocation, and
-      pheromone-ablation read per-epoch incumbent traces
+      budget and pheromone-ablation read per-epoch incumbent traces
       (``epoch_trace``). pheromone-ablation also takes
       ``--trace-dir=LABEL=DIR`` for the Δτ=0 run and any ρ sweep.
       These plots ignore ``--max-replicates`` and use every counted
       replicate.
       --max-replicates=R optionally prefixes counted replicates for
-      all modes except replicate-budget (which always plots full R).
+      all modes except budget and pheromone-ablation (which always
+      use the full counted set).
 
   statistics
       Vary.jl ant-count JSON → inline LaTeX for %%STATISTICS:field%%
@@ -90,6 +90,32 @@ import argparse
 
 from . import MODES
 from .common import list_json_paths, set_max_replicates
+
+
+def _parse_runtime_sweeps(items):
+    """``k:5:1,2,3,4`` or ``theta:3:5,6,7,8`` → sweep dicts."""
+    if not items:
+        return None
+    sweeps = []
+    for item in items:
+        axis, sep, rest = item.partition(":")
+        fixed, sep2, values = rest.partition(":")
+        if axis not in ("k", "theta") or not sep or not sep2 or not values.strip():
+            raise SystemExit(
+                f"Invalid --runtime-sweep {item!r}; "
+                "use k:THETA:k1,k2,... or theta:K:t1,t2,..."
+            )
+        try:
+            sweeps.append(
+                {
+                    "axis": axis,
+                    "fixed": int(fixed),
+                    "values": [int(v) for v in values.split(",") if v.strip()],
+                }
+            )
+        except ValueError as exc:
+            raise SystemExit(f"Invalid --runtime-sweep {item!r}: {exc}") from exc
+    return sweeps
 
 
 def main(argv=None):
@@ -135,8 +161,8 @@ def main(argv=None):
         help="Retrospectively keep only the first R counted (non-JIT) "
              "replicates per ant count, ordered by run (default: all). "
              "Affects quality / table / statistics / seed-compare / "
-             "compare except replicate-budget, which always plots the "
-             "full R curve.",
+             "compare except budget and pheromone-ablation, which always "
+             "use the full counted set.",
     )
     parser.add_argument(
         "--subset",
@@ -153,8 +179,7 @@ def main(argv=None):
              "max-deg-time, "
              "flag-ablation, flag-ablation-replicates, "
              "flag-feasibility, flag-feasibility-replicates, "
-             "iteration-budget, "
-             "replicate-budget, budget-allocation, pheromone-ablation, "
+             "budget, pheromone-ablation, "
              "k-sweep, theta-sweep, density-wins, param-runtime)",
     )
     parser.add_argument(
@@ -174,6 +199,15 @@ def main(argv=None):
         help="compare k-sweep / theta-sweep / density-wins / "
              "param-runtime: (k, θ) suite directory (repeat; labels are "
              "free-form, k/θ read from JSON)",
+    )
+    parser.add_argument(
+        "--runtime-sweep",
+        action="append",
+        metavar="AXIS:FIXED:V1,V2,...",
+        default=None,
+        help="param-runtime: k:THETA:k1,k2,... varies k at that θ; "
+             "theta:K:t1,t2,... varies θ at that k. From build.json "
+             "runtime_sweeps.",
     )
     parser.add_argument(
         "--trace-dir",
@@ -303,9 +337,7 @@ def main(argv=None):
                 "theta-sweep",
                 "density-wins",
                 "param-runtime",
-                "iteration-budget",
-                "replicate-budget",
-                "budget-allocation",
+                "budget",
                 "pheromone-ablation",
             )
             for p in plot_names
@@ -331,6 +363,7 @@ def main(argv=None):
             flag_dirs=flag_dirs,
             param_dirs=param_dirs,
             trace_dirs=trace_dirs,
+            runtime_sweeps=_parse_runtime_sweeps(args.runtime_sweep),
         )
 
     elif args.mode == "ablation":

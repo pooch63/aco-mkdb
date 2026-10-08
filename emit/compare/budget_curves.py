@@ -1,5 +1,5 @@
 """
-Anytime, best-of-R, equal-budget, and pheromone-ablation figures.
+Epoch/replicate budget figure and the pheromone-ablation figure.
 
 Data model
 ----------
@@ -16,17 +16,13 @@ as an estimate of the best-of-``R`` expectation.
 
 Plot groups
 -----------
-  iteration-budget
-      Median and IQR of ``|E(B_t)| / |E(D_θ)|`` vs epoch (log x), faint
-      per-graph curves, cumulative time on a second axis, and a separate
-      panel for ``P(B_t is θ-feasible)``.
-  replicate-budget
-      For each ``R``, the mean across graphs of the expected maximum over
-      ``R`` replicates drawn without replacement, with a bootstrap CI,
-      plus the per-graph coefficient of variation of ``|E(B)|``.
-  budget-allocation
-      Median relative quality over the ``(T, R)`` grid, with contours of
-      constant ``T·R``, and those equal-cost slices drawn as curves.
+  budget
+      Same 2×2 as the quality figure. Top row: median percent deviation
+      from the θ-heuristic (θ-infeasible outcomes score −100%). Bottom
+      row: median θ-feasibility. Columns are epoch budget ``T`` and
+      replicate count ``R``. For ``R``, deviation is the expected best
+      of an ``R``-subset at the end of the trace, and feasibility is the
+      probability that subset contains a θ-feasible replicate.
   pheromone-ablation
       The anytime median with pheromone on, against ``Δτ = 0`` (τ stays
       at 1) and any recorded ρ sweep, at the same ant count.
@@ -34,12 +30,13 @@ Plot groups
 
 from __future__ import annotations
 
-import math
-import random
 import statistics
 import sys
 
 from ..common import (
+    COL2_HEIGHT,
+    COL2_VSEP_LOG,
+    COL2_WIDTH,
     aco_timed_out,
     begin_float,
     begin_tikz,
@@ -50,22 +47,25 @@ from ..common import (
     list_json_paths,
     load_json,
 )
+from ..quality import (
+    _axis_limits,
+    _shared_ylim,
+    _tick_values,
+    _xscale_opts,
+    pct_deviation,
+)
 
 PLOT_GROUPS = (
-    "iteration-budget",
-    "replicate-budget",
-    "budget-allocation",
+    "budget",
     "pheromone-ablation",
 )
 DEFAULT_ANTS = 100
-N_BOOT = 1000
-BOOT_SEED = 0
 
-# Log-spaced epochs used for the allocation heatmap (full traces still
-# feed the anytime curves). Integer epochs nearest these targets.
-_HEATMAP_EPOCHS = (
-    1, 2, 3, 4, 5, 7, 10, 14, 20, 28, 40, 56, 80, 100,
-)
+# Knots drawn on the budget figure, in the same style as the quality
+# panels (a handful of marked points, not every epoch).
+_T_MARKS = (1, 2, 5, 10, 20, 50, 100)
+_R_MARKS = (1, 2, 5, 10, 20, 30)
+_PAPER_DEFAULT = 5.0
 
 
 def expected_max(values, r):
@@ -100,19 +100,6 @@ def _quantile(sorted_vals, q):
     hi = min(lo + 1, len(sorted_vals) - 1)
     weight = pos - lo
     return float(sorted_vals[lo]) * (1.0 - weight) + float(sorted_vals[hi]) * weight
-
-
-def _bootstrap_mean_ci(values, rng, n_boot=N_BOOT):
-    """Percentile interval for the mean. None when fewer than 2 graphs."""
-    n = len(values)
-    if n < 2:
-        return None, None
-    means = []
-    for _ in range(n_boot):
-        draw = [values[rng.randrange(n)] for _ in range(n)]
-        means.append(statistics.mean(draw))
-    means.sort()
-    return _quantile(means, 0.025), _quantile(means, 0.975)
 
 
 def _index_trace(points):
@@ -223,18 +210,6 @@ def _per_graph_feas_rate(graph, epochs):
     return out
 
 
-def _per_graph_median_time(graph, epochs):
-    out = []
-    for t in epochs:
-        times = [
-            _at(rep, t, "elapsed_s")
-            for rep in graph["reps"]
-            if _at(rep, t, "elapsed_s") is not None
-        ]
-        out.append(statistics.median(times) if times else None)
-    return out
-
-
 def _across(columns):
     """Median, q25, q75 down a list of per-graph series."""
     n = len(columns[0]) if columns else 0
@@ -250,29 +225,6 @@ def _across(columns):
         lo.append(_quantile(vals, 0.25))
         hi.append(_quantile(vals, 0.75))
     return med, lo, hi
-
-
-def _full_budget_edges(graph):
-    """Edge counts at the longest epoch shared by the graph's replicates."""
-    if not graph["reps"]:
-        return [], None
-    cap = min(max(rep) for rep in graph["reps"] if rep)
-    edges = []
-    for rep in graph["reps"]:
-        if cap in rep:
-            edges.append(rep[cap]["edges"])
-    return edges, cap
-
-
-def _factor_splits(cost, t_max, r_max):
-    splits = []
-    for t in range(1, t_max + 1):
-        if cost % t:
-            continue
-        r = cost // t
-        if 1 <= r <= r_max:
-            splits.append((t, r))
-    return splits
 
 
 def _coords(xs, ys, *, digits=4):
@@ -317,605 +269,272 @@ def _style_keys():
     ]
 
 
-def anytime_figure(graphs):
-    """Median/IQR relative quality, time, and θ-feasibility vs epoch."""
-    if not graphs:
-        return _missing_figure(
-            "fig:iteration-budget",
-            "Epoch traces are not recorded yet. "
-            r"Run \texttt{scripts/budget-trace.bash} to produce this figure.",
-        )
+def _ncr(n, k):
+    if k < 0 or k > n:
+        return 0.0
+    c = 1.0
+    for i in range(k):
+        c *= (n - i) / (i + 1.0)
+    return c
 
+
+def _p_any_feasible(n, n_feas, r):
+    """Probability an r-subset contains at least one θ-feasible replicate."""
+    if r < 1 or r > n:
+        return None
+    if n - n_feas < r:
+        return 1.0
+    total = _ncr(n, r)
+    if total == 0.0:
+        return None
+    return 1.0 - _ncr(n - n_feas, r) / total
+
+
+def _kept_marks(available, preferred):
+    """Preferred knots that the traces actually recorded."""
+    have = set(available)
+    marks = [m for m in preferred if m in have]
+    if len(marks) >= 2:
+        return marks
+    vals = sorted(have)
+    if len(vals) <= 7:
+        return vals
+    return [vals[0], vals[len(vals) // 2], vals[-1]]
+
+
+def _epoch_graph_values(graph, t):
+    """Mean % deviation (infeasible = −100) and % of replicates feasible."""
+    devs = []
+    flags = []
+    heur = graph["heur"]
+    for rep in graph["reps"]:
+        pt = rep.get(t)
+        if pt is None:
+            continue
+        feas = pt["theta_feasible"] is True
+        flags.append(feas)
+        if heur is None or heur <= 0:
+            continue
+        if not feas:
+            devs.append(-100.0)
+            continue
+        dev = pct_deviation(pt["edges"], heur)
+        if dev is not None:
+            devs.append(dev)
+    dev = statistics.mean(devs) if devs else None
+    feas_pct = 100.0 * sum(flags) / len(flags) if flags else None
+    return dev, feas_pct
+
+
+def _final_outcomes(graph):
+    """(deviation or −100, feasible) at the longest shared epoch."""
+    reps = [rep for rep in graph["reps"] if rep]
+    if not reps:
+        return []
+    cap = min(max(rep) for rep in reps)
+    heur = graph["heur"]
+    out = []
+    for rep in reps:
+        pt = rep.get(cap)
+        if pt is None:
+            continue
+        feas = pt["theta_feasible"] is True
+        if heur is None or heur <= 0:
+            dev = None
+        elif not feas:
+            dev = -100.0
+        else:
+            dev = pct_deviation(pt["edges"], heur)
+        out.append((dev, feas))
+    return out
+
+
+def _median_at(graphs, marks, value_at):
+    series = {}
+    for mark in marks:
+        vals = []
+        for graph in graphs:
+            val = value_at(graph, mark)
+            if val is not None:
+                vals.append(val)
+        if vals:
+            series[mark] = statistics.median(vals)
+    return series
+
+
+def budget_series(graphs):
+    """
+    Four median series: deviation and feasibility against T and against R.
+
+    T uses the mean over counted replicates at that epoch, then the median
+    across graphs (same reduction as the quality figure). R is evaluated
+    at the end of each graph's trace: deviation is E[max score], and
+    feasibility is P(the subset contains a θ-feasible replicate).
+    """
     epochs = _epochs(graphs)
-    ratios = [_per_graph_median_ratio(g, epochs) for g in graphs]
-    feas = [_per_graph_feas_rate(g, epochs) for g in graphs]
-    times = [_per_graph_median_time(g, epochs) for g in graphs]
-    # Graphs whose θ-heuristic returned no edges have an undefined ratio.
-    ratio_graphs = [col for col, g in zip(ratios, graphs) if g["heur"] > 0]
-    med, lo, hi = _across(ratio_graphs)
-    feas_med, feas_lo, feas_hi = _across(feas)
-    time_med, _, _ = _across(times)
+    t_marks = _kept_marks(epochs, _T_MARKS)
+    r_cap = max((len(g["reps"]) for g in graphs), default=0)
+    r_marks = _kept_marks(range(1, r_cap + 1), _R_MARKS)
 
-    positive_hi = [v for v in hi if v is not None]
-    ymax = 2.0
-    if positive_hi:
-        ymax = max(1.35, _quantile(sorted(positive_hi), 0.9) * 1.2)
-    med_max = max((v for v in med if v is not None), default=1.0)
-    ymax = max(ymax, med_max * 1.05)
+    def dev_at_t(graph, t):
+        return _epoch_graph_values(graph, t)[0]
 
-    xtick = _log_ticks(epochs[-1])
-    width = r"0.42\textwidth"
-    height = r"0.34\textwidth"
+    def feas_at_t(graph, t):
+        return _epoch_graph_values(graph, t)[1]
 
-    env, lines = begin_float("figure", star=False)
-    lines += begin_tikz()
-    lines += [
-        r"  \begin{groupplot}[",
-        r"    group style={group size=1 by 2, vertical sep=42pt},",
-        *_style_keys(),
-        rf"    width={width},",
-        rf"    height={height},",
-        r"    xmode=log,",
-        r"    log ticks with fixed point,",
-        r"    xlabel={Epoch $t$},",
-        r"    xmin=1,",
-        rf"    xmax={epochs[-1]},",
-        rf"    xtick={xtick},",
-        r"    log basis x=10,",
-        r"  ]",
-        r"  \nextgroupplot[",
-        r"    ylabel={$|E(B_t)|\,/\,|E(D_\theta)|$},",
-        r"    title={Relative edge count},",
-        r"    ymin=0,",
-        rf"    ymax={ymax:.4f},",
-        r"    legend style={",
-        r"      at={(0.03,0.97)}, anchor=north west,",
-        r"      font=\scriptsize, draw=none,",
-        r"      fill=white, fill opacity=0.85, text opacity=1,",
-        r"      legend cell align=left},",
-        r"    legend columns=1,",
-        r"  ]",
-    ]
-    for col in ratio_graphs:
-        coords = _coords(epochs, col)
-        if not coords:
-            continue
+    def dev_at_r(graph, r):
+        scores = [dev for dev, _feas in _final_outcomes(graph) if dev is not None]
+        if len(scores) < r:
+            return None
+        return expected_max(scores, r)
+
+    def feas_at_r(graph, r):
+        flags = [feas for _dev, feas in _final_outcomes(graph)]
+        if len(flags) < r:
+            return None
+        prob = _p_any_feasible(len(flags), sum(flags), r)
+        if prob is None:
+            return None
+        return 100.0 * prob
+
+    return {
+        "dev_t": _median_at(graphs, t_marks, dev_at_t),
+        "dev_r": _median_at(graphs, r_marks, dev_at_r),
+        "feas_t": _median_at(graphs, t_marks, feas_at_t),
+        "feas_r": _median_at(graphs, r_marks, feas_at_r),
+    }
+
+
+def _panel_body(xy, xmin, xmax, ymin, ymax, default, *, zero_line):
+    lines = []
+    if xy:
+        coords = " ".join(
+            f"({x:g},{y:.4f})"
+            for x, y in sorted(xy.items(), key=lambda item: float(item[0]))
+        )
         lines.append(
-            rf"  \addplot[black, opacity=0.18, thin, forget plot] "
+            r"\addplot[solid, thick, mark=*, mark size=1.1pt, blue!80!black] "
             rf"coordinates {{{coords}}};"
         )
-    upper = _coords(epochs, hi)
-    lower = _coords(epochs, lo)
-    if upper and lower:
-        lines += [
-            rf"  \addplot[name path=ratiohi, draw=none, forget plot] "
-            rf"coordinates {{{upper}}};",
-            rf"  \addplot[name path=ratiolo, draw=none, forget plot] "
-            rf"coordinates {{{lower}}};",
-            r"  \addplot[blue!70!black, fill opacity=0.20, draw=none, forget plot] "
-            r"fill between[of=ratiohi and ratiolo];",
-        ]
-    med_coords = _coords(epochs, med)
-    if med_coords:
-        lines.append(
-            rf"  \addplot[very thick, blue!70!black] coordinates {{{med_coords}}};"
-        )
-        lines.append(r"  \addlegendentry{median}")
-    if upper and lower:
-        lines.append(
-            r"  \addlegendimage{area legend, fill=blue!70!black, fill opacity=0.45}"
-        )
-        lines.append(r"  \addlegendentry{IQR}")
-    lines.append(
-        rf"  \addplot[dotted, black!55] coordinates {{(1,1) ({epochs[-1]},1)}};"
-    )
-    lines.append(r"  \addlegendentry{$\theta$-heuristic}")
-    lines += [
-        r"  \nextgroupplot[",
-        r"    ylabel={$P(B_t$ is $\theta$-feasible$)$},",
-        r"    title={$\theta$-feasibility},",
-        r"    ymin=0,",
-        r"    ymax=1.05,",
-        r"  ]",
-    ]
-    for col in feas:
-        coords = _coords(epochs, col)
-        if not coords:
-            continue
-        lines.append(
-            rf"  \addplot[black, opacity=0.18, thin, forget plot] "
-            rf"coordinates {{{coords}}};"
-        )
-    f_upper = _coords(epochs, feas_hi)
-    f_lower = _coords(epochs, feas_lo)
-    if f_upper and f_lower:
-        lines += [
-            rf"  \addplot[name path=feashi, draw=none, forget plot] "
-            rf"coordinates {{{f_upper}}};",
-            rf"  \addplot[name path=feaslo, draw=none, forget plot] "
-            rf"coordinates {{{f_lower}}};",
-            r"  \addplot[teal!70!black, fill opacity=0.20, draw=none, forget plot] "
-            r"fill between[of=feashi and feaslo];",
-        ]
-    feas_coords = _coords(epochs, feas_med)
-    if feas_coords:
-        lines.append(
-            rf"  \addplot[very thick, teal!70!black] coordinates {{{feas_coords}}};"
-        )
-    lines += [r"  \end{groupplot}"]
-
-    time_coords = _coords(epochs, time_med)
-    time_vals = [v for v in time_med if v is not None and v > 0]
-    if time_coords and time_vals:
-        tmin = min(time_vals)
-        tmax = max(time_vals)
-        ymode = r"    ymode=log," if tmax / tmin > 8 else ""
-        lines += [
-            r"  \begin{axis}[",
-            rf"    at={{(group c1r1.south west)}},",
-            r"    anchor=south west,",
-            r"    scale only axis,",
-            rf"    width={width},",
-            rf"    height={height},",
-            r"    axis y line*=right,",
-            r"    axis x line=none,",
-            r"    xtick=\empty,",
-            r"    xmode=log,",
-            r"    xmin=1,",
-            rf"    xmax={epochs[-1]},",
-            ymode,
-            r"    ylabel={Cumulative time (s)},",
-            r"    ylabel style={font=\small},",
-            r"    tick label style={font=\scriptsize},",
-            r"    scaled ticks=false,",
-            r"    log ticks with fixed point,",
-            r"    legend style={",
-            r"      at={(0.97,0.03)}, anchor=south east,",
-            r"      font=\scriptsize, draw=none,",
-            r"      fill=white, fill opacity=0.85, text opacity=1},",
-            r"  ]",
-            rf"  \addplot[thick, dashed, orange!85!black] coordinates {{{time_coords}}};",
-            r"  \addlegendentry{median time}",
-            r"  \end{axis}",
-        ]
-    lines += end_tikz()
-    n_rep = sum(len(g["reps"]) for g in graphs)
-    t_max = epochs[-1]
-    lines += [
-        (
-            rf"  \caption{{Anytime quality at {graphs[0]['ants']} ants "
-            rf"($T{{=}}{t_max}$ epochs, {len(graphs)} graphs, "
-            rf"{n_rep} counted replicates). "
-            rf"Each faint curve is one graph (median over its replicates). "
-            rf"The band is the interquartile range across graphs. "
-            rf"The right axis is median cumulative search time. "
-            rf"$\theta$-feasibility is the fraction of replicates whose "
-            rf"incumbent has at least $\theta$ vertices on both sides.}}"
-        ),
-        r"  \label{fig:iteration-budget}",
-    ]
-    lines += end_float(env)
-    return lines
-
-
-def replicate_figure(graphs):
-    """Mean best-of-R relative quality with bootstrap CI, and per-graph CV."""
-    if not graphs:
-        return _missing_figure(
-            "fig:replicate-budget",
-            "Counted epoch traces are not recorded yet. "
-            r"Run \texttt{scripts/budget-trace.bash} to produce this figure.",
-        )
-
-    scored = []
-    cvs = []
-    r_max = 0
-    t_used = None
-    for graph in graphs:
-        edges, cap = _full_budget_edges(graph)
-        if cap is None or not edges:
-            continue
-        t_used = cap if t_used is None else min(t_used, cap)
-        r_max = max(r_max, len(edges))
-        if graph["heur"] > 0 and len(edges) >= 2:
-            mean = statistics.mean(edges)
-            if mean > 0:
-                cvs.append(statistics.stdev(edges) / mean)
-        if graph["heur"] > 0:
-            scored.append((graph["heur"], edges))
-
-    if not scored or r_max < 1:
-        return _missing_figure(
-            "fig:replicate-budget",
-            "Epoch traces did not contain enough replicates to estimate best-of-$R$.",
-        )
-
-    budgets = list(range(1, r_max + 1))
-    means = []
-    lo_band = []
-    hi_band = []
-    rng = random.Random(BOOT_SEED)
-    for r in budgets:
-        eligible = [expected_max(edges, r) / heur for heur, edges in scored if len(edges) >= r]
-        eligible = [v for v in eligible if v is not None]
-        if not eligible:
-            means.append(None)
-            lo_band.append(None)
-            hi_band.append(None)
-            continue
-        means.append(statistics.mean(eligible))
-        lo, hi = _bootstrap_mean_ci(eligible, rng)
-        lo_band.append(lo)
-        hi_band.append(hi)
-
-    mean_max = max((v for v in means if v is not None), default=1.0)
-    hi_max = max((v for v in hi_band if v is not None), default=mean_max)
-    ymax = max(1.35, hi_max * 1.08, mean_max * 1.08)
-
-    xtick = "{" + ",".join(
-        str(b) for b in budgets if b == 1 or b == r_max or b % 5 == 0
-    ) + "}"
-
-    env, lines = begin_float("figure", star=False)
-    lines += begin_tikz()
-    lines += [
-        r"  \begin{groupplot}[",
-        r"    group style={group size=1 by 2, vertical sep=42pt},",
-        *_style_keys(),
-        r"    width=0.42\textwidth,",
-        r"    height=0.34\textwidth,",
-        r"  ]",
-        r"  \nextgroupplot[",
-        r"    xlabel={Replicates $R$},",
-        r"    ylabel={$E[\max |E|]\,/\,|E(D_\theta)|$},",
-        r"    title={Best of $R$ restarts},",
-        r"    xmin=0.5,",
-        rf"    xmax={r_max + 0.5},",
-        rf"    xtick={xtick},",
-        r"    ymin=0,",
-        rf"    ymax={ymax:.4f},",
-        r"    legend style={",
-        r"      at={(0.03,0.97)}, anchor=north west,",
-        r"      font=\scriptsize, draw=none,",
-        r"      fill=white, fill opacity=0.85, text opacity=1,",
-        r"      legend cell align=left},",
-        r"  ]",
-    ]
-    upper = _coords(budgets, hi_band)
-    lower = _coords(budgets, lo_band)
-    if upper and lower:
-        lines += [
-            rf"  \addplot[name path=boothi, draw=none, forget plot] coordinates {{{upper}}};",
-            rf"  \addplot[name path=bootlo, draw=none, forget plot] coordinates {{{lower}}};",
-            r"  \addplot[blue!70!black, fill opacity=0.20, draw=none, forget plot] "
-            r"fill between[of=boothi and bootlo];",
-        ]
-    mean_coords = _coords(budgets, means)
-    if mean_coords:
-        lines.append(
-            rf"  \addplot[very thick, mark=*, mark size=1.1pt, blue!70!black] "
-            rf"coordinates {{{mean_coords}}};"
-        )
-        lines.append(r"  \addlegendentry{mean}")
-    if upper and lower:
-        lines.append(
-            r"  \addlegendimage{area legend, fill=blue!70!black, fill opacity=0.45}"
-        )
-        lines.append(r"  \addlegendentry{95\% bootstrap CI}")
-    lines.append(
-        rf"  \addplot[dotted, black!55] coordinates {{(1,1) ({r_max},1)}};"
-    )
-    lines.append(r"  \addlegendentry{$\theta$-heuristic}")
-    lines += [
-        r"  \nextgroupplot[",
-        r"    xlabel={Graphs, sorted by CV},",
-        r"    ylabel={Coefficient of variation},",
-        r"    title={Spread across restarts},",
-        r"    xmin=0.5,",
-        rf"    xmax={max(len(cvs), 1) + 0.5},",
-        r"    ymin=0,",
-        r"    xtick=\empty,",
-        r"    scaled y ticks=false,",
-        r"    yticklabel={\pgfmathprintnumber[fixed, precision=2]{\tick}},",
-    ]
-    if cvs:
-        cv_max = max(cvs)
-        lines.append(rf"    ymax={max(0.05, cv_max * 1.15):.4f},")
-    lines += [
-        r"    legend style={",
-        r"      at={(0.97,0.97)}, anchor=north east,",
-        r"      font=\scriptsize, draw=none,",
-        r"      fill=white, fill opacity=0.85, text opacity=1},",
-        r"  ]",
-    ]
-    if cvs:
-        ordered = sorted(cvs)
-        cv_coords = " ".join(f"({i},{v:.4f})" for i, v in enumerate(ordered, start=1))
-        med_cv = statistics.median(ordered)
-        lines += [
-            rf"  \addplot[only marks, mark=*, mark size=1.3pt, teal!70!black] "
-            rf"coordinates {{{cv_coords}}};",
-            rf"  \addplot[dashed, black!60] coordinates {{(1,{med_cv:.4f}) ({len(ordered)},{med_cv:.4f})}};",
-            r"  \addlegendentry{median CV}",
-        ]
     else:
-        lines.append(r"  % no graph had a positive mean edge count")
-    lines += [r"  \end{groupplot}"]
-    lines += end_tikz()
-    n_rep = sum(len(edges) for _heur, edges in scored)
-    cv_note = ""
-    if cvs:
-        cv_note = (
-            f" Median coefficient of variation is {statistics.median(cvs):.3f}."
+        lines.append(
+            r"\node[font=\scriptsize, align=center, text=black!55] "
+            r"at (rel axis cs:0.5,0.55) {not recorded};"
         )
-    lines += [
-        (
-            rf"  \caption{{Best of $R$ independent replicates at epoch {t_used} "
-            rf"({len(scored)} graphs, up to {r_max} counted replicates). "
-            rf"For each graph, $E[\max]$ is the expected best edge count "
-            rf"over subsets of size $R$ drawn without replacement from that "
-            rf"graph's replicates; the curve is the mean of those values "
-            rf"relative to $|E(D_\theta)|$, and the band is a bootstrap "
-            rf"confidence interval over graphs. "
-            rf"The bottom panel is the coefficient of variation of $|E(B)|$ "
-            rf"across replicates of each graph.{cv_note}}}"
-        ),
-        r"  \label{fig:replicate-budget}",
-    ]
-    lines += end_float(env)
+    if zero_line:
+        lines.append(
+            rf"\draw[dashed, gray] (axis cs:{xmin:g},0) -- (axis cs:{xmax:g},0);"
+        )
+    if default is not None and xmin < float(default) < xmax:
+        lines.append(
+            rf"\draw[dotted, black!55] (axis cs:{default:g},{ymin:.4f}) -- "
+            rf"(axis cs:{default:g},{ymax:.4f});"
+        )
     return lines
 
 
-def _quality_grid(graphs):
-    """Median relative E[max of r draws at epoch t] on a log-spaced epoch grid."""
-    t_cap = max(_epochs(graphs))
-    r_cap = max(len(g["reps"]) for g in graphs)
-    epochs = [t for t in _HEATMAP_EPOCHS if t <= t_cap]
-    if t_cap not in epochs:
-        epochs.append(t_cap)
-    rs = list(range(1, r_cap + 1))
-    # Precompute, per graph, the edge list at each heatmap epoch.
-    prepared = []
-    for graph in graphs:
-        if graph["heur"] <= 0:
-            continue
-        columns = {}
-        for t in epochs:
-            edges = [
-                rep[t]["edges"] for rep in graph["reps"] if t in rep
-            ]
-            if edges:
-                columns[t] = edges
-        if columns:
-            prepared.append((graph["heur"], columns))
-    grid = {}
-    for t in epochs:
-        for r in rs:
-            vals = []
-            for heur, columns in prepared:
-                edges = columns.get(t)
-                if edges is None or len(edges) < r:
-                    continue
-                est = expected_max(edges, r)
-                if est is not None:
-                    vals.append(est / heur)
-            if vals:
-                grid[(t, r)] = statistics.median(vals)
-    epochs, rs = _dense_rectangle(epochs, rs, grid)
-    grid = {(t, r): grid[(t, r)] for t in epochs for r in rs if (t, r) in grid}
-    return epochs, rs, grid
+def _budget_panel(xlabel, xy, scale, ymin, ymax, *, hide_y, zero_line, ytick):
+    if xy:
+        xs = sorted(float(x) for x in xy)
+        xmin, xmax, scale = _axis_limits(xs, scale)
+        xtick = "{" + ",".join(f"{x:g}" for x in _tick_values(xs, scale)) + "}"
+    else:
+        xmin, xmax, scale, xtick = 0.5, 8.0, "linear", None
+    opts = [
+        r"\nextgroupplot[",
+        rf"  xlabel={{{xlabel}}},",
+    ]
+    if hide_y:
+        opts.append(r"  yticklabels={},")
+    opts += [
+        rf"  ymin={ymin:.4f},",
+        rf"  ymax={ymax:.4f},",
+    ]
+    opts += _xscale_opts(scale)
+    opts += [
+        rf"  xmin={xmin:g},",
+        rf"  xmax={xmax:g},",
+    ]
+    if xtick is not None:
+        opts.append(rf"  xtick={xtick},")
+    if ytick is not None:
+        opts.append(rf"  ytick={{{ytick}}},")
+    opts.append(r"]")
+    opts += _panel_body(
+        xy, xmin, xmax, ymin, ymax, _PAPER_DEFAULT, zero_line=zero_line,
+    )
+    return opts
 
 
-def _dense_rectangle(epochs, rs, grid):
-    """Largest top-left rectangle of (epoch, replicate) cells that were estimated."""
-    for r_hi in range(len(rs), 0, -1):
-        sub_r = rs[:r_hi]
-        use_t = [t for t in epochs if all((t, r) in grid for r in sub_r)]
-        if len(use_t) >= 2 and len(sub_r) >= 1:
-            return use_t, sub_r
-    return [], []
-
-
-def allocation_figure(graphs):
-    """Heatmap of median relative quality with iso-cost contours and slices."""
+def budget_figure(graphs):
+    """Quality-style 2×2: deviation and θ-feasibility versus T and R."""
     if not graphs:
         return _missing_figure(
-            "fig:budget-allocation",
+            "fig:budget",
             "Epoch traces are not recorded yet. "
             r"Run \texttt{scripts/budget-trace.bash} to produce this figure.",
         )
-    epochs, rs, grid = _quality_grid(graphs)
-    if not grid:
+    series = budget_series(graphs)
+    if not any(series.values()):
         return _missing_figure(
-            "fig:budget-allocation",
-            "Epoch traces did not contain a $(T, R)$ grid to plot.",
+            "fig:budget",
+            "Epoch traces had no deviation or $\\theta$-feasibility to plot.",
         )
-
-    vals = list(grid.values())
-    zmin = min(vals)
-    zmax = max(vals)
-    if zmax <= zmin:
-        zmax = zmin + 1.0
-
-    t_max = epochs[-1]
-    r_max = rs[-1]
-    # Costs that fit inside the recorded rectangle, including the corners
-    # (1, C) and (C, 1) when both sides are long enough.
-    corner = min(t_max, r_max)
-    costs = []
-    for cost in (corner, 100, 300, 1000):
-        splits = _factor_splits(cost, t_max, r_max)
-        if len(splits) >= 3 and cost not in costs:
-            costs.append(cost)
-    if not costs and corner >= 2:
-        costs = [corner]
-    slice_ts = [
-        t
-        for cost in costs
-        for t, _r in _factor_splits(cost, t_max, r_max)
-    ]
-    slice_xmax = max(slice_ts) if slice_ts else t_max
-
-    env, lines = begin_float("figure", star=True)
-    lines += begin_tikz()
-    lines += [
-        r"  \begin{groupplot}[",
-        r"    group style={group size=2 by 1, horizontal sep=18mm},",
-        *_style_keys(),
-        r"    width=0.40\textwidth,",
-        r"    height=0.36\textwidth,",
-        r"  ]",
-        r"  \nextgroupplot[",
-        r"    view={0}{90},",
-        r"    xlabel={Epochs $T$},",
-        r"    ylabel={Replicates $R$},",
-        r"    title={Quality over $(T,R)$},",
-        r"    colormap/viridis,",
-        r"    colorbar,",
-        r"    colorbar style={font=\scriptsize, ylabel={median $|E|/|E(D_\theta)|$}},",
-        rf"    point meta min={zmin:.4f},",
-        rf"    point meta max={zmax:.4f},",
-        rf"    zmin={zmin:.4f},",
-        rf"    zmax={zmax:.4f},",
-        rf"    xtick={{{_log10_tick_spec(epochs)}}},",
-        rf"    xticklabels={{{_log10_tick_labels(epochs)}}},",
-        rf"    ytick={{{_log10_tick_spec(rs)}}},",
-        rf"    yticklabels={{{_log10_tick_labels(rs)}}},",
-        r"  ]",
-    ]
-    # One scanline per replicate count; T runs across the row.
-    mesh_rows = []
-    for r in rs:
-        row = " ".join(
-            f"({math.log10(t):.5f},{math.log10(r):.5f},{grid[(t, r)]:.5f})"
-            for t in epochs
-        )
-        mesh_rows.append(row)
-    lines += [
-        rf"  \addplot3[surf, shader=interp, mesh/rows={len(rs)}, "
-        rf"mesh/cols={len(epochs)}] coordinates {{",
-        "\n".join(mesh_rows),
-        r"  };",
-    ]
-    # Iso-cost lines in the same log10 plane. Drawn after the surface so
-    # they sit on the top view; a second 2-D axis overlays them cleanly.
-    lines.append(r"  \nextgroupplot[")
-    lines += [
-        r"    xlabel={Epochs $T$},",
-        r"    ylabel={$|E|/|E(D_\theta)|$},",
-        r"    title={Equal ant-epoch cost},",
-        r"    xmode=log,",
-        r"    log ticks with fixed point,",
-        r"    xmin=1,",
-        rf"    xmax={slice_xmax},",
-        rf"    xtick={_log_ticks(slice_xmax)},",
-        r"    ymin=0,",
-        rf"    ymax={max(1.35, zmax * 1.08):.4f},",
-        r"    legend style={",
-        r"      at={(0.03,0.97)}, anchor=north west,",
-        r"      font=\scriptsize, draw=none,",
-        r"      fill=white, fill opacity=0.85, text opacity=1,",
-        r"      legend cell align=left},",
-        r"  ]",
-    ]
-    slice_colors = (
-        "blue!70!black",
-        "orange!85!black",
-        "teal!70!black",
-        "violet!70!black",
+    dev_lo, dev_hi = _shared_ylim([series["dev_t"], series["dev_r"]])
+    feas_lo, feas_hi = -8.0, 108.0
+    panels = (
+        (r"Epochs $T$", series["dev_t"], "log2", dev_lo, dev_hi, False, True, None),
+        (r"Replicates $R$", series["dev_r"], "log2", dev_lo, dev_hi, True, True, None),
+        (r"Epochs $T$", series["feas_t"], "log2", feas_lo, feas_hi, False, False, "0,50,100"),
+        (r"Replicates $R$", series["feas_r"], "log2", feas_lo, feas_hi, True, False, "0,50,100"),
     )
-    for idx, cost in enumerate(costs):
-        splits = _factor_splits(cost, t_max, r_max)
-        xs = [t for t, _r in splits]
-        ys = [grid.get((t, r)) for t, r in splits]
-        coords = _coords(xs, ys)
-        if not coords:
-            continue
-        color = slice_colors[idx % len(slice_colors)]
-        lines.append(
-            rf"  \addplot[very thick, mark=*, mark size=1.2pt, {color}] "
-            rf"coordinates {{{coords}}};"
-        )
-        lines.append(rf"  \addlegendentry{{$T R={cost}$}}")
-    lines.append(
-        rf"  \addplot[dotted, black!55, forget plot] coordinates {{(1,1) ({t_max},1)}};"
-    )
-    lines += [r"  \end{groupplot}"]
-
-    # Contours over the heatmap. Same log10 limits as the surf axis.
-    x_hi = math.log10(t_max)
-    y_hi = math.log10(r_max)
-    lines += [
-        r"  \begin{axis}[",
-        r"    at={(group c1r1.south west)},",
-        r"    anchor=south west,",
-        r"    scale only axis,",
-        r"    width=0.40\textwidth,",
-        r"    height=0.36\textwidth,",
-        r"    axis lines=none,",
-        r"    ticks=none,",
-        r"    xmin=0,",
-        rf"    xmax={x_hi:.5f},",
-        r"    ymin=0,",
-        rf"    ymax={y_hi:.5f},",
-        r"    clip=true,",
-        r"  ]",
+    body = [
+        r"\begin{groupplot}[",
+        r"  group style={group size=2 by 2,",
+        r"    horizontal sep=0.48cm, vertical sep=0.82cm},",
+        r"  scale only axis,",
+        r"  width=0.34\columnwidth,",
+        r"  height=0.26\columnwidth,",
+        r"  tick label style={font=\scriptsize, inner sep=1pt},",
+        r"  label style={font=\scriptsize, inner sep=1pt},",
+        r"  xlabel style={align=center},",
+        r"  grid=major,",
+        r"  grid style={gray!25},",
+        r"  tick align=outside,",
+        r"]",
     ]
-    for idx, cost in enumerate(costs):
-        # log10(R) = log10(C) - log10(T), restricted to the rectangle.
-        t_lo = max(1, math.ceil(cost / r_max))
-        t_hi = min(t_max, cost)  # R >= 1
-        if t_hi <= t_lo:
-            continue
-        color = "white"
-        lines.append(
-            rf"  \addplot[thick, {color}] coordinates {{"
-            rf"({math.log10(t_lo):.5f},{math.log10(cost / t_lo):.5f}) "
-            rf"({math.log10(t_hi):.5f},{math.log10(cost / t_hi):.5f})}};"
+    for xlabel, xy, scale, ymin, ymax, hide_y, zero_line, ytick in panels:
+        body += _budget_panel(
+            xlabel, xy, scale, ymin, ymax,
+            hide_y=hide_y, zero_line=zero_line, ytick=ytick,
         )
-        mid_t = math.sqrt(t_lo * t_hi)
-        mid_r = cost / mid_t
-        if 1 <= mid_r <= r_max:
-            lines.append(
-                rf"  \node[font=\scriptsize, text=white, inner sep=1pt] "
-                rf"at ({{axis cs:{math.log10(mid_t):.5f},{math.log10(mid_r):.5f}}}) "
-                rf"{{${cost}$}};"
-            )
-    lines += [r"  \end{axis}"]
-    lines += end_tikz()
+    body += [
+        r"\end{groupplot}",
+        r"\path (group c1r1.west)",
+        r"  node[xshift=-32pt, rotate=90, anchor=center,",
+        r"       font=\scriptsize, inner sep=0pt]",
+        r"  {Dev.\ from $\theta$-heuristic (\%)};",
+        r"\path (group c1r2.west)",
+        r"  node[xshift=-32pt, rotate=90, anchor=center,",
+        r"       font=\scriptsize, inner sep=0pt]",
+        r"  {$\theta$-feasible (\%)};",
+    ]
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz(resize=False)
+    lines += body
+    lines += end_tikz(resize=False)
     lines += [
-        (
-            rf"  \caption{{Allocation of a fixed ant-epoch budget $A\cdot T\cdot R$ "
-            rf"at {graphs[0]['ants']} ants ({len(graphs)} graphs). "
-            rf"Color is the median across graphs of $E[\max |E|]/|E(D_\theta)|$, "
-            rf"where the expectation is over $R$ replicates drawn without "
-            rf"replacement and each replicate is read at epoch $T$. "
-            rf"White lines are constant $T\cdot R$. The right panel is that "
-            rf"same median along those contours.}}"
-        ),
-        r"  \label{fig:budget-allocation}",
+        r"  \caption{Median deviation from the $\theta$-heuristic, "
+        r"and $\theta$-feasibility, versus epoch budget and replicate count.}",
+        r"  \label{fig:budget}",
     ]
     lines += end_float(env)
+    print(
+        "# budget: "
+        + ", ".join(f"{key}={len(val)}" for key, val in series.items()),
+        file=sys.stderr,
+    )
     return lines
-
-
-def _log10_tick_values(values):
-    """Nice log ticks inside the grid, always including the endpoints."""
-    lo, hi = min(values), max(values)
-    present = [v for v in (1, 2, 5, 10, 20, 50, 100, 200, 500) if lo <= v <= hi]
-    if lo not in present:
-        present = [lo, *present]
-    if hi not in present:
-        present.append(hi)
-    return present
-
-
-def _log10_tick_spec(values):
-    return ",".join(f"{math.log10(v):.4f}" for v in _log10_tick_values(values))
-
-
-def _log10_tick_labels(values):
-    return ",".join(str(v) for v in _log10_tick_values(values))
 
 
 def _series_legend(label):
@@ -968,10 +587,10 @@ def pheromone_figure(graphs, ablation):
     lines += begin_tikz()
     lines += [
         r"  \begin{groupplot}[",
-        r"    group style={group size=1 by 2, vertical sep=42pt},",
+        rf"    group style={{group size=1 by 2, vertical sep={COL2_VSEP_LOG}}},",
         *_style_keys(),
-        r"    width=0.42\textwidth,",
-        r"    height=0.34\textwidth,",
+        rf"    width={COL2_WIDTH},",
+        rf"    height={COL2_HEIGHT},",
         r"    xmode=log,",
         r"    log ticks with fixed point,",
         r"    xlabel={Epoch $t$},",
@@ -1057,20 +676,8 @@ def pheromone_figure(graphs, ablation):
             inserted = True
     lines = patched
 
-    n_graphs = len(graphs)
-    control = "The $\\Delta\\tau=0$ control is not in this results tree."
-    if any(label in ("dt0", "delta0", "no-pheromone") for label, _s in series):
-        control = (
-            r"$\Delta\tau=0$ keeps every trail at $1$, so $T$ epochs are "
-            r"$T$ independent colonies with the same number of ants."
-        )
     lines += [
-        (
-            rf"  \caption{{Pheromone control at the same ant count "
-            rf"({n_graphs} graphs in the pheromone-on run). "
-            rf"Curves are medians across graphs of $|E(B_t)|/|E(D_\theta)|$. "
-            rf"{control}}}"
-        ),
+        r"  \caption{Anytime quality with and without pheromone.}",
         r"  \label{fig:pheromone-ablation}",
     ]
     lines += end_float(env)
@@ -1082,18 +689,8 @@ def pheromone_figure(graphs, ablation):
     return lines
 
 
-def iteration_budget_figure(graphs):
-    return anytime_figure(graphs)
-
-
-def replicate_budget_figure(graphs):
-    return replicate_figure(graphs)
-
-
 BUILDERS = {
-    "iteration-budget": lambda graphs, _ablation: anytime_figure(graphs),
-    "replicate-budget": lambda graphs, _ablation: replicate_figure(graphs),
-    "budget-allocation": lambda graphs, _ablation: allocation_figure(graphs),
+    "budget": lambda graphs, _ablation: budget_figure(graphs),
     "pheromone-ablation": lambda graphs, ablation: pheromone_figure(graphs, ablation),
 }
 

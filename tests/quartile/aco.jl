@@ -1,14 +1,20 @@
 """
-Quartile ACO tests on real-world graphs.
+Pheromone-effectiveness probe on a few real-world graphs.
+
+The paper ablation (A=100, T=5, every-ant deposit) is nearly flat in Δτ.
+This file isolates whether τ can matter at all: elite_seed is off so the
+only inter-epoch memory is pheromone, T is long enough for a trail to form,
+and the arms are no-pheromone / every-ant / best-only / best-only with η^0.
 
 Usage:
-  julia tests/quartile/aco.jl                     # first 5 graphs (ascending |E|)
+  julia tests/quartile/aco.jl                     # 4-graph probe (not the suite)
   julia tests/quartile/aco.jl amazon/boxes        # one specific graph
-  julia tests/quartile/aco.jl --N=10              # first 10 graphs
+  julia tests/quartile/aco.jl --N=3               # first 3 graphs by |E|
   julia tests/quartile/aco.jl --prefix=konect-small --N=3
 """
 
 using Random
+using Statistics
 
 include(joinpath(@__DIR__, "graph_selection.jl"))
 
@@ -71,123 +77,159 @@ function compute_biclique_quartile_thresholds(g::BipartiteGraph, chosen_U::Vecto
               max_edge_rank, min_q_edges, plant_edges)
 end
 
-"""
-Check whether the injected biclique (nodes and edges) is present in a reduced graph.
-"""
-function check_plant_presence(g_reduced::BipartiteGraph, chosen_U::Vector{Int},
-                               chosen_V::Vector{Int},
-                               plant_edges::Vector{Tuple{Int,Int}})
-    u_present = [u for u in chosen_U if haskey(g_reduced.adjU, u)]
-    v_present = [v for v in chosen_V if haskey(g_reduced.adjV, v)]
-    nodes_present = (length(u_present) == length(chosen_U)) &&
-                    (length(v_present) == length(chosen_V))
-
-    surviving_edges = [e for e in plant_edges
-                       if haskey(g_reduced.adjU, e[1]) &&
-                          (e[2] in g_reduced.adjU[e[1]])]
-    edges_present = length(surviving_edges) == length(plant_edges)
-
-    return (; nodes_present, u_present, v_present, edges_present,
-              surviving_edges, total_plant_edges=length(plant_edges))
-end
-
 const K = 2
 const θ = 5
 
-"""
-Run the quartile-vs-standard ACO comparison on a single real-world graph.
-"""
-function test_quartile_aco_on(dataset_key::AbstractString, path::AbstractString,
-                               edge_count::Int)
+# Small enough to finish; long enough that a trail can exist. elite_seed is
+# off in every arm so a quality gap is attributable to τ, not to replanting
+# the incumbent.
+const PROBE_ANTS = 20
+const PROBE_ITERS = 20
+const PROBE_SEEDS = 1:2
+const PROBE_EVAP = 0.95
+
+# Default probe set: two easy ceilings, one late-ITB graph, one graph where
+# the recorded settings ablation already showed a best-only vs Δτ=0 gap.
+# This is not the 38-graph suite.
+const PHEROMONE_PROBE_GRAPHS = [
+    "amazon/boxes",
+    "konect-small/moreno",
+    "konect-small/moreno_blogs",
+    "konect/bitcoin",
+]
+
+const ARMS = [
+    (id="no_ph",      pheromone=0, evaporation=1.00, best_only=false, eta_exp=2.0),
+    (id="every_ant",  pheromone=1, evaporation=PROBE_EVAP, best_only=false, eta_exp=2.0),
+    (id="best_only",  pheromone=1, evaporation=PROBE_EVAP, best_only=true,  eta_exp=2.0),
+    (id="best_η0",    pheromone=1, evaporation=PROBE_EVAP, best_only=true,  eta_exp=0.0),
+]
+
+function probe_graph_list()
+    user_chose = any(a -> !startswith(a, "-") ||
+                           startswith(a, "--N=") ||
+                           startswith(a, "--prefix="), ARGS)
+    user_chose && return selected_graphs()
+
+    graphs = NamedTuple{(:key, :path, :edges), Tuple{String,String,Int}}[]
+    for key in PHEROMONE_PROBE_GRAPHS
+        path = resolve_graph_path(key; data_root=_QUARTILE_DATA_ROOT)
+        edges = isfile(path) ? count_indexed_edges(path) : 0
+        push!(graphs, (key=key, path=path, edges=edges))
+    end
+    return graphs
+end
+
+function run_arm(g::BipartiteGraph, arm, seed::Int)
+    g_run = deepcopy(g)
+    Random.seed!(seed)
+    sols, best_iters, best_times, pheromones, remapping = redirect_stdout(devnull) do
+        aco(
+            g_run, arm.pheromone, PROBE_ANTS, PROBE_ITERS, arm.evaporation, K, θ, 1;
+            reduction=ReductionMode.simple,
+            parallelize=false,
+            prefer_smaller_side=false,
+            neighbor_scope_limit=true,
+            elite_seed=false,
+            best_only_pheromone=arm.best_only,
+            eta_exp=arm.eta_exp,
+        )
+    end
+    sol = sols[1]
+    fg = freeze(g_run)
+    edges = Subgraph.edge_count(fg, sol)
+    feasible = length(sol.U) ≥ θ && length(sol.V) ≥ θ
+    trail = pheromone_cut_stats(pheromones, remapping, sol; species=1)
+    return (;
+        edges, feasible,
+        nU=length(sol.U), nV=length(sol.V),
+        itb=best_iters[1],
+        time=best_times[1],
+        τ_min=trail.global_min_τ,
+        τ_max=trail.global_max_τ,
+        on_floor=trail.on_trail_floor,
+        cut_pct=100 * trail.cut_fraction,
+    )
+end
+
+function test_pheromone_on(dataset_key::AbstractString, path::AbstractString,
+                           edge_count::Int)
     println("\n── $dataset_key ──")
     println("  Loading: $path  (|E|=$edge_count)")
 
     g, edge_count = load_bipartite_graph(path)
     println("  Graph: |U|=$(length(g.adjU))  |V|=$(length(g.adjV))  |E|=$edge_count")
 
-    # Inject planted biclique
     rng = MersenneTwister(1)
     chosen_U, chosen_V, inserted, missing_edges, existing =
         inject_biclique!(g, θ, θ, K, rng)
     edge_count += inserted
     println("  Injected biclique: u=$θ v=$θ k=$K  (existing=$existing inserted=$inserted missing=$(length(missing_edges)))")
-    println("    planted U: $chosen_U")
-    println("    planted V: $chosen_V")
 
-    # Compute pulse thresholds
     thresh = compute_biclique_quartile_thresholds(g, chosen_U, chosen_V,
                                                   missing_edges; iterations=20)
     println("  Min quartile for all NODES: $(round(100*thresh.min_q_nodes; digits=2))%  (rank $(thresh.max_node_rank)/$(thresh.total_edges))")
     println("  Min quartile for all EDGES: $(round(100*thresh.min_q_edges; digits=2))%  (rank $(thresh.max_edge_rank)/$(thresh.total_edges))")
+    println("  Arms: A=$PROBE_ANTS  T=$PROBE_ITERS  elite_seed=false  F_N  CNN")
+    println("  $(rpad("arm", 12)) $(lpad("seed", 4)) $(lpad("|E|", 5)) θ  $(lpad("ITB", 3)) $(lpad("t(s)", 7))  τ-range  floor  cut%")
 
-    # ── Quartile ACO ─────────────────────────────────────────────────────────
-    g_quartile = deepcopy(g)
-    sols_q, best_iters_q, best_times_q, _, _ = aco(
-        g_quartile, 1, 5, 2, 0.05, K, θ, 1;
-        reduction=ReductionMode.quartile, parallelize=false
-    )
-    sol_q   = sols_q[1]
-    q_fg    = freeze(g_quartile)
-    q_edges = Subgraph.edge_count(q_fg, sol_q)
-    q_plant = check_plant_presence(g_quartile, chosen_U, chosen_V, thresh.plant_edges)
+    by_arm = Dict{String, Vector{NamedTuple}}()
+    for arm in ARMS
+        rows = NamedTuple[]
+        for seed in PROBE_SEEDS
+            row = run_arm(g, arm, seed)
+            push!(rows, row)
+            τlo = row.τ_min === nothing ? NaN : row.τ_min
+            τhi = row.τ_max === nothing ? NaN : row.τ_max
+            println("  $(rpad(arm.id, 12)) $(lpad(string(seed), 4)) $(lpad(string(row.edges), 5)) $(row.feasible ? "Y" : "n")  $(lpad(string(row.itb), 3)) $(lpad(string(round(row.time; digits=3)), 7))  [$(round(τlo; digits=3)), $(round(τhi; digits=3))]  $(row.on_floor ? "Y" : "n")  $(round(row.cut_pct; digits=1))")
+        end
+        by_arm[arm.id] = rows
+    end
 
-    plant_sg     = SubGraph(Set(chosen_U), Set(chosen_V))
-    q_plant_miss = Subgraph.missing_edges(q_fg, plant_sg)
-
-    println("  Quartile ACO: |U|=$(length(sol_q.U))  |V|=$(length(sol_q.V))  edges=$q_edges  iter=$(best_iters_q[1])  time=$(round(best_times_q[1]; digits=3))s")
-    println("    Plant intact in g_quartile: $(q_plant.edges_present && q_plant_miss <= K ? "YES" : "NO")  (edges=$(Subgraph.edge_count(q_fg, plant_sg))/$(length(thresh.plant_edges))  missing=$q_plant_miss)")
-
-    # ── Standard ACO ─────────────────────────────────────────────────────────
-    g_standard = deepcopy(g)
-    sols_s, best_iters_s, best_times_s, _, _ = aco(
-        g_standard, 1, 5, 2, 0.05, K, θ, 1;
-        reduction=ReductionMode.simple, parallelize=false
-    )
-    sol_s   = sols_s[1]
-    s_fg    = freeze(g_standard)
-    s_edges = Subgraph.edge_count(s_fg, sol_s)
-    s_plant = check_plant_presence(g_standard, chosen_U, chosen_V, thresh.plant_edges)
-
-    println("  Standard ACO: |U|=$(length(sol_s.U))  |V|=$(length(sol_s.V))  edges=$s_edges  iter=$(best_iters_s[1])  time=$(round(best_times_s[1]; digits=3))s")
-    println("    Plant in g_standard: $(s_plant.nodes_present ? "YES" : "NO")  (U=$(length(s_plant.u_present))/$θ  V=$(length(s_plant.v_present))/$θ  edges=$(Subgraph.edge_count(s_fg, plant_sg))/$(length(thresh.plant_edges)))")
-
-    # ── Comparison ───────────────────────────────────────────────────────────
-    plant_U = Set(chosen_U)
-    plant_V = Set(chosen_V)
-    println("  Comparison:")
-    println("    Quartile edges=$q_edges  overlap |U|=$(length(intersect(sol_q.U, plant_U)))/$θ  |V|=$(length(intersect(sol_q.V, plant_V)))/$θ")
-    println("    Standard edges=$s_edges  overlap |U|=$(length(intersect(sol_s.U, plant_U)))/$θ  |V|=$(length(intersect(sol_s.V, plant_V)))/$θ")
+    println("  Means over seeds $(collect(PROBE_SEEDS)):")
+    no_ph = by_arm["no_ph"]
+    no_ph_mean = mean(r.edges for r in no_ph)
+    for arm in ARMS
+        rows = by_arm[arm.id]
+        μE = mean(r.edges for r in rows)
+        feas = mean(r.feasible for r in rows)
+        μITB = mean(r.itb for r in rows)
+        delta = μE - no_ph_mean
+        println("    $(rpad(arm.id, 12)) |E|=$(round(μE; digits=1))  Δvs no_ph=$(lpad(string(round(delta; digits=1)), 6))  feas=$(round(100*feas; digits=0))%  ITB=$(round(μITB; digits=1))")
+    end
     println("  ✓ passed")
-
     return true
 end
 
 # ── Run ────────────────────────────────────────────────────────────────────────
 
-graphs = selected_graphs()
+graphs = probe_graph_list()
 
 if isempty(graphs)
     println("No graphs found. Check that data/ is populated and --prefix= is correct.")
     exit(1)
 end
 
-println("Testing quartile ACO on $(length(graphs)) graph(s) (ascending |E|):")
+println("Pheromone probe on $(length(graphs)) graph(s).")
+println("This is not the 38-graph suite.")
 
 failed = String[]
 for g in graphs
     try
-        test_quartile_aco_on(g.key, g.path, g.edges)
+        test_pheromone_on(g.key, g.path, g.edges)
     catch e
         println("  ✗ FAILED: $(g.key): $e")
+        showerror(stdout, e, catch_backtrace())
+        println()
         push!(failed, g.key)
     end
 end
 
 println()
 if isempty(failed)
-    println("All $(length(graphs)) quartile-ACO test(s) passed.")
+    println("All $(length(graphs)) pheromone-probe run(s) finished.")
 else
-    println("$(length(failed)) / $(length(graphs)) test(s) FAILED:")
+    println("$(length(failed)) / $(length(graphs)) run(s) FAILED:")
     for key in failed
         println("  $key")
     end

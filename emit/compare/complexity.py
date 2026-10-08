@@ -184,13 +184,6 @@ def matched_normalized_bound_points(named_rows):
     return points
 
 
-def _fmt_log_log_regression(stats):
-    if stats is None:
-        return "regression unavailable"
-    slope, _intercept, r2 = stats
-    return rf"slope $= {slope:.2f}$, $R^2 = {r2:.2f}$"
-
-
 def _common_budget(matched, key):
     """Single shared budget value across matched points, or None if mixed."""
     vals = {p.get(key) for p in matched if p.get(key) is not None}
@@ -299,31 +292,12 @@ def _emit_bound_panel(*, title, series, series_order, legend_name=None):
 
 def discovery_scaling_figure(*, matched):
     """Raw discovery time vs n and vs candidate bounds (2-panel)."""
-    n = len(matched)
     time_vs_n = [(p["n_R"], p["time"]) for p in matched]
     stats_n = log_log_regression_stats(time_vs_n)
-    series_bound, stats_bound, series_order = _bound_vs_time_series(matched)
+    series_bound, _stats_bound, series_order = _bound_vs_time_series(matched)
     legend_name = "compareDiscoveryScalingLegend"
-    n_e = _common_budget(matched, "T")
-    n_e_tex = int(n_e) if n_e is not None else _FALLBACK_T
-    practical_lab = series_order[1]
 
-    caption = (
-        rf"ACO discovery time on the {n} $(k, \theta) = (2, 5)$ graphs "
-        rf"(log--log). Top: raw time vs.\ nodes $n$, with a "
-        rf"least-squares power-law fit "
-        rf"({_fmt_log_log_regression(stats_n)}). Bottom: the same times "
-        rf"plotted against each candidate complexity bound; a tight bound "
-        rf"should give slope $\approx 1$ (proportional growth). Fitting "
-        rf"$\log t = \alpha\log(\mathrm{{bound}}) + c$ yields "
-        rf"{_fmt_log_log_regression(stats_bound[_NAIVE_LABEL])} for the "
-        rf"naive $n^2$ bound and "
-        rf"{_fmt_log_log_regression(stats_bound[practical_lab])} for "
-        rf"the practical proxy $T\cdot n+m$ with $T = {n_e_tex}$. "
-        rf"The practical slope is closer to $1$, matching the claim that "
-        rf"observed runtimes scale linearly with $m$ rather than "
-        rf"quadratically as the worst-case bound suggests."
-    )
+    caption = r"ACO discovery time versus $n$ and candidate bounds."
 
     env, lines = begin_float("figure", star=False)
     lines += begin_tikz()
@@ -496,12 +470,11 @@ def bound_time_figure(named_rows):
     Shared y-axis lets the fitted slopes be compared directly.
     """
     matched = matched_normalized_bound_points(named_rows)
-    n = len(matched)
     naive_pts = [(p["naive_bound"], p["norm_time"]) for p in matched]
     practical_pts = [(p["practical_bound"], p["norm_time"]) for p in matched]
     stats_naive = log_log_regression_stats(naive_pts)
     stats_practical = log_log_regression_stats(practical_pts)
-    budget_tex, n_e_paren = _budget_caption_bits(matched)
+    _, n_e_paren = _budget_caption_bits(matched)
     practical_xlabel = (
         rf"$T\cdot n+m$ {n_e_paren}"
         if n_e_paren
@@ -509,20 +482,7 @@ def bound_time_figure(named_rows):
     )
     y_limits = _log_pad_limits(p["norm_time"] for p in matched)
 
-    caption = (
-        rf"ACO discovery time normalized by ant count and epoch budget "
-        rf"$t/(n_S\cdot T)$ on the {n} $(k, \theta) = (2, 5)$ graphs "
-        rf"(log--log; {budget_tex} from recorded trials). Top: vs.\ the "
-        rf"naive theoretical bound $n^2$ "
-        rf"({_fmt_log_log_regression(stats_naive)}). Bottom: vs.\ the "
-        rf"practical proxy $T\cdot n+m$ "
-        rf"({_fmt_log_log_regression(stats_practical)}). Fitting "
-        rf"$\log\!\bigl(t/(n_S\cdot T)\bigr) = "
-        rf"\alpha\log(\mathrm{{bound}}) + c$, slope $\approx 1$ would "
-        rf"indicate proportional growth. The practical slope is closer to "
-        rf"$1$ than the naive $n^2$ fit, so while still loose the "
-        rf"practical bound is a significantly better complexity scale."
-    )
+    caption = r"Normalized discovery time versus complexity bounds."
 
     ylabel = r"$t/(n_S\cdot T)$ (s)"
     env, lines = begin_float("figure", star=False)

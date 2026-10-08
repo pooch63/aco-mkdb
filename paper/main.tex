@@ -132,7 +132,7 @@ Algorithm~\ref{alg:aco} is the colony loop. Here, $\sigma(x) = 1/(1+e^{-x})$ den
 
 We introduce a desirability function that prefers vertices with higher $d_S$, higher $d_G$, and higher pheromone $\tau$.
 
-Table~\ref{tab:variant-compare} compares this search with neighbor-scope and prefer-smaller-side scoring, with pheromone turned off, with deposit restricted to the epoch-best ant, with a greedy fill when an ant stops, and with a genetic algorithm. That table reports which of those settings the experiments kept.
+Section~4.3 compares this search with neighbor-scope and prefer-smaller-side scoring, with pheromone turned off, with deposit restricted to the epoch-best ant, with a greedy fill when an ant stops, and with a genetic algorithm. That comparison reports which of those settings the experiments kept.
 
 \subsubsection{Validity Guarantee}
 An ant only adds a vertex $v$ when $|\bar{E}(S \cup \{v\})| \leq k$, so the defect budget is always respected. An ant is not guaranteed to return a $k$-DB with $\geq \theta$ vertices on both sides, even on graphs where such a $k$-DB exists, which is a limitation of the $\theta$-heuristic as well. However, we observe that ACO is more likely to return $\theta$-feasible solutions than the $\theta$-heuristic (Section~4.2).
@@ -234,23 +234,17 @@ The search is controlled by the colony size $A$, the epoch budget $T$, the numbe
     \end{tabular}
  \end{table} 
 
-We varied ant count $A$ across $\{2, 5, 10, 20, 50, 100, 200\}$ on the full benchmark suite. At each ant count, $T$ was set to $5$ epochs. Figure~\ref{fig:quality-groupplot} shows the cross-graph median percent deviation from the $\theta$-heuristic against ant count and, at $A=100$, against evaporation $\rho$, pheromone deposit $\Delta\tau$, and the exponent on $\eta$. $\theta$-infeasible outcomes are scored as a $-100\%$ deviation.
+We varied ant count $A$ across $\{2, 5, 10, 20, 50, 100, 200\}$ on the full benchmark suite. At each ant count, $T$ was set to $5$ epochs. Figure~\ref{fig:quality-groupplot} shows the cross-graph median percent deviation from the $\theta$-heuristic against ant count and, at $A=100$, against evaporation $\rho$, pheromone deposit $\Delta\tau$, and the exponent on $\eta$. $\theta$-infeasible outcomes are scored as a $-100\%$ deviation. Dashed lines are parity with the $\theta$-heuristic; dotted lines mark the paper default.
 
 %%QUALITY%%
 
 Colony size is one way to spend search effort. Holding $A = 100$, each replicate instead runs for $T = 100$ epochs and records the incumbent biclique after every epoch. Algorithm~1 has no schedule that depends on $T$, so the prefix of a trace is the run that would have been obtained by stopping at that epoch. Each graph is repeated for at least $30$ counted replicates.
 
-Figure~\ref{fig:iteration-budget} plots $|E(B_t)|/|E(D_\theta)|$ against epoch $t$ on a logarithmic axis. The band is the interquartile range across graphs, each graph's own curve is drawn faintly, and the right axis is median cumulative search time. $\theta$-feasibility is a separate panel, $P(B_t\text{ is }\theta\text{-feasible})$.
-
-Figure~\ref{fig:replicate-budget} estimates the expected best of $R$ independent replicates. For each graph and each $R$, that expectation is the mean of the maximum over subsets of size $R$ drawn without replacement from the recorded replicates. The curve is the mean of those values across graphs, with a bootstrap confidence interval. The second panel is the coefficient of variation of $|E(B)|$ across replicates of each graph.
-
-Figure~\ref{fig:budget-allocation} reads the same traces on a grid of $(T, R)$. Color is median relative quality. Contours of constant $T\cdot R$ are equal ant-epoch cost, since $A$ is fixed. The right panel plots quality along those contours, which is one long pheromone trail against many independent short runs at the same total number of ants.
+Figure~\ref{fig:budget} shows the cross-graph median percent deviation from the $\theta$-heuristic, and the median $\theta$-feasibility rate, against the epoch budget $T$ and the replicate count $R$. $\theta$-infeasible outcomes are scored as a $-100\%$ deviation. For $R$, the deviation is the expected best of $R$ independent replicates at the end of the recorded trace. Dashed lines are parity with the $\theta$-heuristic; dotted lines mark the paper defaults $T = 5$ and $R = 5$.
 
 Figure~\ref{fig:pheromone-ablation} repeats the anytime curve with $\Delta\tau = 0$ and evaporation turned off, so $\tau$ stays at $1$. Those epochs are independent colonies with the same total number of ants as the pheromone-on run. Additional curves, when present, vary $\rho \in \{0.01, 0.2, 0.5\}$ around the paper value $\rho = 0.05$.
 
-%%COMPARE:iteration-budget%%
-%%COMPARE:replicate-budget%%
-%%COMPARE:budget-allocation%%
+%%COMPARE:budget%%
 %%COMPARE:pheromone-ablation%%
 
 \FloatBarrier
@@ -266,15 +260,10 @@ The table lists the graphs where ACO's relative edge-count gain over the $\theta
 
 \subsection{Other constructions}
 
-Table~\ref{tab:variant-compare} compares those constructions on the benchmark graphs. The first four rows change which vertices an ant scores. Neighbor-scope restriction~$F_N$ is the only one of those four that both raises the median edge count and cuts discovery time. The remaining rows hold $F_N$ fixed ($A=100$, $T=5$, one seed, the same planted biclique) and vary pheromone, which solution deposits, whether a greedy fill then packs that best-only solution, and a genetic algorithm in place of the colony. %%ABLATION:summary%%
-
-\begin{table}[!t]
-   \centering
-   \caption{Rows 1--4: flag ablation, 100 ants. Remaining rows: $F_N$ only, on the same injected graphs. Median $|E|$ (infeasible $=0$). Feas.: \% $\theta$-feasible. Time: median wall seconds.}
-   \label{tab:variant-compare}
+\begin{center}
    \footnotesize
-   \setlength{\tabcolsep}{2pt}
-   \begin{tabular}{@{}llrrr@{}}
+   \setlength{\tabcolsep}{4pt}
+   \begin{tabular}{@{}lrrr@{}}
        \toprule
        Variant & $|E|$ & Feas. & Time \\
        \midrule
@@ -289,15 +278,17 @@ Table~\ref{tab:variant-compare} compares those constructions on the benchmark gr
        Tabu & \multicolumn{3}{c}{did not beat ACO} \\
        \bottomrule
    \end{tabular}
-\end{table}
+\end{center}
+
+The table compares different approaches on the same graphs. $|E|$ is the median edge count, with a $\theta$-infeasible outcome scored as $0$. Feas.\ is the percentage of graphs on which the solution was $\theta$-feasible, and Time is the median wall-clock time in seconds. The first four rows ablate $F_P$ and $F_N$. $F_P$ is a flag that scores a node twice as desirable if it is on the smaller side of the graph, and that side currently has fewer than $\theta$ nodes. $F_N$ controls whether an ant prefers to consider only the neighbors of its most recently visited node or it examines the full candidate set every step. $F_N$ both raises the median edge count and cuts discovery time, while $F_P$ does not improve runntime or solution quality. The remaining rows use only $F_N$ and vary the pheromone system. A pheromone system was tested where every ant deposites pheromone, no pheromone system is used at all, only the best ant deposits pheromone, and a greedy fill stage at the end of each epoch that heuristically grows an ant's solution. The greedy algorithm works like
 
 \subsection{Branch-and-pivot seeding}
 
 A better initial solution $D$, and therefore a tighter lower bound $|E(D)|$, can allow branch-and-pivot to prune more branches and sometimes reduce runtime substantially. In graphs where ACO produced a $\theta$-feasible solution with more edges than the $\theta$-heuristic, its returned $k$-DB was used as a seed. Branch-and-pivot was then run twice on each eligible graph: once seeded with the $\theta$-heuristic solution and once seeded with the ACO solution, omitting graphs where both runs timed out as described in Section~3.3.
 
-Table~\ref{tab:seed-compare} shows the graphs where ACO seeding reduced total wall-clock time, together with the smallest and largest overhead cases. Net time saved is $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$, where $T_{\mathrm{discovery}}$ is the cost of running ACO. Positive values mean the ACO-seeded pipeline is faster overall. When ACO does not improve $D_{best}$, the extra search cost remains small relative to the pivot wall-clock time. Full per-graph results are listed in the appendix.
-
 %%SEED_COMPARE:highlights%%
+
+The top block is every graph where ACO seeding reduced wall-clock time. The bottom block is the smallest and largest ACO-search overhead among graphs where ACO did not beat the $\theta$-heuristic. Time saved, in seconds, is $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$, where $T_{\mathrm{discovery}}$ is the cost of running ACO, and Reduction is that saving as a percentage of the $\theta$-seeded pivot time. Positive values mean the ACO-seeded pipeline is faster overall. When ACO does not improve $D_{best}$, the extra search cost remains small relative to the pivot wall-clock time. Full per-graph results are in the accompanying tables.
 
 \subsection{Variations in $k$ and $\theta$}
 
@@ -309,14 +300,14 @@ The plots below are the ACO win rate against the $\theta$-heuristic at 100 ants.
 
 %%COMPARE:k-sweep%%
 
-Figure~\ref{fig:density-wins} plots the ACO win rate against reduced density and against $\theta - k$.
+Figure~\ref{fig:density-wins} splits each of those sweeps into equal-count thirds of reduced density $\mathrm{den}(G_R) = |E_R|/(|U_R|\,|V_R|)$. The three bars at each value are the low, medium, and high thirds, from light to dark. The upper panel holds $\theta = 5$ and varies $k$. The lower panel holds $k = 3$ and varies $\theta$. The dashed line is a $50\%$ win rate.
 
 %%COMPARE:density-wins%%
 
 \FloatBarrier
 \subsubsection{Runtime across $k$ and $\theta$}
 
-Figure~\ref{fig:param-runtime} compares ACO discovery time to the $\theta$-heuristic on four instances as $k$ varies ($\theta = 5$). On graphs that ACO completed under the ACO wall-clock budget, ACO takes a median of $400\times$--$700\times$ times longer, depending on $k$ and $\theta$. Median absolute ACO discovery time, however, generally remains under two seconds. Raising $k$ at fixed $\theta = 5$ tends to increase ACO search time; raising $\theta$ at fixed $k = 3$ tends to decrease it, likely because smaller $k$ and larger $\theta$ allow common-neighbor reduction to prune more vertices and edges.
+Figure~\ref{fig:param-runtime} compares ACO discovery time to the $\theta$-heuristic on four instances for each $(k, \theta)$ sweep, on a log scale. Circles are ACO and triangles are the $\theta$-heuristic. The upper panels vary $k$ and the lower panels vary $\theta$. The four instances are evenly spaced by $|U|+|V|$ among graphs that finished every plotted suite. On graphs that ACO completed under the ACO wall-clock budget, ACO takes a median of $400\times$--$700\times$ times longer, depending on $k$ and $\theta$. Median absolute ACO discovery time, however, generally remains under two seconds. Raising $k$ at fixed $\theta = 5$ tends to increase ACO search time; raising $\theta$ at fixed $k = 3$ tends to decrease it, likely because smaller $k$ and larger $\theta$ allow common-neighbor reduction to prune more vertices and edges.
 
 At $k = 4$, $10$ of $37$ graphs timed out under a $600$\,s budget, and these graphs were excluded from the solution quality and discovery time graphs. Therefore, ACO might have a higher win rate than was recorded, although at the expense of significant runtime.
 
@@ -328,15 +319,15 @@ At $k = 4$, $10$ of $37$ graphs timed out under a $600$\,s budget, and these gra
 
 While ACO is substantially slower than the $\theta$-heuristic, it often finds solutions several times larger in edge count. ACO's relative cost is not fixed. Ant count $A$, epoch budget $T$, and replicate count $R$ can be adjusted for a linear effect on wall-clock time (Section~4.1). Reducing either $A$, $R$ or $T$ shrinks discovery cost roughly proportionally, at the expense of some solution quality and $\theta$-feasibility. Increasing them improves quality. Our reported ACO runtime is therefore a consequence of our hyperparameters ($A = 100$, $T = 5$, $R = 5$), rather than a necessary cost of ACO.
 
-In some cases, marginal quality gains can be worth it. Even small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. On the 5 graphs where ACO beat the $\theta$-heuristic (Table~\ref{tab:seed-compare}), ACO-seeded runtimes can significantly reduce runtimes relative to a $\theta$-seeded pivot. Additionally, ACO had a higher $\theta$-feasibility rate than the $\theta$-heuristic, meaning it can be used as a valid lower bound more often. This suggests that ACO provides a substantially better lower bound to use for branch-and-pivot than the $\theta$-heuristic in certain cases.
+In some cases, marginal quality gains can be worth it. Even small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. On the graphs where ACO beat the $\theta$-heuristic, ACO-seeded runtimes can significantly reduce runtimes relative to a $\theta$-seeded pivot. Additionally, ACO had a higher $\theta$-feasibility rate than the $\theta$-heuristic, meaning it can be used as a valid lower bound more often. This suggests that ACO provides a substantially better lower bound to use for branch-and-pivot than the $\theta$-heuristic in certain cases.
 
 ACO improves quality in several types of solutions. On several graphs, the $\theta$-heuristic returns a $\theta$-feasible biclique with exactly $\theta$ vertices on one side, the structural family it was designed for. In many of these instances, ACO finds a substantially larger opposite side while still keeping one side at exactly $\theta$ (e.g., Edit Jamwiki, $5 \times 377$ vs. $5 \times 184$). In several cases, the ACO heuristic identified $\theta \times \theta$ $k$-DB on graphs that the $\theta$-heuristic failed to make $\theta$-feasible (e.g., Appliances). Other wins are entirely different. ACO may escape the $\theta$-exact limitation (e.g., Dnc Corecipient, $62 \times 10$ vs.\ $5 \times 89$).
 
 We hypothesize this is due to ACO's exploration. Because the $\theta$-heuristic arbitrarily chooses $U$ as its $\theta$-side and greedily expands, early vertex choices can permanently shrink the retained neighborhood. Conversely, ACO's stochastic, massively parallel construction samples alternative $\theta \times \theta$ subgraphs and often recovers a better one. Even on the graphs it was designed for, the $\theta$-heuristic's greedy construction can be dominated by ACO search, which iteratively refines the $\theta$ vertices it uses.
 
-On the $k$ and $\theta$ sweeps, ACO's advantage over the $\theta$-heuristic is not confined to $(k, \theta) = (2, 5)$, but its win rate does change across $k$ and $\theta$. Figure~\ref{fig:density-wins} compares that win rate with reduced density and with $\theta - k$.
+On the $k$ and $\theta$ sweeps, ACO's advantage over the $\theta$-heuristic is not confined to $(k, \theta) = (2, 5)$, but its win rate does change across $k$ and $\theta$. Figure~\ref{fig:density-wins} splits those sweeps into reduced-density thirds.
 
-Figures~\ref{fig:iteration-budget}--\ref{fig:pheromone-ablation} separate three ways of spending the same search effort: more epochs on one pheromone trail, more independent restarts, and the same number of ant constructions with the pheromone update turned off. The $\Delta\tau=0$ curve is the control for attributing gains along an epoch trace to $\tau$ rather than to drawing more ants.
+Figure~\ref{fig:budget} and Figure~\ref{fig:pheromone-ablation} separate three ways of spending the same search effort: more epochs on one pheromone trail, more independent restarts, and the same number of ant constructions with the pheromone update turned off. The $\Delta\tau=0$ curve is the control for attributing gains along an epoch trace to $\tau$ rather than to drawing more ants.
 
 \subsection{Limitations}
 

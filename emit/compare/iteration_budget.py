@@ -248,27 +248,8 @@ def _pct_coords(budgets, values):
 
 
 def _caption(summary):
-    ants = summary["ants"]
-    budgets = summary["budgets"]
-    n_graphs = summary["n_graphs"]
-    reach_by_budget = dict(zip(budgets, summary["reach_graphs"]))
-    # Right-panel CDF: share of graphs whose best-of-replicates ETB ≤ 3.
-    epoch_ref = 3
-    if epoch_ref in reach_by_budget and n_graphs:
-        reach_pct = f"{_as_pct(reach_by_budget[epoch_ref], n_graphs):.1f}\\%"
-    else:
-        reach_pct = "--"
-
-    return (
-        f"Retrospective epoch-budget analysis at {ants} ants "
-        f"($k{{=}}2, \\theta{{=}}5, T\\in\\{{1,\\ldots,5\\}}$). "
-        f"Most of ACO's advantage over the $\\theta$-heuristic requires "
-        f"few epochs. Win rate and $\\theta$-feasibility largely plateau by "
-        f"3 epochs. Median and mean edge increase slightly after 3 epochs, but "
-        f"the majority of increase happens in the first 3 epochs. Indeed, by "
-        f"epoch 3, {reach_pct} of graphs have already reached their best edge count "
-        f"over all counted replicates."
-    )
+    del summary
+    return r"Quality versus epoch budget."
 
 
 def iteration_budget_figure(summary):

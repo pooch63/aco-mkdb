@@ -273,24 +273,10 @@ def _time_values(matched, label, *, unit):
 
 
 def _flag_ablation_caption(matched, *, unit):
-    n = len(matched)
+    del matched
     if unit == "graph":
-        return (
-            rf"Flag ablation at 100 ants on {n} matched graphs. "
-            rf"Top: per-graph mean scored $|E|$ over counted replicates "
-            rf"($\theta$-infeasible trials count as 0 edges but stay in the mean). "
-            rf"Bottom: per-graph discovery time (sum of counted replicate "
-            rf"wall times). Both panels are ordered and colored by "
-            rf"neighbor-scope $F_N$."
-        )
-    n_repl = sum(g["ACO"]["n_trials"] for g in matched)
-    return (
-        rf"Flag ablation at 100 ants: counted replicates pooled over "
-        rf"{n} matched graphs ({n_repl} replicates per variant). "
-        rf"Top: scored $|E|$ per replicate ($\theta$-infeasible trials "
-        rf"count as 0). Bottom: per-replicate wall time. Both panels are "
-        rf"ordered and colored by neighbor-scope $F_N$."
-    )
+        return r"Solution quality and discovery time by flag."
+    return r"Solution quality and wall time by flag."
 
 
 def flag_ablation_figure(matched, *, unit="graph"):
@@ -403,21 +389,8 @@ def _replicate_theta_feasibility_rate(matched, label):
 
 
 def _flag_feasibility_caption(matched, *, unit):
-    n = len(matched)
-    if unit == "graph":
-        return (
-            rf"Percentage of {n} matched graphs with at least one "
-            rf"$\theta$-feasible counted replicate at 100 ants. Variants are "
-            rf"ordered ACO, $F_P$, $F_N$, $F_{{PN}}$ and colored by "
-            rf"neighbor-scope $F_N$."
-        )
-    n_repl = sum(g["ACO"]["n_trials"] for g in matched)
-    return (
-        rf"Percentage of counted replicates that are $\theta$-feasible at "
-        rf"100 ants, pooled over {n} matched graphs ({n_repl} replicates "
-        rf"per variant). Variants are ordered ACO, $F_P$, $F_N$, $F_{{PN}}$ "
-        rf"and colored by neighbor-scope $F_N$."
-    )
+    del matched, unit
+    return r"$\theta$-feasibility by flag variant."
 
 
 def flag_feasibility_figure(matched, *, unit="graph"):

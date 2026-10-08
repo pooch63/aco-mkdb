@@ -42,18 +42,10 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
     - Same layout, but the rate is % of counted replicates that are
       θ-feasible (pooled over matched graphs).
 
-  iteration-budget
-    - Anytime curve from recorded epoch traces: median and IQR of
-      |E(B_t)|/|E(D_θ)| vs epoch (log x), faint per-graph curves,
-      cumulative search time on a second axis, and P(θ-feasible).
-
-  replicate-budget
-    - Best-of-R: mean across graphs of E[max over R replicates drawn
-      without replacement], with a bootstrap CI, plus per-graph CV.
-
-  budget-allocation
-    - Median relative quality over (T, R) with constant T·R contours
-      and the equal-cost slices as curves.
+  budget
+    - Quality-style 2×2. Median percent deviation from the θ-heuristic
+      (θ-infeasible = −100%) and median θ-feasibility, versus epoch
+      budget T and replicate count R.
 
   pheromone-ablation
     - Anytime median with pheromone on, against Δτ=0 and any ρ
@@ -68,15 +60,18 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
     - Included as the right panel of k-sweep. Emits a comment only.
 
   density-wins
-    - ACO win rate in equal-count bins of reduced density, and at each
-      value of θ − k. Each panel is labeled with the correlation of
-      that predictor with the win/loss outcome.
+    - One column. ACO win rate versus k at fixed θ, and versus θ at
+      fixed k. At each value, three bars are equal-count thirds of
+      reduced density (light to dark).
 
   param-runtime
-    - 2×2 log-scale runtime figure. Each panel is one instance: ACO and
-      the θ-heuristic as marker lines versus k at fixed θ. The four
-      instances are evenly spaced by |U|+|V| among graphs with a
-      complete k sweep. Timed-out graphs are excluded.
+    - Log-scale runtime on four instances. Sweeps come from
+      runtime_sweeps in build.json: each ``k`` entry is time versus
+      k at one fixed θ, and each ``theta`` entry is time versus θ at
+      one fixed k. The axis uses every completed suite at that fixed
+      value, and each panel spans only the range that graph has.
+      A legend under each 2×2 names the sweep color and the marker.
+      Timed-out graphs are excluded.
 
 ACO points use the same best-trial / discovery rules as table mode.
 
@@ -85,7 +80,7 @@ Layout
   helpers.py            shared metrics and pgfplots primitives
   complexity.py         time / complexity scaling figures
   flag_ablation.py      F_P/F_N flag ablation figure
-  budget_curves.py      anytime, best-of-R, allocation, pheromone control
+  budget_curves.py      epoch/replicate budget and pheromone control
   param_sweep.py        k / θ sweep figures
 """
 
@@ -150,6 +145,7 @@ def build_compare_plots(
     param_meta=None,
     budget_graphs=None,
     ablation_suites=None,
+    runtime_sweeps=None,
 ):
     """
     Build selected compare figures from [(name, row), ...].
@@ -173,6 +169,12 @@ def build_compare_plots(
             block = builders[name](flag_ablation_matched or [])
         elif name in budget_curves.BUILDERS:
             block = builders[name](budget_graphs or [], ablation_suites or {})
+        elif name == "param-runtime":
+            block = builders[name](
+                param_by_label or {},
+                param_meta or {},
+                sweeps=runtime_sweeps,
+            )
         else:
             block = builders[name](param_by_label or {}, param_meta or {})
         if not block:
@@ -185,7 +187,7 @@ def build_compare_plots(
 
 
 def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=None,
-        trace_dirs=None):
+        trace_dirs=None, runtime_sweeps=None):
     selected = _parse_plots(plots) if plots else list(PLOT_GROUPS)
     matched_ablation = None
     param_by_label = None
@@ -317,6 +319,7 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             param_meta=param_meta,
             budget_graphs=budget_graphs,
             ablation_suites=ablation_suites,
+            runtime_sweeps=runtime_sweeps,
         ),
         output,
     )

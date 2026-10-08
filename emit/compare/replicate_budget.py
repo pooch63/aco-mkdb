@@ -222,18 +222,8 @@ def _pct_coords(budgets, values):
 
 
 def _caption(summary):
-    ants = summary["ants"]
-    budgets = summary["budgets"]
-
-    return (
-        f"Replicate budget at {ants} ants "
-        f"($k{{=}}2$, $\\theta{{=}}5$; best among the first $R$ counted "
-        f"replicates, up to $R_{{\\max}}{{=}}{budgets[-1]}$). "
-        f"A single counted replicate already recovers essentially all "
-        f"head-to-head wins; additional seeds mainly improve late "
-        f"replicates-to-best coverage and slight $\\theta$-feasibility "
-        f"gains rather than new wins against the $\\theta$-heuristic."
-    )
+    del summary
+    return r"Quality versus replicate budget."
 
 
 def replicate_budget_figure(summary):

@@ -17,20 +17,23 @@ Plot groups
     a comment so a paper that still names it does not repeat the pair.
 
   density-wins
-    Two bar panels of ACO win rate, on the same graph×suite rows.
-    Top: five equal-count bins of reduced density
-    $\\text{den}(G_R) = |E_R|/(|U_R|\\cdot|V_R|)$.
-    Bottom: each value of $\\theta - k$.
-    Each panel is labeled with the correlation of that predictor with
-    the win/loss outcome, so the two associations can be compared.
+    One column, two panels. Upper: ACO win rate versus k at fixed θ,
+    three bars per k (equal-count low / medium / high thirds of reduced
+    density). Lower: the same versus θ at fixed k. Same fixed values as
+    k-sweep. No quintiles.
 
   param-runtime
-    Single-column 2×2 log-scale runtime figure. Each panel is one
-    instance: ACO and the θ-heuristic as marker lines versus $k$ at
-    fixed θ, with the graph name under that panel. Axis boxes are
-    small; the gaps are sized so tick labels and names stay readable.
-    The four instances are evenly spaced by $|U|+|V|$ among graphs
-    with a complete $k$ sweep. Timed-out graphs are excluded.
+    Discovery time on four instances. Which sweeps are drawn is
+    ``runtime_sweeps`` in build.json (passed as ``--runtime-sweep``):
+    each ``k`` entry is time versus k at one fixed θ, and each
+    ``theta`` entry is time versus θ at one fixed k. The swept values
+    are every completed suite at that fixed parameter in ``param_dirs``,
+    including any value beyond the listed ``values``.     One color per
+    sweep; circles are ACO and triangles are the θ-heuristic. A legend
+    under each 2×2 names the color and the marker. Each panel's axis
+    is the range that graph has. The four instances are evenly spaced
+    by $|U|+|V|$ among graphs finished at every plotted suite. A
+    listed (k, θ) with no completed JSON is skipped with a warning.
 
 Incomplete suites are fine: emit uses the intersection of graphs present
 in the selected directories. Adding a new ``vary_k*t*i_PN`` directory to
@@ -46,7 +49,6 @@ import sys
 from collections import Counter
 
 from ..common import (
-    COL2_HEIGHT,
     COL2_WIDTH,
     aco_timed_out,
     begin_float,
@@ -61,7 +63,6 @@ from ..table import (
     compare_section,
     summarize_file,
 )
-from .flag_ablation import _pgf_xticklabels
 from .helpers import reduced_edge_density
 
 PLOT_GROUPS = (
@@ -410,38 +411,17 @@ def theta_sweep_figure(by_label, meta, *, fixed_k=None):
     return [r"% theta-sweep is the right panel of the k-sweep pair"]
 
 
-def _pearson(xs, ys):
-    """Correlation of two equal-length sequences, or None if undefined."""
-    n = len(xs)
-    if n < 3 or n != len(ys):
-        return None
-    mean_x = sum(xs) / n
-    mean_y = sum(ys) / n
-    num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
-    den_x = math.sqrt(sum((x - mean_x) ** 2 for x in xs))
-    den_y = math.sqrt(sum((y - mean_y) ** 2 for y in ys))
-    if den_x == 0.0 or den_y == 0.0:
-        return None
-    return num / (den_x * den_y)
+# Equal-count thirds within one swept value. Darker is denser.
+_N_TERTILES = 3
+_TERTILE_COLORS = ("blue!60", "blue!75!black", "black")
+_TERTILE_NAMES = ("low", "mid", "high")
 
 
-def _density_win_observations(by_label, meta):
-    """One record per graph×suite row with a positive reduced density."""
-    ordered = sorted(
-        meta.items(),
-        key=lambda item: (
-            item[1].get("k") if item[1].get("k") is not None else 10**9,
-            item[1].get("theta") if item[1].get("theta") is not None else 10**9,
-            item[0],
-        ),
-    )
+def _sweep_observations(by_label, selected, *, axis):
+    """Rows in one k-sweep or θ-sweep, tagged with the swept value."""
     obs = []
-    for lab, info in ordered:
-        if info.get("k") is None or info.get("theta") is None:
-            continue
-        rows = by_label.get(lab, {})
-        added = 0
-        for key, row in rows.items():
+    for lab, info in selected:
+        for key, row in by_label.get(lab, {}).items():
             dens = reduced_edge_density(row)
             if dens is None or dens <= 0:
                 continue
@@ -451,79 +431,52 @@ def _density_win_observations(by_label, meta):
                     "k": float(info["k"]),
                     "theta": float(info["theta"]),
                     "density": float(dens),
-                    "gap": float(info["theta"]) - float(info["k"]),
+                    "value": float(info[axis]),
                     "won": compare_section(row) == SECTION_ACO,
                 }
-            )
-            added += 1
-        if rows and added == 0:
-            print(
-                f"Warning: density-wins: suite {lab!r} "
-                f"({_config_label(info['k'], info['theta'])}) has no "
-                f"usable reduced densities.",
-                file=sys.stderr,
             )
     return obs
 
 
-def _equal_count_rate_bins(obs, n_bins):
-    """Equal-count bins of density. Each bin stores its median and win rate."""
-    ordered = sorted(obs, key=lambda ob: ob["density"])
+def _obs_sort_key(ob):
+    """Stable order so equal densities always fall in the same bin."""
+    return (ob["density"], ob["graph"], ob["k"], ob["theta"])
+
+
+def _split_equal_count(obs, n_bins):
+    """Equal-count chunks of ``obs``, densest last. Empty if too few rows."""
+    ordered = sorted(obs, key=_obs_sort_key)
     n = len(ordered)
     if n_bins < 1 or n < n_bins:
         return []
     base, extra = divmod(n, n_bins)
-    bins = []
+    chunks = []
     start = 0
     for b in range(n_bins):
         size = base + (1 if b < extra else 0)
-        chunk = ordered[start : start + size]
+        chunks.append(ordered[start : start + size])
         start += size
-        if not chunk:
-            continue
-        dens = sorted(ob["density"] for ob in chunk)
-        mid = len(dens) // 2
-        if len(dens) % 2:
-            median = dens[mid]
-        else:
-            median = 0.5 * (dens[mid - 1] + dens[mid])
-        wins = sum(1 for ob in chunk if ob["won"])
-        bins.append(
-            {
-                "n": len(chunk),
-                "median": median,
-                "rate": wins / len(chunk),
-            }
-        )
-    return bins
+    return chunks
 
 
-def _rates_by_gap(obs):
-    """Win rate at each distinct value of θ − k."""
-    groups = {}
-    for ob in obs:
-        groups.setdefault(ob["gap"], []).append(ob)
-    rows = []
-    for gap in sorted(groups):
-        chunk = groups[gap]
-        wins = sum(1 for ob in chunk if ob["won"])
-        rows.append(
-            {
-                "gap": gap,
-                "n": len(chunk),
-                "rate": wins / len(chunk),
-            }
-        )
-    return rows
+def _median(values):
+    vals = sorted(values)
+    mid = len(vals) // 2
+    if len(vals) % 2:
+        return vals[mid]
+    return 0.5 * (vals[mid - 1] + vals[mid])
 
 
-def _density_tick(median):
-    """Short tick label for a bin-median density."""
-    if median >= 0.1:
-        return f"{median:.2f}"
-    if median >= 0.001:
-        return f"{median:.3f}"
-    return f"{median:.1e}"
+def _chunk_stats(chunk):
+    dens = [ob["density"] for ob in chunk]
+    wins = sum(1 for ob in chunk if ob["won"])
+    return {
+        "n": len(chunk),
+        "rate": wins / len(chunk),
+        "median": _median(dens),
+        "lo": min(dens),
+        "hi": max(dens),
+    }
 
 
 def _gap_tick(gap):
@@ -532,137 +485,193 @@ def _gap_tick(gap):
     return f"{gap:g}"
 
 
-def _fmt_r(value):
-    return f"{value:.2f}"
+def _density_tick(median):
+    """Short label for a bin-median reduced density."""
+    if median >= 0.1:
+        return f"{median:.2f}"
+    if median >= 0.001:
+        return f"{median:.3f}"
+    return f"{median:.1e}"
 
 
-def _win_rate_bars(title, xlabel, tick_labels, rates, *, color):
-    """One groupplot panel: win-rate bars on a shared 0–100% axis."""
-    n_ticks = len(tick_labels)
-    xtick = ",".join(str(i) for i in range(1, n_ticks + 1))
+def _tertile_rows(obs, group_key):
+    """
+    Win rate in density thirds at each fixed value of ``group_key``.
+
+    Thirds are equal-count within that value, so ``high`` is the densest
+    third at that reduction setting, not a global density cutoff.
+    """
+    groups = {}
+    for ob in obs:
+        groups.setdefault(ob[group_key], []).append(ob)
+    rows = []
+    for value in sorted(groups):
+        chunks = _split_equal_count(groups[value], _N_TERTILES)
+        if len(chunks) < _N_TERTILES or any(len(c) < 3 for c in chunks):
+            print(
+                f"Warning: density-wins: skip {group_key}="
+                f"{_gap_tick(value)} (n={len(groups[value])}); "
+                "fewer than three graphs in a density third.",
+                file=sys.stderr,
+            )
+            continue
+        rows.append(
+            {"value": value, "tertiles": [_chunk_stats(c) for c in chunks]}
+        )
+    return rows
+
+
+def _log_tertiles(tag, tertile_rows):
+    """Print the bar percentages so the build log matches the figure."""
+    print(
+        f"# density-wins {tag}: density thirds (low / mid / high)",
+        file=sys.stderr,
+    )
+    for row in tertile_rows:
+        cells = "  ".join(
+            f"{_TERTILE_NAMES[i]}={100.0 * t['rate']:.0f}% "
+            f"n={t['n']} den=[{_density_tick(t['lo'])},"
+            f"{_density_tick(t['hi'])}]"
+            for i, t in enumerate(row["tertiles"])
+        )
+        print(
+            f"#   {_gap_tick(row['value'])}: {cells}",
+            file=sys.stderr,
+        )
+
+
+def _percent_coords(xs, rate_by_x):
+    parts = []
+    for x in xs:
+        rate = rate_by_x.get(x)
+        label = _gap_tick(x)
+        if rate is None:
+            parts.append(f"({label},nan)")
+        else:
+            parts.append(f"({label},{100.0 * rate:.4g})")
+    return " ".join(parts)
+
+
+def _rate_axis(xs, *, title, xlabel, extra):
+    xmin = min(xs) - 0.7
+    xmax = max(xs) + 0.7
+    xtick = ",".join(_gap_tick(x) for x in xs)
     lines = [
-        r"\nextgroupplot[",
-        r"    ylabel={ACO win rate (\%)},",
-        r"    ylabel style={align=center, font=\small},",
+        r"  \nextgroupplot[",
         rf"    title={{{title}}},",
-        r"    title style={font=\small},",
-        rf"    xlabel={{{xlabel}}},",
-        rf"    xtick={{{xtick}}},",
-        rf"    xticklabels={_pgf_xticklabels(tick_labels)},",
-        r"    x tick label style={font=\scriptsize},",
+        r"    title style={font=\scriptsize, inner sep=1pt},",
+        r"    ylabel={ACO win rate (\%)},",
+        r"    ylabel style={font=\scriptsize},",
         r"    ymin=0,",
         r"    ymax=100,",
-        r"    ytick={0,25,50,75,100},",
-        r"    xmin=0.5,",
-        rf"    xmax={n_ticks + 0.5:.1f},",
-        r"    ybar,",
-        r"    bar width=9pt,",
-        r"    bar shift=0,",
-        r"]",
+        r"    ytick={0,50,100},",
+        r"    ymajorgrids=true,",
+        r"    xmajorgrids=false,",
+        r"    grid style={gray!25},",
+        r"    tick label style={font=\scriptsize},",
+        rf"    xmin={xmin:.4g},",
+        rf"    xmax={xmax:.4g},",
+        rf"    xtick={{{xtick}}},",
     ]
-    for i, rate in enumerate(rates, start=1):
+    if xlabel:
+        lines.append(rf"    xlabel={{{xlabel}}},")
+        lines.append(r"    xlabel style={font=\scriptsize},")
+    lines.extend(extra)
+    lines.append(r"  ]")
+    return lines, xmin, xmax
+
+
+def _fifty_line(xmin, xmax):
+    return (
+        rf"  \draw[dashed, gray] (axis cs:{xmin:.4g},50) -- "
+        rf"(axis cs:{xmax:.4g},50);"
+    )
+
+
+def _tertile_panel(rows, *, title, xlabel):
+    """Grouped bars: three density thirds at each parameter value."""
+    xs = [row["value"] for row in rows]
+    # Narrower bars once several parameter values share the column.
+    bar_pt = 5.2 if len(xs) >= 6 else 7.5
+    lines, xmin, xmax = _rate_axis(
+        xs,
+        title=title,
+        xlabel=xlabel,
+        extra=[
+            r"    ybar,",
+            rf"    bar width={bar_pt:.1f}pt,",
+        ],
+    )
+    for index, color in enumerate(_TERTILE_COLORS):
+        rates = {row["value"]: row["tertiles"][index]["rate"] for row in rows}
+        coords = _percent_coords(xs, rates)
         lines.append(
-            rf"  \addplot[ybar, bar shift=0, fill={color}!40, draw={color}] "
-            rf"coordinates {{({i},{100.0 * rate:.4g})}};"
+            rf"  \addplot[fill={color}, draw=black!55] "
+            rf"coordinates {{{coords}}};"
         )
+    lines.append(_fifty_line(xmin, xmax))
     return lines
+
+
+def _sweep_panel(by_label, meta, *, axis):
+    """Density-third bars along one sweep, or a comment if it cannot be drawn."""
+    selected, fixed = _select_sweep(meta, axis=axis)
+    if not selected or fixed is None:
+        name = "k" if axis == "k" else "theta"
+        return None, [rf"% density-wins: no {name} sweep"]
+    obs = _sweep_observations(by_label, selected, axis=axis)
+    rows = _tertile_rows(obs, "value")
+    if axis == "k":
+        tag = f"k at theta={int(fixed)}"
+        title = rf"$\theta = {int(fixed)}$"
+        xlabel = r"$k$"
+    else:
+        tag = f"theta at k={int(fixed)}"
+        title = rf"$k = {int(fixed)}$"
+        xlabel = r"$\theta$"
+    _log_tertiles(tag, rows)
+    if len(rows) < 2:
+        return None, [rf"% density-wins: not enough points for {tag}"]
+    return _tertile_panel(rows, title=title, xlabel=xlabel), []
 
 
 def density_wins_figure(by_label, meta):
     """
-    ACO win rate against reduced density and against θ − k.
+    Win rate versus k and versus θ, split into density thirds.
 
-    Both panels use the same rows and the same 0–100% axis. The panel
-    title is the correlation of that predictor with the binary outcome.
+    One column. The upper panel varies k at fixed θ; the lower varies
+    θ at fixed k. The three bars are equal-count thirds of reduced
+    density within that swept value.
     """
     if not meta or not by_label:
         return [r"% density-wins: no usable param directories"]
 
-    obs = _density_win_observations(by_label, meta)
-    if len(obs) < 8:
-        return [r"% density-wins: no plottable suite points"]
-
-    n_bins = 5 if len(obs) >= 25 else 4
-    bins = _equal_count_rate_bins(obs, n_bins)
-    gaps = _rates_by_gap(obs)
-    if len(bins) < 2 or len(gaps) < 2:
-        return [r"% density-wins: not enough bins to compare"]
-
-    outcomes = [1.0 if ob["won"] else 0.0 for ob in obs]
-    r_density = _pearson([ob["density"] for ob in obs], outcomes)
-    r_gap = _pearson([ob["gap"] for ob in obs], outcomes)
-    if r_density is None or r_gap is None:
-        return [r"% density-wins: correlation was undefined"]
-
-    n_obs = len(obs)
-    n_wins = int(sum(outcomes))
-    print(
-        f"# density-wins: n={n_obs} wins={n_wins} "
-        f"r_density={r_density:.3f} r_theta_minus_k={r_gap:.3f}",
-        file=sys.stderr,
-    )
-    for b in bins:
-        print(
-            f"# density-wins density bin: median={b['median']:.6g} "
-            f"n={b['n']} rate={b['rate']:.3f}",
-            file=sys.stderr,
-        )
-    for row in gaps:
-        print(
-            f"# density-wins theta-k: value={row['gap']:.6g} "
-            f"n={row['n']} rate={row['rate']:.3f}",
-            file=sys.stderr,
-        )
-
-    dens_title = rf"$\text{{den}}(G_R)$, $r = {_fmt_r(r_density)}$"
-    gap_title = rf"$\theta - k$, $r = {_fmt_r(r_gap)}$"
-    caption = (
-        r"ACO win rate (100 ants) against reduced density and against "
-        r"$\theta - k$, on the same graph$\times$suite rows "
-        rf"($n = {n_obs}$, {n_wins} wins). "
-        rf"Top: {n_bins} equal-count bins of "
-        r"$\text{den}(G_R) = |E_R|/(|U_R|\,|V_R|)$, labeled by the "
-        r"median density in the bin. "
-        r"Bottom: the win rate at each value of $\theta - k$. "
-        r"$r$ is the correlation of that predictor with the win/loss "
-        r"outcome. The predictor with the larger $|r|$ lines up more "
-        r"closely with whether ACO beats the $\theta$-heuristic."
-    )
+    k_panel, comments = _sweep_panel(by_label, meta, axis="k")
+    t_panel, t_comments = _sweep_panel(by_label, meta, axis="theta")
+    comments += t_comments
+    panels = [p for p in (k_panel, t_panel) if p is not None]
+    if not panels:
+        return comments
 
     env, lines = begin_float("figure", star=False)
     lines += begin_tikz()
     lines += [
         r"  \begin{groupplot}[",
-        r"    group style={group size=1 by 2, vertical sep=56pt},",
+        rf"    group style={{group size=1 by {len(panels)}, vertical sep=36pt}},",
         rf"    width={COL2_WIDTH},",
-        rf"    height={COL2_HEIGHT},",
-        r"    grid=major,",
+        r"    height=0.38\columnwidth,",
         r"  ]",
     ]
-    lines += _win_rate_bars(
-        dens_title,
-        r"$\text{den}(G_R)$",
-        [_density_tick(b["median"]) for b in bins],
-        [b["rate"] for b in bins],
-        color="blue!70!black",
-    )
-    lines += _win_rate_bars(
-        gap_title,
-        r"$\theta - k$",
-        [_gap_tick(row["gap"]) for row in gaps],
-        [row["rate"] for row in gaps],
-        color="orange!85!black",
-    )
-    lines += [
-        r"  \end{groupplot}",
-    ]
+    for panel in panels:
+        lines += panel
+    lines += [r"  \end{groupplot}"]
     lines += end_tikz()
     lines += [
-        rf"  \caption{{{caption}}}",
+        r"  \caption{ACO win rate by reduced-density third.}",
         r"  \label{fig:density-wins}",
     ]
     lines += end_float(env)
-    return lines
+    return comments + lines
 
 
 # One color and marker shape per method, shared across the four instances.
@@ -756,7 +765,6 @@ def _pick_runtime_instances(by_label, selected):
         min(n - 1, (i * (n - 1)) // (_RUNTIME_PANELS - 1))
         for i in range(_RUNTIME_PANELS)
     ]
-    # Integer division can repeat an index when n is small; keep first wins.
     picked = []
     seen = set()
     for idx in idxs:
@@ -768,28 +776,152 @@ def _pick_runtime_instances(by_label, selected):
     return picked
 
 
-def _instance_panel_lines(
-    by_label, selected, graph, *, with_legend, with_ylabel
-):
-    """One instance: ACO and θ-heuristic time versus $k$."""
-    ks = [int(info["k"]) for _, info in selected]
-    series_pts = []
-    for spec in _RUNTIME_SERIES:
-        pts = []
-        for (lab, info), k in zip(selected, ks):
-            value = _positive_time(by_label[lab][graph], spec["key"])
-            if value is None:
-                continue
-            pts.append((k, value))
-        series_pts.append((spec, pts))
-    if not any(pts for _, pts in series_pts):
-        return None
+# One color per configured sweep. ACO is a filled circle, the
+# θ-heuristic a triangle, both in that sweep's color.
+_RUNTIME_PALETTE = (
+    (31, 119, 180),
+    (255, 127, 14),
+    (44, 160, 44),
+    (214, 39, 40),
+    (148, 103, 189),
+    (140, 86, 75),
+    (227, 119, 194),
+    (127, 127, 127),
+)
 
-    k_min, k_max = min(ks), max(ks)
-    xtick = ",".join(str(k) for k in ks)
-    # Y-axis title only on the left column. The right column still
-    # draws its own log tick labels; repeating "Time (s)" there is what
-    # pushed the pair wider than one column.
+
+def _completed_sweep_points(meta, *, axis, fixed):
+    """Every completed suite at this fixed parameter, sorted by the swept value."""
+    fixed = int(fixed)
+    found = []
+    for label, info in meta.items():
+        k = info.get("k")
+        theta = info.get("theta")
+        if k is None or theta is None:
+            continue
+        if axis == "k" and int(theta) == fixed:
+            found.append((int(k), label, info))
+        elif axis == "theta" and int(k) == fixed:
+            found.append((int(theta), label, info))
+    found.sort(key=lambda item: (item[0], item[1]))
+    unique = []
+    seen = set()
+    for x, label, info in found:
+        if x in seen:
+            print(
+                f"Warning: param-runtime: duplicate {axis}={x} "
+                f"at fixed {fixed}; keeping the first suite.",
+                file=sys.stderr,
+            )
+            continue
+        seen.add(x)
+        unique.append((x, label, info))
+    return unique
+
+
+def resolve_runtime_sweeps(meta, sweeps):
+    """
+    Turn build.json runtime_sweeps into plotted points.
+
+    ``sweeps`` is a list of ``{"axis", "fixed", "values"}``. ``axis``
+    ``"k"`` varies k at ``fixed`` θ; ``"theta"`` varies θ at ``fixed`` k.
+    The plotted values are every completed suite at that fixed parameter,
+    so a ``values`` list cannot hide a finished ``(k, θ)``. Listed values
+    with no JSON are skipped with a warning. ``None`` keeps the previous
+    single modal k-sweep.
+    """
+    if not sweeps:
+        selected, fixed = _select_sweep(meta, axis="k")
+        if not selected or fixed is None:
+            return []
+        return [
+            {
+                "axis": "k",
+                "fixed": int(fixed),
+                "points": [
+                    (int(info["k"]), lab, info) for lab, info in selected
+                ],
+            }
+        ]
+    resolved = []
+    for spec in sweeps:
+        axis = spec["axis"]
+        fixed = int(spec["fixed"])
+        available = _completed_sweep_points(meta, axis=axis, fixed=fixed)
+        by_x = {x: (x, lab, info) for x, lab, info in available}
+        requested = [int(raw) for raw in spec.get("values") or []]
+        wanted = sorted(set(requested) | set(by_x))
+        points = []
+        for x in wanted:
+            if x not in by_x:
+                if axis == "k":
+                    where = f"k={x}, theta={fixed}"
+                else:
+                    where = f"k={fixed}, theta={x}"
+                print(
+                    f"Warning: param-runtime: no completed suite for {where}.",
+                    file=sys.stderr,
+                )
+                continue
+            points.append(by_x[x])
+        if not points:
+            print(
+                f"Warning: param-runtime: no points on {axis} sweep "
+                f"at fixed {fixed}.",
+                file=sys.stderr,
+            )
+            continue
+        resolved.append({"axis": axis, "fixed": fixed, "points": points})
+    return resolved
+
+
+def _half_series(resolved, axis):
+    series = []
+    held = [sw for sw in resolved if sw["axis"] == axis]
+    for i, sw in enumerate(held):
+        if axis == "k":
+            legend = rf"$\theta = {sw['fixed']}$"
+        else:
+            legend = rf"$k = {sw['fixed']}$"
+        series.append(
+            {
+                "legend": legend,
+                "color": f"rt{i}",
+                "rgb": _RUNTIME_PALETTE[i % len(_RUNTIME_PALETTE)],
+                "pairs": [(x, lab) for x, lab, _ in sw["points"]],
+            }
+        )
+    return series
+
+
+def _panel_xs(by_label, series, graph):
+    """Swept values this graph can actually plot, across every series."""
+    xs = set()
+    for s in series:
+        for x, lab in s["pairs"]:
+            row = by_label.get(lab, {}).get(graph)
+            if row is None:
+                continue
+            if any(
+                _positive_time(row, spec["key"]) is not None
+                for spec in _RUNTIME_SERIES
+            ):
+                xs.add(x)
+    return sorted(xs)
+
+
+def _legend_entry(spec, series):
+    """Method and the fixed parameter, for the key under the group."""
+    return rf"{spec['legend']} ({series['legend']})"
+
+
+def _multi_series_panel(
+    by_label, series, graph, *, xlabel, with_ylabel, legend_name=None,
+):
+    """One instance: every sweep on this axis, ACO and the θ-heuristic."""
+    xs = _panel_xs(by_label, series, graph)
+    if not xs:
+        return None
     lines = [r"\nextgroupplot["]
     if with_ylabel:
         lines += [
@@ -797,93 +929,82 @@ def _instance_panel_lines(
             r"    ylabel style={font=\scriptsize, inner sep=1pt},",
         ]
     lines += [
-        r"    xlabel={$k$},",
+        rf"    xlabel={{{xlabel}}},",
         r"    xlabel style={font=\scriptsize, inner sep=1pt},",
-        rf"    xtick={{{xtick}}},",
-        rf"    xmin={k_min - 0.35:.2f},",
-        rf"    xmax={k_max + 0.35:.2f},",
+        rf"    xtick={{{','.join(str(x) for x in xs)}}},",
+        rf"    xmin={min(xs) - 0.35:.2f},",
+        rf"    xmax={max(xs) + 0.35:.2f},",
         r"    enlarge y limits=0.08,",
     ]
-    if with_legend:
+    if legend_name:
         lines += [
-            r"    legend to name=paramRuntimeLegend,",
-            r"    legend columns=-1,",
+            rf"    legend to name={legend_name},",
+            r"    legend columns=2,",
             r"    legend cell align=left,",
-            r"    legend image post style={scale=0.9},",
-            r"    legend style={draw=black!60, fill=white, font=\scriptsize, "
-            r"inner xsep=3pt, inner ysep=1pt, "
-            r"/tikz/every even column/.append style={column sep=0.7em}},",
+            r"    legend style={",
+            r"      draw=black!45, fill=white, font=\scriptsize,",
+            r"      inner sep=3pt, row sep=1pt,",
+            r"      /tikz/every even column/.append style={column sep=0.85em}},",
         ]
     lines.append(r"]")
-    for spec, pts in series_pts:
-        if not pts:
-            continue
-        color = spec["color"]
-        lines.append(
-            rf"  \addplot[semithick, mark={spec['mark']}, mark size=1.7pt, "
-            rf"color={color}, "
-            rf"mark options={{solid, fill={color}, draw={color}}}] "
-            rf"coordinates {{{_coord_body(pts)}}};"
-        )
-        if with_legend:
-            lines.append(rf"  \addlegendentry{{{spec['legend']}}}")
+    drew = False
+    for s in series:
+        color = s["color"]
+        for spec in _RUNTIME_SERIES:
+            pts = []
+            for x, lab in s["pairs"]:
+                row = by_label.get(lab, {}).get(graph)
+                if row is None:
+                    continue
+                value = _positive_time(row, spec["key"])
+                if value is None:
+                    continue
+                pts.append((x, value))
+            if not pts:
+                continue
+            drew = True
+            dashed = "" if spec["key"] == "aco_time" else "dashed, "
+            lines.append(
+                rf"  \addplot[{dashed}semithick, mark={spec['mark']}, "
+                rf"mark size=1.6pt, color={color}, "
+                rf"mark options={{solid, fill={color}, draw={color}}}] "
+                rf"coordinates {{{_coord_body(pts)}}};"
+            )
+            if legend_name:
+                lines.append(
+                    rf"  \addlegendentry{{{_legend_entry(spec, s)}}}"
+                )
+    if not drew:
+        return None
     return lines
 
 
-def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None):
-    """
-    2×2 runtime figure: one instance per panel, ACO vs the θ-heuristic.
-    """
-    k_selected, k_fixed = _select_sweep(meta, axis="k", fixed_value=fixed_theta)
-    instances = _pick_runtime_instances(by_label, k_selected)
-    if not instances:
-        return [r"% param-runtime: no instance with a complete k sweep"]
-
-    theta = int(k_fixed if k_fixed is not None else 5)
-    panels = []
-    panel_graphs = []
-    for i, graph in enumerate(instances):
-        block = _instance_panel_lines(
-            by_label,
-            k_selected,
-            graph,
-            with_legend=(i == 0),
-            with_ylabel=(i % 2 == 0),
+def _runtime_half(by_label, series, instances, *, xlabel, legend_name):
+    """One 2×2 group: four instances, sweeps on ``series``."""
+    lines = begin_tikz(resize=False)
+    for s in series:
+        r, g, b = s["rgb"]
+        lines.append(
+            rf"  \definecolor{{{s['color']}}}{{RGB}}{{{r},{g},{b}}}"
         )
-        if block:
-            panels.append(block)
-            panel_graphs.append(graph)
-    if not panels:
-        return [r"% param-runtime: no instance with a complete k sweep"]
-
-    names = ", ".join(_instance_title(g) for g in panel_graphs)
-    caption = (
-        rf"Discovery time on four instances (100 ants, $\theta = {theta}$, "
-        r"log scale). Each panel is one graph. Circles are ACO and "
-        r"triangles are the $\theta$-heuristic. The instances are evenly "
-        rf"spaced by $|U|+|V|$ among graphs finished at every "
-        rf"$k$ in the sweep: {names}. Timed-out graphs are excluded."
-    )
-
-    env, lines = begin_float("figure", star=False)
-    # Natural size inside one column. Axis boxes are a fraction of
-    # \columnwidth; the seps are absolute so $k$, the log ticks, and
-    # the graph name keep a readable gap when the boxes shrink.
-    # \resizebox would scale those labels down with the picture.
-    lines += begin_tikz(resize=False)
     lines += [
-        r"  \definecolor{acoMark}{RGB}{31,119,180}",
-        r"  \definecolor{heurMark}{RGB}{214,39,150}",
         r"  \begin{groupplot}[",
         r"    group style={group size=2 by 2,",
-        r"      horizontal sep=0.95cm, vertical sep=1.12cm},",
+        # One gap between the two columns; the column is wide enough
+        # for a slightly larger split. Vertical room is only the
+        # xlabel plus the panel name.
+        r"      horizontal sep=1.5cm, vertical sep=1.48cm},",
         r"    scale only axis,",
         r"    width=0.28\columnwidth,",
         r"    height=0.22\columnwidth,",
         r"    ymode=log,",
         r"    grid=major,",
         r"    major grid style={black!22, thin},",
+        # minor tick num is ignored on a log axis; an empty list
+        # is what drops the marks between the grid lines.
         r"    minor tick num=0,",
+        r"    minor xtick={},",
+        r"    minor ytick={},",
         r"    tick align=outside,",
         r"    tick style={black, thin},",
         r"    tick label style={font=\scriptsize, inner sep=1pt},",
@@ -891,28 +1012,100 @@ def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None):
         r"    ylabel near ticks,",
         r"  ]",
     ]
-    for block in panels:
-        lines += block
-    lines += [
-        r"  \end{groupplot}",
-        r"  \path (group c1r1.north) -- (group c2r1.north)",
-        r"    node[midway, above=2pt, inner sep=0pt]",
-        r"    {\pgfplotslegendfromname{paramRuntimeLegend}};",
-    ]
-    # Graph name sits under $k$. A second line inside xlabel does not
-    # grow the axis bounding box, so the next row was drawn on top of it.
-    # vertical sep above leaves room for both lines.
+    panel_graphs = []
+    legend_open = False
+    for i, graph in enumerate(instances):
+        block = _multi_series_panel(
+            by_label,
+            series,
+            graph,
+            xlabel=xlabel,
+            with_ylabel=(i % 2 == 0),
+            legend_name=None if legend_open else legend_name,
+        )
+        if block:
+            lines += block
+            panel_graphs.append(graph)
+            legend_open = True
+    if not panel_graphs:
+        return [], []
+    lines.append(r"  \end{groupplot}")
     for i, graph in enumerate(panel_graphs):
         col = (i % 2) + 1
         row = (i // 2) + 1
         letter = chr(ord("a") + i)
         name = _instance_title(graph)
+        # Axis south is the frame. Tick labels and the xlabel hang
+        # below it; -26pt clears that xlabel without a large gap.
         lines.append(
-            rf"  \node[anchor=north, yshift=-1pt, font=\scriptsize, "
-            rf"inner sep=1pt] "
-            rf"at (group c{col}r{row}.outer south) {{({letter}) {name}}};"
+            rf"  \node[anchor=north, font=\scriptsize, inner sep=0pt, "
+            rf"align=center] "
+            rf"at ([yshift=-26pt]group c{col}r{row}.south) "
+            rf"{{({letter}) {name}}};"
+        )
+    if legend_open:
+        lines.append(
+            rf"  \node[anchor=north, inner sep=0pt] "
+            rf"at ([yshift=-3pt]current bounding box.south) "
+            rf"{{\pgfplotslegendfromname{{{legend_name}}}}};"
         )
     lines += end_tikz(resize=False)
+    return lines, panel_graphs
+
+
+def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None,
+                         sweeps=None):
+    """
+    Runtime on four instances for every sweep in ``runtime_sweeps``.
+
+    ``fixed_theta`` / ``fixed_k`` are unused; the lists in build.json
+    decide the axes. ``sweeps is None`` falls back to the modal k sweep.
+    """
+    del fixed_theta, fixed_k
+    resolved = resolve_runtime_sweeps(meta, sweeps)
+    if not resolved:
+        return [r"% param-runtime: no sweeps to plot"]
+
+    chosen = []
+    seen = set()
+    for sw in resolved:
+        for _x, lab, info in sw["points"]:
+            if lab in seen:
+                continue
+            seen.add(lab)
+            chosen.append((lab, info))
+    instances = _pick_runtime_instances(by_label, chosen)
+    if not instances:
+        return [r"% param-runtime: no instance finished every plotted suite"]
+
+    halves = []
+    if _half_series(resolved, "k"):
+        halves.append(("k", r"$k$"))
+    if _half_series(resolved, "theta"):
+        halves.append(("theta", r"$\theta$"))
+    series_groups = [_half_series(resolved, axis) for axis, _xlabel in halves]
+
+    caption = r"Discovery time versus $k$ and $\theta$."
+
+    env, lines = begin_float("figure", star=False)
+    first_names = None
+    for (axis, xlabel), series in zip(halves, series_groups):
+        block, panel_graphs = _runtime_half(
+            by_label,
+            series,
+            instances,
+            xlabel=xlabel,
+            legend_name="paramRuntimeK" if axis == "k" else "paramRuntimeTheta",
+        )
+        if not block:
+            continue
+        if first_names is None:
+            first_names = panel_graphs
+        elif lines and lines[-1] != r"  \centering":
+            lines.append(r"  \par\vspace{0.35em}")
+        lines += block
+    if first_names is None:
+        return [r"% param-runtime: no instance finished every plotted suite"]
     lines += [
         rf"  \caption{{{caption}}}",
         r"  \label{fig:param-runtime}",

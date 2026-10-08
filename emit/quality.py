@@ -182,57 +182,6 @@ def aggregate_median_series(per_graph_series):
     return median_xy
 
 
-def build_quality_latex(median_xy):
-    """Single-axis plot of median % deviation from the θ-heuristic."""
-    if not median_xy:
-        raise ValueError("No median series to plot")
-
-    coords = " ".join(
-        f"({x},{y:.4f})" for x, y in sorted(median_xy.items())
-    )
-    xs = sorted(median_xy)
-    xmin = xs[0] / 2
-    xmax = xs[-1] * 2
-
-    env, lines = begin_float("figure", star=False)
-    lines += begin_tikz()
-    lines += [
-        r"\begin{axis}[",
-        rf"    width={COLUMN_WIDTH},",
-        rf"    height={COLUMN_HEIGHT},",
-        r"    xlabel={Number of ants},",
-        r"    ylabel={Dev. from $\theta$-heuristic (\%)},",
-        r"    ylabel style={align=center},",
-        r"    xmode=log,",
-        r"    log basis x=2,",
-        r"    grid=major,",
-        rf"    xmin={xmin:g},",
-        rf"    xmax={xmax:g},",
-        r"]",
-        (
-            r"\addplot[solid, thick, mark=*, blue!80!black] "
-            rf"coordinates {{{coords}}};"
-        ),
-        (
-            rf"\draw[dashed, gray] (axis cs:{xmin:g},0) -- "
-            rf"(axis cs:{xmax:g},0);"
-        ),
-        r"\end{axis}",
-    ]
-    lines += end_tikz()
-    lines += [
-        r"  \caption{Cross-graph median percent deviation of ACO from "
-        r"the $\theta$-heuristic versus ant count. Each point is the "
-        r"median, over graphs, of that graph's mean over counted "
-        r"replicates (JIT warmup omitted). $\theta$-infeasible outcomes "
-        r"count as $-100\%$. The dashed line is parity with the "
-        r"$\theta$-heuristic.}",
-        r"  \label{fig:quality-groupplot}",
-    ]
-    lines += end_float(env)
-    return "\n".join(lines)
-
-
 # Paper defaults marked with a dotted line. Ant count 100 is the colony
 # size held fixed while the other three axes vary.
 _PANEL_DEFAULTS = {
@@ -302,6 +251,18 @@ def _shared_ylim(series):
     return lo - pad, hi + pad
 
 
+def _xscale_opts(scale):
+    """Log-axis keys for a panel. Linear scales add nothing."""
+    basis = {"log2": 2, "log10": 10}.get(scale)
+    if basis is None:
+        return []
+    return [
+        r"  xmode=log,",
+        rf"  log basis x={basis},",
+        r"  log ticks with fixed point,",
+    ]
+
+
 def _panel_plots(xy, xmin, xmax, ymin, ymax, default):
     """Coordinate plot, parity line, and the paper-default marker."""
     lines = []
@@ -326,6 +287,53 @@ def _panel_plots(xy, xmin, xmax, ymin, ymax, default):
     return lines
 
 
+_CAPTION = r"Median deviation from the $\theta$-heuristic."
+
+
+def _quality_figure(body, *, resize=True):
+    """One column float around a tikz body, with the shared caption."""
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz(resize=resize)
+    lines += body
+    lines += end_tikz(resize=resize)
+    lines += [
+        rf"  \caption{{{_CAPTION}}}",
+        r"  \label{fig:quality-groupplot}",
+    ]
+    lines += end_float(env)
+    return "\n".join(lines)
+
+
+def build_quality_latex(median_xy):
+    """Single-axis plot of median % deviation from the θ-heuristic."""
+    if not median_xy:
+        raise ValueError("No median series to plot")
+
+    xs = sorted(float(x) for x in median_xy)
+    xmin, xmax, _scale = _axis_limits(xs, "log2")
+    ymin, ymax = _shared_ylim([median_xy])
+    body = [
+        r"\begin{axis}[",
+        rf"    width={COLUMN_WIDTH},",
+        rf"    height={COLUMN_HEIGHT},",
+        r"    xlabel={Number of ants},",
+        r"    ylabel={Dev.\ from $\theta$-heuristic (\%)},",
+        r"    ylabel style={align=center},",
+        r"    grid=major,",
+        rf"    xmin={xmin:g},",
+        rf"    xmax={xmax:g},",
+        rf"    ymin={ymin:.4f},",
+        rf"    ymax={ymax:.4f},",
+    ]
+    body += _xscale_opts("log2")
+    body.append(r"]")
+    body += _panel_plots(
+        median_xy, xmin, xmax, ymin, ymax, _PANEL_DEFAULTS["ants"],
+    )
+    body.append(r"\end{axis}")
+    return _quality_figure(body)
+
+
 def build_quality_row_latex(panels):
     """
     Four panels in a 2×2 that fits one column: ant count and evaporation
@@ -338,9 +346,7 @@ def build_quality_row_latex(panels):
     column. The shared ylabel sits left of the tick labels.
     """
     ymin, ymax = _shared_ylim([p["xy"] for p in panels])
-    env, lines = begin_float("figure", star=False)
-    lines += begin_tikz(resize=False)
-    lines += [
+    body = [
         r"\begin{groupplot}[",
         r"  group style={group size=2 by 2,",
         r"    horizontal sep=0.48cm, vertical sep=0.82cm},",
@@ -373,48 +379,22 @@ def build_quality_row_latex(panels):
         # Right column shares the left column's scale.
         if i % 2 == 1:
             opts.append(r"  yticklabels={},")
-        if scale == "log2":
-            opts += [
-                r"  xmode=log,",
-                r"  log basis x=2,",
-                r"  log ticks with fixed point,",
-            ]
-        elif scale == "log10":
-            opts += [
-                r"  xmode=log,",
-                r"  log basis x=10,",
-                r"  log ticks with fixed point,",
-            ]
+        opts += _xscale_opts(scale)
         opts.append(rf"  xmin={xmin:g},")
         opts.append(rf"  xmax={xmax:g},")
         if xtick is not None:
             opts.append(rf"  xtick={xtick},")
         opts.append(r"]")
-        lines += opts
-        lines += _panel_plots(xy, xmin, xmax, ymin, ymax, panel["default"])
-    lines += [
+        body += opts
+        body += _panel_plots(xy, xmin, xmax, ymin, ymax, panel["default"])
+    body += [
         r"\end{groupplot}",
         r"\path (group c1r1.west) -- (group c1r2.west)",
         r"  node[midway, xshift=-32pt, rotate=90, anchor=center,",
         r"       font=\scriptsize, inner sep=0pt]",
         r"  {Dev.\ from $\theta$-heuristic (\%)};",
     ]
-    lines += end_tikz(resize=False)
-    lines += [
-        r"  \caption{Cross-graph median percent deviation of ACO from "
-        r"the $\theta$-heuristic. Each point is the median, over graphs, "
-        r"of that graph's mean over counted replicates (JIT warmup omitted). "
-        r"$\theta$-infeasible outcomes count as $-100\%$. "
-        r"The ant-count panel varies $A$; the other panels hold $A=100$ and "
-        r"vary evaporation $\rho$, pheromone deposit $\Delta\tau$, or the "
-        r"exponent on $\eta$. The dashed line is parity with the "
-        r"$\theta$-heuristic. The dotted line is the value used in the "
-        r"other experiments ($A=100$, $\rho=0.05$, $\Delta\tau=1$, "
-        r"exponent $3$). A panel marked ``not recorded'' has no sweep yet.}",
-        r"  \label{fig:quality-groupplot}",
-    ]
-    lines += end_float(env)
-    return "\n".join(lines)
+    return _quality_figure(body, resize=False)
 
 
 def median_from_paths(paths, axis, *, expect_param=None):

@@ -172,7 +172,7 @@ python paper/build.py pdf       # only compile
 python paper/build.py --tables  # also compile paper/tables.tex → tables.pdf
 ```
 
-**Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Set `results_dir` once (default `../results`); fragment paths are bare names under that tree (e.g. `vary_k2t5i_PN`). Absolute / `../…` paths still resolve from `paper/`. Optional top-level `max_replicates` (or per-fragment override / `--max-replicates=R`) retrospectively prefixes counted non-JIT replicates per ant count for emit aggregates; omit/`null` keeps all. The `replicate-budget` figure always uses the full counted set.
+**Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Set `results_dir` once (default `../results`); fragment paths are bare names under that tree (e.g. `vary_k2t5i_PN`). Absolute / `../…` paths still resolve from `paper/`. Optional top-level `max_replicates` (or per-fragment override / `--max-replicates=R`) retrospectively prefixes counted non-JIT replicates per ant count for emit aggregates; omit/`null` keeps all. The `budget` and `pheromone-ablation` figures always use the full counted set.
 
 | Placeholder | Emit mode | Purpose |
 |-------------|-----------|---------|
@@ -184,11 +184,9 @@ python paper/build.py --tables  # also compile paper/tables.tex → tables.pdf
 | `%%COMPARE:bound-time%%` | `compare` | 2-panel: normalized discovery time \(t/(n_S\cdot T)\) vs.\ naive $n_R^2$ (left) and practical $T\cdot n_R+|E_R|$ (right); shared y-axis for slope contrast |
 | `%%COMPARE:k-sweep%%` | `compare` | Compact captionless pair: ACO win rate vs. \(k\) at fixed \(\theta\) and vs. \(\theta\) at fixed \(k\), in the text (`param_dirs`) |
 | `%%COMPARE:theta-sweep%%` | `compare` | Comment only; the \(\theta\) panel is part of `k-sweep` |
-| `%%COMPARE:density-wins%%` | `compare` | ACO win rate in equal-count bins of reduced density, and at each \(\theta - k\); each panel is labeled with the correlation of that predictor with the win/loss outcome |
-| `%%COMPARE:param-runtime%%` | `compare` | 2×2: ACO and θ-heuristic discovery time vs. \(k\) on four instances evenly spaced by \(\|U\|+\|V\|\) (timeouts noted) |
-| `%%COMPARE:iteration-budget%%` | `compare` | Anytime curve from `epoch_trace` (`budget_dir`): median and IQR of \(\|E(B_t)\|/\|E(D_\theta)\|\) vs epoch (log x), faint per-graph curves, cumulative time, and \(P(\theta\)-feasible) |
-| `%%COMPARE:replicate-budget%%` | `compare` | Best-of-\(R\): mean across graphs of \(E[\max]\) over subsets drawn without replacement, bootstrap CI, and per-graph CV of \(\|E(B)\|\) |
-| `%%COMPARE:budget-allocation%%` | `compare` | Median relative quality over \((T,R)\) with iso-cost contours \(T\cdot R=\mathrm{const}\) and those slices as curves |
+| `%%COMPARE:density-wins%%` | `compare` | One column: ACO win rate versus \(k\) at fixed \(\theta\), and versus \(\theta\) at fixed \(k\), with equal-count reduced-density thirds as three bars |
+| `%%COMPARE:param-runtime%%` | `compare` | Four instances, log time. A legend under each 2×2 names the sweep color (fixed \(\theta\) when \(k\) varies, fixed \(k\) when \(\theta\) varies) and the marker (circle ACO, triangle \(\theta\)-heuristic). Sweeps are `runtime_sweeps` in `build.json`: every completed value at that fixed parameter. Each panel's axis is the range that graph finished |
+| `%%COMPARE:budget%%` | `compare` | Quality-style 2×2 from `epoch_trace` (`budget_dir`): median % deviation from the θ-heuristic (infeasible = −100%) and median θ-feasibility, versus epoch budget \(T\) and replicate count \(R\) |
 | `%%COMPARE:pheromone-ablation%%` | `compare` | Anytime median with pheromone on vs \(\Delta\tau=0\) (\(\tau\equiv 1\)) and optional \(\rho\) sweep (`ablation_dirs`) |
 | `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, median % edge increase (`median-edge-pct`), θ-feasibility rates, missing-at-size stats, pivot-tested vs excluded ACO-win size means (`compare_dir`) |
 | `%%ABLATION%%` / `%%ABLATION:summary%%` | `ablation` | Settings table rows and the Section 4.3 sentence from `aco_settings_ablation.json` (pheromone off, best-only deposit, greedy fill at the end, GA) |

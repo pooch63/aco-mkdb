@@ -12,8 +12,9 @@ seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table:
   --subset=full (default) emits every remaining row (appendix), including
   graph sizes, as a full-width table*.
   --subset=highlights emits the net-savings graphs plus the smallest and
-  largest overhead cases as a single-column table with only time saved
-  and percent reduction (main text).
+  largest overhead cases as a captionless single-column table (Dataset,
+  time saved, percent reduction). The main-text prose defines the columns
+  and the two blocks.
 
 Reads full pivot comparisons and beat_heuristic=false skip markers from
 compare-seeds.jl. Pass --vary-dir (or rely on compare_* → vary_* name
@@ -634,17 +635,12 @@ def build_seed_compare_table(
     caption,
     placement="!t",
     star=True,
-    compact=False,
 ):
     """
-    LaTeX table of datasets with defined pivot savings.
+    Full-width LaTeX table of datasets with defined pivot savings.
 
     Two blocks separated by \\midrule: net end-to-end time improved (ascending
-    |saved|), then no net savings / overhead.
-
-    compact drops graph-size columns and is a naturally sized single-column
-    table (Dataset, time saved, reduction). The full table keeps sizes and
-    stretches to the float width.
+    |saved|), then no net savings / overhead. Columns include graph sizes.
     """
     sections = [s for s in (improved_rows, neutral_rows) if s]
 
@@ -653,45 +649,31 @@ def build_seed_compare_table(
         rf"  \caption{{{caption}}}",
         rf"  \label{{{label}}}",
         r"  \small",
+        r"  \setlength{\tabcolsep}{3pt}",
+        r"  \resizebox{\linewidth}{!}{%",
+        r"  \begin{tabular}{lrrrrrr}",
+        r"    \toprule",
+        r"    Dataset & $|U_G|+|V_G|$ & $|E_G|$ & $|U_R|+|V_R|$ & $|E_R|$"
+        r" & Time saved (s) & Reduction (\%) \\",
+        r"    \midrule",
     ]
-    if compact:
-        lines += [
-            r"  \setlength{\tabcolsep}{4pt}",
-            r"  \begin{tabular}{@{}lrr@{}}",
-            r"    \toprule",
-            r"    Dataset & Time saved (s) & Reduction (\%) \\",
-            r"    \midrule",
-        ]
-    else:
-        lines += [
-            r"  \setlength{\tabcolsep}{3pt}",
-            r"  \resizebox{\linewidth}{!}{%",
-            r"  \begin{tabular}{lrrrrrr}",
-            r"    \toprule",
-            r"    Dataset & $|U_G|+|V_G|$ & $|E_G|$ & $|U_R|+|V_R|$ & $|E_R|$"
-            r" & Time saved (s) & Reduction (\%) \\",
-            r"    \midrule",
-        ]
 
     for i, section in enumerate(sections):
         for r in section:
             name = _tex_escape_label(r.get("display_name") or r.get("name") or "")
-            if compact:
-                cells = [name, fmt_saved_s(r), fmt_pct(r)]
-            else:
-                cells = [
-                    name,
-                    fmt_nodes(r.get("nU"), r.get("nV"), r.get("full_vertex_count")),
-                    fmt_int(r.get("graph_edges")),
-                    fmt_nodes(
-                        r.get("reduced_nU"),
-                        r.get("reduced_nV"),
-                        r.get("vertex_count"),
-                    ),
-                    fmt_int(r.get("reduced_edges")),
-                    fmt_saved_s(r),
-                    fmt_pct(r),
-                ]
+            cells = [
+                name,
+                fmt_nodes(r.get("nU"), r.get("nV"), r.get("full_vertex_count")),
+                fmt_int(r.get("graph_edges")),
+                fmt_nodes(
+                    r.get("reduced_nU"),
+                    r.get("reduced_nV"),
+                    r.get("vertex_count"),
+                ),
+                fmt_int(r.get("reduced_edges")),
+                fmt_saved_s(r),
+                fmt_pct(r),
+            ]
             lines.append("    " + " & ".join(cells) + r" \\")
         if i < len(sections) - 1:
             lines.append(r"    \midrule")
@@ -699,10 +681,37 @@ def build_seed_compare_table(
     lines += [
         r"    \bottomrule",
         r"  \end{tabular}",
+        r"  }",
     ]
-    if not compact:
-        lines.append(r"  }")
     lines += end_float(env)
+    return "\n".join(lines)
+
+
+def build_seed_compare_highlight_tex(improved_rows, neutral_rows):
+    """In-flow table: dataset, time saved, and percent reduction. No caption."""
+    sections = [s for s in (improved_rows, neutral_rows) if s]
+    lines = [
+        r"\par\vspace{0.6em}",
+        r"\begin{center}",
+        r"  \small",
+        r"  \setlength{\tabcolsep}{4pt}",
+        r"  \begin{tabular}{@{}lrr@{}}",
+        r"    \toprule",
+        r"    Dataset & Time saved (s) & Reduction (\%) \\",
+        r"    \midrule",
+    ]
+    for i, section in enumerate(sections):
+        for r in section:
+            name = _tex_escape_label(r.get("display_name") or r.get("name") or "")
+            cells = [name, fmt_saved_s(r), fmt_pct(r)]
+            lines.append("    " + " & ".join(cells) + r" \\")
+        if i < len(sections) - 1:
+            lines.append(r"    \midrule")
+    lines += [
+        r"    \bottomrule",
+        r"  \end{tabular}",
+        r"\end{center}",
+    ]
     return "\n".join(lines)
 
 
@@ -721,20 +730,7 @@ def build_seed_compare_latex(rows, subset=SUBSET_FULL):
         improved_rows, neutral_rows = pick_highlight_sections(
             improved_rows, neutral_rows
         )
-        return build_seed_compare_table(
-            improved_rows,
-            neutral_rows,
-            label="tab:seed-compare",
-            caption=(
-                r"Representative pivot seed comparisons. Top: graphs where "
-                r"ACO seeding reduced wall-clock time. Bottom: smallest and "
-                r"largest ACO-search overhead among graphs where ACO did not beat the $\theta$-heuristic. "
-                r"Full results are in the accompanying tables."
-            ),
-            placement="!t",
-            star=False,
-            compact=True,
-        )
+        return build_seed_compare_highlight_tex(improved_rows, neutral_rows)
 
     if subset != SUBSET_FULL:
         print(
