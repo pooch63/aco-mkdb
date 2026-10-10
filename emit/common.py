@@ -21,6 +21,13 @@ def list_json_paths(directory):
     return sorted(glob.glob(os.path.join(directory, "*.json")))
 
 
+def fmt_thousands(value):
+    """Node count in thousands, rounded to one decimal."""
+    if value is None:
+        return "--"
+    return f"{float(value) / 1000:.1f}"
+
+
 def load_json(path):
     """Load a JSON file, or None on decode/IO error."""
     try:

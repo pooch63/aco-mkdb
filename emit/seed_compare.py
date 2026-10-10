@@ -1,7 +1,7 @@
 """
 seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table:
 
-  Table of datasets: graph/reduced nodes & edges, pivot time saved
+  Table of datasets: reduced nodes and edges, pivot time saved
   (or -ACO discovery cost when ACO did not beat θ / saved no pivot time),
   and percent reduction (negative when ACO wasted time).
 
@@ -9,8 +9,9 @@ seed-compare mode — compare-seeds.jl (+ vary.jl) → paper table:
   are split by a \\midrule: positive time-saved first, then waste, each
   section sorted by ascending |time saved|.
 
-  --subset=full (default) emits every remaining row (appendix), including
-  graph sizes, as a full-width table*.
+  --subset=full (default) emits every remaining row (appendix), with
+  reduced graph sizes, as a full-width table*.
+  --subset=compact emits those rows as side-by-side blocks for the paper.
   --subset=highlights emits the net-savings graphs plus the smallest and
   largest overhead cases as a captionless single-column table (Dataset,
   time saved, percent reduction). The main-text prose defines the columns
@@ -35,6 +36,7 @@ from .common import (
     counted_trials,
     display_name,
     end_float,
+    fmt_thousands,
     infer_vary_dir,
     load_json,
     report_skipped,
@@ -451,11 +453,11 @@ def fmt_int(value):
 
 
 def fmt_nodes(nU, nV, total=None):
-    """Format |U|+|V| when sides are known, else a precomputed total, else --."""
+    """|U|+|V| in thousands. Sides when known, else a precomputed total."""
     if nU is not None and nV is not None:
-        return str(int(nU) + int(nV))
+        return fmt_thousands(int(nU) + int(nV))
     if total is not None:
-        return str(int(total))
+        return fmt_thousands(total)
     return "--"
 
 
@@ -611,6 +613,7 @@ def order_seed_compare_rows(rows):
 
 SUBSET_FULL = "full"
 SUBSET_HIGHLIGHTS = "highlights"
+SUBSET_COMPACT = "compact"
 
 
 def pick_highlight_sections(improved_rows, neutral_rows):
@@ -640,7 +643,7 @@ def build_seed_compare_table(
     Full-width LaTeX table of datasets with defined pivot savings.
 
     Two blocks separated by \\midrule: net end-to-end time improved (ascending
-    |saved|), then no net savings / overhead. Columns include graph sizes.
+    |saved|), then no net savings / overhead. Columns are the reduced graph.
     """
     sections = [s for s in (improved_rows, neutral_rows) if s]
 
@@ -651,9 +654,9 @@ def build_seed_compare_table(
         r"  \small",
         r"  \setlength{\tabcolsep}{3pt}",
         r"  \resizebox{\linewidth}{!}{%",
-        r"  \begin{tabular}{lrrrrrr}",
+        r"  \begin{tabular}{lrrrr}",
         r"    \toprule",
-        r"    Dataset & $|U_G|+|V_G|$ & $|E_G|$ & $|U_R|+|V_R|$ & $|E_R|$"
+        r"    Dataset & $n_k$ & $|E_R|$"
         r" & Time saved (s) & Reduction (\%) \\",
         r"    \midrule",
     ]
@@ -663,8 +666,6 @@ def build_seed_compare_table(
             name = _tex_escape_label(r.get("display_name") or r.get("name") or "")
             cells = [
                 name,
-                fmt_nodes(r.get("nU"), r.get("nV"), r.get("full_vertex_count")),
-                fmt_int(r.get("graph_edges")),
                 fmt_nodes(
                     r.get("reduced_nU"),
                     r.get("reduced_nV"),
@@ -715,6 +716,44 @@ def build_seed_compare_highlight_tex(improved_rows, neutral_rows):
     return "\n".join(lines)
 
 
+def _seed_cells(row):
+    name = _tex_escape_label(row.get("display_name") or row.get("name") or "")
+    return [
+        name,
+        fmt_nodes(
+            row.get("reduced_nU"),
+            row.get("reduced_nV"),
+            row.get("vertex_count"),
+        ),
+        fmt_int(row.get("reduced_edges")),
+        fmt_saved_s(row),
+        fmt_pct(row),
+    ]
+
+
+def build_seed_compare_compact_tex(improved_rows, neutral_rows):
+    """Every dataset with defined savings, packed into side-by-side blocks."""
+    from .dense_table import render_dense_table
+
+    sections = [
+        [_seed_cells(row) for row in section]
+        for section in (improved_rows, neutral_rows)
+        if section
+    ]
+    return render_dense_table(
+        caption=r"Pivot seed comparison",
+        label="tab:seed-compare-full",
+        column_headers=[
+            "Dataset",
+            r"$n_k$",
+            r"$E_R$",
+            r"$\Delta t$",
+            r"\%",
+        ],
+        sections=sections,
+    )
+
+
 def build_seed_compare_latex(rows, subset=SUBSET_FULL):
     """Build seed-compare LaTeX: full appendix table or main-text highlights."""
     if not rows:
@@ -731,6 +770,9 @@ def build_seed_compare_latex(rows, subset=SUBSET_FULL):
             improved_rows, neutral_rows
         )
         return build_seed_compare_highlight_tex(improved_rows, neutral_rows)
+
+    if subset == SUBSET_COMPACT:
+        return build_seed_compare_compact_tex(improved_rows, neutral_rows)
 
     if subset != SUBSET_FULL:
         print(
@@ -820,7 +862,11 @@ def run(json_paths, output, vary_dir=None, subset=SUBSET_FULL):
         )
 
     tex = build_seed_compare_latex(rows, subset=subset)
-    write_tex(tex, output)
+    preamble = None
+    if subset == SUBSET_COMPACT:
+        from .dense_table import PREAMBLE
+        preamble = PREAMBLE
+    write_tex(tex, output, preamble=preamble)
 
     beat = [r for r in rows if r.get("beat_heuristic")]
     nobeat = [r for r in rows if not r.get("beat_heuristic")]

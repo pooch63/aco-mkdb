@@ -65,11 +65,19 @@ end
 end
 
 @testset "a side shorter than θ cannot host a feasible biclique" begin
-    g = BipartiteGraph{Nothing}()
-    add_biclique!(g, 1:3, 1:8)
-    super_reduce!(g, K, THETA)
-    @test isempty(g.adjU)
-    @test isempty(g.adjV)
+    for side in (:smaller, :larger)
+        g = BipartiteGraph{Nothing}()
+        add_biclique!(g, 1:3, 1:8)
+        super_reduce!(g, K, THETA; side=side)
+        @test isempty(g.adjU)
+        @test isempty(g.adjV)
+    end
+end
+
+@testset "projecting the larger side still drops the disjoint triple" begin
+    g = biclique_plus_star()
+    super_reduce!(g, K, THETA; side=:larger)
+    @test side_ids(g) == (Set(1:5), Set(1:5))
 end
 
 @testset "second pass deletes nothing" begin
@@ -311,4 +319,15 @@ end
     g = _copy_bipartite(g0)
     super_reduce!(g, 1, 3)
     @test best_feasible_edges(g, 1, 3) == before
+
+    g_wide = BipartiteGraph{Nothing}()
+    for u in 1:6, v in 1:9
+        rand() < 0.5 && add_edge!(g_wide, u, v, nothing)
+    end
+    add_biclique!(g_wide, 1:3, 1:3)
+    before_wide = best_feasible_edges(g_wide, 1, 3)
+    @test before_wide > 0
+    reduced = _copy_bipartite(g_wide)
+    super_reduce!(reduced, 1, 3; side=:larger)
+    @test best_feasible_edges(reduced, 1, 3) == before_wide
 end

@@ -2,7 +2,7 @@
 =================================================================================
 Unified solve-method contract.
 
-Every algorithm (θ-heuristic, ACO, edges-ACO, diffusion-ACO, GA, pivot/opponent, tabu, VNS, retry, …) exposes the same
+Every algorithm (θ-heuristic, ACO, edges-ACO, diffusion-ACO, GA, pivot/opponent, tabu, VNS, retry, super-heuristic, …) exposes the same
 surface:
 
   run_method!(m::SolveMethod, g, k, θ; reduction=…) -> MethodResult
@@ -43,6 +43,7 @@ isdefined(@__MODULE__, :__SPLIT_ACO_JL__) || include("split_aco.jl")
 isdefined(@__MODULE__, :__ONE_SIDE_ACO_JL__) || include("one_side_aco.jl")
 isdefined(@__MODULE__, :__ORACLE_ACO_JL__) || include("oracle_aco.jl")
 isdefined(@__MODULE__, :__CLIQUE_ACO_JL__) || include("clique_aco.jl")
+isdefined(@__MODULE__, :__SUPER_HEURISTIC_JL__) || include("super-heuristic.jl")
 
 using EnumX
 
@@ -1207,6 +1208,73 @@ function run_method!(m::TugOfWarMethod, g::BipartiteGraph, k::Int, θ::Int;
     )
 end
 
+# ── Super-heuristic (super-reduce ↔ θ, with ACO when θ stalls) ───────────────
+
+struct SuperHeuristicMethod <: SolveMethod
+    patience::Int
+    max_cycles::Int
+    ants::Int
+    iterations::Int
+    pheromone::Int
+    evaporation::Float64
+    prefer_smaller_side::Bool
+    neighbor_scope_limit::Bool
+    eta_exp::Float64
+end
+
+function SuperHeuristicMethod(; patience::Int=2, max_cycles::Int=8,
+    ants::Int=100, iterations::Int=5, pheromone::Int=1,
+    evaporation::Float64=0.95, prefer_smaller_side::Bool=true,
+    neighbor_scope_limit::Bool=true, eta_exp::Real=ETA_EXP)
+    patience >= 1 || throw(ArgumentError("patience must be ≥ 1, got $patience"))
+    max_cycles >= 1 || throw(ArgumentError("max_cycles must be ≥ 1, got $max_cycles"))
+    ants >= 1 || throw(ArgumentError("ants must be ≥ 1, got $ants"))
+    iterations >= 1 || throw(ArgumentError("iterations must be ≥ 1, got $iterations"))
+    pheromone >= 0 || throw(ArgumentError("pheromone must be ≥ 0, got $pheromone"))
+    0.0 < evaporation <= 1.0 || throw(ArgumentError(
+        "evaporation must be in (0, 1], got $evaporation"))
+    ηexp = Float64(eta_exp)
+    isfinite(ηexp) || throw(ArgumentError("eta_exp must be finite, got $eta_exp"))
+    return SuperHeuristicMethod(patience, max_cycles, ants, iterations, pheromone,
+        evaporation, prefer_smaller_side, neighbor_scope_limit, ηexp)
+end
+method_id(::SuperHeuristicMethod) = "super-heuristic"
+
+function run_method!(m::SuperHeuristicMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    verbose = get(kwargs, :verbose, true)::Bool
+    t0 = time()
+    if reduction != ReductionMode.none
+        apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+    end
+    traced = super_heuristic!(g, k, θ;
+        patience=m.patience, max_cycles=m.max_cycles,
+        ants=m.ants, iterations=m.iterations, pheromone=m.pheromone,
+        evaporation=m.evaporation,
+        prefer_smaller_side=m.prefer_smaller_side,
+        neighbor_scope_limit=m.neighbor_scope_limit,
+        eta_exp=m.eta_exp, verbose=verbose)
+    wall = time() - t0
+    return MethodResult("super-heuristic", traced.sol;
+        wall_time_s=wall,
+        time_to_best_s=traced.time_to_best_s,
+        iterations_to_best=traced.cycle_of_best == 0 ? nothing : traced.cycle_of_best,
+        meta=Dict{String,Any}(
+            "patience" => m.patience,
+            "max_cycles" => m.max_cycles,
+            "ants" => m.ants,
+            "iterations" => m.iterations,
+            "best_edges" => traced.best_edges,
+            "theta_calls" => traced.theta_calls,
+            "aco_calls" => traced.aco_calls,
+            "theta_improvements" => traced.theta_improvements,
+            "aco_improvements" => traced.aco_improvements,
+            "cycles" => traced.cycles,
+            "stall" => traced.stall,
+            "trace" => traced.trace,
+        ))
+end
+
 # Aliases: "opponent" / "branch" map to pivot (exact search).
 function _register_builtins!()
     register_method!("heuristic", (; kwargs...) -> HeuristicMethod(; kwargs...))
@@ -1231,6 +1299,8 @@ function _register_builtins!()
     register_method!("tug", (; kwargs...) -> TugOfWarMethod(; kwargs...))
     register_method!("tow", (; kwargs...) -> TugOfWarMethod(; kwargs...))
     register_method!("alternation", (; kwargs...) -> TugOfWarMethod(; kwargs...))
+    register_method!("super-heuristic", (; kwargs...) -> SuperHeuristicMethod(; kwargs...))
+    register_method!("super_heuristic", (; kwargs...) -> SuperHeuristicMethod(; kwargs...))
 end
 
 _register_builtins!()

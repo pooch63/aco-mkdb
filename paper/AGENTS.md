@@ -46,7 +46,7 @@ The `emit/` package turns **pre-recorded** JSON from `vary.jl` / `compare-seeds.
 - When `aco_runs > 1`, **omit run 1** (or any trial with `jit_warmup=true`) from quality, feasibility, timing, discovery, variance, seed selection, budget, and pheromone-ablation aggregates — that replicate is the real-graph Julia JIT warmup.
 - Optional `max_replicates` in `build.json` (top-level or per fragment; or `--max-replicates=R`) retrospectively keeps only the first R counted replicates per ant count (ordered by `run`) for quality / table / statistics / seed-compare / compare aggregates. Omit or set `null` for all counted replicates. The epoch-trace plots (`budget`, `pheromone-ablation`) always use the full counted set.
 - Each vary.jl trial is one independent **replicate** (`run` / seed). When `epoch_trace` is present, it is the incumbent after every completed epoch (`t`, `edges`, `theta_feasible`, `elapsed_s`). A prefix of that trace is the shorter epoch budget: Algorithm 1 has no schedule that depends on `T`. Do not invent traces that were not written. `iterations_to_best` is only the epoch at which the final incumbent first appeared; it is not a per-epoch edge history.
-- `budget` and `pheromone-ablation` read `budget_dir` (and `ablation_dirs` for the pheromone control). They require `epoch_trace`. The `budget` figure is a 2×2 in the quality-figure style: median percent deviation from the θ-heuristic (θ-infeasible outcomes score −100%) and median θ-feasibility, against epoch budget \(T\) and replicate count \(R\). For \(R\), deviation is the expected best of \(R\) replicates drawn without replacement at the end of the recorded trace, and feasibility is the probability that subset contains a θ-feasible replicate. JIT warmup replicates are omitted. If the traces are missing, emit a placeholder caption and warn — do not fall back to an ETB credit rule.
+- `budget` and `pheromone-ablation` read `budget_dir` (and `ablation_dirs` for the pheromone control). They require `epoch_trace`. The paper draws the budget panels inside `%%QUALITY%%` (same float, also labeled `fig:budget`): median percent deviation from the θ-heuristic on the shared quality scale, then median θ-feasibility, against epoch budget \(T\) and replicate count \(R\). For \(R\), deviation is the expected best of \(R\) replicates drawn without replacement at the end of the recorded trace, and feasibility is the probability that subset contains a θ-feasible replicate. JIT warmup replicates are omitted, and these panels ignore `max_replicates`. If the traces are missing, leave the panels blank and warn — do not fall back to an ETB credit rule. `--plots=budget` still emits the standalone 2×2.
 
 ## Emit must not fail the build on incomplete data
 
@@ -63,7 +63,10 @@ The paper build (`python paper/build.py`) **must complete** even when some resul
 3. `build.py` substitutes `%%PLACEHOLDER%%` in `main.tex` → `build.tex` → PDF.
    `python paper/build.py --tables` (or `make tables` from `paper/`) also
    substitutes placeholders in `tables.tex` → `tables-build.tex` → `tables.pdf`.
-   Per-graph result tables live in `tables.tex` and are omitted from the default build.
+   Those landscape pages are opt-in. `main.tex` includes the same tables as
+   short side-by-side blocks: `%%TABLE:…:compact%%`, `%%SEED_COMPARE:compact%%`,
+   and `%%METHODS:dir:compact%%`. The appendix is one column, and each block
+   row is repeated horizontally so the tables stay short.
 
 Emit is incremental: a fragment rebuilds when results JSON, `build.json`, or the
 **emit Python sources for that fragment** are newer than `paper/generated/*.tex`

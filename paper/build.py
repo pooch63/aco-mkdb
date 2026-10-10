@@ -16,8 +16,9 @@ Stale jobs run concurrently (``-j`` / ``--jobs``, default: CPU count).
 Use ``--force`` to rebuild all.
 
 Use --keep-tex to retain build.tex after compiling.
-Use --tables to also assemble and compile tables.tex (per-graph result
-tables) into tables.pdf. The default build leaves those tables out.
+Use --tables to also assemble and compile tables.tex (landscape per-graph
+tables) into tables.pdf. main.tex includes the same tables in a short
+side-by-side form (``:compact``); the landscape pages stay opt-in.
 
 Placeholders in main.tex and tables.tex use the form %%QUALITY%%,
 %%COMPARE:theta-time%%, etc.
@@ -103,11 +104,28 @@ EMIT_SHARED_SOURCES = (
 )
 # Mode entry modules (plus extras each mode imports for output).
 EMIT_MODE_SOURCES: dict[str, tuple[Path, ...]] = {
-    "quality": (EMIT_DIR / "quality.py",),
-    "seed-compare": (EMIT_DIR / "seed_compare.py",),
-    "table": (EMIT_DIR / "table.py",),
-    "methods": (EMIT_DIR / "methods.py",),
+    "quality": (
+        EMIT_DIR / "quality.py",
+        EMIT_DIR / "compare" / "budget_curves.py",
+    ),
+    "seed-compare": (
+        EMIT_DIR / "seed_compare.py",
+        EMIT_DIR / "dense_table.py",
+    ),
+    "table": (
+        EMIT_DIR / "table.py",
+        EMIT_DIR / "dense_table.py",
+    ),
+    "methods": (
+        EMIT_DIR / "methods.py",
+        EMIT_DIR / "dense_table.py",
+    ),
     "ablation": (EMIT_DIR / "ablation.py",),
+    "reduce": (EMIT_DIR / "reduce.py",),
+    "epoch-table": (
+        EMIT_DIR / "epoch_table.py",
+        EMIT_DIR / "compare" / "budget_curves.py",
+    ),
     "statistics": (
         EMIT_DIR / "statistics.py",
         EMIT_DIR / "table.py",
@@ -157,12 +175,14 @@ def parse_table_args(args: str | None) -> tuple[str, str]:
     Split %%TABLE:…%% args into (path_suffix, subset).
 
     Examples: ``k2t5i_PN`` → (``k2t5i_PN``, ``full``);
-    ``k2t5i_PN:highlights`` → (``k2t5i_PN``, ``highlights``).
+    ``k2t5i_PN:highlights`` → (``k2t5i_PN``, ``highlights``);
+    ``k2t5i_PN:compact`` → (``k2t5i_PN``, ``compact``).
+    METHODS args use the same suffix (``dir:compact``).
     """
     if not args:
         return "", "full"
     raw = args.strip()
-    for subset in ("highlights", "full"):
+    for subset in ("highlights", "compact", "sizes", "full"):
         marker = f":{subset}"
         if raw.endswith(marker):
             return raw[: -len(marker)], subset
@@ -222,7 +242,11 @@ def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> P
             )
         return resolve_results_path(cfg, budget)
     if name == "METHODS" and args:
-        return resolve_results_path(cfg, args.strip())
+        directory, _subset = parse_table_args(args)
+        return resolve_results_path(cfg, directory)
+    if name == "REDUCE" and args == "sweep":
+        sweep = frag.get("sweep") or "reduce_sweep"
+        return resolve_results_path(cfg, sweep)
     if name == "TABLE":
         base = cfg.get("vary_base")
         if not base:
@@ -351,9 +375,13 @@ def fragment_dep_paths(
             deps.append(fragment_input_path(cfg, name, frag, args))
     else:
         deps.append(fragment_input_path(cfg, name, frag, args))
+        if name == "REDUCE" and args == "sweep":
+            deps.append(REPO_ROOT / "scripts" / "kt-sweep.bash")
         if name == "QUALITY" and frag.get("ablation_dirs"):
             for path in frag["ablation_dirs"].values():
                 deps.append(resolve_results_path(cfg, path))
+        if name == "QUALITY" and frag.get("budget_dir"):
+            deps.append(resolve_results_path(cfg, frag["budget_dir"]))
         if frag.get("flag_dirs"):
             for path in frag["flag_dirs"].values():
                 deps.append(resolve_results_path(cfg, path))
@@ -435,6 +463,10 @@ def build_emit_job(
         _suffix, subset = parse_table_args(args)
         if subset != "full":
             cmd.append(f"--subset={subset}")
+    if name == "METHODS":
+        _directory, subset = parse_table_args(args)
+        if subset != "full":
+            cmd.append(f"--subset={subset}")
     if frag.get("ants") is not None:
         cmd.append(f"--ants={frag['ants']}")
     # Per-fragment override, else top-level build.json max_replicates.
@@ -446,6 +478,10 @@ def build_emit_job(
             cmd.append(
                 f"--ablation-dir={label}={resolve_results_path(cfg, path)}"
             )
+    if name == "QUALITY" and frag.get("budget_dir"):
+        cmd.append(
+            f"--budget-dir={resolve_results_path(cfg, frag['budget_dir'])}"
+        )
     if frag.get("flag_dirs"):
         for label, path in frag["flag_dirs"].items():
             cmd.append(

@@ -18,7 +18,8 @@
         "rho": "ablate_rho_k2t5i_PN",
         "pheromone": "ablate_pheromone_k2t5i_PN",
         "eta-exp": "ablate_eta-exp_k2t5i_PN"
-      }
+      },
+      "budget_dir": "budget_k2t5i_PN"
     },
     "SEED_COMPARE": {
       "emit": "seed-compare",
@@ -88,6 +89,18 @@
     "ABLATION": {
       "emit": "ablation",
       "input": "aco_settings_ablation.json"
+    },
+    "EPOCH_TABLE": {
+      "emit": "epoch-table",
+      "input": "budget_k2t5i_PN",
+      "ants": 100,
+      "file": "epoch-table.tex"
+    },
+    "REDUCE": {
+      "emit": "reduce",
+      "input": "super_reduce_phases.json",
+      "sweep": "reduce_sweep",
+      "file": "reduce.tex"
     }
   }
 }

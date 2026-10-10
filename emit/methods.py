@@ -5,10 +5,11 @@ Reads one benchmark JSON per graph (as written by ``scripts/evaluate.bash``
 with ``METHODS=…``) and renders, for each method, the returned biclique
 sides / edges and the timed wall clock:
 
-    Dataset | |U_G| | |V_G| | |E_G| | |U_R| | |V_R| | |E_R|
-            | <method>: |U(D)| |V(D)| |E(D)| Time   (one group per method)
+    Dataset | |U_R| | |V_R| | |E_R|
+            | <method>: |U_D| |V_D| |E(D)| Time   (one group per method)
 
-Graph-size columns that no input file recorded are dropped. The first
+Original graph sizes are omitted; the sizes table lists them once.
+Reduced-size columns that no input file recorded are dropped. The first
 method in ``--methods`` is the *focal* method; rows are grouped into three
 blocks by its outcome against every other method under the paper win rule
 (θ-feasible and more edges, or θ-feasible while the other is not):
@@ -26,7 +27,7 @@ from __future__ import annotations
 import os
 import sys
 
-from .common import display_name, load_json, report_skipped, write_tex
+from .common import display_name, fmt_thousands, load_json, report_skipped, write_tex
 
 DEFAULT_METHODS = ("tow", "aco", "heuristic")
 METHOD_LABELS = {
@@ -43,14 +44,12 @@ METHOD_LABELS = {
     "pivot": "Pivot",
 }
 
-# (row key, header) for graph-size columns, shown only when some file has them.
+# Reduced graph sizes only. Original |U|, |V|, |E| are in the sizes table.
+# A column is shown when some file recorded it.
 GRAPH_COLUMNS = (
-    ("nU", "$|U_G|$"),
-    ("nV", "$|V_G|$"),
-    ("edge_count", "$|E_G|$"),
-    ("reduced_nU", "$|U_R|$"),
-    ("reduced_nV", "$|V_R|$"),
-    ("reduced_edges", "$|E_R|$"),
+    ("reduced_nU", r"$U_k$"),
+    ("reduced_nV", r"$V_k$"),
+    ("reduced_edges", r"$|E_R|$"),
 )
 
 SECTION_WIN = "win"
@@ -148,7 +147,7 @@ def focal_sort_key(named, focal):
     return (edges is None, edges or 0, name)
 
 
-def row_tex(name, row, methods, graph_cols):
+def row_cells(name, row, methods, graph_cols):
     theta = row["theta"]
     feasible_edges = [
         int(c["edges"])
@@ -157,7 +156,11 @@ def row_tex(name, row, methods, graph_cols):
     ]
     best = max(feasible_edges) if feasible_edges else None
 
-    cells = [name] + [fmt_int(row[key]) for key, _ in graph_cols]
+    cells = [name] + [
+        fmt_thousands(row[key]) if key in ("nU", "nV", "reduced_nU", "reduced_nV")
+        else fmt_int(row[key])
+        for key, _ in graph_cols
+    ]
     for m in methods:
         c = row["cells"][m]
         if c is None:
@@ -170,7 +173,11 @@ def row_tex(name, row, methods, graph_cols):
             elif best is not None and int(c["edges"]) == best:
                 edges = rf"\textbf{{{edges}}}"
         cells += [fmt_int(c["nU"]), fmt_int(c["nV"]), edges, fmt_ms(c["time"])]
-    return "    " + " & ".join(cells) + r" \\"
+    return cells
+
+
+def row_tex(name, row, methods, graph_cols):
+    return "    " + " & ".join(row_cells(name, row, methods, graph_cols)) + r" \\"
 
 
 def record_counts(rows, focal, other):
@@ -309,8 +316,91 @@ def build_tex(named_rows, methods, label):
 
 PREAMBLE = r"\usepackage{adjustbox}"
 
+SUBSET_FULL = "full"
+SUBSET_COMPACT = "compact"
 
-def run(json_paths, output, methods=None, label=None):
+# Group-row titles. Kept shorter than the four numeric columns they span.
+_DENSE_METHOD = {
+    "tow": "TOW",
+    "tug": "TOW",
+    "aco": "ACO",
+    "heuristic": r"$\theta$",
+    "edges": "Edge",
+    "diffusion": "Diff.",
+    "ga": "GA",
+    "tabu": "Tabu",
+    "vns": "VNS",
+    "retry": "Retry",
+    "pivot": "Pivot",
+}
+_GRAPH_HEAD = {
+    "nU": "$U$",
+    "nV": "$V$",
+    "edge_count": "$E$",
+    "reduced_nU": r"$U_k$",
+    "reduced_nV": r"$V_k$",
+    "reduced_edges": "$E$",
+}
+
+
+def _dense_header(methods, graph_cols):
+    original = [key for key, _ in graph_cols if not str(key).startswith("reduced")]
+    reduced = [key for key, _ in graph_cols if str(key).startswith("reduced")]
+    groups = [(1, None)]
+    headers = ["Dataset"]
+    if original:
+        groups.append((len(original), "Graph"))
+        headers.extend(_GRAPH_HEAD[key] for key in original)
+    if reduced:
+        groups.append((len(reduced), "Reduced"))
+        headers.extend(_GRAPH_HEAD[key] for key in reduced)
+    for m in methods:
+        groups.append((4, _DENSE_METHOD.get(m, method_label(m))))
+        headers.extend(["$U$", "$V$", "$E$", "Time"])
+    return groups, headers
+
+
+def build_compact_tex(named_rows, methods, label):
+    """Every dataset, packed into side-by-side blocks."""
+    from .dense_table import render_dense_table
+
+    rows = [r for _, r in named_rows]
+    focal = methods[0]
+    k = single_value(r["k"] for r in rows)
+    theta = single_value(r["theta"] for r in rows)
+    kt = rf"$k={k if k is not None else '?'}, \theta={theta if theta is not None else '?'}$"
+    graph_cols = [
+        (key, header)
+        for key, header in GRAPH_COLUMNS
+        if any(r[key] is not None for r in rows)
+    ]
+    sections = {SECTION_WIN: [], SECTION_TIE: [], SECTION_LOSS: []}
+    for named in named_rows:
+        sections[section_of(named[1], methods)].append(named)
+    for key in sections:
+        sections[key].sort(key=lambda n: focal_sort_key(n, focal))
+    blocks = [
+        [
+            row_cells(name, row, methods, graph_cols)
+            for name, row in sections[s]
+        ]
+        for s in (SECTION_WIN, SECTION_TIE, SECTION_LOSS)
+        if sections[s]
+    ]
+    groups, headers = _dense_header(methods, graph_cols)
+    others = " and ".join(method_label(m) for m in methods[1:])
+    caption = rf"{method_label(focal)} vs.\ {others} ({kt})"
+    tex = render_dense_table(
+        caption=caption,
+        label=label,
+        column_headers=headers,
+        groups=groups,
+        sections=blocks,
+    )
+    return tex, {s: len(v) for s, v in sections.items()}
+
+
+def run(json_paths, output, methods=None, label=None, subset=SUBSET_FULL):
     methods = tuple(methods or DEFAULT_METHODS)
     if not methods:
         raise SystemExit("methods mode needs at least one method")
@@ -334,8 +424,19 @@ def run(json_paths, output, methods=None, label=None):
     if label is None:
         directory = os.path.basename(os.path.dirname(os.path.abspath(json_paths[0])))
         label = f"tab:methods-{directory}"
-    tex, counts = build_tex(named_rows, methods, label)
-    write_tex(tex, output, preamble=PREAMBLE)
+    if subset == SUBSET_COMPACT:
+        from .dense_table import PREAMBLE as DENSE_PREAMBLE
+        tex, counts = build_compact_tex(named_rows, methods, label)
+        preamble = DENSE_PREAMBLE
+    else:
+        if subset != SUBSET_FULL:
+            print(
+                f"# Warning: unknown methods subset {subset!r}; emitting full table",
+                file=sys.stderr,
+            )
+        tex, counts = build_tex(named_rows, methods, label)
+        preamble = PREAMBLE
+    write_tex(tex, output, preamble=preamble)
 
     print(
         f"# methods: {len(named_rows)} dataset(s); focal={methods[0]} "

@@ -3,9 +3,13 @@ table mode — vary.jl ant-count JSON → LaTeX table.
 
 Full appendix columns:
 
-    Dataset | |U_G| | |V_G| | |E_G| | |U_R| | |V_R| | |E_R|
-            | ACO: |U(D*)| |V(D*)| |E(D*)| Discovery ETB TimTB
-            | θ-Heuristic: |U(D*)| |V(D*)| |E(D*)| Time
+    Dataset | |U_R| | |V_R| | |E_R|
+            | ACO: |U_D| |V_D| |E(D)| Time ETB
+            | θ-Heuristic: |U_D| |V_D| |E(D)| Time
+
+Original |U| / |V| / |E| are not repeated here. ``--subset=sizes`` emits
+that lookup once, in the same tight full-width style as the reduction
+table.
 
 Highlights (main text) are a single-column table with no caption:
 
@@ -14,14 +18,12 @@ Highlights (main text) are a single-column table with no caption:
 |E(D)| and Time are ACO's best counted solution and its discovery
 wall time. The prose above the table defines D.
 
-|U_G| / |V_G| / |E_G| come from the original graph (`graph.nU` / `graph.nV`
-and top-level `edge_count`). |U_R| / |V_R| / |E_R| are the reduced graph
-sizes. ACO reports the best counted trial (max `final_edges`, then min
-`time_to_best_s`, then min `wall_time_s`). The first replicate per ant
-count is a Julia JIT warmup when `aco_runs > 1` and is omitted. Discovery
-is the sum of counted same-ant `wall_time_s` values. ETB / TimTB are from
-that winning replicate only. The θ-heuristic Discovery column is its
-`wall_time_s`.
+|U_R| / |V_R| / |E_R| are the reduced graph sizes. ACO reports the best
+counted trial (max `final_edges`, then min `time_to_best_s`, then min
+`wall_time_s`). The first replicate per ant count is a Julia JIT warmup
+when `aco_runs > 1` and is omitted. Time is the sum of counted same-ant
+`wall_time_s` values. ETB is from that winning replicate only. The
+θ-heuristic Time column is its `wall_time_s`.
 
 Rows are grouped into three sections (each sorted ascending by ACO's
 |E(D*)|), separated by midrules in one landscape table:
@@ -32,8 +34,10 @@ Rows are grouped into three sections (each sorted ascending by ACO's
   3. Tie, or both failed θ-feasibility (need ≥θ vertices on both sides;
      more edges without θ on both sides still counts as a failure)
 
---subset=full (default) emits every row (appendix).
+--subset=full (default) emits every row (appendix landscape page).
 --subset=highlights emits the largest relative ACO wins (main text).
+--subset=compact emits every row as side-by-side blocks for the paper.
+--subset=sizes emits original |U|, |V|, and |E| only.
 """
 
 from __future__ import annotations
@@ -47,6 +51,7 @@ from .common import (
     counted_trials,
     display_name,
     end_float,
+    fmt_thousands,
     load_json,
     report_skipped,
     select_best_trial_any,
@@ -55,6 +60,24 @@ from .common import (
 
 SUBSET_FULL = "full"
 SUBSET_HIGHLIGHTS = "highlights"
+SUBSET_COMPACT = "compact"
+SUBSET_SIZES = "sizes"
+
+# One header row under these group labels. Short heads stay narrower than
+# the numeric columns they label. Original |U|, |V|, |E| live in the
+# sizes table, so these blocks start at the reduced graph.
+_COMPACT_GROUPS = (
+    (1, None),
+    (3, "Reduced"),
+    (5, "ACO"),
+    (4, r"$\theta$"),
+)
+_COMPACT_HEADERS = [
+    "Dataset",
+    "$U_k$", "$V_k$", "$E$",
+    "$U$", "$V$", "$E$", "Time", "ETB",
+    "$U$", "$V$", "$E$", "Time",
+]
 
 # How many rows to keep in each highlights block.
 HIGHLIGHT_BEST = 5
@@ -142,6 +165,33 @@ def summarize_file(data, ants=None):
     }
 
 
+def full_cells(name, row):
+    return [
+        name,
+        fmt_thousands(row["reduced_nU"]),
+        fmt_thousands(row["reduced_nV"]),
+        fmt_int(row["reduced_edges"]),
+        fmt_int(row["aco_nU"]),
+        fmt_int(row["aco_nV"]),
+        fmt_int(row["aco_edges"]),
+        fmt_time(row["aco_time"]),
+        fmt_itb(row["aco_itb"]),
+        fmt_int(row["heur_nU"]),
+        fmt_int(row["heur_nV"]),
+        fmt_int(row["heur_edges"]),
+        fmt_time(row["heur_time"]),
+    ]
+
+
+def size_cells(name, row):
+    return [
+        name,
+        fmt_thousands(row["nU"]),
+        fmt_thousands(row["nV"]),
+        fmt_int(row["edge_count"]),
+    ]
+
+
 def row_tex(name, row, *, compact=False):
     if compact:
         cells = [
@@ -150,25 +200,7 @@ def row_tex(name, row, *, compact=False):
             fmt_time(row["aco_time"]),
         ]
     else:
-        cells = [
-            name,
-            fmt_int(row["nU"]),
-            fmt_int(row["nV"]),
-            fmt_int(row["edge_count"]),
-            fmt_int(row["reduced_nU"]),
-            fmt_int(row["reduced_nV"]),
-            fmt_int(row["reduced_edges"]),
-            fmt_int(row["aco_nU"]),
-            fmt_int(row["aco_nV"]),
-            fmt_int(row["aco_edges"]),
-            fmt_time(row["aco_time"]),
-            fmt_itb(row["aco_itb"]),
-            fmt_time(row["aco_ttb"]),
-            fmt_int(row["heur_nU"]),
-            fmt_int(row["heur_nV"]),
-            fmt_int(row["heur_edges"]),
-            fmt_time(row["heur_time"]),
-        ]
+        cells = full_cells(name, row)
     return "    " + " & ".join(cells) + r" \\"
 
 
@@ -275,13 +307,13 @@ def tabular_header_lines(*, compact=False):
         r"  \small",
         r"  \setlength{\tabcolsep}{2.5pt}",
         r"  \resizebox{\linewidth}{!}{%",
-        r"  \begin{tabular}{l *{16}{r}} % 1 left-aligned column + 16 right-aligned columns",
+        r"  \begin{tabular}{l *{12}{r}}",
         r"    \toprule",
-        r"    Dataset & $|U_G|$ & $|V_G|$ & $|E_G|$ & $|U_R|$ & $|V_R|$ & $|E_R|$"
-        r" & \multicolumn{6}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
-        r"    \cmidrule(lr){8-13} \cmidrule(lr){14-17}",
-        r"    & & & & & & & $|U_{D_{best}}|$ & $|V_{D_{best}}|$ & $|E(D_{best})|$ & Discovery & ETB & TimTB"
-        r" & $|U_{D_{best}}|$ & $|V_{D_{best}}|$ & $|E(D_{best})|$ & Time \\",
+        r"    Dataset & $U_k$ & $V_k$ & $|E_R|$"
+        r" & \multicolumn{5}{c}{ACO} & \multicolumn{4}{c}{$\theta$-Heuristic} \\",
+        r"    \cmidrule(lr){5-9} \cmidrule(lr){10-13}",
+        r"    & & & & $|U_D|$ & $|V_D|$ & $|E(D)|$ & Time & ETB"
+        r" & $|U_D|$ & $|V_D|$ & $|E(D)|$ & Time \\",
         r"    \midrule",
     ]
 
@@ -394,6 +426,103 @@ def build_highlight_tex(rows):
     return "\n".join(lines)
 
 
+def build_sizes_tex(named_rows):
+    """
+    Original |U|, |V|, and |E| for every graph, once.
+
+    Same tight full-width setting as the reduction table (scriptsize,
+    short rules, little padding). The four columns repeat side by side
+    so the lookup stays a short block instead of a tall narrow list.
+    """
+    from .dense_table import PREAMBLE, WIDE_IN
+
+    rows = sorted(named_rows, key=lambda named: named[0].casefold())
+    cells = [size_cells(name, row) for name, row in rows]
+    n = len(cells)
+    if n <= 14:
+        n_panels = 1
+    elif n <= 28:
+        n_panels = 2
+    else:
+        n_panels = 3
+    base, extra = divmod(n, n_panels)
+    panels = []
+    i = 0
+    for p in range(n_panels):
+        take = base + (1 if p < extra else 0)
+        panels.append(cells[i : i + take])
+        i += take
+    rows_per = max(len(panel) for panel in panels)
+    one = "lrrr"
+    sep = r"@{\hspace{1.6pt}\vrule width 0.15pt\hspace{1.6pt}}"
+    col_spec = "@{}" + sep.join([one] * n_panels) + "@{}"
+    header = ["Graph", r"$U_k$", r"$V_k$", r"$|E|$"]
+
+    def join_panels(per_panel):
+        return "    " + " & ".join(" & ".join(part) for part in per_panel) + r" \\"
+
+    lines = [
+        r"\par\vspace{2pt}",
+        r"\noindent\makebox[\textwidth][c]{%",
+        rf"\begin{{minipage}}{{{WIDE_IN}in}}",
+        r"\centering",
+        r"\setlength{\abovecaptionskip}{1pt}",
+        r"\setlength{\belowcaptionskip}{0pt}",
+        r"\captionof{table}{Original graph sizes for every per-graph table. "
+        r"$U_k$ and $V_k$ are side sizes in thousands. "
+        r"$|E|$ does not depend on $k$ or $\theta$.}",
+        r"\label{tab:graph-sizes}",
+        r"\begin{adjustbox}{max width=\linewidth}%",
+        r"\scriptsize",
+        r"\setlength{\tabcolsep}{1.6pt}",
+        r"\setlength{\aboverulesep}{0.12ex}",
+        r"\setlength{\belowrulesep}{0.12ex}",
+        r"\renewcommand{\arraystretch}{0.9}",
+        rf"\begin{{tabular}}{{{col_spec}}}",
+        r"    \toprule",
+        join_panels([header] * n_panels),
+        r"    \midrule",
+    ]
+    for i in range(rows_per):
+        row_cells = []
+        for panel in panels:
+            if i < len(panel):
+                row_cells.extend(panel[i])
+            else:
+                row_cells.extend([""] * 4)
+        lines.append("    " + " & ".join(row_cells) + r" \\")
+    lines += [
+        r"    \bottomrule",
+        r"\end{tabular}%",
+        r"\end{adjustbox}",
+        r"\end{minipage}}",
+        r"\par",
+    ]
+    return "\n".join(lines), PREAMBLE
+
+
+def build_compact_table(named_rows):
+    """Every dataset, packed into side-by-side blocks."""
+    from .dense_table import render_dense_table
+
+    rows_only = [row for _, row in named_rows]
+    kt = caption_k_theta(rows_only)
+    full_label, _highlights_label = table_labels(rows_only)
+    aco_rows, heur_rows, tie_rows = sectioned_rows(named_rows)
+    sections = [
+        [full_cells(name, row) for name, row in section]
+        for section in (aco_rows, heur_rows, tie_rows)
+        if section
+    ]
+    return render_dense_table(
+        caption=rf"ACO vs.\ $\theta$-heuristic ({kt})",
+        label=full_label,
+        column_headers=_COMPACT_HEADERS,
+        groups=list(_COMPACT_GROUPS),
+        sections=sections,
+    )
+
+
 def build_table(named_rows, subset=SUBSET_FULL):
     """Build ACO vs θ LaTeX: full appendix table or main-text highlights."""
     rows_only = [row for _, row in named_rows]
@@ -406,6 +535,13 @@ def build_table(named_rows, subset=SUBSET_FULL):
         if not best:
             raise ValueError("No highlight rows to emit for ACO vs θ table")
         return build_highlight_tex(best)
+
+    if subset == SUBSET_COMPACT:
+        return build_compact_table(named_rows)
+
+    if subset == SUBSET_SIZES:
+        tex, _preamble = build_sizes_tex(named_rows)
+        return tex
 
     if subset != SUBSET_FULL:
         print(
@@ -444,8 +580,15 @@ def run(json_paths, output, ants=None, subset=SUBSET_FULL):
         raise SystemExit("No usable vary JSON files -- nothing to dump.")
 
     aco_rows, heur_rows, tie_rows = sectioned_rows(named_rows)
-    tex = build_table(named_rows, subset=subset)
-    write_tex(tex, output)
+    preamble = None
+    if subset == SUBSET_SIZES:
+        tex, preamble = build_sizes_tex(named_rows)
+    else:
+        tex = build_table(named_rows, subset=subset)
+        if subset == SUBSET_COMPACT:
+            from .dense_table import PREAMBLE
+            preamble = PREAMBLE
+    write_tex(tex, output, preamble=preamble)
 
     highlight_note = ""
     if subset == SUBSET_HIGHLIGHTS:

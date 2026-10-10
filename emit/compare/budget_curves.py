@@ -34,9 +34,6 @@ import statistics
 import sys
 
 from ..common import (
-    COL2_HEIGHT,
-    COL2_VSEP_LOG,
-    COL2_WIDTH,
     aco_timed_out,
     begin_float,
     begin_tikz,
@@ -236,15 +233,6 @@ def _coords(xs, ys, *, digits=4):
     return " ".join(parts)
 
 
-def _log_ticks(xmax):
-    marks = [1, 2, 5, 10, 20, 50, 100, 200, 500]
-    kept = [m for m in marks if m <= xmax]
-    if not kept or kept[-1] != xmax:
-        if xmax not in kept and xmax > 1:
-            kept.append(xmax)
-    return "{" + ",".join(str(m) for m in kept) + "}"
-
-
 def _missing_figure(label, message):
     env, lines = begin_float("figure", star=False)
     lines += [
@@ -255,18 +243,13 @@ def _missing_figure(label, message):
     return lines
 
 
-def _style_keys():
-    return [
-        r"    scale only axis,",
-        r"    tick label style={font=\scriptsize},",
-        r"    label style={font=\small},",
-        r"    title style={font=\small},",
-        r"    every axis plot/.append style={line join=round},",
-        r"    grid=major,",
-        r"    grid style={gray!25},",
-        r"    tick style={black!60},",
-        r"    scaled ticks=false,",
-    ]
+def _sparse_log_ticks(xmax):
+    """Three labels. A compact panel cannot hold the full 1,2,5,… set."""
+    marks = [m for m in (1, 2, 5, 10, 20, 50, 100, 200, 500) if m <= xmax]
+    if not marks or marks[-1] != xmax:
+        marks.append(xmax)
+    kept = _tick_values(marks, "log10")
+    return "{" + ",".join(f"{m:g}" for m in kept) + "}"
 
 
 def _ncr(n, k):
@@ -584,29 +567,38 @@ def pheromone_figure(graphs, ablation):
         )
 
     env, lines = begin_float("figure", star=False)
-    lines += begin_tikz()
+    lines += begin_tikz(resize=False)
     lines += [
         r"  \begin{groupplot}[",
-        rf"    group style={{group size=1 by 2, vertical sep={COL2_VSEP_LOG}}},",
-        *_style_keys(),
-        rf"    width={COL2_WIDTH},",
-        rf"    height={COL2_HEIGHT},",
+        r"    group style={group size=2 by 1, horizontal sep=1.15cm},",
+        r"    scale only axis,",
+        r"    width=0.30\columnwidth,",
+        r"    height=0.26\columnwidth,",
+        r"    tick label style={font=\scriptsize, inner sep=1pt},",
+        r"    label style={font=\scriptsize, inner sep=1pt},",
+        r"    title style={font=\scriptsize, inner sep=1pt},",
+        r"    xlabel style={align=center},",
+        r"    ylabel style={inner sep=1pt},",
+        r"    every axis plot/.append style={line join=round},",
+        r"    grid=major,",
+        r"    grid style={gray!25},",
+        r"    tick align=outside,",
+        r"    scaled ticks=false,",
         r"    xmode=log,",
         r"    log ticks with fixed point,",
         r"    xlabel={Epoch $t$},",
         r"    xmin=1,",
         rf"    xmax={all_epochs[-1]},",
-        rf"    xtick={_log_ticks(all_epochs[-1])},",
+        rf"    xtick={_sparse_log_ticks(all_epochs[-1])},",
         r"  ]",
         r"  \nextgroupplot[",
-        r"    ylabel={median $|E(B_t)|\,/\,|E(D_\theta)|$},",
+        r"    ylabel={$|E(B_t)|/|E(D_\theta)|$},",
         r"    title={Relative edge count},",
         r"    ymin=0,",
-        r"    legend style={",
-        r"      at={(0.03,0.97)}, anchor=north west,",
-        r"      font=\scriptsize, draw=none,",
-        r"      fill=white, fill opacity=0.85, text opacity=1,",
-        r"      legend cell align=left},",
+        r"    legend to name=pheromonelegend,",
+        r"    legend columns=-1,",
+        r"    legend style={font=\scriptsize, draw=none, fill=none,",
+        r"      inner sep=0pt, legend cell align=left},",
         r"  ]",
     ]
 
@@ -643,10 +635,11 @@ def pheromone_figure(graphs, ablation):
     # placeholder we fill below. Use a generous default if we patch in place.
     lines += [
         r"  \nextgroupplot[",
-        r"    ylabel={$P(B_t$ is $\theta$-feasible$)$},",
+        r"    ylabel={$P(\theta$-feasible$)$},",
         r"    title={$\theta$-feasibility},",
         r"    ymin=0,",
         r"    ymax=1.05,",
+        r"    ytick={0,0.5,1},",
         r"  ]",
     ]
     for idx, (label, suite) in enumerate(series):
@@ -662,8 +655,13 @@ def pheromone_figure(graphs, ablation):
             color, dash = _ABLATION_STYLES[(idx - 1) % len(_ABLATION_STYLES)]
             style = rf"very thick, {dash}, {color}"
         lines.append(rf"  \addplot[{style}] coordinates {{{coords}}};")
-    lines += [r"  \end{groupplot}"]
-    lines += end_tikz()
+    lines += [
+        r"  \end{groupplot}",
+        r"  \path (group c1r1.outer south) -- (group c2r1.outer south)",
+        r"    node[midway, below=2pt, anchor=north, inner sep=0pt]",
+        r"    {\pgfplotslegendfromname{pheromonelegend}};",
+    ]
+    lines += end_tikz(resize=False)
 
     # Patch the quality-panel ymax now that series peaks are known.
     ymax_line = rf"    ymax={ymax:.4f},"

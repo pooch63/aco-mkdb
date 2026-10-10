@@ -2,4 +2,14 @@
 
 __all__ = ["MODES"]
 
-MODES = ("quality", "seed-compare", "table", "compare", "statistics", "methods", "ablation")
+MODES = (
+    "quality",
+    "seed-compare",
+    "table",
+    "compare",
+    "statistics",
+    "methods",
+    "ablation",
+    "reduce",
+    "epoch-table",
+)

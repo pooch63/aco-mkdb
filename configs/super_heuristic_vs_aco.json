@@ -1,0 +1,41 @@
+{
+  "name": "super_heuristic_vs_aco",
+  "output": "results/super_heuristic_vs_aco.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "datasets": [
+    "konect-small/maayan-vidal",
+    "konect-small/moreno_health",
+    "konect-small/edit-zuwiktionary",
+    "konect-small/dnc-corecipient"
+  ],
+  "skip_completed": false,
+  "inject": false,
+  "baseline": {
+    "method": "aco",
+    "label": "aco",
+    "params": {
+      "ants": 50,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true
+    }
+  },
+  "challenger": {
+    "method": "super-heuristic",
+    "label": "super-heuristic",
+    "params": {
+      "ants": 50,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true,
+      "patience": 2
+    }
+  }
+}

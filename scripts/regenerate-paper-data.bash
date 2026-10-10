@@ -5,7 +5,7 @@
 # Covers:
 #   1. Flag ablation (P×N) at k=2, θ=5 — 100 ants only for ACO / ACO-P / ACO-N / ACO-PN
 #   2. Ant-count sweep with ACO-PN (P=N=true) → results/vary_k2t5i_PN
-#   3. (k,θ) PN table runs: k∈{1,2,3,4} θ=5 and k=3 θ∈{5,6,7} at ants=100
+#   3. (k,θ) PN table runs at ants=100 — pairs in scripts/kt-sweep.bash
 #      Two global ACO timeout passes over the whole kt phase:
 #        (1) short — θ for every graph in every (k,θ) dir
 #        (2) long  — only after short is done for the phase; retries graphs
@@ -39,6 +39,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 # shellcheck source=common.bash
 source "$ROOT/scripts/common.bash"
+# shellcheck source=kt-sweep.bash
+source "$ROOT/scripts/kt-sweep.bash"
 
 PHASES_RAW="${PHASES:-all}"
 DRY_RUN="${DRY_RUN:-0}"
@@ -77,22 +79,6 @@ if [[ -n "$ACO_PROCESS_LIMIT" ]] && ! awk -v soft="$ACO_TIMEOUT_LONG" -v hard="$
   echo "ACO_PROCESS_LIMIT ($ACO_PROCESS_LIMIT) must be strictly greater than ACO_TIMEOUT_LONG ($ACO_TIMEOUT_LONG)" >&2
   exit 1
 fi
-
-# Unique (k,θ) pairs: k=1,2,3,4 @ θ=5 and k=3 @ θ=5,6,7
-KT_PAIRS=(
-  "1:8"
-  "2:8"
-  "3:8"
-  "4:8"
-  "5:8"
-  "6:8"
-  "3:5"
-  "3:6"
-  "3:7"
-  "3:8"
-  "3:9"
-  "3:10"
-)
 
 want_phase() {
   local name="$1"

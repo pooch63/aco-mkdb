@@ -2,10 +2,13 @@
 quality mode — vary.jl ant-count format → median percent deviation from
 the θ-heuristic versus ant count. With ``--ablation-dir`` for ``rho``,
 ``pheromone``, and ``eta-exp``, the same median is drawn with the
-ant-count curve in a one-column 2×2 (A=100 held fixed on the other
-three panels). θ-infeasible outcomes count as −100%. One value per
-graph at each axis point (mean over that graph's counted replicates),
-then the median across graphs.
+ant-count curve. ``--budget-dir`` adds the epoch-budget and
+replicate-count sweeps (deviation, then θ-feasibility) from the
+recorded epoch traces, in the same one-column groupplot. θ-infeasible
+outcomes count as −100%. One value per graph at each axis point (mean
+over that graph's counted replicates), then the median across graphs.
+The epoch-trace panels ignore ``--max-replicates`` and use every
+counted replicate.
 """
 
 from __future__ import annotations
@@ -263,8 +266,8 @@ def _xscale_opts(scale):
     ]
 
 
-def _panel_plots(xy, xmin, xmax, ymin, ymax, default):
-    """Coordinate plot, parity line, and the paper-default marker."""
+def _panel_plots(xy, xmin, xmax, ymin, ymax, default, *, zero_line=True):
+    """Coordinate plot, optional parity line, and the paper-default marker."""
     lines = []
     if xy:
         lines.append(
@@ -276,9 +279,10 @@ def _panel_plots(xy, xmin, xmax, ymin, ymax, default):
             r"\node[font=\scriptsize, align=center, text=black!55] "
             r"at (rel axis cs:0.5,0.55) {not recorded};"
         )
-    lines.append(
-        rf"\draw[dashed, gray] (axis cs:{xmin:g},0) -- (axis cs:{xmax:g},0);"
-    )
+    if zero_line:
+        lines.append(
+            rf"\draw[dashed, gray] (axis cs:{xmin:g},0) -- (axis cs:{xmax:g},0);"
+        )
     if default is not None and xmin < float(default) < xmax:
         lines.append(
             rf"\draw[dotted, black!55] (axis cs:{default:g},{ymin:.4f}) -- "
@@ -288,20 +292,71 @@ def _panel_plots(xy, xmin, xmax, ymin, ymax, default):
 
 
 _CAPTION = r"Median deviation from the $\theta$-heuristic."
+_CAPTION_WITH_BUDGET = (
+    r"Median deviation from the $\theta$-heuristic. "
+    r"Bottom row: median $\theta$-feasibility versus epoch budget and replicate count."
+)
+
+_METRIC_LABEL = {
+    "dev": r"Dev.\ from $\theta$-heuristic (\%)",
+    "feas": r"$\theta$-feasible (\%)",
+}
+
+# Epoch-trace panels appended when --budget-dir is set. Deviation shares
+# the quality y-scale; feasibility keeps the 0–100 scale.
+_BUDGET_ROW = (
+    ("dev_t", r"Epochs $T$", "log2", 5.0, (0.5, 200.0, "log2"), "dev", True, None),
+    ("dev_r", r"Replicates $R$", "log2", 5.0, (0.5, 60.0, "log2"), "dev", True, None),
+    ("feas_t", r"Epochs $T$", "log2", 5.0, (0.5, 200.0, "log2"), "feas", False, "0,50,100"),
+    ("feas_r", r"Replicates $R$", "log2", 5.0, (0.5, 60.0, "log2"), "feas", False, "0,50,100"),
+)
 
 
-def _quality_figure(body, *, resize=True):
+def _quality_figure(body, *, resize=True, caption=_CAPTION, extra_labels=()):
     """One column float around a tikz body, with the shared caption."""
     env, lines = begin_float("figure", star=False)
     lines += begin_tikz(resize=resize)
     lines += body
     lines += end_tikz(resize=resize)
     lines += [
-        rf"  \caption{{{_CAPTION}}}",
+        rf"  \caption{{{caption}}}",
         r"  \label{fig:quality-groupplot}",
     ]
+    for label in extra_labels:
+        lines.append(rf"  \label{{{label}}}")
     lines += end_float(env)
     return "\n".join(lines)
+
+
+def _ylabel_node(row_a, row_b, text):
+    """Rotated ylabel centered on one row, or between two rows."""
+    if row_a == row_b:
+        anchor = rf"\path (group c1r{row_a}.west)"
+        place = ""
+    else:
+        anchor = rf"\path (group c1r{row_a}.west) -- (group c1r{row_b}.west)"
+        place = "midway, "
+    return [
+        anchor,
+        rf"  node[{place}xshift=-32pt, rotate=90, anchor=center,"
+        r" font=\scriptsize, inner sep=0pt]",
+        rf"  {{{text}}};",
+    ]
+
+
+def _row_ylabels(panels, ncols):
+    """One ylabel per run of rows that share a metric."""
+    metrics = [
+        panels[i].get("metric", "dev") for i in range(0, len(panels), ncols)
+    ]
+    lines = []
+    start = 0
+    for i, metric in enumerate(metrics + [None]):
+        if i == start or metric == metrics[start]:
+            continue
+        lines += _ylabel_node(start + 1, i, _METRIC_LABEL[metrics[start]])
+        start = i
+    return lines
 
 
 def build_quality_latex(median_xy):
@@ -336,19 +391,24 @@ def build_quality_latex(median_xy):
 
 def build_quality_row_latex(panels):
     """
-    Four panels in a 2×2 that fits one column: ant count and evaporation
-    on the first row, deposit and the η exponent on the second. Shared
-    vertical scale, one ylabel for the left column. Missing sweeps stay
-    blank.
+    Panels in a 2-column grid that fits one column. The first four are
+    ant count, evaporation, deposit, and the η exponent. When epoch
+    traces are passed in, epochs and replicates follow: deviation on
+    the shared vertical scale, then θ-feasibility on its own scale.
+    Missing sweeps stay blank.
 
     Axis boxes are a fraction of \\columnwidth and the picture is not
     resized, so a short grid stays small instead of stretching to the
-    column. The shared ylabel sits left of the tick labels.
+    column. Each ylabel sits left of the tick labels.
     """
-    ymin, ymax = _shared_ylim([p["xy"] for p in panels])
+    ncols = 2
+    nrows = (len(panels) + ncols - 1) // ncols
+    shared_lo, shared_hi = _shared_ylim(
+        [p["xy"] for p in panels if p.get("ymin") is None]
+    )
     body = [
         r"\begin{groupplot}[",
-        r"  group style={group size=2 by 2,",
+        rf"  group style={{group size={ncols} by {nrows},",
         r"    horizontal sep=0.48cm, vertical sep=0.82cm},",
         r"  scale only axis,",
         r"  width=0.34\columnwidth,",
@@ -359,8 +419,6 @@ def build_quality_row_latex(panels):
         r"  grid=major,",
         r"  grid style={gray!25},",
         r"  tick align=outside,",
-        rf"  ymin={ymin:.4f},",
-        rf"  ymax={ymax:.4f},",
         r"]",
     ]
     for i, panel in enumerate(panels):
@@ -372,29 +430,39 @@ def build_quality_row_latex(panels):
         else:
             xmin, xmax, scale = panel["empty"]
             xtick = None
+        ymin = shared_lo if panel.get("ymin") is None else panel["ymin"]
+        ymax = shared_hi if panel.get("ymax") is None else panel["ymax"]
         opts = [
             r"\nextgroupplot[",
             rf"  xlabel={{{panel['xlabel']}}},",
+            rf"  ymin={ymin:.4f},",
+            rf"  ymax={ymax:.4f},",
         ]
         # Right column shares the left column's scale.
-        if i % 2 == 1:
+        if i % ncols == 1:
             opts.append(r"  yticklabels={},")
         opts += _xscale_opts(scale)
         opts.append(rf"  xmin={xmin:g},")
         opts.append(rf"  xmax={xmax:g},")
         if xtick is not None:
             opts.append(rf"  xtick={xtick},")
+        if panel.get("ytick"):
+            opts.append(rf"  ytick={{{panel['ytick']}}},")
         opts.append(r"]")
         body += opts
-        body += _panel_plots(xy, xmin, xmax, ymin, ymax, panel["default"])
-    body += [
-        r"\end{groupplot}",
-        r"\path (group c1r1.west) -- (group c1r2.west)",
-        r"  node[midway, xshift=-32pt, rotate=90, anchor=center,",
-        r"       font=\scriptsize, inner sep=0pt]",
-        r"  {Dev.\ from $\theta$-heuristic (\%)};",
-    ]
-    return _quality_figure(body, resize=False)
+        body += _panel_plots(
+            xy, xmin, xmax, ymin, ymax, panel["default"],
+            zero_line=panel.get("zero_line", True),
+        )
+    body.append(r"\end{groupplot}")
+    body += _row_ylabels(panels, ncols)
+    has_budget = any(p.get("metric") == "feas" for p in panels)
+    return _quality_figure(
+        body,
+        resize=False,
+        caption=_CAPTION_WITH_BUDGET if has_budget else _CAPTION,
+        extra_labels=("fig:budget",) if has_budget else (),
+    )
 
 
 def median_from_paths(paths, axis, *, expect_param=None):
@@ -430,7 +498,65 @@ def median_from_paths(paths, axis, *, expect_param=None):
     return aggregate_median_series(series), skipped
 
 
-def run(json_paths, output, ablation_dirs=None):
+def budget_panels(budget_dir, skipped):
+    """
+    Deviation and θ-feasibility versus T and R, from recorded epoch traces.
+
+    Returns four panel dicts. Missing traces stay blank and are warned
+    about; they are not filled in from another rule.
+    """
+    from .compare.budget_curves import budget_series, load_suite
+
+    series = {}
+    if not budget_dir or not os.path.isdir(budget_dir):
+        print(
+            "Warning: quality: no epoch-trace directory"
+            + (f" at {budget_dir}" if budget_dir else "")
+            + ".",
+            file=sys.stderr,
+        )
+    else:
+        paths = list_json_paths(budget_dir)
+        if not paths:
+            print(
+                f"Warning: quality: no JSON in {budget_dir}.",
+                file=sys.stderr,
+            )
+        else:
+            graphs, suite_skipped = load_suite(paths)
+            skipped.extend(suite_skipped)
+            if graphs:
+                series = budget_series(graphs)
+            else:
+                print(
+                    f"Warning: quality: no epoch traces in {budget_dir}.",
+                    file=sys.stderr,
+                )
+
+    panels = []
+    for key, xlabel, scale, default, empty, metric, zero_line, ytick in _BUDGET_ROW:
+        xy = series.get(key) or None
+        panel = {
+            "xy": xy,
+            "xlabel": xlabel,
+            "scale": scale,
+            "default": default,
+            "empty": empty,
+            "metric": metric,
+            "zero_line": zero_line,
+        }
+        if ytick:
+            panel["ytick"] = ytick
+        if metric == "feas":
+            panel["ymin"] = -8.0
+            panel["ymax"] = 108.0
+        panels.append(panel)
+        status = "not recorded" if not xy else f"{len(xy)} point(s)"
+        print(f"# quality: {key}: {status}", file=sys.stderr)
+    return panels
+
+
+def run(json_paths, output, ablation_dirs=None, budget_dir=None):
     if not ablation_dirs:
         heuristic_series = []
         skipped = []
@@ -509,9 +635,13 @@ def run(json_paths, output, ablation_dirs=None):
             "scale": scale,
             "default": _PANEL_DEFAULTS[key],
             "empty": empty,
+            "metric": "dev",
         })
         status = "not recorded" if not xy else f"{len(xy)} point(s)"
         print(f"# quality: {key}: {status}", file=sys.stderr)
+
+    if budget_dir is not None:
+        panels.extend(budget_panels(budget_dir, skipped))
 
     write_tex(build_quality_row_latex(panels), output)
     report_skipped(skipped)

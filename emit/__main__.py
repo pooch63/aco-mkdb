@@ -8,13 +8,16 @@ Modes
       Vary.jl ant-count format → cross-graph median percent deviation
       from the θ-heuristic vs ant count. Optional --ablation-dir=LABEL=DIR
       (rho, pheromone, eta-exp) adds those sweeps as compact panels in
-      the same figure. Per-graph means, not pooled replicates;
-      θ-infeasible outcomes count as −100%.
+      the same figure. Optional --budget-dir adds the epoch and
+      replicate sweeps (deviation, then θ-feasibility) from epoch_trace.
+      Per-graph means, not pooled replicates; θ-infeasible outcomes
+      count as −100%. The budget panels ignore --max-replicates.
 
   seed-compare
       compare-seeds.jl (+ vary.jl) → table:
         graph/reduced nodes & edges, pivot time saved, and percent
-        reduction. --subset=full (default) emits every dataset;
+        reduction.         --subset=full (default) emits every dataset;
+        --subset=compact emits every dataset as side-by-side blocks;
         --subset=highlights emits net-savings graphs plus the smallest
         and largest overhead cases.
       Reads full pivot comparisons and beat_heuristic=false skip markers
@@ -25,8 +28,10 @@ Modes
   table
       Vary.jl ant-count JSON → paper-style LaTeX table.
       --subset=full (default) emits every dataset (appendix);
+      --subset=compact emits every dataset as side-by-side blocks;
       --subset=highlights emits the largest relative ACO wins as a
-      single-column table of $|E(D)|$ and discovery time.
+      single-column table of $|E(D)|$ and discovery time;
+      --subset=sizes emits original $|U|$, $|V|$, and $|E|$ only.
 
   compare
       Vary.jl ant-count JSON → complexity figures ($F_N$).
@@ -64,6 +69,11 @@ Modes
 
       missing-at-* fields read pre-recorded JSON only (no Julia at build
       time). Pivot-coverage fields also need --compare-dir.
+
+  epoch-table
+      Budget-suite JSON with epoch_trace → table of mean |E| and its
+      sample standard deviation across counted replicates, at epoch
+      budgets T = 1, 5, 20, 100. Ignores --max-replicates.
 
   methods
       load.jl --benchmark JSON (scripts/evaluate.bash with METHODS=…) →
@@ -162,14 +172,16 @@ def main(argv=None):
              "replicates per ant count, ordered by run (default: all). "
              "Affects quality / table / statistics / seed-compare / "
              "compare except budget and pheromone-ablation, which always "
-             "use the full counted set.",
+             "use the full counted set. epoch-table always uses the full "
+             "counted set.",
     )
     parser.add_argument(
         "--subset",
         default="full",
-        choices=("full", "highlights"),
-        help="seed-compare / table: full appendix table or representative "
-             "highlights",
+        choices=("full", "highlights", "compact", "sizes"),
+        help="seed-compare / table / methods: full appendix table, "
+             "representative highlights, a short side-by-side table, "
+             "or (table only) original graph sizes",
     )
     parser.add_argument(
         "--plots",
@@ -226,6 +238,12 @@ def main(argv=None):
              "(repeat; labels rho, pheromone, eta-exp)",
     )
     parser.add_argument(
+        "--budget-dir",
+        default=None,
+        help="quality mode: epoch-trace directory for the T and R panels "
+             "(uses every counted replicate)",
+    )
+    parser.add_argument(
         "--field",
         default=None,
         help="statistics mode: output field "
@@ -279,7 +297,12 @@ def main(argv=None):
                     )
                 ablation_dirs[label.strip()] = path.strip()
         from . import quality
-        quality.run(json_paths, args.output, ablation_dirs=ablation_dirs)
+        quality.run(
+            json_paths,
+            args.output,
+            ablation_dirs=ablation_dirs,
+            budget_dir=args.budget_dir,
+        )
 
     elif args.mode == "seed-compare":
         json_paths = list_json_paths(args.directory)
@@ -370,6 +393,14 @@ def main(argv=None):
         from . import ablation
         ablation.run(args.directory, args.output, field=args.field)
 
+    elif args.mode == "reduce":
+        from . import reduce
+        reduce.run(args.directory, args.output)
+
+    elif args.mode == "epoch-table":
+        from . import epoch_table
+        epoch_table.run(args.directory, args.output, ants=args.ants)
+
     elif args.mode == "statistics":
         json_paths = list_json_paths(args.directory)
         if not json_paths:
@@ -394,7 +425,9 @@ def main(argv=None):
             if args.methods
             else None
         )
-        methods.run(json_paths, args.output, methods=names)
+        methods.run(
+            json_paths, args.output, methods=names, subset=args.subset
+        )
 
     else:
         raise SystemExit(f"Unknown mode: {args.mode}")

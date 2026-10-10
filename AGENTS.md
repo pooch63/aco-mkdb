@@ -176,7 +176,7 @@ python paper/build.py --tables  # also compile paper/tables.tex → tables.pdf
 
 | Placeholder | Emit mode | Purpose |
 |-------------|-----------|---------|
-| `%%QUALITY%%` | `quality` | One-column 2×2: ant count, evaporation, deposit, and η-exponent. Median % deviation from the θ-heuristic (`ablation_dirs`) |
+| `%%QUALITY%%` | `quality` | One column: ant count, evaporation, deposit, and η-exponent, then epoch budget \(T\) and replicate count \(R\) (deviation on the shared scale, θ-feasibility on the bottom row). Median % deviation from the θ-heuristic (`ablation_dirs`, `budget_dir`). `fig:budget` is the same float |
 | `%%SEED_COMPARE%%` | `seed-compare` | Full pivot table (appendix); `:highlights` = representative rows in §4.2 |
 | `%%TABLE:k2t5i_PN%%` | `table` | Per-graph ACO vs. θ comparison (appendix); `:k2t5i_PN:highlights` = §4.3; `:k3t5i_PN` / `:k3t6i_PN` / `:k4t5i_PN` = other $(k,\theta)$ |
 | `%%COMPARE:theta-time%%` | `compare` | θ-heuristic runtime vs. \(\theta n + m\) bound |
@@ -186,7 +186,7 @@ python paper/build.py --tables  # also compile paper/tables.tex → tables.pdf
 | `%%COMPARE:theta-sweep%%` | `compare` | Comment only; the \(\theta\) panel is part of `k-sweep` |
 | `%%COMPARE:density-wins%%` | `compare` | One column: ACO win rate versus \(k\) at fixed \(\theta\), and versus \(\theta\) at fixed \(k\), with equal-count reduced-density thirds as three bars |
 | `%%COMPARE:param-runtime%%` | `compare` | Four instances, log time. A legend under each 2×2 names the sweep color (fixed \(\theta\) when \(k\) varies, fixed \(k\) when \(\theta\) varies) and the marker (circle ACO, triangle \(\theta\)-heuristic). Sweeps are `runtime_sweeps` in `build.json`: every completed value at that fixed parameter. Each panel's axis is the range that graph finished |
-| `%%COMPARE:budget%%` | `compare` | Quality-style 2×2 from `epoch_trace` (`budget_dir`): median % deviation from the θ-heuristic (infeasible = −100%) and median θ-feasibility, versus epoch budget \(T\) and replicate count \(R\) |
+| `%%COMPARE:budget%%` | `compare` | Standalone epoch-trace 2×2. The paper draws these panels inside `%%QUALITY%%` instead |
 | `%%COMPARE:pheromone-ablation%%` | `compare` | Anytime median with pheromone on vs \(\Delta\tau=0\) (\(\tau\equiv 1\)) and optional \(\rho\) sweep (`ablation_dirs`) |
 | `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, median % edge increase (`median-edge-pct`), θ-feasibility rates, missing-at-size stats, pivot-tested vs excluded ACO-win size means (`compare_dir`) |
 | `%%ABLATION%%` / `%%ABLATION:summary%%` | `ablation` | Settings table rows and the Section 4.3 sentence from `aco_settings_ablation.json` (pheromone off, best-only deposit, greedy fill at the end, GA) |

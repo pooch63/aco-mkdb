@@ -6,6 +6,8 @@ isdefined(@__MODULE__, :__IO_JL__) || include("io.jl")
 isdefined(@__MODULE__, :__PATHS_JL__) || include("paths.jl")
 isdefined(@__MODULE__, :__THETA_HEURISTIC_JL__) || include("theta_heuristic.jl")
 
+using Random
+
 # After a shell, finish the core by materializing edges when at most this many
 # vertices still meet the degree floor. Larger sets stay on the shell loop.
 const SUPER_REDUCE_EDGE_CAP = 20_000
@@ -18,7 +20,8 @@ const SUPER_REDUCE_MAX_ROUNDS = 10
     super_reduce!(g, k, θ; edge_cap=SUPER_REDUCE_EDGE_CAP,
                   max_rounds=SUPER_REDUCE_MAX_ROUNDS,
                   prune_edges=true, prune_vertices=true, stages=2,
-                  efficient=true, stats=nothing) -> g
+                  efficient=true, side=:smaller, incumbent=nothing,
+                  stats=nothing) -> g
 
 With `efficient` (the default), run each requested stage once: the defect-weight
 projection, then one `common_neighbor_reduction!`, then the common-neighbor-weight
@@ -26,13 +29,17 @@ projection. `efficient=false` repeats that pair of deletions until neither
 removes a vertex or an edge, or `max_rounds` of the loop have run. In that
 mode both weightings share one projection and run before each common-neighbor pass.
 
-On the side with fewer vertices, two vertices are joined when they share
-`C ≥ θ − k` opposite neighbors. The first stage stores weight `max(0, θ − C)`,
+`side` selects the projected part: `:smaller` (the default) or `:larger`.
+Equal part sizes project `U`. Two vertices on that part are joined when they
+share `C ≥ θ − k` opposite neighbors. A part with fewer than `θ` vertices is
+deleted whichever side is projected, since it cannot sit in a θ-feasible
+biclique. The first stage stores weight `max(0, θ − C)`,
 a nonnegative defect lower bound of at most `k`, and deletes vertices and
 edges that cannot sit in a clique of order ≥ θ. The second stage writes the
 common-neighbor count `C` onto those edges and deletes vertices that cannot
-match the θ-heuristic solution's neighborhood weight. Replace that side with
-the surviving vertices.
+match the incumbent solution's neighborhood weight. `incumbent`, when
+given, is that solution; otherwise stage 2 calls the θ-heuristic. Replace
+that side with the surviving vertices.
 
 Any two vertices that sit together in a θ-feasible k-defective biclique share
 at least `θ − k` neighbors, and each of them has at least `θ − 1` partners on
@@ -47,8 +54,9 @@ common-neighbor weighting, the neighborhood-weight cut.
 
 `prune_edges` drops a projected edge `{u,v}` when `S = N(u) ∩ N(v)` has fewer
 than `θ − 2` vertices, when `E(S)` has fewer than `(θ − 2)(θ − 3) / 2` edges,
-or, on the defect weighting, when every triangle through the edge has defect
-lower bound above `k`.
+or, on the defect weighting, when every triangle through the edge has total
+defect weight above `2k`. One missing edge is charged to two pairs, so the
+three edge weights may sum to `2k`.
 
 `prune_vertices` drops `v` when fewer than `θ − 1` projected neighbors remain,
 or, after the reweight, when the edges of `E(N(v))` sum to less than the
@@ -62,7 +70,8 @@ when given, receives `:rounds`, `:core_removed`, `:weight_edges_cut`,
 function super_reduce!(g::BipartiteGraph, k::Int, θ::Int;
         edge_cap::Int=SUPER_REDUCE_EDGE_CAP, max_rounds::Int=SUPER_REDUCE_MAX_ROUNDS,
         prune_edges::Bool=true, prune_vertices::Bool=true, stages::Int=2,
-        efficient::Bool=true,
+        efficient::Bool=true, side::Symbol=:smaller,
+        incumbent::Union{Nothing,SubGraph}=nothing,
         stats::Union{Nothing,Dict{Symbol,Int}}=nothing)
     num_U = isempty(g.adjU) ? 0 : maximum(keys(g.adjU))
     num_V = isempty(g.adjV) ? 0 : maximum(keys(g.adjV))
@@ -75,13 +84,15 @@ function super_reduce!(g::BipartiteGraph, k::Int, θ::Int;
         get!(stats, :weight_skipped, 0)
     end
     if efficient
-        core_removed += _prune_smaller_side!(g, k, θ, edge_cap, max_rounds,
-            prune_edges, prune_vertices, stages, stats; only_stage=1)
+        core_removed += _prune_side!(g, k, θ, edge_cap, max_rounds,
+            prune_edges, prune_vertices, stages, stats;
+            only_stage=1, side=side, incumbent=incumbent)
         rounds = 1
         if stages >= 2
             common_neighbor_reduction!(g, k, θ, num_U, num_V)
-            core_removed += _prune_smaller_side!(g, k, θ, edge_cap, max_rounds,
-                prune_edges, prune_vertices, stages, stats; only_stage=2)
+            core_removed += _prune_side!(g, k, θ, edge_cap, max_rounds,
+                prune_edges, prune_vertices, stages, stats;
+                only_stage=2, side=side, incumbent=incumbent)
             # Stage 2 deletes vertices after the common-neighbor pass, so the
             # opposite side can fall under the degree floor without another scan.
             core_removed += _drop_low_degree!(g, θ - k)
@@ -92,8 +103,8 @@ function super_reduce!(g::BipartiteGraph, k::Int, θ::Int;
             u0 = length(g.adjU)
             v0 = length(g.adjV)
             e0 = _edge_count(g)
-            core_removed += _prune_smaller_side!(g, k, θ, edge_cap, max_rounds,
-                prune_edges, prune_vertices, stages, stats)
+            core_removed += _prune_side!(g, k, θ, edge_cap, max_rounds,
+                prune_edges, prune_vertices, stages, stats; side=side, incumbent=incumbent)
             common_neighbor_reduction!(g, k, θ, num_U, num_V)
             rounds += 1
             length(g.adjU) == u0 && length(g.adjV) == v0 && _edge_count(g) == e0 && break
@@ -103,6 +114,23 @@ function super_reduce!(g::BipartiteGraph, k::Int, θ::Int;
         stats[:rounds] = rounds
         stats[:core_removed] = core_removed
     end
+    return g
+end
+
+"""
+Stage 2 only: common-neighbor weights and the incumbent neighborhood-weight cut,
+then a degree-floor cascade. Used when a better edge lower bound should prune
+again without repeating the defect-weight stage.
+"""
+function super_reduce_stage2!(g::BipartiteGraph, k::Int, θ::Int;
+        edge_cap::Int=SUPER_REDUCE_EDGE_CAP, max_rounds::Int=SUPER_REDUCE_MAX_ROUNDS,
+        prune_edges::Bool=true, prune_vertices::Bool=true, side::Symbol=:smaller,
+        incumbent::Union{Nothing,SubGraph}=nothing,
+        stats::Union{Nothing,Dict{Symbol,Int}}=nothing)
+    _prune_side!(g, k, θ, edge_cap, max_rounds,
+        prune_edges, prune_vertices, 2, stats;
+        only_stage=2, side=side, incumbent=incumbent)
+    _drop_low_degree!(g, θ - k)
     return g
 end
 
@@ -131,25 +159,44 @@ function _drop_low_degree!(g::BipartiteGraph, τ::Int)
     return removed
 end
 
-"""Delete vertices on the smaller side that lie outside its (θ − 1)-core, then apply the weighted rules. Returns how many were deleted."""
-function _prune_smaller_side!(g::BipartiteGraph, k::Int, θ::Int, edge_cap::Int, max_rounds::Int,
+"""True when the projection runs on `U` for this `side` (`:smaller` or `:larger`)."""
+function _project_u(nU::Int, nV::Int, side::Symbol)
+    side == :smaller && return nU <= nV
+    side == :larger && return nU >= nV
+    throw(ArgumentError("side must be :smaller or :larger, got :$side"))
+end
+
+"""Delete vertices on the chosen side that lie outside its (θ − 1)-core, then apply the weighted rules. Returns how many were deleted."""
+function _prune_side!(g::BipartiteGraph, k::Int, θ::Int, edge_cap::Int, max_rounds::Int,
         prune_edges::Bool, prune_vertices::Bool, stages::Int, stats::Union{Nothing,Dict{Symbol,Int}};
-        only_stage::Union{Nothing,Int}=nothing)
+        only_stage::Union{Nothing,Int}=nothing, side::Symbol=:smaller,
+        incumbent::Union{Nothing,SubGraph}=nothing)
     nU = length(g.adjU)
     nV = length(g.adjV)
     (nU == 0 || nV == 0) && return 0
     min_edges = θ - 1
     min_edges <= 0 && return 0
 
-    small_is_u = nU <= nV
+    small_is_u = _project_u(nU, nV, side)
     small = small_is_u ? g.adjU : g.adjV
     n = length(small)
     ids = collect(keys(small))
+    opp_n = small_is_u ? nV : nU
     if n < θ
         for id in ids
             rem_node_structural!(g, small_is_u, id)
         end
         return n
+    end
+    # The other part is too small to host a θ-feasible biclique. This fires
+    # when `side=:larger` and the smaller part is below θ.
+    if opp_n < θ
+        opp_is_u = !small_is_u
+        opp = opp_is_u ? g.adjU : g.adjV
+        for id in collect(keys(opp))
+            rem_node_structural!(g, opp_is_u, id)
+        end
+        return opp_n
     end
 
     τ = θ - k
@@ -166,7 +213,8 @@ function _prune_smaller_side!(g::BipartiteGraph, k::Int, θ::Int, edge_cap::Int,
         cap = edge_cap < 0 ? SUPER_REDUCE_EDGE_CAP : edge_cap
         if length(keep) <= cap
             keep, ecut, vcut = _weight_prune(keep, small, k, θ, prune_edges, prune_vertices;
-                g=g, small_is_u=small_is_u, stages=stages, only_stage=only_stage, stats=stats)
+                g=g, small_is_u=small_is_u, stages=stages, only_stage=only_stage,
+                stats=stats, incumbent=incumbent)
             if stats !== nothing
                 stats[:weight_edges_cut] = get(stats, :weight_edges_cut, 0) + ecut
                 stats[:weight_vertices_cut] = get(stats, :weight_vertices_cut, 0) + vcut
@@ -360,8 +408,8 @@ Weighted projection, reduced twice on the same adjacency.
 bipartite adjacency. Edges exist for pairs with `C ≥ θ − k`. The first pass
 uses defect weights `max(0, θ − C)`. The second pass, when `prune_vertices`
 is set, overwrites those weights with `C` and applies the neighborhood-weight
-cut. `g` and `small_is_u` supply the θ-heuristic incumbent; without `g` that
-cut's threshold is 0.
+cut. `incumbent`, or a θ-heuristic solution when `incumbent` is omitted,
+sets that cut's threshold; without `g` and without `incumbent` the threshold is 0.
 
 Returns surviving ids, how many projected edges were deleted, and how many
 vertices were deleted.
@@ -370,10 +418,14 @@ function _weight_prune(ids::Vector{Int}, small_adj::Dict{Int,Set{Int}},
         k::Int, θ::Int, prune_edges::Bool, prune_vertices::Bool;
         g::Union{Nothing,BipartiteGraph}=nothing, small_is_u::Bool=true, stages::Int=2,
         only_stage::Union{Nothing,Int}=nothing,
+        incumbent::Union{Nothing,SubGraph}=nothing,
         stats::Union{Nothing,Dict{Symbol,Int}}=nothing)
     n = length(ids)
     n == 0 && return Int[], 0, 0
     τ = θ - k
+    # Pairwise edges still need codegree ≥ θ − k (weight ≤ k). A triangle's
+    # three weights sum to at most 2k, so its codegree floor is θ − 2k.
+    τ_clique = θ - 2 * k
     wadj, codeg, lists, buckets = _weighted_projection(ids, small_adj, θ, τ)
     alive = trues(n)
     min_edges = θ - 1
@@ -391,15 +443,14 @@ function _weight_prune(ids::Vector{Int}, small_adj::Dict{Int,Set{Int}},
     ecut = 0
     vcut = 0
     if run1
-        ecut, vcut = _reduce_projection!(wadj, alive, lists, buckets, τ, need, min_edges,
+        ecut, vcut = _reduce_projection!(wadj, alive, lists, buckets, τ_clique, need, min_edges,
             Int[], false, prune_edges, prune_vertices,
             ostamp, cstamp, sstamp, ccnt, cur, sbuf, stats)
     end
     if run2 && prune_vertices && any(alive)
         _apply_codegree_weights!(wadj, codeg)
-        members = g === nothing ? Int[] :
-            _heuristic_member_indices(g, k, θ, ids, alive, small_is_u)
-        e2, v2 = _reduce_projection!(wadj, alive, lists, buckets, τ, need, min_edges,
+        members = _stage2_members(g, k, θ, ids, alive, small_is_u, incumbent)
+        e2, v2 = _reduce_projection!(wadj, alive, lists, buckets, τ_clique, need, min_edges,
             members, true, prune_edges, true,
             ostamp, cstamp, sstamp, ccnt, cur, sbuf, stats)
         ecut += e2
@@ -499,7 +550,7 @@ Drop projected edges that cannot lie in a θ-clique.
 
 `S = N(u) ∩ N(v)` in the projection. The edge goes when `|S| < θ − 2`, when
 `E(S)` has fewer than `(θ − 2)(θ − 3) / 2` edges, or when every `z ∈ S` forms
-a triangle whose opposite-side codegree is below `τ = θ − k`.
+a triangle whose opposite-side codegree is below `τ = θ − 2k`.
 """
 function _cut_heavy_edges!(wadj::Vector{Dict{Int,Int}}, alive::BitVector,
         lists::Vector{Vector{Int}}, buckets::Vector{Vector{Int}},
@@ -542,7 +593,7 @@ function _has_induced_edges(sbuf::Vector{Int}, wadj::Vector{Dict{Int,Int}}, need
     return false
 end
 
-"""True when `{i,j}` still has a large enough, dense enough shared neighborhood and a triangle of codegree `≥ τ`."""
+"""True when `{i,j}` still has a large enough, dense enough shared neighborhood and a triangle of codegree `≥ τ` (`τ = θ − 2k`)."""
 function _projected_edge_ok(i::Int, j::Int, wadj::Vector{Dict{Int,Int}}, alive::BitVector,
         lists::Vector{Vector{Int}}, buckets::Vector{Vector{Int}},
         τ::Int, need::Int,
@@ -566,9 +617,10 @@ function _projected_edge_ok(i::Int, j::Int, wadj::Vector{Dict{Int,Int}}, alive::
     _has_induced_edges(sbuf, wadj, _choose2(need)) || return false
     (need <= 0 || τ <= 0) && return true
 
-    # Score each z ∈ S by the triangle defect lower bound θ − |N(i)∩N(j)∩N(z)|.
-    # That score is ≤ k exactly when the triple shares at least τ opposite neighbors.
-    # The minimum over S exceeds k when no z reaches τ, so the edge is pruned.
+    # Score each z ∈ S by the triangle's total defect weight θ − |N(i)∩N(j)∩N(z)|.
+    # That total is ≤ 2k exactly when the triple shares at least τ = θ − 2k
+    # opposite neighbors. The minimum over S exceeds 2k when no z reaches τ,
+    # so the edge is pruned.
     cur[] += 1
     mark_j = cur[]
     for x in lists[j]
@@ -669,6 +721,40 @@ function _prune_neighborhood_cliques!(alive::BitVector, wadj::Vector{Dict{Int,In
     return length(kill)
 end
 
+"""Projection indices of `sg` on the side being reduced. Vertices already deleted are skipped."""
+function _members_from_subgraph(sg::SubGraph, ids::Vector{Int}, alive::BitVector, small_is_u::Bool)
+    side = small_is_u ? sg.U : sg.V
+    id_of = Dict{Int,Int}()
+    for i in eachindex(ids)
+        alive[i] && (id_of[ids[i]] = i)
+    end
+    members = Int[]
+    for id in side
+        i = get(id_of, id, 0)
+        i == 0 && continue
+        push!(members, i)
+    end
+    return members
+end
+
+"""
+Vertices that set the stage-2 neighborhood-weight threshold.
+
+A supplied incumbent is used when any of its vertices are still alive on the
+projected side. Otherwise the θ-heuristic is solved on `g`.
+"""
+function _stage2_members(g::Union{Nothing,BipartiteGraph}, k::Int, θ::Int,
+        ids::Vector{Int}, alive::BitVector, small_is_u::Bool,
+        incumbent::Union{Nothing,SubGraph})
+    if incumbent !== nothing
+        members = _members_from_subgraph(incumbent, ids, alive, small_is_u)
+        if !isempty(members) || g === nothing
+            return members
+        end
+    end
+    return g === nothing ? Int[] : _heuristic_member_indices(g, k, θ, ids, alive, small_is_u)
+end
+
 """Projection indices of the θ-heuristic solution on the side being reduced."""
 function _heuristic_member_indices(g::BipartiteGraph, k::Int, θ::Int,
         ids::Vector{Int}, alive::BitVector, small_is_u::Bool)
@@ -718,6 +804,43 @@ function _copy_bipartite(g::BipartiteGraph{T}) where {T}
     return h
 end
 
+"""
+Plant an `nU × nV` biclique with exactly `k` missing edges on existing vertices.
+
+Same rule as `inject_biclique!` in `bin/load.jl`: the CSV is not modified.
+Returns the number of edges inserted.
+"""
+function _plant_biclique!(g::BipartiteGraph, nU::Int, nV::Int, k::Int, rng::AbstractRNG;
+        attempts::Int=20)
+    users = collect(keys(g.adjU))
+    items = collect(keys(g.adjV))
+    if length(users) < nU || length(items) < nV
+        throw(ArgumentError("graph has $(length(users))×$(length(items)) vertices; cannot plant $nU×$nV"))
+    end
+    if k < 0 || k >= nU * nV
+        throw(ArgumentError("k must satisfy 0 ≤ k < u*v; got k=$k, u=$nU, v=$nV"))
+    end
+    for _ in 1:attempts
+        shuffle!(rng, users)
+        shuffle!(rng, items)
+        chosen_U = users[1:nU]
+        chosen_V = items[1:nV]
+        absent = Tuple{Int,Int}[]
+        for u in chosen_U, v in chosen_V
+            has_edge(g, u, v) || push!(absent, (u, v))
+        end
+        length(absent) < k && continue
+        shuffle!(rng, absent)
+        inserted = 0
+        for (u, v) in absent[(k + 1):end]
+            add_edge!(g, u, v, nothing)
+            inserted += 1
+        end
+        return inserted
+    end
+    throw(ArgumentError("could not plant a $nU×$nV biclique with k=$k missing edges"))
+end
+
 function _apply_cnn!(g::BipartiteGraph, k::Int, θ::Int)
     num_U = isempty(g.adjU) ? 0 : maximum(keys(g.adjU))
     num_V = isempty(g.adjV) ? 0 : maximum(keys(g.adjV))
@@ -749,23 +872,73 @@ function _json_escape(s::AbstractString)
 end
 
 """
-Compare `super_reduce!` with one common-neighbor pass on every dataset in
-`data/datasets.txt` (paper defaults k = 2, θ = 5).
+Time three reductions of one graph, each from a fresh copy.
+
+`once` is `super_reduce!` with `efficient=true`: the defect-weight stage,
+one common-neighbor pass, and the neighborhood-weight stage, each a single
+time. `full` is `efficient=false`: both weighted stages and a common-neighbor
+pass, repeated until the graph stops shrinking. Copies are freed between
+phases so only the original and one working graph are live.
+"""
+function _reduce_phases(g::BipartiteGraph, k::Int, θ::Int;
+        prune_edges::Bool=true, prune_vertices::Bool=true,
+        progress::Union{Nothing,AbstractString}=nothing)
+    function mark(label::AbstractString)
+        progress === nothing && return
+        println("phase\t", progress, "\t", label)
+        flush(stdout)
+        return nothing
+    end
+    mark("cnn")
+    work = _copy_bipartite(g)
+    t_cnn = @elapsed _apply_cnn!(work, k, θ)
+    cnn = _graph_counts(work)
+    work = nothing
+
+    mark("once")
+    work = _copy_bipartite(g)
+    st_once = Dict{Symbol,Int}()
+    t_once = @elapsed super_reduce!(work, k, θ; stats=st_once,
+        prune_edges=prune_edges, prune_vertices=prune_vertices, efficient=true)
+    once = _graph_counts(work)
+    work = nothing
+
+    mark("full")
+    work = _copy_bipartite(g)
+    st_full = Dict{Symbol,Int}()
+    t_full = @elapsed super_reduce!(work, k, θ; stats=st_full,
+        prune_edges=prune_edges, prune_vertices=prune_vertices, efficient=false)
+    full = _graph_counts(work)
+    work = nothing
+    mark("done")
+    return (; cnn, t_cnn, once, t_once, st_once, full, t_full, st_full)
+end
+
+"""
+Compare common-neighbor reduction, one `super_reduce!` pass, and the repeated
+reduction on every dataset in `data/datasets.txt` (paper defaults k = 2, θ = 5).
 """
 function report_super_reduce(; k::Int=2, θ::Int=5, datasets::Union{Nothing,Vector{String}}=nothing,
         list_path::AbstractString="data/datasets.txt",
-        save_path::AbstractString="results/super_reduce_vs_cnn.json",
-        prune_edges::Bool=true, prune_vertices::Bool=true)
+        save_path::AbstractString="results/super_reduce_phases.json",
+        prune_edges::Bool=true, prune_vertices::Bool=true,
+        inject::Bool=true, seed::Int=1)
     names = datasets === nothing ? _read_dataset_list(list_path) : datasets
-    println("super-reduce vs common-neighbor reduction   k=$k  θ=$θ  graphs=$(length(names))  edge_prune=$(prune_edges)  vertex_prune=$(prune_vertices)")
-    hdr = ("dataset", "nU", "nV", "edges", "cnn_nU", "cnn_nV", "cnn_edges",
-        "sup_nU", "sup_nV", "sup_edges", "extra_nodes", "extra_edges", "cnn_s", "sup_s", "rounds",
-        "weight_edges_cut", "weight_vertices_cut", "mwc_vertices_cut", "weight_skipped")
+    rng = MersenneTwister(seed)
+    println("reduction phases   k=$k  θ=$θ  graphs=$(length(names))  edge_prune=$(prune_edges)  vertex_prune=$(prune_vertices)  inject=$(inject)  seed=$seed")
+    if inject
+        println("planted biclique   |U|=$θ  |V|=$θ  missing edges=$k")
+    end
+    hdr = ("dataset", "nU", "nV", "edges",
+        "cnn_nU", "cnn_nV", "cnn_edges", "cnn_s",
+        "once_nU", "once_nV", "once_edges", "once_s",
+        "full_nU", "full_nV", "full_edges", "full_s", "full_rounds")
     println(join(hdr, "\t"))
     flush(stdout)
 
     rows = Dict{String,Any}[]
     mkpath(dirname(save_path))
+    warmed = false
     for name in names
         path = resolve_graph_path(name)
         if !isfile(path)
@@ -776,34 +949,50 @@ function report_super_reduce(; k::Int=2, θ::Int=5, datasets::Union{Nothing,Vect
         g = redirect_stdout(devnull) do
             load_bipartite_graph(path)[1]
         end
+        planted = 0
+        if inject
+            try
+                planted = _plant_biclique!(g, θ, θ, k, rng)
+            catch err
+                println("skip\t$name\tplant failed: $err")
+                flush(stdout)
+                continue
+            end
+        end
         base = _graph_counts(g)
-        g_cnn = _copy_bipartite(g)
-        g_sup = _copy_bipartite(g)
+        if !warmed
+            _reduce_phases(g, k, θ; prune_edges=prune_edges, prune_vertices=prune_vertices)
+            warmed = true
+            GC.gc()
+        end
+        ph = _reduce_phases(g, k, θ; prune_edges=prune_edges, prune_vertices=prune_vertices,
+            progress=name)
         g = nothing
-        t_cnn = @elapsed _apply_cnn!(g_cnn, k, θ)
-        cnn = _graph_counts(g_cnn)
-        g_cnn = nothing
-        st = Dict{Symbol,Int}()
-        t_sup = @elapsed super_reduce!(g_sup, k, θ; stats=st,
-            prune_edges=prune_edges, prune_vertices=prune_vertices)
-        sup = _graph_counts(g_sup)
-        g_sup = nothing
-        extra_nodes = (cnn.nU + cnn.nV) - (sup.nU + sup.nV)
-        extra_edges = cnn.edges - sup.edges
-        vals = (name, base.nU, base.nV, base.edges, cnn.nU, cnn.nV, cnn.edges,
-            sup.nU, sup.nV, sup.edges, extra_nodes, extra_edges,
-            round(t_cnn, digits=3), round(t_sup, digits=3), get(st, :rounds, -1),
-            get(st, :weight_edges_cut, 0), get(st, :weight_vertices_cut, 0),
-            get(st, :mwc_vertices_cut, 0), get(st, :weight_skipped, 0))
+        cnn, once, full = ph.cnn, ph.once, ph.full
+        st = ph.st_once
+        extra_nodes = (cnn.nU + cnn.nV) - (once.nU + once.nV)
+        extra_edges = cnn.edges - once.edges
+        vals = (name, base.nU, base.nV, base.edges,
+            cnn.nU, cnn.nV, cnn.edges, round(ph.t_cnn, digits=3),
+            once.nU, once.nV, once.edges, round(ph.t_once, digits=3),
+            full.nU, full.nV, full.edges, round(ph.t_full, digits=3),
+            get(ph.st_full, :rounds, -1))
         println(join(vals, "\t"))
         flush(stdout)
         push!(rows, Dict{String,Any}(
             "dataset" => name,
             "nU" => base.nU, "nV" => base.nV, "edges" => base.edges,
             "cnn_nU" => cnn.nU, "cnn_nV" => cnn.nV, "cnn_edges" => cnn.edges,
-            "sup_nU" => sup.nU, "sup_nV" => sup.nV, "sup_edges" => sup.edges,
+            "cnn_s" => ph.t_cnn,
+            "once_nU" => once.nU, "once_nV" => once.nV, "once_edges" => once.edges,
+            "once_s" => ph.t_once, "once_rounds" => get(st, :rounds, -1),
+            "full_nU" => full.nU, "full_nV" => full.nV, "full_edges" => full.edges,
+            "full_s" => ph.t_full, "full_rounds" => get(ph.st_full, :rounds, -1),
+            # Default `super_reduce!` is the single pass. Kept so older
+            # comparisons of that call against CNR still read `sup_*`.
+            "sup_nU" => once.nU, "sup_nV" => once.nV, "sup_edges" => once.edges,
+            "sup_s" => ph.t_once,
             "extra_nodes" => extra_nodes, "extra_edges" => extra_edges,
-            "cnn_s" => t_cnn, "sup_s" => t_sup,
             "rounds" => get(st, :rounds, -1),
             "core_removed" => get(st, :core_removed, -1),
             "weight_edges_cut" => get(st, :weight_edges_cut, 0),
@@ -812,6 +1001,7 @@ function report_super_reduce(; k::Int=2, θ::Int=5, datasets::Union{Nothing,Vect
             "weight_skipped" => get(st, :weight_skipped, 0),
             "prune_edges" => prune_edges, "prune_vertices" => prune_vertices,
             "k" => k, "theta" => θ,
+            "injected" => inject, "plant_edges" => planted, "seed" => seed,
         ))
         _write_report(save_path, rows)
         GC.gc()
@@ -847,27 +1037,202 @@ end
 
 JSON_fmt(x::AbstractFloat) = string(round(x; digits=6))
 
+"""
+Run `super_reduce!` with `side=:smaller` and `side=:larger` on every dataset.
+
+A row records the surviving order and edge count of each choice, plus whether
+a θ-feasible θ-heuristic solution is still present. Fewer surviving edges is
+the stronger reduction.
+"""
+function report_side_choice(; k::Int=2, θ::Int=5, datasets::Union{Nothing,Vector{String}}=nothing,
+        list_path::AbstractString="data/datasets.txt",
+        save_path::AbstractString="results/super_reduce_side.json")
+    names = datasets === nothing ? _read_dataset_list(list_path) : datasets
+    println("super-reduce side choice   k=$k  θ=$θ  graphs=$(length(names))")
+    hdr = ("dataset", "nU", "nV", "edges",
+        "small_n", "small_e", "small_s", "large_n", "large_e", "large_s",
+        "winner", "heur_ok", "small_keeps_heur", "large_keeps_heur")
+    println(join(hdr, "\t"))
+    flush(stdout)
+
+    rows = Dict{String,Any}[]
+    mkpath(dirname(save_path))
+    for name in names
+        path = resolve_graph_path(name)
+        if !isfile(path)
+            println("skip\t$name\tmissing")
+            flush(stdout)
+            continue
+        end
+        g = redirect_stdout(devnull) do
+            load_bipartite_graph(path)[1]
+        end
+        base = _graph_counts(g)
+        fg = freeze(g)
+        heur = theta_based_heuristic(fg, k, θ)
+        heur_miss = Subgraph.missing_edges(fg, heur)
+        heur_ok = length(heur.U) >= θ && length(heur.V) >= θ && heur_miss <= k
+        g_small = _copy_bipartite(g)
+        g_large = _copy_bipartite(g)
+        g = nothing
+        fg = nothing
+        t_small = @elapsed super_reduce!(g_small, k, θ; side=:smaller)
+        t_large = @elapsed super_reduce!(g_large, k, θ; side=:larger)
+        sm = _graph_counts(g_small)
+        lg = _graph_counts(g_large)
+        small_keeps = !heur_ok || _keeps_solution(g_small, heur)
+        large_keeps = !heur_ok || _keeps_solution(g_large, heur)
+        small_n = sm.nU + sm.nV
+        large_n = lg.nU + lg.nV
+        winner = if sm.edges < lg.edges || (sm.edges == lg.edges && small_n < large_n)
+            "smaller"
+        elseif lg.edges < sm.edges || (lg.edges == sm.edges && large_n < small_n)
+            "larger"
+        else
+            "tie"
+        end
+        vals = (name, base.nU, base.nV, base.edges,
+            small_n, sm.edges, round(t_small, digits=3),
+            large_n, lg.edges, round(t_large, digits=3),
+            winner, heur_ok, small_keeps, large_keeps)
+        println(join(vals, "\t"))
+        flush(stdout)
+        push!(rows, Dict{String,Any}(
+            "dataset" => name,
+            "nU" => base.nU, "nV" => base.nV, "edges" => base.edges,
+            "small_nU" => sm.nU, "small_nV" => sm.nV, "small_edges" => sm.edges,
+            "large_nU" => lg.nU, "large_nV" => lg.nV, "large_edges" => lg.edges,
+            "small_s" => t_small, "large_s" => t_large,
+            "winner" => winner,
+            "heur_ok" => heur_ok,
+            "small_keeps_heur" => small_keeps,
+            "large_keeps_heur" => large_keeps,
+            "k" => k, "theta" => θ,
+        ))
+        _write_report(save_path, rows)
+        g_small = nothing
+        g_large = nothing
+        GC.gc()
+    end
+    return rows
+end
+
+function _keeps_solution(g::BipartiteGraph, sg)
+    for u in sg.U
+        haskey(g.adjU, u) || return false
+    end
+    for v in sg.V
+        haskey(g.adjV, v) || return false
+    end
+    return true
+end
+
+"""
+Read `"k:theta"` entries from `scripts/kt-sweep.bash`.
+
+Duplicate pairs are kept once, in first-seen order. Comment lines are ignored.
+"""
+function _read_kt_pairs(path::AbstractString)
+    pairs = Tuple{Int,Int}[]
+    seen = Set{Tuple{Int,Int}}()
+    for line in eachline(path)
+        s = strip(line)
+        isempty(s) && continue
+        startswith(s, '#') && continue
+        for m in eachmatch(r"(\d+)\s*:\s*(\d+)", s)
+            pair = (parse(Int, m.captures[1]), parse(Int, m.captures[2]))
+            pair in seen && continue
+            push!(seen, pair)
+            push!(pairs, pair)
+        end
+    end
+    return pairs
+end
+
+"""
+Run `report_super_reduce` on every pair in `scripts/kt-sweep.bash`.
+
+Each pair is written to `out_dir/k{k}t{θ}.json`.
+"""
+function report_kt_sweep(; pairs_path::AbstractString="scripts/kt-sweep.bash",
+        out_dir::AbstractString="results/reduce_sweep",
+        datasets::Union{Nothing,Vector{String}}=nothing,
+        prune_edges::Bool=true, prune_vertices::Bool=true,
+        inject::Bool=true, seed::Int=1)
+    pairs = _read_kt_pairs(pairs_path)
+    isempty(pairs) && error("no (k, θ) pairs in $pairs_path")
+    mkpath(out_dir)
+    println("reduce sweep  pairs=$(length(pairs))  out=$out_dir  file=$pairs_path")
+    flush(stdout)
+    for (k, θ) in pairs
+        save_path = joinpath(out_dir, "k$(k)t$(θ).json")
+        println()
+        println("========== k=$k  θ=$θ  →  $save_path ==========")
+        flush(stdout)
+        report_super_reduce(; k=k, θ=θ, datasets=datasets, save_path=save_path,
+            prune_edges=prune_edges, prune_vertices=prune_vertices,
+            inject=inject, seed=seed)
+    end
+    return nothing
+end
+
 function _super_reduce_main()
     k = 2
     θ = 5
     prune_edges = true
     prune_vertices = true
+    sides = false
+    sweep = false
+    inject = true
+    seed = 1
+    save_path = nothing
+    pairs_path = "scripts/kt-sweep.bash"
+    out_dir = "results/reduce_sweep"
     only = String[]
     for a in ARGS
         if startswith(a, "--k=")
             k = parse(Int, split(a, '=', limit=2)[2])
         elseif startswith(a, "--theta=")
             θ = parse(Int, split(a, '=', limit=2)[2])
+        elseif startswith(a, "--save=")
+            save_path = split(a, '=', limit=2)[2]
+        elseif startswith(a, "--seed=")
+            seed = parse(Int, split(a, '=', limit=2)[2])
+        elseif startswith(a, "--sweep-file=")
+            pairs_path = split(a, '=', limit=2)[2]
+        elseif startswith(a, "--out-dir=")
+            out_dir = split(a, '=', limit=2)[2]
+        elseif a == "--no-inject"
+            inject = false
         elseif a == "--no-edge-prune"
             prune_edges = false
         elseif a == "--no-vertex-prune"
             prune_vertices = false
+        elseif a == "--sides"
+            sides = true
+        elseif a == "--sweep"
+            sweep = true
         else
             push!(only, a)
         end
     end
-    report_super_reduce(; k=k, θ=θ, datasets=isempty(only) ? nothing : only,
-        prune_edges=prune_edges, prune_vertices=prune_vertices)
+    datasets = isempty(only) ? nothing : only
+    if sweep
+        report_kt_sweep(; pairs_path=pairs_path, out_dir=out_dir,
+            datasets=datasets, prune_edges=prune_edges,
+            prune_vertices=prune_vertices, inject=inject, seed=seed)
+    elseif sides
+        report_side_choice(; k=k, θ=θ, datasets=datasets)
+    elseif save_path === nothing
+        report_super_reduce(; k=k, θ=θ, datasets=datasets,
+            prune_edges=prune_edges, prune_vertices=prune_vertices,
+            inject=inject, seed=seed)
+    else
+        report_super_reduce(; k=k, θ=θ, datasets=datasets,
+            save_path=save_path,
+            prune_edges=prune_edges, prune_vertices=prune_vertices,
+            inject=inject, seed=seed)
+    end
     return nothing
 end
 
