@@ -1,5 +1,9 @@
 import type { GraphBag, GraphSnapshot, Point } from "./types";
 
+export function nodeKey(isU: boolean, id: number): string {
+  return `${isU ? "u" : "v"}:${id}`;
+}
+
 export function edgeKey(u: number, v: number): string {
   return u + "," + v;
 }
@@ -25,6 +29,50 @@ export function neighborsOf(
 
 export function degreeOf(g: GraphBag, isU: boolean, id: number): number {
   return neighborsOf(g, isU, id).length;
+}
+
+/** Shortest-path distance from `start` out to `maxHop` (bipartite BFS). */
+export function hopDistances(
+  g: GraphBag,
+  isU: boolean,
+  id: number,
+  maxHop: number,
+): Map<string, number> {
+  const dist = new Map<string, number>();
+  dist.set(nodeKey(isU, id), 0);
+  let frontier: { isU: boolean; id: number }[] = [{ isU, id }];
+  const limit = Math.max(0, maxHop);
+  for (let d = 0; d < limit; d++) {
+    const next: { isU: boolean; id: number }[] = [];
+    for (const node of frontier) {
+      for (const nid of neighborsOf(g, node.isU, node.id)) {
+        const key = nodeKey(!node.isU, nid);
+        if (dist.has(key)) continue;
+        dist.set(key, d + 1);
+        next.push({ isU: !node.isU, id: nid });
+      }
+    }
+    frontier = next;
+    if (frontier.length === 0) break;
+  }
+  return dist;
+}
+
+export const HOP_COLORS = [
+  "#5b52e0",
+  "#1a9bb8",
+  "#2db85a",
+  "#d4a017",
+  "#e07030",
+  "#e0455a",
+  "#7c3aed",
+  "#0f766e",
+  "#2563eb",
+  "#be185d",
+];
+
+export function hopColor(distance: number): string {
+  return HOP_COLORS[Math.min(Math.max(distance, 0), HOP_COLORS.length - 1)];
 }
 
 export function clonePointMap(map: Map<number, Point>): Map<number, Point> {

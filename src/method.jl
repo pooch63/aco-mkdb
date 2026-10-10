@@ -40,6 +40,9 @@ isdefined(@__MODULE__, :__EDGES_ACO_JL__) || include(joinpath("edges", "algorith
 isdefined(@__MODULE__, :__DIFFUSION_JL__) || include("diffusion.jl")
 isdefined(@__MODULE__, :__TUG_JL__) || include("tug.jl")
 isdefined(@__MODULE__, :__SPLIT_ACO_JL__) || include("split_aco.jl")
+isdefined(@__MODULE__, :__ONE_SIDE_ACO_JL__) || include("one_side_aco.jl")
+isdefined(@__MODULE__, :__ORACLE_ACO_JL__) || include("oracle_aco.jl")
+isdefined(@__MODULE__, :__CLIQUE_ACO_JL__) || include("clique_aco.jl")
 
 using EnumX
 
@@ -735,6 +738,179 @@ function run_method!(m::SplitACOMethod, g::BipartiteGraph, k::Int, θ::Int;
         meta=meta)
 end
 
+# ── One-side ACO (biclique search on the smaller side, then greedy k-repair) ─
+
+struct OneSideACOMethod <: SolveMethod
+    pheromone::Int
+    ants::Int
+    iterations::Int
+    evaporation::Float64
+    subspecies::Int
+    parallelize::Bool
+    eta_exp::Float64
+end
+function OneSideACOMethod(; pheromone::Int=1, ants::Int=100, iterations::Int=5,
+    evaporation::Float64=0.95, subspecies::Int=1, parallelize::Bool=false,
+    eta_exp::Real=ETA_EXP)
+    ηexp = Float64(eta_exp)
+    isfinite(ηexp) || throw(ArgumentError("eta_exp must be finite, got $eta_exp"))
+    ants >= 1 || throw(ArgumentError("ants must be ≥ 1, got $ants"))
+    iterations >= 1 || throw(ArgumentError("iterations must be ≥ 1, got $iterations"))
+    subspecies >= 1 || throw(ArgumentError("subspecies must be ≥ 1, got $subspecies"))
+    0.0 < evaporation <= 1.0 || throw(ArgumentError(
+        "evaporation must be in (0, 1], got $evaporation"))
+    return OneSideACOMethod(pheromone, ants, iterations, evaporation, subspecies,
+        parallelize, ηexp)
+end
+method_id(::OneSideACOMethod) = "one_side_aco"
+
+function run_method!(m::OneSideACOMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    r = one_side_aco(g, m.pheromone, m.ants, m.iterations, m.evaporation, k, θ,
+        m.subspecies;
+        reduction=reduction, eta_exp=m.eta_exp, parallelize=m.parallelize)
+    return MethodResult("one_side_aco", r.best;
+        all_sols=Subgraph.vertex_count(r.biclique) == 0 ? SubGraph[r.best] :
+            SubGraph[r.best, r.biclique],
+        time_to_best_s=r.time_to_best_s,
+        iterations_to_best=r.iterations_to_best,
+        meta=Dict{String,Any}(
+            "ants" => m.ants,
+            "iterations" => m.iterations,
+            "pheromone" => m.pheromone,
+            "evaporation" => m.evaporation,
+            "subspecies" => m.subspecies,
+            "eta_exp" => m.eta_exp,
+            "search_side" => r.search_is_u ? "U" : "V",
+            "n_same" => r.n_same,
+            "n_opp" => r.n_opp,
+            "biclique_edges" => r.biclique_edges,
+            "repaired_edges" => r.repaired_edges,
+        ))
+end
+
+# ── Oracle ACO (exact right-side knapsack, optional LDS and seed splits) ─────
+
+struct OracleACOMethod <: SolveMethod
+    pheromone::Int
+    ants::Int
+    iterations::Int
+    evaporation::Float64
+    discrepancy::Int
+    decompose::Bool
+    branch::Int
+    seed_size::Int
+    n_seeds::Int
+    pool::Int
+    max_nodes::Int
+    parallelize::Bool
+end
+function OracleACOMethod(; pheromone::Int=1, ants::Int=20, iterations::Int=5,
+    evaporation::Float64=0.95, discrepancy::Int=0, decompose::Bool=false,
+    branch::Int=4, seed_size::Int=2, n_seeds::Int=20, pool::Int=64,
+    max_nodes::Int=2000, parallelize::Bool=false)
+    ants >= 1 || throw(ArgumentError("ants must be ≥ 1, got $ants"))
+    iterations >= 1 || throw(ArgumentError("iterations must be ≥ 1, got $iterations"))
+    0.0 < evaporation <= 1.0 || throw(ArgumentError(
+        "evaporation must be in (0, 1], got $evaporation"))
+    discrepancy >= 0 || throw(ArgumentError("discrepancy must be ≥ 0, got $discrepancy"))
+    branch >= 1 || throw(ArgumentError("branch must be ≥ 1, got $branch"))
+    seed_size >= 1 || throw(ArgumentError("seed_size must be ≥ 1, got $seed_size"))
+    n_seeds >= 0 || throw(ArgumentError("n_seeds must be ≥ 0, got $n_seeds"))
+    pool >= 1 || throw(ArgumentError("pool must be ≥ 1, got $pool"))
+    max_nodes >= 1 || throw(ArgumentError("max_nodes must be ≥ 1, got $max_nodes"))
+    pheromone >= 0 || throw(ArgumentError("pheromone must be ≥ 0, got $pheromone"))
+    return OracleACOMethod(pheromone, ants, iterations, evaporation, discrepancy,
+        decompose, branch, seed_size, n_seeds, pool, max_nodes, parallelize)
+end
+method_id(::OracleACOMethod) = "oracle_aco"
+
+function run_method!(m::OracleACOMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    verbose = get(kwargs, :verbose, false)::Bool
+    r = oracle_aco(g, m.pheromone, m.ants, m.iterations, m.evaporation, k, θ;
+        discrepancy=m.discrepancy, decompose=m.decompose, branch=m.branch,
+        seed_size=m.seed_size, n_seeds=m.n_seeds, pool=m.pool,
+        max_nodes=m.max_nodes, parallelize=m.parallelize,
+        reduction=reduction, verbose=verbose)
+    return MethodResult("oracle_aco", r.best;
+        time_to_best_s=r.time_to_best_s,
+        iterations_to_best=r.iterations_to_best,
+        meta=Dict{String,Any}(
+            "ants" => m.ants,
+            "iterations" => m.iterations,
+            "pheromone" => m.pheromone,
+            "evaporation" => m.evaporation,
+            "discrepancy" => m.discrepancy,
+            "decompose" => m.decompose,
+            "branch" => m.branch,
+            "seed_size" => m.seed_size,
+            "n_seeds" => m.n_seeds,
+            "pool" => m.pool,
+            "max_nodes" => m.max_nodes,
+            "search_side" => r.search_is_u ? "U" : "V",
+            "n_same" => r.n_same,
+            "n_opp" => r.n_opp,
+            "edges" => r.edges,
+            "seeds_run" => r.seeds_run,
+            "seeds_pruned" => r.seeds_pruned,
+            "best_seed" => r.best_seed,
+            "expansions" => r.expansions,
+        ))
+end
+
+# ── Clique ACO (vertex ACO on the compatibility projection) ──────────────────
+
+struct CliqueACOMethod <: SolveMethod
+    pheromone::Int
+    ants::Int
+    iterations::Int
+    evaporation::Float64
+    subspecies::Int
+    parallelize::Bool
+    eta_exp::Float64
+end
+function CliqueACOMethod(; pheromone::Int=1, ants::Int=100, iterations::Int=5,
+    evaporation::Float64=0.95, subspecies::Int=1, parallelize::Bool=false,
+    eta_exp::Real=ETA_EXP)
+    ηexp = Float64(eta_exp)
+    isfinite(ηexp) || throw(ArgumentError("eta_exp must be finite, got $eta_exp"))
+    ants >= 1 || throw(ArgumentError("ants must be ≥ 1, got $ants"))
+    iterations >= 1 || throw(ArgumentError("iterations must be ≥ 1, got $iterations"))
+    subspecies >= 1 || throw(ArgumentError("subspecies must be ≥ 1, got $subspecies"))
+    0.0 < evaporation <= 1.0 || throw(ArgumentError(
+        "evaporation must be in (0, 1], got $evaporation"))
+    pheromone >= 0 || throw(ArgumentError("pheromone must be ≥ 0, got $pheromone"))
+    return CliqueACOMethod(pheromone, ants, iterations, evaporation, subspecies,
+        parallelize, ηexp)
+end
+method_id(::CliqueACOMethod) = "clique_aco"
+
+function run_method!(m::CliqueACOMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    verbose = get(kwargs, :verbose, true)::Bool
+    r = clique_aco(g, m.pheromone, m.ants, m.iterations, m.evaporation, k, θ,
+        m.subspecies;
+        reduction=reduction, eta_exp=m.eta_exp, parallelize=m.parallelize,
+        verbose=verbose)
+    return MethodResult("clique_aco", r.best;
+        time_to_best_s=r.time_to_best_s,
+        iterations_to_best=r.iterations_to_best,
+        meta=Dict{String,Any}(
+            "ants" => m.ants,
+            "iterations" => m.iterations,
+            "pheromone" => m.pheromone,
+            "evaporation" => m.evaporation,
+            "subspecies" => m.subspecies,
+            "eta_exp" => m.eta_exp,
+            "search_side" => r.search_is_u ? "U" : "V",
+            "clique_vertices" => r.clique_vertices,
+            "clique_edges" => r.clique_edges,
+            "build_s" => r.build_s,
+            "edges" => r.edges,
+        ))
+end
+
 # ── Edges-ACO (pheromone on CSR edges) ────────────────────────────────────────
 
 struct EdgesMethod <: SolveMethod
@@ -1045,6 +1221,12 @@ function _register_builtins!()
     register_method!("edges", (; kwargs...) -> EdgesMethod(; kwargs...))
     register_method!("split_aco", (; kwargs...) -> SplitACOMethod(; kwargs...))
     register_method!("split-aco", (; kwargs...) -> SplitACOMethod(; kwargs...))
+    register_method!("one_side_aco", (; kwargs...) -> OneSideACOMethod(; kwargs...))
+    register_method!("one-side-aco", (; kwargs...) -> OneSideACOMethod(; kwargs...))
+    register_method!("oracle_aco", (; kwargs...) -> OracleACOMethod(; kwargs...))
+    register_method!("oracle-aco", (; kwargs...) -> OracleACOMethod(; kwargs...))
+    register_method!("clique_aco", (; kwargs...) -> CliqueACOMethod(; kwargs...))
+    register_method!("clique-aco", (; kwargs...) -> CliqueACOMethod(; kwargs...))
     register_method!("diffusion", (; kwargs...) -> DiffusionMethod(; kwargs...))
     register_method!("tug", (; kwargs...) -> TugOfWarMethod(; kwargs...))
     register_method!("tow", (; kwargs...) -> TugOfWarMethod(; kwargs...))

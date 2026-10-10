@@ -15,6 +15,12 @@ isdefined(@__MODULE__, :__METHOD_JL__) || include(joinpath(SRC, "method.jl"))
     @test "vns" in known
     @test "retry" in known
     @test "opponent" in known
+    @test "one_side_aco" in known
+    @test "one-side-aco" in known
+    @test "oracle_aco" in known
+    @test "oracle-aco" in known
+    @test "clique_aco" in known
+    @test "clique-aco" in known
 
     m = make_method("heuristic")
     @test m isa HeuristicMethod
@@ -43,6 +49,22 @@ isdefined(@__MODULE__, :__METHOD_JL__) || include(joinpath(SRC, "method.jl"))
     @test retry.beta == 0.15
     @test retry.p == 0.8
     @test retry.max_steps == 500
+
+    one_side = make_method("one_side_aco"; ants=4, iterations=2, parallelize=false)
+    @test one_side isa OneSideACOMethod
+    @test one_side.ants == 4
+    @test make_method("one-side-aco") isa OneSideACOMethod
+
+    clique = make_method("clique_aco"; ants=4, iterations=2, parallelize=false)
+    @test clique isa CliqueACOMethod
+    @test clique.ants == 4
+    @test make_method("clique-aco") isa CliqueACOMethod
+
+    oracle = make_method("oracle_aco"; ants=3, iterations=2, discrepancy=1, decompose=false)
+    @test oracle isa OracleACOMethod
+    @test oracle.ants == 3
+    @test oracle.discrepancy == 1
+    @test make_method("oracle-aco"; decompose=true, n_seeds=4) isa OracleACOMethod
 end
 
 @testset "method smoke on tiny biclique" begin
@@ -96,6 +118,24 @@ end
     rsc = score_result(freeze(g), r, k, θ)
     @test rsc.k_valid
     @test rsc.edges > 0
+
+    o = run_method!(OneSideACOMethod(; ants=4, iterations=2, parallelize=false),
+        deepcopy(g), k, θ; reduction=reduction)
+    @test o isa MethodResult
+    @test o.name == "one_side_aco"
+    osc = score_result(freeze(g), o, k, θ)
+    @test osc.k_valid
+    @test osc.theta_feasible
+    @test osc.edges > 0
+
+    q = run_method!(OracleACOMethod(; ants=3, iterations=1, discrepancy=0, parallelize=false),
+        deepcopy(g), k, θ; reduction=reduction)
+    @test q isa MethodResult
+    @test q.name == "oracle_aco"
+    qsc = score_result(freeze(g), q, k, θ)
+    @test qsc.k_valid
+    @test qsc.theta_feasible
+    @test qsc.edges == 36
 
     # Paper-style beats: same edges → not a win.
     @test !beats(h, h, freeze(g), k, θ)

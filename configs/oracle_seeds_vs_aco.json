@@ -1,0 +1,46 @@
+{
+  "name": "oracle_seeds_vs_aco",
+  "output": "results/oracle_seeds_vs_aco.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "skip_completed": true,
+  "inject": true,
+  "datasets": [
+    "konect-small/edit-wowiktionary",
+    "konect-small/edit-jamwiki",
+    "konect-small/edit-nowikinews",
+    "konect-small/moreno_blogs",
+    "amazon/boxes"
+  ],
+  "baseline": {
+    "method": "aco",
+    "label": "aco",
+    "params": {
+      "ants": 20,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true
+    }
+  },
+  "challenger": {
+    "method": "oracle_aco",
+    "label": "oracle-seeds",
+    "params": {
+      "ants": 4,
+      "iterations": 2,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "discrepancy": 1,
+      "decompose": true,
+      "branch": 2,
+      "pool": 24,
+      "max_nodes": 400,
+      "n_seeds": 8,
+      "seed_size": 2
+    }
+  }
+}

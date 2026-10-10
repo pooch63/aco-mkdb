@@ -1,6 +1,7 @@
 "use client";
 
 import { useGraphLab } from "@/hooks/useGraphLab";
+import { CanvasHud } from "./CanvasHud";
 import { GraphCanvas } from "./GraphCanvas";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
@@ -16,7 +17,10 @@ export function GraphLab() {
         <Sidebar lab={lab} />
         <div className="canvas-wrap">
           <Toolbar stats={lab.stats} />
-          <GraphCanvas lab={lab} />
+          <CanvasHud lab={lab} />
+          <div className="canvas-stage">
+            <GraphCanvas lab={lab} />
+          </div>
         </div>
       </div>
     </div>

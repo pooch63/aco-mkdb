@@ -29,6 +29,10 @@ eta-exp / best-only-pheromone still work):
       --challenger-n-seeds=50 --challenger-local-reduction=false \\
       --challenger-prune-by-bound=false --challenger-one-colony=false \\
       --save=split_vs_aco.json
+  julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=one_side_aco \\
+      --save=one_side_vs_aco.json
+  julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=oracle_aco \\
+      --challenger-discrepancy=1 --challenger-decompose=false --save=oracle_vs_aco.json
   julia bin/compare-methods.jl amazon/boxes --baseline=aco --challenger=retry \\
       --challenger-beta=0.04 --challenger-p=1 --challenger-max-steps=10000 --save=retry_ab.json
 
@@ -267,21 +271,39 @@ function build_side_cli(name::AbstractString, side::AbstractString; kwargs...)
     best_only_pheromone = parse_bool_override("$side-best-only-pheromone")
     pheromone = parse_int_override("$side-pheromone")
     evaporation = parse_float_override("$side-evaporation")
+    discrepancy = parse_int_override("$side-discrepancy")
+    decompose = parse_bool_override("$side-decompose")
+    branch = parse_int_override("$side-branch")
+    seed_size = parse_int_override("$side-seed-size")
+    pool = parse_int_override("$side-pool")
+    max_nodes = parse_int_override("$side-max-nodes")
     params = Dict{String,Any}()
     for (k, v) in kwargs
         params[string(k)] = v
     end
-    if name == "aco"
+    is_one_side = name in ("one_side_aco", "one-side-aco")
+    is_oracle = name in ("oracle_aco", "oracle-aco")
+    if name == "aco" || is_one_side || is_oracle
         params["ants"] = ants === nothing ? get(params, "ants", 100) : ants
         get!(params, "iterations", 5)
-        get!(params, "prefer_smaller_side", true)
-        get!(params, "neighbor_scope_limit", true)
         get!(params, "parallelize", false)
-        greedy_fill !== nothing && (params["greedy_fill"] = greedy_fill)
         eta_exp !== nothing && (params["eta_exp"] = eta_exp)
-        best_only_pheromone !== nothing && (params["best_only_pheromone"] = best_only_pheromone)
         pheromone !== nothing && (params["pheromone"] = pheromone)
         evaporation !== nothing && (params["evaporation"] = evaporation)
+        if name == "aco"
+            get!(params, "prefer_smaller_side", true)
+            get!(params, "neighbor_scope_limit", true)
+            greedy_fill !== nothing && (params["greedy_fill"] = greedy_fill)
+            best_only_pheromone !== nothing && (params["best_only_pheromone"] = best_only_pheromone)
+        elseif is_oracle
+            discrepancy !== nothing && (params["discrepancy"] = discrepancy)
+            decompose !== nothing && (params["decompose"] = decompose)
+            branch !== nothing && (params["branch"] = branch)
+            seed_size !== nothing && (params["seed_size"] = seed_size)
+            pool !== nothing && (params["pool"] = pool)
+            max_nodes !== nothing && (params["max_nodes"] = max_nodes)
+            n_seeds !== nothing && (params["n_seeds"] = n_seeds)
+        end
     elseif name in ("split_aco", "split-aco")
         params["ants"] = ants === nothing ? get(params, "ants", 10) : ants
         get!(params, "iterations", 5)
@@ -303,8 +325,8 @@ function build_side_cli(name::AbstractString, side::AbstractString; kwargs...)
         params["p"] = retry_p === nothing ? get(params, "p", 1.0) : retry_p
         params["max_steps"] = max_steps === nothing ? get(params, "max_steps", 10_000) : max_steps
     end
-    if n_seeds !== nothing && !(name in ("split_aco", "split-aco"))
-        throw(ArgumentError("--$side-n-seeds applies only to split_aco"))
+    if n_seeds !== nothing && !(name in ("split_aco", "split-aco", "oracle_aco", "oracle-aco"))
+        throw(ArgumentError("--$side-n-seeds applies only to split_aco or oracle_aco"))
     end
     if local_reduction !== nothing && !(name in ("split_aco", "split-aco"))
         throw(ArgumentError("--$side-local-reduction applies only to split_aco"))
@@ -318,17 +340,35 @@ function build_side_cli(name::AbstractString, side::AbstractString; kwargs...)
     if greedy_fill !== nothing && name != "aco"
         throw(ArgumentError("--$side-greedy-fill applies only to aco"))
     end
-    if eta_exp !== nothing && name != "aco"
-        throw(ArgumentError("--$side-eta-exp applies only to aco"))
+    if eta_exp !== nothing && !(name == "aco" || is_one_side)
+        throw(ArgumentError("--$side-eta-exp applies only to aco or one_side_aco"))
     end
     if best_only_pheromone !== nothing && name != "aco"
         throw(ArgumentError("--$side-best-only-pheromone applies only to aco"))
     end
-    if pheromone !== nothing && name != "aco"
-        throw(ArgumentError("--$side-pheromone applies only to aco"))
+    if pheromone !== nothing && !(name == "aco" || is_one_side || is_oracle)
+        throw(ArgumentError("--$side-pheromone applies only to aco, one_side_aco, or oracle_aco"))
     end
-    if evaporation !== nothing && name != "aco"
-        throw(ArgumentError("--$side-evaporation applies only to aco"))
+    if evaporation !== nothing && !(name == "aco" || is_one_side || is_oracle)
+        throw(ArgumentError("--$side-evaporation applies only to aco, one_side_aco, or oracle_aco"))
+    end
+    if discrepancy !== nothing && !is_oracle
+        throw(ArgumentError("--$side-discrepancy applies only to oracle_aco"))
+    end
+    if decompose !== nothing && !is_oracle
+        throw(ArgumentError("--$side-decompose applies only to oracle_aco"))
+    end
+    if branch !== nothing && !is_oracle
+        throw(ArgumentError("--$side-branch applies only to oracle_aco"))
+    end
+    if seed_size !== nothing && !is_oracle
+        throw(ArgumentError("--$side-seed-size applies only to oracle_aco"))
+    end
+    if pool !== nothing && !is_oracle
+        throw(ArgumentError("--$side-pool applies only to oracle_aco"))
+    end
+    if max_nodes !== nothing && !is_oracle
+        throw(ArgumentError("--$side-max-nodes applies only to oracle_aco"))
     end
     return make_method_from_dict(name, params)
 end

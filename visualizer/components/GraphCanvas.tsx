@@ -3,36 +3,23 @@
 import type { MouseEvent, ReactNode } from "react";
 import type { GraphLabApi } from "@/hooks/useGraphLab";
 import { partialSHas } from "@/lib/explain";
-import { degreeOf, edgeKey, neighborsOf, parseEdgeKey } from "@/lib/graph";
-import { COL_MARGIN, NODE_R } from "@/lib/layout";
-import type { ExplainHighlight, GraphBag, NodeRef } from "@/lib/types";
+import { degreeOf, edgeKey, hopColor, nodeKey, parseEdgeKey } from "@/lib/graph";
+import { NODE_R } from "@/lib/layout";
 
-function nodeKey(isU: boolean, id: number): string {
-  return `${isU ? "u" : "v"}:${id}`;
-}
-
-/** Nodes to emphasize for the hovered focus under the given explain highlight. */
-function explainHighlightedNodes(
-  g: GraphBag,
-  focus: NodeRef,
-  highlight: ExplainHighlight,
-): Set<string> {
-  const out = new Set<string>([nodeKey(focus.isU, focus.id)]);
-  const nbrs = new Set(neighborsOf(g, focus.isU, focus.id));
-  const own = focus.isU ? g.U : g.V;
-  const other = focus.isU ? g.V : g.U;
-
-  if (highlight === "neighbors") {
-    for (const id of nbrs) out.add(nodeKey(!focus.isU, id));
-  } else {
-    for (const id of own.keys()) {
-      if (id !== focus.id) out.add(nodeKey(focus.isU, id));
-    }
-    for (const id of other.keys()) {
-      if (!nbrs.has(id)) out.add(nodeKey(!focus.isU, id));
-    }
-  }
-  return out;
+function clientToSvg(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+  width: number,
+  height: number,
+) {
+  const rect = svg.getBoundingClientRect();
+  const scaleX = rect.width > 0 ? width / rect.width : 1;
+  const scaleY = rect.height > 0 ? height / rect.height : 1;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY,
+  };
 }
 
 export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
@@ -43,31 +30,29 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
     solution,
     reducedPreview,
     selected,
-    explainHover,
-    explainHighlight,
     explainS,
     explainC,
     fadeNonCandidates,
+    hopView,
     canvas,
   } = lab;
-  const { width, height, scrollRef } = canvas;
+  const { width, height, bindScroll } = canvas;
   const inExplain = lab.mode === "explain";
-
-  const explaining =
-    inExplain && explainHover && explainHighlight
-      ? explainHighlightedNodes({ U, V, edges }, explainHover, explainHighlight)
-      : null;
-  const focusKey =
-    explainHover != null ? nodeKey(explainHover.isU, explainHover.id) : null;
+  const hops = hopView?.dist ?? null;
 
   const onSvgClick = (ev: MouseEvent<SVGSVGElement>) => {
-    if (ev.target !== ev.currentTarget) return;
-    if (lab.mode !== "addnode") return;
-    const rect = ev.currentTarget.getBoundingClientRect();
-    const scaleX = width / rect.width;
-    const x = (ev.clientX - rect.left) * scaleX;
-    const y = (ev.clientY - rect.top) * scaleX;
-    lab.addNodeAt(x, y, width);
+    const target = ev.target as Element;
+    const background =
+      target === ev.currentTarget || target.classList.contains("canvas-bg");
+    if (!background || lab.mode !== "addnode") return;
+    const point = clientToSvg(
+      ev.currentTarget,
+      ev.clientX,
+      ev.clientY,
+      width,
+      height,
+    );
+    lab.addNodeAt(point.x, point.y);
   };
 
   const onEdgeClick = (ev: MouseEvent<SVGLineElement>, key: string) => {
@@ -75,28 +60,33 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
     lab.deleteEdge(key);
   };
 
-  const onNodeMouseDown = (
-    ev: MouseEvent,
-    isU: boolean,
-    id: number,
-  ) => {
+  const onNodeMouseDown = (ev: MouseEvent, isU: boolean, id: number) => {
     if (lab.mode !== "move") return;
     ev.preventDefault();
     ev.stopPropagation();
-    lab.beginDrag();
 
     const svg = (ev.currentTarget as SVGGElement).ownerSVGElement;
     if (!svg) return;
+    const origin = clientToSvg(svg, ev.clientX, ev.clientY, width, height);
+    let moved = false;
+    let saved = false;
 
     const onMove = (mv: globalThis.MouseEvent) => {
-      const rect = svg.getBoundingClientRect();
-      const scaleX = width / rect.width;
-      const y = (mv.clientY - rect.top) * scaleX;
-      lab.moveNode(isU, id, y);
+      const point = clientToSvg(svg, mv.clientX, mv.clientY, width, height);
+      if (!moved && Math.hypot(point.x - origin.x, point.y - origin.y) < 4) {
+        return;
+      }
+      moved = true;
+      if (!saved) {
+        saved = true;
+        lab.beginDrag();
+      }
+      lab.moveNode(isU, id, point.x, point.y);
     };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      if (!moved) lab.focusForHops({ isU, id });
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -112,6 +102,13 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
     const isRemoved = reducedPreview?.removedEdges.has(key);
     const inSolution = solution && solution.U.has(u) && solution.V.has(v);
     const inS = inExplain && explainS.U.has(u) && explainS.V.has(v);
+    const du = hops?.get(nodeKey(true, u));
+    const dv = hops?.get(nodeKey(false, v));
+    const onHop =
+      hops != null &&
+      du != null &&
+      dv != null &&
+      Math.abs(du - dv) === 1;
 
     let stroke = "var(--edge)";
     let strokeWidth = 1.4;
@@ -129,19 +126,12 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
       strokeWidth = 2.4;
     }
 
-    if (explaining && explainHover && explainHighlight === "neighbors") {
-      const touchesFocus =
-        (explainHover.isU && explainHover.id === u) ||
-        (!explainHover.isU && explainHover.id === v);
-      if (touchesFocus) {
-        stroke = "var(--explain)";
-        strokeWidth = 2.4;
-        opacity = 1;
-      } else if (!inS) {
-        opacity = Math.min(opacity, 0.18);
-      }
-    } else if (explaining && !inS) {
-      opacity = Math.min(opacity, 0.18);
+    if (onHop) {
+      stroke = hopColor(Math.max(du ?? 0, dv ?? 0));
+      strokeWidth = 2.6;
+      opacity = 1;
+    } else if (hops && !inS) {
+      opacity = Math.min(opacity, 0.1);
     } else if (fadeNonCandidates && inExplain) {
       const uKeep = explainS.U.has(u) || explainC.U.has(u);
       const vKeep = explainS.V.has(v) || explainC.V.has(v);
@@ -184,7 +174,7 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
               stroke="var(--solution-missing)"
               strokeWidth={1.6}
               strokeDasharray="3,3"
-              opacity={explaining || fadeNonCandidates ? 0.2 : 0.85}
+              opacity={hops || fadeNonCandidates ? 0.2 : 0.85}
             />,
           );
         }
@@ -192,7 +182,6 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
     }
   }
 
-  // Missing edges inside explain S (always shown while S has both sides).
   if (inExplain && explainS.U.size > 0 && explainS.V.size > 0) {
     for (const u of explainS.U) {
       for (const v of explainS.V) {
@@ -226,15 +215,11 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
     const isSelected =
       selected && selected.isU === isU && selected.id === id;
     const nk = nodeKey(isU, id);
-    const isFocus = focusKey === nk;
-    const isExplainHit = explaining?.has(nk) ?? false;
-    const isExplainDim = explaining != null && !isExplainHit;
+    const hopDist = hops?.get(nk);
     const inS = inExplain && partialSHas(explainS, isU, id);
     const inC =
-      inExplain &&
-      (isU ? explainC.U.has(id) : explainC.V.has(id));
-    const fadeOut =
-      fadeNonCandidates && inExplain && !inS && !inC;
+      inExplain && (isU ? explainC.U.has(id) : explainC.V.has(id));
+    const fadeOut = fadeNonCandidates && inExplain && !inS && !inC && hopDist == null;
 
     let fill = isU ? "var(--u-color)" : "var(--v-color)";
     let opacity = 1;
@@ -250,12 +235,6 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
       strokeColor = "var(--solution)";
       strokeW = 3;
     }
-    if (isSelected) {
-      strokeColor = "#1a1d24";
-      strokeW = 2.5;
-    }
-
-    // S is always highlighted in explain mode.
     if (inS) {
       strokeColor = "var(--s-color)";
       strokeW = 3.5;
@@ -265,26 +244,14 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
       strokeW = 2.5;
     }
 
-    if (inExplain && explainHover && isFocus && !explainHighlight && !inS) {
-      strokeColor = "var(--explain)";
-      strokeW = 2.5;
-    }
-    if (explaining) {
-      if (isFocus) {
-        strokeColor = inS ? "var(--s-color)" : "var(--explain)";
-        strokeW = 3.5;
+    if (hops) {
+      if (hopDist == null) {
+        if (!inS) opacity = Math.min(opacity, 0.16);
+      } else {
         opacity = 1;
-      } else if (isExplainHit) {
         if (!inS) {
-          strokeColor = "var(--explain)";
-          strokeW = 2.5;
-        }
-        opacity = 1;
-      } else if (isExplainDim && !inS) {
-        opacity = fadeOut ? 0.08 : 0.18;
-        if (!inC || !fadeNonCandidates) {
-          strokeW = Math.min(strokeW, 0);
-          if (!inS) strokeColor = "none";
+          strokeColor = hopColor(hopDist);
+          strokeW = hopDist === 0 ? 3.5 : 2.5;
         }
       }
     } else if (fadeOut) {
@@ -293,31 +260,36 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
       strokeColor = "none";
     }
 
+    if (isSelected) {
+      strokeColor = "#1a1d24";
+      strokeW = 2.5;
+      opacity = 1;
+    }
+
     const deg = degreeOf({ U, V, edges }, isU, id);
     const title =
       `${isU ? "U" : "V"}${id}  deg=${deg}` +
+      (hopDist != null ? `  hop=${hopDist}` : "") +
       (isRemoved ? "  [removed by reduction]" : "") +
       (inSolution ? "  [in solution]" : "") +
       (inS ? "  [in S]" : "") +
-      (inC ? "  [in C]" : "") +
-      (isFocus && explainHighlight
-        ? `  [explain: ${explainHighlight}]`
-        : "");
+      (inC ? "  [in C]" : "");
 
     return (
       <g
         key={`${isU ? "u" : "v"}${id}`}
         transform={`translate(${pos.x},${pos.y})`}
-        style={{ cursor: "pointer" }}
+        style={{ cursor: lab.mode === "move" ? "grab" : "pointer" }}
         onMouseDown={(ev) => onNodeMouseDown(ev, isU, id)}
-        onMouseEnter={() => lab.onExplainHover({ isU, id })}
-        onMouseLeave={() => lab.onExplainHover(null)}
+        onMouseEnter={() => lab.setPointer({ isU, id })}
+        onMouseLeave={() => lab.setPointer(null)}
         onClick={(ev) => {
           ev.stopPropagation();
           if (inExplain && ev.shiftKey) {
             lab.toggleExplainS(isU, id);
             return;
           }
+          if (inExplain) lab.focusForHops({ isU, id });
           lab.onNodeClick(isU, id);
         }}
       >
@@ -334,36 +306,61 @@ export function GraphCanvas({ lab }: { lab: GraphLabApi }) {
           y={3.5}
           textAnchor="middle"
           className="node-label"
-          fill={isRemoved || fadeOut || (isExplainDim && !inS) ? "#6b7380" : "#ffffff"}
+          fill={isRemoved || fadeOut || (hops && hopDist == null && !inS) ? "#6b7380" : "#ffffff"}
           fontWeight={700}
           fontSize={10}
-          opacity={fadeOut || (isExplainDim && !inS) ? 0.45 : 1}
+          opacity={fadeOut || (hops && hopDist == null && !inS) ? 0.45 : 1}
         >
           {id}
         </text>
+        {hopDist != null && (
+          <g className="hop-badge" transform={`translate(${NODE_R - 2},${-NODE_R + 2})`}>
+            <circle r={7.5} fill={hopColor(hopDist)} stroke="#ffffff" strokeWidth={1.5} />
+            <text
+              y={3}
+              textAnchor="middle"
+              fill="#ffffff"
+              fontSize={8}
+              fontWeight={700}
+            >
+              {hopDist}
+            </text>
+          </g>
+        )}
       </g>
     );
   }
 
+  const cursor =
+    lab.mode === "addnode" || lab.mode === "addedge" ? "crosshair" : "default";
+
   return (
-    <div className="canvas-scroll" ref={scrollRef}>
+    <div className="canvas-scroll" ref={bindScroll}>
       <svg
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         onClick={onSvgClick}
+        style={{ cursor }}
       >
-        <text x={COL_MARGIN} y={20} className="col-label" textAnchor="middle">
-          U
-        </text>
-        <text
-          x={width - COL_MARGIN}
-          y={20}
-          className="col-label"
-          textAnchor="middle"
-        >
-          V
-        </text>
+        <defs>
+          <pattern
+            id="place-grid"
+            width="48"
+            height="48"
+            patternUnits="userSpaceOnUse"
+          >
+            <circle cx="1" cy="1" r="1.15" className="grid-dot" />
+          </pattern>
+        </defs>
+        <rect
+          className="canvas-bg"
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          fill="url(#place-grid)"
+        />
         {edgeLines}
         {missingLines}
         {[...U].map(([id, pos]) => drawNode(true, id, pos))}

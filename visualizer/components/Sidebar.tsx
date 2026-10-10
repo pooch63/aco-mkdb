@@ -53,16 +53,28 @@ export function Sidebar({ lab }: { lab: GraphLabApi }) {
           </Button>
           <Button
             wide
-            active={lab.mode === "addnode"}
-            title="Click U/V column to add a node"
-            onClick={() => lab.setMode("addnode")}
+            className={
+              lab.mode === "addnode" && lab.placeSide === "U" ? "active-u" : ""
+            }
+            title="Place U nodes (U)"
+            onClick={() => lab.armPlace("U")}
           >
-            Add Node
+            Add U
+          </Button>
+          <Button
+            wide
+            className={
+              lab.mode === "addnode" && lab.placeSide === "V" ? "active-v" : ""
+            }
+            title="Place V nodes (V)"
+            onClick={() => lab.armPlace("V")}
+          >
+            Add V
           </Button>
           <Button
             wide
             active={lab.mode === "addedge"}
-            title="Click two nodes on opposite sides"
+            title="Toggle an edge (E)"
             onClick={() => lab.setMode("addedge")}
           >
             Add Edge
@@ -78,7 +90,7 @@ export function Sidebar({ lab }: { lab: GraphLabApi }) {
           <Button
             wide
             active={lab.mode === "explain"}
-            title="Hover a node, then press 1/2 to highlight neighbors or non-neighbors"
+            title="Click a node, then press 1–9 for hop neighbors"
             onClick={() => lab.setMode("explain")}
           >
             Explain

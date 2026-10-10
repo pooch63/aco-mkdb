@@ -1,0 +1,42 @@
+{
+  "name": "clique_aco_vs_aco",
+  "output": "results/clique_aco_vs_aco.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "skip_completed": true,
+  "inject": true,
+  "datasets": [
+    "konect-small/moreno",
+    "konect-small/facebook",
+    "konect-small/edit-zuwiktionary",
+    "konect-small/edit-srwikiquote",
+    "konect-small/dnc-corecipient",
+    "konect-small/moreno_health",
+    "amazon/boxes",
+    "konect-small/petster-hamster"
+  ],
+  "baseline": {
+    "method": "aco",
+    "label": "aco",
+    "params": {
+      "ants": 20,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95,
+      "prefer_smaller_side": true,
+      "neighbor_scope_limit": true
+    }
+  },
+  "challenger": {
+    "method": "clique_aco",
+    "label": "clique-aco",
+    "params": {
+      "ants": 20,
+      "iterations": 5,
+      "pheromone": 1,
+      "evaporation": 0.95
+    }
+  }
+}

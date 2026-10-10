@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createDemoGraph, edgeKey, snapshotOf } from "@/lib/graph";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createDemoGraph,
+  edgeKey,
+  hopDistances,
+  snapshotOf,
+} from "@/lib/graph";
 import {
   addCostToS,
   candidatesOfS,
@@ -18,34 +23,52 @@ import {
   serializeCsv,
   serializeJson,
 } from "@/lib/io";
-import { COL_MARGIN, canvasHeight, relayoutAll, TOP_MARGIN } from "@/lib/layout";
+import { PLACE_PAD, relayoutAll, worldSize } from "@/lib/layout";
 import { runReduction } from "@/lib/reduction";
 import { runSearch } from "@/lib/search";
 import type {
   EditMode,
-  ExplainHighlight,
   GraphJson,
   LogEntry,
   NodeRef,
+  PlaceSide,
   Point,
   ReductionPreview,
   SearchResult,
 } from "@/lib/types";
 
 const MODE_HINTS: Record<EditMode, string> = {
-  move: "Drag a node to move it.",
-  addnode: "Click inside the U or V column to add a node there.",
+  move: "Drag a node anywhere. Click one, then press 1–9 for its hop neighbors.",
+  addnode:
+    "Click anywhere to drop a node. U and V choose the side. The canvas scrolls well past the window.",
   addedge:
-    "Click a U node then a V node (or vice-versa) to toggle an edge between them.",
-  delete: "Click a node to delete it, or click an edge to delete just that edge.",
+    "Press E, then click a U node and a V node (either order) to toggle the edge.",
+  delete: "Click a node to delete it, or click an edge to delete just that edge. D selects this mode.",
   explain:
-    "Hover + 1/2/Space: neighbors vs non-neighbors. Hold Shift and click to toggle nodes in S. Use Fade non-candidates to dim nodes outside S∪C.",
+    "Click a node or press 1–9 to see that many hops. Shift+click toggles S. Fade non-candidates dims nodes outside S∪C.",
 };
+
+const HOP_MAX = 24;
+
+function isFormField(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
+  );
+}
 
 const HISTORY_CAP = 25;
 
 export function useGraphLab() {
-  const [boot] = useState(() => createDemoGraph());
+  const [boot] = useState(() => {
+    const graph = createDemoGraph();
+    relayoutAll(graph.U, graph.V, 1100);
+    return graph;
+  });
   const [nextUId, setNextUId] = useState(boot.nextUId);
   const [nextVId, setNextVId] = useState(boot.nextVId);
   const [U, setU] = useState(boot.U);
@@ -53,10 +76,12 @@ export function useGraphLab() {
   const [edges, setEdges] = useState(boot.edges);
 
   const [mode, setModeState] = useState<EditMode>("move");
+  const [placeSide, setPlaceSide] = useState<PlaceSide>("U");
   const [selected, setSelected] = useState<NodeRef | null>(null);
-  const [explainHover, setExplainHover] = useState<NodeRef | null>(null);
-  const [explainHighlight, setExplainHighlight] =
-    useState<ExplainHighlight | null>(null);
+  const [lastNode, setLastNode] = useState<NodeRef | null>(null);
+  const [hop, setHop] = useState<{ focus: NodeRef; radius: number } | null>(
+    null,
+  );
   const [explainS, setExplainS] = useState(emptyPartialS);
   const [fadeNonCandidates, setFadeNonCandidates] = useState(false);
   const [reducedPreview, setReducedPreview] = useState<ReductionPreview | null>(
@@ -74,15 +99,14 @@ export function useGraphLab() {
   const [density, setDensity] = useState(0.4);
   const [searchWarn, setSearchWarn] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [canvasWidth, setCanvasWidth] = useState(800);
+  const [view, setView] = useState({ w: 960, h: 720 });
   const logId = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const didInitLayout = useRef(false);
-  const graphRef = useRef({ U, V });
-
-  useEffect(() => {
-    graphRef.current = { U, V };
-  }, [U, V]);
+  const pointerRef = useRef<NodeRef | null>(null);
+  const pinnedRef = useRef<NodeRef | null>(null);
+  const hopRef = useRef<{ focus: NodeRef; radius: number } | null>(null);
+  hopRef.current = hop;
 
   const log = useCallback((msg: string, cls?: LogEntry["cls"]) => {
     const id = ++logId.current;
@@ -102,54 +126,53 @@ export function useGraphLab() {
   }, [nextUId, nextVId, U, V, edges]);
 
   const applyRelayout = useCallback(
-    (
-      nextU: Map<number, Point>,
-      nextV: Map<number, Point>,
-      width?: number,
-    ) => {
+    (nextU: Map<number, Point>, nextV: Map<number, Point>, width?: number) => {
       const w =
-        width ??
-        Math.max(scrollRef.current?.clientWidth ?? canvasWidth, 500);
+        width ?? Math.max(scrollRef.current?.clientWidth ?? view.w, 280);
       relayoutAll(nextU, nextV, w);
-      setCanvasWidth(w);
       setU(new Map(nextU));
       setV(new Map(nextV));
     },
-    [canvasWidth],
+    [view.w],
   );
 
-  // Relayout demo seed once the scroll container is measured.
-  useEffect(() => {
-    if (didInitLayout.current) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    didInitLayout.current = true;
-    const w = Math.max(el.clientWidth, 500);
-    const u = new Map(U);
-    const v = new Map(V);
-    relayoutAll(u, v, w);
-    setCanvasWidth(w);
-    setU(u);
-    setV(v);
-    log(
-      "ready — demo graph loaded. Generate a random graph or edit this one to get started.",
-      "info",
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [log]);
+  const graphRef = useRef({ U, V });
+  graphRef.current = { U, V };
 
-  useEffect(() => {
-    const onResize = () => {
-      const w = Math.max(scrollRef.current?.clientWidth ?? 500, 500);
+  // Attach the scrollport. The ref callback is what actually sees the node;
+  // a mount effect can run before that ref is set.
+  const bindScroll = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollRef.current = el;
+      if (!el || didInitLayout.current) return;
+      didInitLayout.current = true;
+      const w = Math.max(el.clientWidth, 280);
       const u = new Map(graphRef.current.U);
       const v = new Map(graphRef.current.V);
       relayoutAll(u, v, w);
-      setCanvasWidth(w);
       setU(u);
       setV(v);
+      log(
+        "ready — demo graph loaded. U/V place nodes, E adds edges, 1–9 shows hop neighbors.",
+        "info",
+      );
+    },
+    [log],
+  );
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      setView({
+        w: Math.max(el.clientWidth, 500),
+        h: Math.max(el.clientHeight, 400),
+      });
     };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   const clearOverlays = useCallback(() => {
@@ -169,22 +192,90 @@ export function useGraphLab() {
   const setMode = (m: EditMode) => {
     setModeState(m);
     setSelected(null);
-    setExplainHover(null);
-    setExplainHighlight(null);
     if (m !== "explain") {
       setExplainS(emptyPartialS());
       setFadeNonCandidates(false);
     }
   };
 
-  const onExplainHover = useCallback(
+  const armPlace = useCallback((side: PlaceSide) => {
+    setPlaceSide(side);
+    setModeState("addnode");
+    setSelected(null);
+    setExplainS(emptyPartialS());
+    setFadeNonCandidates(false);
+  }, []);
+
+  const rememberNode = useCallback((node: NodeRef) => {
+    pinnedRef.current = node;
+    setLastNode(node);
+  }, []);
+
+  const setPointer = useCallback(
     (node: NodeRef | null) => {
-      if (mode !== "explain") return;
-      setExplainHover(node);
-      if (!node) setExplainHighlight(null);
+      pointerRef.current = node;
+      if (node) rememberNode(node);
     },
-    [mode],
+    [rememberNode],
   );
+
+  const showHops = useCallback(
+    (radius: number, focus?: NodeRef | null) => {
+      const target =
+        focus ??
+        pointerRef.current ??
+        hopRef.current?.focus ??
+        pinnedRef.current ??
+        null;
+      if (!target) return;
+      const next = Math.max(1, Math.min(HOP_MAX, radius));
+      rememberNode(target);
+      const nextHop = { focus: target, radius: next };
+      hopRef.current = nextHop;
+      setHop(nextHop);
+    },
+    [rememberNode],
+  );
+
+  const clearHops = useCallback(() => {
+    hopRef.current = null;
+    setHop(null);
+  }, []);
+
+  const focusForHops = useCallback(
+    (node: NodeRef) => {
+      rememberNode(node);
+      setHop((prev) => {
+        const nextHop = {
+          focus: node,
+          radius: prev?.radius ?? 1,
+        };
+        hopRef.current = nextHop;
+        return nextHop;
+      });
+    },
+    [rememberNode],
+  );
+
+  const stepHop = useCallback((delta: number) => {
+    const hovering = pointerRef.current;
+    setHop((prev) => {
+      const focus = hovering ?? prev?.focus ?? pinnedRef.current;
+      if (!focus) return prev;
+      const same =
+        prev != null &&
+        prev.focus.isU === focus.isU &&
+        prev.focus.id === focus.id;
+      const base = same || !hovering ? (prev?.radius ?? 0) : 0;
+      const nextHop = {
+        focus,
+        radius: Math.max(1, Math.min(HOP_MAX, base + delta)),
+      };
+      hopRef.current = nextHop;
+      return nextHop;
+    });
+    if (hovering) rememberNode(hovering);
+  }, [rememberNode]);
 
   const toggleExplainS = useCallback(
     (isU: boolean, id: number) => {
@@ -222,32 +313,71 @@ export function useGraphLab() {
     [mode, explainS, U, V, edges, k, log],
   );
 
-  // Explain mode: 1 / 2 / Space while hovering a node.
-  useEffect(() => {
-    if (mode !== "explain") return;
-    const onKey = (ev: KeyboardEvent) => {
-      const tag = (ev.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (!explainHover) return;
-      // Shift is reserved for building S via click.
-      if (ev.shiftKey) return;
+  const actionsRef = useRef({
+    armPlace,
+    setMode,
+    showHops,
+    clearHops,
+    stepHop,
+    placeSide,
+  });
+  actionsRef.current = {
+    armPlace,
+    setMode,
+    showHops,
+    clearHops,
+    stepHop,
+    placeSide,
+  };
 
-      if (ev.key === "1" || ev.key === "n" || ev.key === "N") {
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (isFormField(ev.target)) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      const actions = actionsRef.current;
+      const key = ev.key;
+
+      if (key === "u" || key === "U") {
         ev.preventDefault();
-        setExplainHighlight("neighbors");
-      } else if (ev.key === "2" || ev.key === "x" || ev.key === "X") {
+        actions.armPlace("U");
+      } else if (key === "v" || key === "V") {
         ev.preventDefault();
-        setExplainHighlight("nonneighbors");
-      } else if (ev.key === " " || ev.key === "Spacebar") {
+        actions.armPlace("V");
+      } else if (key === "Tab") {
         ev.preventDefault();
-        setExplainHighlight((prev) =>
-          prev === "neighbors" ? "nonneighbors" : "neighbors",
-        );
+        actions.armPlace(actions.placeSide === "U" ? "V" : "U");
+      } else if (key === "e" || key === "E") {
+        ev.preventDefault();
+        const from = pointerRef.current;
+        actions.setMode("addedge");
+        if (from) setSelected(from);
+      } else if (key === "m" || key === "M") {
+        ev.preventDefault();
+        actions.setMode("move");
+      } else if (key === "d" || key === "D" || key === "Delete") {
+        ev.preventDefault();
+        actions.setMode("delete");
+      } else if (key === "Escape") {
+        ev.preventDefault();
+        actions.clearHops();
+        setSelected(null);
+      } else if (key === "0") {
+        ev.preventDefault();
+        actions.clearHops();
+      } else if (/^[1-9]$/.test(key)) {
+        ev.preventDefault();
+        actions.showHops(parseInt(key, 10));
+      } else if (key === "]" || key === "=" || key === "+") {
+        ev.preventDefault();
+        actions.stepHop(1);
+      } else if (key === "[" || key === "-" || key === "_") {
+        ev.preventDefault();
+        actions.stepHop(-1);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, explainHover]);
+  }, []);
 
   const clearGraph = () => {
     if (U.size === 0 && V.size === 0) return;
@@ -405,17 +535,20 @@ export function useGraphLab() {
     }
   };
 
-  const addNodeAt = (x: number, y: number, width: number) => {
+  const addNodeAt = (x: number, y: number) => {
     if (mode !== "addnode") return;
     pushHistory();
     clearOverlays();
-    const isU = x < width / 2;
-    if (isU) {
+    const point = {
+      x: Math.max(PLACE_PAD, x),
+      y: Math.max(PLACE_PAD, y),
+    };
+    if (placeSide === "U") {
       const id = nextUId;
       setNextUId(id + 1);
       setU((prev) => {
         const next = new Map(prev);
-        next.set(id, { x: COL_MARGIN, y: Math.max(TOP_MARGIN, y) });
+        next.set(id, point);
         return next;
       });
       log(`added U${id}`, "info");
@@ -424,20 +557,23 @@ export function useGraphLab() {
       setNextVId(id + 1);
       setV((prev) => {
         const next = new Map(prev);
-        next.set(id, { x: width - COL_MARGIN, y: Math.max(TOP_MARGIN, y) });
+        next.set(id, point);
         return next;
       });
       log(`added V${id}`, "info");
     }
   };
 
-  const moveNode = (isU: boolean, id: number, y: number) => {
+  const moveNode = (isU: boolean, id: number, x: number, y: number) => {
     const setter = isU ? setU : setV;
     setter((prev) => {
       const next = new Map(prev);
       const p = next.get(id);
       if (!p) return prev;
-      next.set(id, { ...p, y: Math.max(TOP_MARGIN - 10, y) });
+      next.set(id, {
+        x: Math.max(PLACE_PAD, x),
+        y: Math.max(PLACE_PAD, y),
+      });
       return next;
     });
   };
@@ -520,8 +656,26 @@ export function useGraphLab() {
     );
   };
 
-  const height = canvasHeight(U.size, V.size);
-  const width = Math.max(canvasWidth, 500);
+  const { width, height } = worldSize(U, V, view.w, view.h);
+
+  const hopView = useMemo(() => {
+    if (!hop) return null;
+    const exists = hop.focus.isU
+      ? U.has(hop.focus.id)
+      : V.has(hop.focus.id);
+    if (!exists) return null;
+    const dist = hopDistances(
+      { U, V, edges },
+      hop.focus.isU,
+      hop.focus.id,
+      hop.radius,
+    );
+    const counts = Array.from({ length: hop.radius + 1 }, () => 0);
+    for (const d of dist.values()) {
+      if (d < counts.length) counts[d] += 1;
+    }
+    return { focus: hop.focus, radius: hop.radius, dist, counts };
+  }, [hop, U, V, edges]);
 
   const explainC =
     mode === "explain"
@@ -540,9 +694,9 @@ export function useGraphLab() {
   if (mode === "explain" && fadeNonCandidates) {
     viewMode += ` + C(|U|=${explainC.U.size},|V|=${explainC.V.size})`;
   }
-  if (mode === "explain" && explainHover && explainHighlight) {
-    const focus = `${explainHover.isU ? "U" : "V"}${explainHover.id}`;
-    viewMode += ` + ${focus} ${explainHighlight}`;
+  if (hopView) {
+    const focus = `${hopView.focus.isU ? "U" : "V"}${hopView.focus.id}`;
+    viewMode += ` + ${hopView.radius}-hop ${focus}`;
   }
 
   return {
@@ -551,9 +705,10 @@ export function useGraphLab() {
     V,
     edges,
     mode,
+    placeSide,
     selected,
-    explainHover,
-    explainHighlight,
+    lastNode,
+    hopView,
     explainS,
     explainC,
     explainMissing,
@@ -577,17 +732,25 @@ export function useGraphLab() {
     canApplyReduce: !!reducedPreview,
     canClearSolution: !!solution,
     canClearExplainS: partialSSize(explainS) > 0,
-    modeHint: MODE_HINTS[mode],
+    modeHint:
+      mode === "addnode"
+        ? `Click anywhere to place a ${placeSide} node. Press ${placeSide === "U" ? "V" : "U"} (or Tab) to switch sides. Scroll for more room.`
+        : MODE_HINTS[mode],
     stats: {
       u: U.size,
       v: V.size,
       e: edges.size,
       viewMode,
     },
-    canvas: { width, height, scrollRef },
+    canvas: { width, height, scrollRef, bindScroll },
     // actions
     setMode,
-    onExplainHover,
+    armPlace,
+    setPointer,
+    showHops,
+    stepHop,
+    clearHops,
+    focusForHops,
     toggleExplainS,
     clearExplainS,
     setFadeNonCandidates,
