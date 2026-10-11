@@ -55,7 +55,7 @@ from pathlib import Path
 PAPER_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PAPER_DIR.parent
 PLACEHOLDER_RE = re.compile(r"%%([A-Z][A-Z0-9_]*)(?::([^%]+))?%%")
-AUX_SUFFIXES = (".aux", ".log", ".fls", ".fdb_latexmk", ".out")
+AUX_SUFFIXES = (".aux", ".bbl", ".blg", ".log", ".fls", ".fdb_latexmk", ".out")
 # Assembled from fragment sidecars (*.preamble.tex); not a normal emit target.
 SPECIAL_PLACEHOLDERS = frozenset({"PREAMBLE"})
 DEFAULT_RESULTS_DIR = "../results"
@@ -122,6 +122,7 @@ EMIT_MODE_SOURCES: dict[str, tuple[Path, ...]] = {
     ),
     "ablation": (EMIT_DIR / "ablation.py",),
     "reduce": (EMIT_DIR / "reduce.py",),
+    "heuristics": (EMIT_DIR / "heuristics.py",),
     "epoch-table": (
         EMIT_DIR / "epoch_table.py",
         EMIT_DIR / "compare" / "budget_curves.py",
@@ -829,6 +830,13 @@ def compile_pdf(
             f"-jobname={job_stem(cfg, tex, pdf_name=pdf_name)}",
             tex.name,
         ]
+        run_quiet(cmd, cwd=PAPER_DIR)
+        if subprocess.run(["which", "bibtex"], capture_output=True).returncode == 0:
+            run_quiet(
+                ["bibtex", job_stem(cfg, tex, pdf_name=pdf_name)],
+                cwd=PAPER_DIR,
+                check=False,
+            )
         run_quiet(cmd, cwd=PAPER_DIR)
         run_quiet(cmd, cwd=PAPER_DIR)
         print(f"# wrote {pdf_name}", file=sys.stderr)

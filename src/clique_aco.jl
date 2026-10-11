@@ -3,17 +3,22 @@ Clique ACO: vertex ACO on the unipartite compatibility graph.
 
 `super-reduce.jl` joins two vertices on the smaller side when they share at
 least `θ − k` opposite neighbors. That projection is one undirected graph.
-An ant grows a single set on it. Desirability is the vertex-ACO rule
-`τ · η^eta_exp` with `η = d_S + d_G · σ(−|S|)`: `d_S` is the number of
-neighbors already in the set, `d_G` is the degree in the projection, and
-`σ(−|S|) = 1 / (1 + exp(|S|))`.
+An ant grows a single set on it.
 
-After the first vertex, the candidate list is the neighbors of the vertex
-just added. A neighbor stays only when putting it in the set would leave at
-most `k` missing projection edges (non-edges inside the set). The same `k`
-is the biclique defect budget used to pack the opposite side of each
-prefix. The ant keeps the prefix whose packing has the best biclique, then
-`fill_keeping_side` adds every zero-defect vertex on the searched side.
+The first vertex is sampled the way vertex ACO samples an empty subgraph:
+weight `τ · d^η`, where `d` is the bipartite degree. That degree is also the
+greedy-fill edge count of a one-vertex side. Every later candidate is a
+neighbor, in the projection, of the vertex just added. Its weight is
+`τ · e^η`, where `e` is the greedy-fill edge count of the side with that
+vertex added.
+
+The fill is not rebuilt per candidate. Each opposite vertex stores its
+missing-edge count `c = |L| − |N ∩ L|`. Adding a candidate leaves neighbors
+at the same `c` and raises `c` by one for every non-neighbor; the pack is
+read off that updated map. A neighbor is sampled only when that pack has
+more edges than the current side. The ant stops when no neighbor grows the
+fill, keeps that prefix, then `fill_keeping_side` adds every zero-defect
+vertex on the searched side.
 =#
 
 using Base.Threads
@@ -76,6 +81,8 @@ mutable struct CliqueAnt
     in_S::BitVector
     deg_S::Vector{Int}
     order::Vector{Int}
+    cand_buf::Vector{Int}
+    weight_buf::Vector{Float64}
     n::Int
     missing::Int
     last::Int
@@ -88,8 +95,8 @@ mutable struct CliqueAnt
 end
 
 function CliqueAnt(n::Int, species::Int)
-    return CliqueAnt(falses(n), zeros(Int, n), Int[], 0, 0, 0, species, false,
-        0, -1, false, -1)
+    return CliqueAnt(falses(n), zeros(Int, n), Int[], Int[], Float64[],
+        0, 0, 0, species, false, 0, -1, false, -1)
 end
 
 function side_neighborhoods(fg::FrozenBipartite, search_is_u::Bool)
@@ -121,10 +128,13 @@ end
 Projection used by `super_reduce!`: an edge when two vertices on the smaller
 side share at least `θ − k` opposite neighbors. Isolates are dropped.
 """
-function compatibility_graph(fg::FrozenBipartite, k::Int, θ::Int)
+function compatibility_graph(fg::FrozenBipartite, k::Int, θ::Int;
+        search_is_u::Union{Nothing,Bool}=nothing)
     nU = length(fg.u_ids)
     nV = length(fg.v_ids)
-    search_is_u = nU <= nV
+    if search_is_u === nothing
+        search_is_u = nU <= nV
+    end
     n = search_is_u ? nU : nV
     n == 0 && return CliqueGraph(search_is_u)
     τ = θ - k
@@ -186,23 +196,69 @@ function clique_induced_missing(cg::CliqueGraph, members::AbstractVector{Int})
 end
 
 """
-Neighbors of the vertex just added that still fit in the defect budget.
-With no vertex added yet, every vertex is a candidate.
+Neighbors of the vertex just added, written into `ant.cand_buf`. With nothing
+added yet, every vertex is a candidate, so the first sample can follow global
+degree. Returns how many candidates were written.
 """
-function clique_candidates(cg::CliqueGraph, ant::CliqueAnt, k::Int)
-    out = Int[]
+function clique_candidates!(cg::CliqueGraph, ant::CliqueAnt)
+    buf = ant.cand_buf
+    empty!(buf)
     if ant.last == 0
         @inbounds for i in eachindex(cg.deg)
-            ant.in_S[i] && continue
-            ant.missing + (ant.n - ant.deg_S[i]) <= k && push!(out, i)
+            ant.in_S[i] || push!(buf, i)
         end
-        return out
+        return length(buf)
     end
     @inbounds for j in cg.adj[ant.last]
-        ant.in_S[j] && continue
-        ant.missing + (ant.n - ant.deg_S[j]) <= k && push!(out, j)
+        ant.in_S[j] || push!(buf, j)
     end
-    return out
+    return length(buf)
+end
+
+clique_candidates(cg::CliqueGraph, ant::CliqueAnt) = (clique_candidates!(cg, ant); copy(ant.cand_buf))
+
+"""
+Greedy-fill edge count of `L ∪ {u}` without committing `u`.
+
+`u` is a compact id on the searched side. Opposite vertices adjacent to `u`
+keep their missing-edge count; every other opposite vertex's count rises by
+one. The pack is the same ascending-cost fill as `oracle_score`.
+"""
+function oracle_edges_if_added(st::OracleState, fg::FrozenBipartite, u::Int, k::Int)
+    nL = st.nL
+    nh = st.buf_hist
+    len = nL + 1
+    @inbounds for i in 1:len
+        nh[i] = 0
+    end
+    hits = st.hits
+    @inbounds if st.search_is_u
+        for t in neighbor_range_u(fg, u)
+            c = nL - hits[fg.v_adj[t]]
+            nh[c + 1] += 1
+        end
+    else
+        for t in neighbor_range_v(fg, u)
+            c = nL - hits[fg.u_adj[t]]
+            nh[c + 1] += 1
+        end
+    end
+    nL2 = nL + 1
+    budget = k
+    edges = 0
+    maxc = min(k, nL)
+    hist = st.hist
+    @inbounds for c in 0:maxc
+        avail = c == 0 ? nh[1] : nh[c + 1] + hist[c] - nh[c]
+        avail <= 0 && continue
+        c > 0 && budget < c && break
+        take = c == 0 ? avail : min(avail, budget ÷ c)
+        take <= 0 && continue
+        edges += take * (nL2 - c)
+        budget -= take * c
+        budget == 0 && break
+    end
+    return edges
 end
 
 """Append `v`. `v` must already be legal for the current budget."""
@@ -243,27 +299,145 @@ function remember_pack!(ant::CliqueAnt, nL::Int, nR::Int, edges::Int, θ::Int)
     return ant
 end
 
+"""`τ · e^η`, where `e` is the greedy-fill edge count after adding clique index `v`."""
 function clique_desirability(trails::CliqueTrails, cg::CliqueGraph, ant::CliqueAnt,
-    v::Int, eta_exp::Float64)
+    st::OracleState, fg::FrozenBipartite, v::Int, k::Int, eta_exp::Float64)
+    edges = oracle_edges_if_added(st, fg, cg.side_id[v], k)
+    edges <= 0 && return 0.0
     τ = max(clique_tau(trails, v, ant.species), eps(Float64))
-    σ = 1.0 / (1.0 + exp(ant.n))
-    η = ant.deg_S[v] + cg.deg[v] * σ
-    return τ * η^eta_exp
+    return τ * Float64(edges)^eta_exp
 end
 
-"""One construction step. Returns false when the ant has no legal add left."""
+"""Neighbor counts at costs `0:k` for every searched-side vertex. Row `c+1` is cost `c`."""
+function init_fill_counts!(counts::Matrix{Int}, fg::FrozenBipartite, search_is_u::Bool)
+    fill!(counts, 0)
+    n = size(counts, 2)
+    @inbounds if search_is_u
+        for u in 1:n
+            counts[1, u] = length(neighbor_range_u(fg, u))
+        end
+    else
+        for u in 1:n
+            counts[1, u] = length(neighbor_range_v(fg, u))
+        end
+    end
+    return counts
+end
+
+"""Greedy-fill edges of `L ∪ {u}` from the maintained neighbor-cost counts."""
+function fill_edges_from_counts(counts::Matrix{Int}, hist::Vector{Int}, u::Int, nL::Int, k::Int)
+    maxc = min(k, nL)
+    nL2 = nL + 1
+    budget = k
+    edges = 0
+    @inbounds for c in 0:maxc
+        avail = c == 0 ? counts[1, u] : counts[c + 1, u] + hist[c] - counts[c, u]
+        avail <= 0 && continue
+        c > 0 && budget < c && break
+        take = c == 0 ? avail : min(avail, budget ÷ c)
+        take <= 0 && continue
+        edges += take * (nL2 - c)
+        budget -= take * c
+        budget == 0 && break
+    end
+    return edges
+end
+
+"""Move every non-neighbor of compact id `x` up one cost in `counts`. Call before `add_left!`."""
+function raise_nonneighbors!(counts::Matrix{Int}, st::OracleState, fg::FrozenBipartite,
+        x::Int, k::Int, mark::Vector{Int}, stamp::Int)
+    nL = st.nL
+    hits = st.hits
+    @inbounds if st.search_is_u
+        for t in neighbor_range_u(fg, x)
+            mark[fg.v_adj[t]] = stamp
+        end
+        for y in 1:st.nR
+            mark[y] == stamp && continue
+            c = nL - hits[y]
+            (c < 0 || c > k) && continue
+            for t in neighbor_range_v(fg, y)
+                s = fg.u_adj[t]
+                counts[c + 1, s] -= 1
+                c < k && (counts[c + 2, s] += 1)
+            end
+        end
+    else
+        for t in neighbor_range_v(fg, x)
+            mark[fg.u_adj[t]] = stamp
+        end
+        for y in 1:st.nR
+            mark[y] == stamp && continue
+            c = nL - hits[y]
+            (c < 0 || c > k) && continue
+            for t in neighbor_range_u(fg, y)
+                s = fg.v_adj[t]
+                counts[c + 1, s] -= 1
+                c < k && (counts[c + 2, s] += 1)
+            end
+        end
+    end
+    return counts
+end
+
+"""
+Sample a neighbor whose greedy fill has strictly more edges than the current
+side. Returns 0 when every neighbor stays flat or shrinks the fill.
+"""
+function sample_clique_vertex(ant::CliqueAnt, cg::CliqueGraph, fg::FrozenBipartite,
+    st::OracleState, counts::Matrix{Int}, trails::CliqueTrails, k::Int, eta_exp::Float64)
+    nc = clique_candidates!(cg, ant)
+    nc == 0 && return 0
+    cands = ant.cand_buf
+    current, _ = oracle_score(st, k)
+    weights = ant.weight_buf
+    if length(weights) < nc
+        resize!(weights, nc)
+    end
+    nL = st.nL
+    hist = st.hist
+    total = 0.0
+    @inbounds for i in 1:nc
+        edges = fill_edges_from_counts(counts, hist, cg.side_id[cands[i]], nL, k)
+        if edges <= current
+            weights[i] = 0.0
+            continue
+        end
+        τ = max(clique_tau(trails, cands[i], ant.species), eps(Float64))
+        w = τ * Float64(edges)^eta_exp
+        weights[i] = w
+        total += w
+    end
+    total <= 0.0 && return 0
+    r = rand() * total
+    cum = 0.0
+    @inbounds for i in 1:nc
+        cum += weights[i]
+        cum >= r && return cands[i]
+    end
+    return cands[nc]
+end
+
+"""One construction step. Returns false when the ant has no positive-fill add left."""
 function step_clique_ant!(ant::CliqueAnt, cg::CliqueGraph, fg::FrozenBipartite,
-    st::OracleState, trails::CliqueTrails, additions::CliqueTrails,
+    st::OracleState, counts::Matrix{Int}, mark::Vector{Int}, stamp::Base.RefValue{Int},
+    trails::CliqueTrails, additions::CliqueTrails,
     k::Int, θ::Int, pheromone::Int, eta_exp::Float64)
     ant.done && return false
-    cands = clique_candidates(cg, ant, k)
-    if isempty(cands)
+    v = sample_clique_vertex(ant, cg, fg, st, counts, trails, k, eta_exp)
+    if v == 0
         ant.done = true
         return false
     end
-    v = linear_sample_one(i -> clique_desirability(trails, cg, ant, i, eta_exp), cands)
     commit_clique_vertex!(ant, cg, v)
-    add_left!(st, fg, cg.side_id[v])
+    sid = cg.side_id[v]
+    stamp[] += 1
+    if stamp[] == typemax(Int)
+        fill!(mark, 0)
+        stamp[] = 1
+    end
+    raise_nonneighbors!(counts, st, fg, sid, k, mark, stamp[])
+    add_left!(st, fg, sid)
     edges, nsel = oracle_score(st, k)
     remember_pack!(ant, st.nL, nsel, edges, θ)
     dep = Float64(pheromone)
@@ -343,6 +517,12 @@ function clique_aco(g::BipartiteGraph, pheromone::Int, num_ants::Int,
     for iter in 1:num_iterations
         ants = [CliqueAnt(n, mod1(i, num_subspecies)) for i in 1:num_ants]
         states = [OracleState(compact_fg, cg.search_is_u) for _ in 1:num_ants]
+        n_side = cg.search_is_u ? length(compact_fg.u_ids) : length(compact_fg.v_ids)
+        n_opp = cg.search_is_u ? length(compact_fg.v_ids) : length(compact_fg.u_ids)
+        counts = [init_fill_counts!(zeros(Int, k + 1, n_side), compact_fg, cg.search_is_u)
+                  for _ in 1:num_ants]
+        marks = [zeros(Int, n_opp) for _ in 1:num_ants]
+        stamps = [Ref(0) for _ in 1:num_ants]
         additions = [zero_clique_trails(n, num_subspecies) for _ in 1:num_ants]
         active = fill(true, num_ants)
         while any(active)
@@ -355,14 +535,14 @@ function clique_aco(g::BipartiteGraph, pheromone::Int, num_ants::Int,
             if parallelize && nthreads() > 1
                 @threads :dynamic for i in 1:num_ants
                     active[i] || continue
-                    step_clique_ant!(ants[i], cg, compact_fg, states[i],
-                        trails, additions[i], k, θ, pheromone, eta_exp)
+                    step_clique_ant!(ants[i], cg, compact_fg, states[i], counts[i],
+                        marks[i], stamps[i], trails, additions[i], k, θ, pheromone, eta_exp)
                 end
             else
                 for i in 1:num_ants
                     active[i] || continue
-                    step_clique_ant!(ants[i], cg, compact_fg, states[i],
-                        trails, additions[i], k, θ, pheromone, eta_exp)
+                    step_clique_ant!(ants[i], cg, compact_fg, states[i], counts[i],
+                        marks[i], stamps[i], trails, additions[i], k, θ, pheromone, eta_exp)
                 end
             end
             for i in 1:num_ants

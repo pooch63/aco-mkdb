@@ -29,8 +29,8 @@ projection. `efficient=false` repeats that pair of deletions until neither
 removes a vertex or an edge, or `max_rounds` of the loop have run. In that
 mode both weightings share one projection and run before each common-neighbor pass.
 
-`side` selects the projected part: `:smaller` (the default) or `:larger`.
-Equal part sizes project `U`. Two vertices on that part are joined when they
+`side` selects the projected part: `:smaller` (the default), `:larger`, `:U`, or `:V`.
+Equal part sizes project `U` for `:smaller` and `:larger`. Two vertices on that part are joined when they
 share `C ≥ θ − k` opposite neighbors. A part with fewer than `θ` vertices is
 deleted whichever side is projected, since it cannot sit in a θ-feasible
 biclique. The first stage stores weight `max(0, θ − C)`,
@@ -159,11 +159,13 @@ function _drop_low_degree!(g::BipartiteGraph, τ::Int)
     return removed
 end
 
-"""True when the projection runs on `U` for this `side` (`:smaller` or `:larger`)."""
+"""True when the projection runs on `U` for this `side` (`:smaller`, `:larger`, `:U`, or `:V`)."""
 function _project_u(nU::Int, nV::Int, side::Symbol)
     side == :smaller && return nU <= nV
     side == :larger && return nU >= nV
-    throw(ArgumentError("side must be :smaller or :larger, got :$side"))
+    side == :U && return true
+    side == :V && return false
+    throw(ArgumentError("side must be :smaller, :larger, :U, or :V, got :$side"))
 end
 
 """Delete vertices on the chosen side that lie outside its (θ − 1)-core, then apply the weighted rules. Returns how many were deleted."""
@@ -473,12 +475,13 @@ function _reduce_projection!(wadj::Vector{Dict{Int,Int}}, alive::BitVector,
     while passes > 0
         passes -= 1
         dv = prune_vertices ? _apply_vertex_rule!(alive, wadj, min_edges) : 0
-        cut = prune_edges ? _cut_heavy_edges!(wadj, alive, lists, buckets, τ, need,
+        csr = _snapshot_proj(wadj, alive)
+        cut = prune_edges ? _cut_heavy_edges!(wadj, alive, csr, lists, buckets, τ, need,
             ostamp, cstamp, sstamp, ccnt, cur, sbuf) : 0
         # Recompute from whoever is still alive. A fixed threshold falls once
         # deleted vertices take edges out of the incumbent neighborhoods.
-        lb = use_weight ? _incumbent_neighborhood_lb(members, wadj, alive) : 0
-        mw = (prune_vertices && use_weight) ? _prune_neighborhood_cliques!(alive, wadj, lb) : 0
+        lb = use_weight ? _incumbent_neighborhood_lb(members, csr, alive) : 0
+        mw = (prune_vertices && use_weight) ? _prune_neighborhood_cliques!(alive, csr, lb) : 0
         ecut += cut
         vcut += dv + mw
         if stats !== nothing && mw > 0
@@ -545,6 +548,124 @@ function _apply_codegree_weights!(wadj::Vector{Dict{Int,Int}}, codeg::Vector{Dic
     return wadj
 end
 
+"""Live undirected projection, stored twice so each neighborhood is a slice.
+
+`bits` is a bitset of the same neighborhood, `words` long per vertex, so a
+common-neighborhood count is a few word ANDs. Deletions clear the bit and
+set `dead`.
+"""
+struct _ProjCSR
+    off::Vector{Int}
+    dst::Vector{Int}
+    wts::Vector{Int}
+    dead::BitVector
+    bits::Vector{UInt64}
+    words::Int
+end
+
+"""Copy the live edges of `wadj` into arrays. Later deletions set `dead`."""
+function _snapshot_proj(wadj::Vector{Dict{Int,Int}}, alive::BitVector)
+    n = length(wadj)
+    deg = zeros(Int, n)
+    @inbounds for i in 1:n
+        alive[i] || continue
+        c = 0
+        for j in keys(wadj[i])
+            alive[j] && (c += 1)
+        end
+        deg[i] = c
+    end
+    off = Vector{Int}(undef, n + 1)
+    off[1] = 1
+    @inbounds for i in 1:n
+        off[i + 1] = off[i] + deg[i]
+    end
+    m = off[n + 1] - 1
+    dst = Vector{Int}(undef, m)
+    wts = Vector{Int}(undef, m)
+    cursor = copy(off)
+    @inbounds for i in 1:n
+        alive[i] || continue
+        wi = wadj[i]
+        for j in keys(wi)
+            alive[j] || continue
+            p = cursor[i]
+            cursor[i] = p + 1
+            dst[p] = j
+            wts[p] = wi[j]
+        end
+    end
+    words = max(1, cld(n, 64))
+    bits = zeros(UInt64, n * words)
+    @inbounds for i in 1:n
+        base = (i - 1) * words
+        for s in off[i]:(off[i + 1] - 1)
+            j = dst[s]
+            w = (j - 1) >> 6
+            bits[base + w + 1] |= UInt64(1) << ((j - 1) & 63)
+        end
+    end
+    return _ProjCSR(off, dst, wts, falses(m), bits, words)
+end
+
+@inline function _clr_bit!(bits::Vector{UInt64}, words::Int, i::Int, j::Int)
+    bits[(i - 1) * words + ((j - 1) >> 6) + 1] &= ~(UInt64(1) << ((j - 1) & 63))
+    return bits
+end
+
+function _popcount_and(csr::_ProjCSR, i::Int, j::Int)
+    words = csr.words
+    bits = csr.bits
+    bi = (i - 1) * words
+    bj = (j - 1) * words
+    n = 0
+    @inbounds for w in 1:words
+        n += count_ones(bits[bi + w] & bits[bj + w])
+    end
+    return n
+end
+
+"""Write `N(i) ∩ N(j)` into `sbuf` and tag those vertices with `mark_s`."""
+function _fill_common!(csr::_ProjCSR, i::Int, j::Int, sstamp::Vector{Int}, mark_s::Int,
+        sbuf::Vector{Int})
+    empty!(sbuf)
+    words = csr.words
+    bits = csr.bits
+    bi = (i - 1) * words
+    bj = (j - 1) * words
+    @inbounds for w in 1:words
+        m = bits[bi + w] & bits[bj + w]
+        m == 0 && continue
+        base = (w - 1) << 6
+        while m != 0
+            z = base + trailing_zeros(m) + 1
+            sstamp[z] = mark_s
+            push!(sbuf, z)
+            m &= m - 1
+        end
+    end
+    return length(sbuf)
+end
+
+function _tombstone_edge!(csr::_ProjCSR, i::Int, j::Int)
+    off, dst, dead = csr.off, csr.dst, csr.dead
+    @inbounds for s in off[i]:(off[i + 1] - 1)
+        if dst[s] == j
+            dead[s] = true
+            break
+        end
+    end
+    @inbounds for s in off[j]:(off[j + 1] - 1)
+        if dst[s] == i
+            dead[s] = true
+            break
+        end
+    end
+    _clr_bit!(csr.bits, csr.words, i, j)
+    _clr_bit!(csr.bits, csr.words, j, i)
+    return csr
+end
+
 """
 Drop projected edges that cannot lie in a θ-clique.
 
@@ -552,7 +673,7 @@ Drop projected edges that cannot lie in a θ-clique.
 `E(S)` has fewer than `(θ − 2)(θ − 3) / 2` edges, or when every `z ∈ S` forms
 a triangle whose opposite-side codegree is below `τ = θ − 2k`.
 """
-function _cut_heavy_edges!(wadj::Vector{Dict{Int,Int}}, alive::BitVector,
+function _cut_heavy_edges!(wadj::Vector{Dict{Int,Int}}, alive::BitVector, csr::_ProjCSR,
         lists::Vector{Vector{Int}}, buckets::Vector{Vector{Int}},
         τ::Int, need::Int,
         ostamp::Vector{Int}, cstamp::Vector{Int}, sstamp::Vector{Int},
@@ -567,10 +688,11 @@ function _cut_heavy_edges!(wadj::Vector{Dict{Int,Int}}, alive::BitVector,
     cut = 0
     for (i, j) in edges
         haskey(wadj[i], j) || continue
-        if _projected_edge_ok(i, j, wadj, alive, lists, buckets, τ, need,
+        if _projected_edge_ok(i, j, csr, alive, lists, buckets, τ, need,
                 ostamp, cstamp, sstamp, ccnt, cur, sbuf)
             continue
         end
+        _tombstone_edge!(csr, i, j)
         delete!(wadj[i], j)
         delete!(wadj[j], i)
         cut += 1
@@ -578,14 +700,18 @@ function _cut_heavy_edges!(wadj::Vector{Dict{Int,Int}}, alive::BitVector,
     return cut
 end
 
-"""True when `sbuf` spans at least `need_e` projected edges."""
-function _has_induced_edges(sbuf::Vector{Int}, wadj::Vector{Dict{Int,Int}}, need_e::Int)
+"""True when `sbuf` spans at least `need_e` still-live projected edges."""
+function _has_induced_edges(sbuf::Vector{Int}, csr::_ProjCSR, sstamp::Vector{Int},
+        mark_s::Int, need_e::Int)
     need_e <= 0 && return true
     eS = 0
-    for a in eachindex(sbuf)
-        wz = wadj[sbuf[a]]
-        for b in (a + 1):length(sbuf)
-            haskey(wz, sbuf[b]) || continue
+    off, dst, dead = csr.off, csr.dst, csr.dead
+    @inbounds for a in sbuf
+        for s in off[a]:(off[a + 1] - 1)
+            dead[s] && continue
+            t = dst[s]
+            t > a || continue
+            sstamp[t] == mark_s || continue
             eS += 1
             eS >= need_e && return true
         end
@@ -594,27 +720,18 @@ function _has_induced_edges(sbuf::Vector{Int}, wadj::Vector{Dict{Int,Int}}, need
 end
 
 """True when `{i,j}` still has a large enough, dense enough shared neighborhood and a triangle of codegree `≥ τ` (`τ = θ − 2k`)."""
-function _projected_edge_ok(i::Int, j::Int, wadj::Vector{Dict{Int,Int}}, alive::BitVector,
+function _projected_edge_ok(i::Int, j::Int, csr::_ProjCSR, alive::BitVector,
         lists::Vector{Vector{Int}}, buckets::Vector{Vector{Int}},
         τ::Int, need::Int,
         ostamp::Vector{Int}, cstamp::Vector{Int}, sstamp::Vector{Int},
         ccnt::Vector{Int}, cur::Ref{Int}, sbuf::Vector{Int})
-    cur[] += 1
-    mark_i = cur[]
-    for z in keys(wadj[i])
-        alive[z] && (cstamp[z] = mark_i)
+    if _popcount_and(csr, i, j) < need
+        return false
     end
     cur[] += 1
     mark_s = cur[]
-    empty!(sbuf)
-    for z in keys(wadj[j])
-        if alive[z] && z != i && cstamp[z] == mark_i
-            sstamp[z] = mark_s
-            push!(sbuf, z)
-        end
-    end
-    length(sbuf) < need && return false
-    _has_induced_edges(sbuf, wadj, _choose2(need)) || return false
+    _fill_common!(csr, i, j, sstamp, mark_s, sbuf) < need && return false
+    _has_induced_edges(sbuf, csr, sstamp, mark_s, _choose2(need)) || return false
     (need <= 0 || τ <= 0) && return true
 
     # Score each z ∈ S by the triangle's total defect weight θ − |N(i)∩N(j)∩N(z)|.
@@ -688,17 +805,28 @@ function _apply_vertex_rule!(alive::BitVector, wadj::Vector{Dict{Int,Int}}, min_
     return removed
 end
 
-"""Sum of the weights of every live edge in `E(N(v))`."""
-function _neighborhood_weight(v::Int, wadj::Vector{Dict{Int,Int}}, alive::BitVector)
-    nbrs = Int[]
-    for j in keys(wadj[v])
-        alive[j] && push!(nbrs, j)
+"""
+Sum of the weights of every still-live edge in `E(N(v))`.
+
+`mark[j] == v` means `j` is a live neighbor of `v`. Callers pass a zeroed
+`mark` and use each center id once, so the tags from earlier centers do not
+collide.
+"""
+function _neighborhood_weight(v::Int, csr::_ProjCSR, mark::Vector{Int})
+    off, dst, wts, dead = csr.off, csr.dst, csr.wts, csr.dead
+    @inbounds for s in off[v]:(off[v + 1] - 1)
+        dead[s] || (mark[dst[s]] = v)
     end
     total = 0
-    for a in eachindex(nbrs)
-        wi = wadj[nbrs[a]]
-        for b in (a + 1):length(nbrs)
-            haskey(wi, nbrs[b]) && (total += wi[nbrs[b]])
+    @inbounds for s in off[v]:(off[v + 1] - 1)
+        dead[s] && continue
+        j = dst[s]
+        for q in off[j]:(off[j + 1] - 1)
+            dead[q] && continue
+            t = dst[q]
+            t > j || continue
+            mark[t] == v || continue
+            total += wts[q]
         end
     end
     return total
@@ -708,12 +836,13 @@ end
 Drop every live `v` whose edges in `E(N(v))` sum to less than `lb`.
 Returns how many vertices were deleted.
 """
-function _prune_neighborhood_cliques!(alive::BitVector, wadj::Vector{Dict{Int,Int}}, lb::Int)
+function _prune_neighborhood_cliques!(alive::BitVector, csr::_ProjCSR, lb::Int)
     lb <= 0 && return 0
+    mark = zeros(Int, length(alive))
     kill = Int[]
     for i in eachindex(alive)
         alive[i] || continue
-        _neighborhood_weight(i, wadj, alive) < lb && push!(kill, i)
+        _neighborhood_weight(i, csr, mark) < lb && push!(kill, i)
     end
     for i in kill
         alive[i] = false
@@ -778,13 +907,13 @@ end
 Smallest sum of `E(N(v))` over the incumbent vertices. Each of those vertices
 meets a cut at this value.
 """
-function _incumbent_neighborhood_lb(members::Vector{Int}, wadj::Vector{Dict{Int,Int}},
-        alive::BitVector)
+function _incumbent_neighborhood_lb(members::Vector{Int}, csr::_ProjCSR, alive::BitVector)
     isempty(members) && return 0
     lb = typemax(Int)
+    mark = zeros(Int, length(csr.off) - 1)
     for v in members
         alive[v] || continue
-        s = _neighborhood_weight(v, wadj, alive)
+        s = _neighborhood_weight(v, csr, mark)
         s < lb && (lb = s)
     end
     return lb == typemax(Int) ? 0 : lb

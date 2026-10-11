@@ -11,8 +11,9 @@ and wall time after:
 
 Times in the JSON are seconds and stay in seconds. Each reduction block
 is the percentage of nodes and of edges removed from the loaded graph.
-Missing fields become ``--`` and a stderr warning. This module only reads
-the JSON.
+On each graph the largest node and edge removal are bold; a tie bolds
+every method that matches. Wall time is not bold. Missing fields become
+``--`` and a stderr warning. This module only reads the JSON.
 """
 
 from __future__ import annotations
@@ -32,16 +33,10 @@ _PHASES = (
 
 
 def _fmt_thousands(value):
-    """Node count in thousands, rounded to one decimal."""
+    """Count in thousands, rounded to one decimal."""
     if value is None:
         return "--"
     return f"{float(value) / 1000:.1f}"
-
-
-def _fmt_int(value):
-    if value is None:
-        return "--"
-    return str(int(value))
 
 
 def _fmt_seconds(value):
@@ -58,12 +53,40 @@ def _fmt_seconds(value):
     return f"{seconds:.4f}"
 
 
+def _removed_pct(before, after):
+    """Percentage of ``before`` removed, or None when it cannot be scored."""
+    if before is None or after is None or int(before) <= 0:
+        return None
+    return 100.0 * (int(before) - int(after)) / int(before)
+
+
 def _fmt_pct(before, after):
     """Percentage of ``before`` removed. ``after`` is what remains."""
-    if before is None or after is None or int(before) <= 0:
+    removed = _removed_pct(before, after)
+    if removed is None:
         return "--"
-    removed = 100.0 * (int(before) - int(after)) / int(before)
     return f"{removed:.1f}"
+
+
+def _bold_winners(texts, scores, *, higher):
+    """
+    Bold every displayed value that ties the best score.
+
+    Comparison uses the raw score, then any cell that prints the same
+    text as a winner is bold too, so a rounding tie is not split.
+    """
+    ranked = [(i, score) for i, score in enumerate(scores) if score is not None]
+    if not ranked:
+        return list(texts)
+    best = max(score for _, score in ranked) if higher else min(score for _, score in ranked)
+    winner_text = {texts[i] for i, score in ranked if score == best and texts[i] != "--"}
+    marked = []
+    for text in texts:
+        if text in winner_text:
+            marked.append(rf"\textbf{{{text}}}")
+        else:
+            marked.append(text)
+    return marked
 
 
 def _cell(row, key, warned):
@@ -100,20 +123,31 @@ def render(rows):
         nV = _cell(row, "nV", warned)
         edges = _cell(row, "edges", warned)
         nodes = None if nU is None or nV is None else int(nU) + int(nV)
-        cells = [
-            name,
-            _fmt_thousands(nU),
-            _fmt_thousands(nV),
-            _fmt_int(edges),
-        ]
+        node_text, edge_text, time_text = [], [], []
+        node_score, edge_score = [], []
         for prefix, _label in _PHASES:
             left = _cell(row, f"{prefix}_nU", warned)
             right = _cell(row, f"{prefix}_nV", warned)
             kept_edges = _cell(row, f"{prefix}_edges", warned)
+            seconds = _cell(row, f"{prefix}_s", warned)
             kept_nodes = None if left is None or right is None else int(left) + int(right)
-            cells.append(_fmt_pct(nodes, kept_nodes))
-            cells.append(_fmt_pct(edges, kept_edges))
-            cells.append(_fmt_seconds(_cell(row, f"{prefix}_s", warned)))
+            node_text.append(_fmt_pct(nodes, kept_nodes))
+            edge_text.append(_fmt_pct(edges, kept_edges))
+            time_text.append(_fmt_seconds(seconds))
+            node_score.append(_removed_pct(nodes, kept_nodes))
+            edge_score.append(_removed_pct(edges, kept_edges))
+        cells = [
+            name,
+            _fmt_thousands(nU),
+            _fmt_thousands(nV),
+            _fmt_thousands(edges),
+        ]
+        for n, e, t in zip(
+            _bold_winners(node_text, node_score, higher=True),
+            _bold_winners(edge_text, edge_score, higher=True),
+            time_text,
+        ):
+            cells.extend((n, e, t))
         body.append(" & ".join(cells) + r" \\")
 
     if warned:
@@ -140,7 +174,9 @@ def render(rows):
         r"\caption{Percentage of nodes ($|U|+|V|$) and edges removed, and wall "
         r"time $t$ in seconds, for common-neighbor reduction (CNR), one "
         r"pass (Once), and the repeated reduction (Full). "
-        r"Initial side sizes $U_k$ and $V_k$ are in thousands. "
+        r"Bold is the largest removal on that graph. "
+        r"Initial side sizes $U_k$ and $V_k$, and the edge count $E_k$, "
+        r"are in thousands. "
         + (
             rf"A $\theta \times \theta$ biclique with $k$ missing edges was "
             rf"injected first. "
@@ -162,7 +198,7 @@ def render(rows):
         r"& \multicolumn{3}{c}{Full} \\",
         r"\cmidrule(lr){2-4}\cmidrule(lr){5-7}"
         r"\cmidrule(lr){8-10}\cmidrule(lr){11-13}",
-        r"Graph & $U_k$ & $V_k$ & $|E|$"
+        r"Graph & $U_k$ & $V_k$ & $E_k$"
         r" & $n\%$ & $e\%$ & $t$ (s)"
         r" & $n\%$ & $e\%$ & $t$ (s)"
         r" & $n\%$ & $e\%$ & $t$ (s) \\",

@@ -657,7 +657,7 @@ def density_wins_figure(by_label, meta):
     lines += begin_tikz()
     lines += [
         r"  \begin{groupplot}[",
-        rf"    group style={{group size=1 by {len(panels)}, vertical sep=36pt}},",
+        rf"    group style={{group size=1 by {len(panels)}, vertical sep=54pt}},",
         rf"    width={COL2_WIDTH},",
         r"    height=0.38\columnwidth,",
         r"  ]",

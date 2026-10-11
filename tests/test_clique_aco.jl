@@ -46,31 +46,66 @@ end
     @test Set(remap.u_original[i] for i in cg.side_id) == Set([1, 2])
 end
 
-@testset "candidates are neighbors of the last vertex that fit in k" begin
+@testset "candidates are neighbors of the last vertex" begin
     cg = almost_clique()
     ant = CliqueAnt(4, 1)
+    @test clique_candidates(cg, ant) == [1, 2, 3, 4]
     commit_clique_vertex!(ant, cg, 1)
     commit_clique_vertex!(ant, cg, 4)
     @test ant.missing == 0
-    # 3 is not adjacent to 4, so it is not a candidate even though k = 1 would
-    # pay for the missing edge {3,4}.
-    @test clique_candidates(cg, ant, 1) == [2]
+    # 3 is not adjacent to 4, so it is not a candidate.
+    @test clique_candidates(cg, ant) == [2]
     commit_clique_vertex!(ant, cg, 2)
     @test ant.missing == 0
     @test clique_induced_missing(cg, ant.order) == ant.missing
-    @test clique_candidates(cg, ant, 0) == Int[]
-    @test clique_candidates(cg, ant, 1) == [3]
+    # 3 is adjacent to 2, so neighbor scope offers it. The fill, not the
+    # projection, decides whether that offer is worth taking.
+    @test clique_candidates(cg, ant) == [3]
 end
 
-@testset "desirability is τ times (d_S + d_G σ)^η" begin
-    cg = almost_clique()
-    ant = CliqueAnt(4, 1)
-    trails = CliqueTrails(4, 1)
+@testset "desirability is τ times the greedy-fill edge count" begin
+    g = BipartiteGraph{Nothing}()
+    add_biclique!(g, 1:5, 1:5)
+    # U6 meets only two of the five opposite vertices.
+    add_edge!(g, 6, 1, nothing)
+    add_edge!(g, 6, 2, nothing)
+    fg, _ = compact_frozen(freeze(g))
+    cg = compatibility_graph(fg, K, THETA)
+    # τ = θ − k = 3, so U6 is absent and the five full vertices remain.
+    @test length(cg.side_id) == 5
+    st = OracleState(fg, true)
+    ant = CliqueAnt(length(cg.side_id), 1)
+    trails = CliqueTrails(length(cg.side_id), 1)
+    # One vertex packs its five neighbors: the fill edge count is the degree.
+    @test oracle_edges_if_added(st, fg, cg.side_id[1], K) == 5
+    @test clique_desirability(trails, cg, ant, st, fg, 1, K, 2.0) ≈ 25.0
+    add_left!(st, fg, cg.side_id[1])
     commit_clique_vertex!(ant, cg, 1)
-    σ = 1.0 / (1.0 + exp(1))
-    # Vertex 2 is adjacent to 1, so d_S = 1, and its projection degree is 3.
-    η = 1 + 3 * σ
-    @test clique_desirability(trails, cg, ant, 2, 2.0) ≈ η^2
+    # A second universal vertex keeps all five opposite vertices at cost 0.
+    @test oracle_edges_if_added(st, fg, cg.side_id[2], K) == 10
+    committed, _ = oracle_score(st, K)
+    @test committed == 5
+end
+
+@testset "a non-neighbor's missing count rises by one" begin
+    g = BipartiteGraph{Nothing}()
+    add_biclique!(g, [1], 1:5)
+    add_edge!(g, 2, 1, nothing)
+    add_edge!(g, 2, 2, nothing)
+    add_edge!(g, 2, 3, nothing)
+    fg, remap = compact_frozen(freeze(g))
+    st = OracleState(fg, true)
+    u1 = findfirst(==(1), remap.u_original)
+    u2 = findfirst(==(2), remap.u_original)
+    add_left!(st, fg, u1)
+    # k = 0 keeps only cost-0 opposite vertices. U2 misses V4 and V5, so those
+    # two counts rise from 0 to 1 and drop out. The three shared neighbors
+    # stay at cost 0 and contribute 2 edges each.
+    @test oracle_edges_if_added(st, fg, u2, 0) == 6
+    add_left!(st, fg, u2)
+    edges, nsel = oracle_score(st, 0)
+    @test edges == 6
+    @test nsel == 3
 end
 
 @testset "a complete biclique is recovered from the clique" begin

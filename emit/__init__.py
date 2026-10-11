@@ -12,4 +12,5 @@ MODES = (
     "ablation",
     "reduce",
     "epoch-table",
+    "heuristics",
 )

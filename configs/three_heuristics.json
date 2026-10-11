@@ -1,0 +1,27 @@
+{
+  "name": "three_heuristics",
+  "output": "results/three_heuristics.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "inject": false,
+  "skip_completed": true,
+  "methods": [
+    {
+      "id": "heuristic",
+      "method": "heuristic",
+      "label": "heuristic"
+    },
+    {
+      "id": "clique-order-edge",
+      "method": "clique-order-edge",
+      "label": "clique-order-edge"
+    },
+    {
+      "id": "double-greedy",
+      "method": "double-greedy",
+      "label": "double-greedy"
+    }
+  ]
+}

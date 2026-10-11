@@ -41,8 +41,8 @@ build.tex: main.tex build.json $(wildcard generated/*.tex)
 
 clean:
 	latexmk -C build.tex 2>/dev/null || true
-	rm -f build.tex build.pdf build.aux build.fdb_latexmk build.fls build.log \
-	      build.out build.synctex.gz \
-	      tables-build.tex tables.pdf tables.aux tables.fdb_latexmk tables.fls \
-	      tables.log tables.out tables.synctex.gz
+	rm -f build.tex build.pdf build.aux build.bbl build.blg build.fdb_latexmk \
+	      build.fls build.log build.out build.synctex.gz \
+	      tables-build.tex tables.pdf tables.aux tables.bbl tables.blg \
+	      tables.fdb_latexmk tables.fls tables.log tables.out tables.synctex.gz
 	rm -rf generated/

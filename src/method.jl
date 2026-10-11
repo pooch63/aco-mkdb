@@ -2,7 +2,7 @@
 =================================================================================
 Unified solve-method contract.
 
-Every algorithm (θ-heuristic, ACO, edges-ACO, diffusion-ACO, GA, pivot/opponent, tabu, VNS, retry, super-heuristic, …) exposes the same
+Every algorithm (θ-heuristic, double-greedy, ACO, edges-ACO, diffusion-ACO, GA, pivot/opponent, tabu, VNS, retry, super-heuristic, clique-order, clique-order-edge, …) exposes the same
 surface:
 
   run_method!(m::SolveMethod, g, k, θ; reduction=…) -> MethodResult
@@ -44,6 +44,9 @@ isdefined(@__MODULE__, :__ONE_SIDE_ACO_JL__) || include("one_side_aco.jl")
 isdefined(@__MODULE__, :__ORACLE_ACO_JL__) || include("oracle_aco.jl")
 isdefined(@__MODULE__, :__CLIQUE_ACO_JL__) || include("clique_aco.jl")
 isdefined(@__MODULE__, :__SUPER_HEURISTIC_JL__) || include("super-heuristic.jl")
+isdefined(@__MODULE__, :__CLIQUE_ORDER_JL__) || include("clique-order.jl")
+isdefined(@__MODULE__, :__CLIQUE_ORDER_EDGE_JL__) || include("clique-order-edge.jl")
+isdefined(@__MODULE__, :__DOUBLE_GREEDY_JL__) || include("double-greedy.jl")
 
 using EnumX
 
@@ -1275,6 +1278,101 @@ function run_method!(m::SuperHeuristicMethod, g::BipartiteGraph, k::Int, θ::Int
         ))
 end
 
+# ── Double-greedy (max-degree star, then max-edge growth) ────────────────────
+
+struct DoubleGreedyMethod <: SolveMethod end
+
+method_id(::DoubleGreedyMethod) = "double-greedy"
+
+function run_method!(::DoubleGreedyMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    t0 = time()
+    fg = if reduction == ReductionMode.none
+        freeze(g)
+    else
+        apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+    end
+    found = if length(fg.u_ids) < θ || length(fg.v_ids) < θ
+        DoubleGreedyResult(SubGraph(), true, 0, 0)
+    else
+        double_greedy(fg, k, θ)
+    end
+    wall = time() - t0
+    return MethodResult("double-greedy", found.sol;
+        wall_time_s=wall,
+        meta=Dict{String,Any}(
+            "seed_is_u" => found.seed_is_u,
+            "seed_id" => found.seed_id,
+            "additions" => found.additions,
+        ))
+end
+
+# ── Clique-order (degree-ordered clique, incremental greedy fill) ─────────────
+
+struct CliqueOrderMethod <: SolveMethod end
+
+method_id(::CliqueOrderMethod) = "clique-order"
+
+function run_method!(::CliqueOrderMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    verbose = get(kwargs, :verbose, false)::Bool
+    t0 = time()
+    if reduction != ReductionMode.none
+        apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+    end
+    found = clique_order(g, k, θ; verbose=verbose)
+    wall = time() - t0
+    return MethodResult("clique-order", found.solution;
+        wall_time_s=wall,
+        meta=Dict{String,Any}(
+            "clique_size" => found.clique_size,
+            "kept" => found.kept,
+            "degeneracy" => found.degeneracy,
+            "search_side" => found.search_is_u ? "U" : "V",
+            "projection_n" => found.projection_n,
+            "projection_m" => found.projection_m,
+            "edges" => found.edges,
+            "visit" => found.visit,
+            "kept_ids" => found.kept_ids,
+        ))
+end
+
+# ── Clique-order-edge (common-neighbor weights, one side) ────────────────────
+
+struct CliqueOrderEdgeMethod <: SolveMethod
+    side::Symbol
+end
+
+function CliqueOrderEdgeMethod(; side::Symbol=:smaller, kwargs...)
+    side in (:smaller, :larger, :U, :V) ||
+        throw(ArgumentError("side must be :smaller, :larger, :U, or :V, got :$side"))
+    return CliqueOrderEdgeMethod(side)
+end
+
+method_id(::CliqueOrderEdgeMethod) = "clique-order-edge"
+
+function run_method!(m::CliqueOrderEdgeMethod, g::BipartiteGraph, k::Int, θ::Int;
+    reduction::ReductionMode.T=ReductionMode.all_reductions, kwargs...)
+    verbose = get(kwargs, :verbose, false)::Bool
+    t0 = time()
+    if reduction != ReductionMode.none
+        apply_graph_reductions!(g, k, θ, nothing, nothing, true, reduction)
+    end
+    found = clique_order_edge(g, k, θ; verbose=verbose, side=m.side)
+    wall = time() - t0
+    return MethodResult("clique-order-edge", found.solution;
+        wall_time_s=wall,
+        meta=Dict{String,Any}(
+            "kept" => found.kept,
+            "components" => found.components,
+            "search_side" => found.search_is_u ? "U" : "V",
+            "projection_n" => found.projection_n,
+            "projection_m" => found.projection_m,
+            "edges" => found.edges,
+            "kept_ids" => found.kept_ids,
+        ))
+end
+
 # Aliases: "opponent" / "branch" map to pivot (exact search).
 function _register_builtins!()
     register_method!("heuristic", (; kwargs...) -> HeuristicMethod(; kwargs...))
@@ -1301,6 +1399,12 @@ function _register_builtins!()
     register_method!("alternation", (; kwargs...) -> TugOfWarMethod(; kwargs...))
     register_method!("super-heuristic", (; kwargs...) -> SuperHeuristicMethod(; kwargs...))
     register_method!("super_heuristic", (; kwargs...) -> SuperHeuristicMethod(; kwargs...))
+    register_method!("clique-order", (; kwargs...) -> CliqueOrderMethod())
+    register_method!("clique_order", (; kwargs...) -> CliqueOrderMethod())
+    register_method!("clique-order-edge", (; kwargs...) -> CliqueOrderEdgeMethod(; kwargs...))
+    register_method!("clique_order_edge", (; kwargs...) -> CliqueOrderEdgeMethod(; kwargs...))
+    register_method!("double-greedy", (; kwargs...) -> DoubleGreedyMethod())
+    register_method!("double_greedy", (; kwargs...) -> DoubleGreedyMethod())
 end
 
 _register_builtins!()

@@ -101,6 +101,11 @@
       "input": "super_reduce_phases.json",
       "sweep": "reduce_sweep",
       "file": "reduce.tex"
+    },
+    "HEURISTICS": {
+      "emit": "heuristics",
+      "input": "three_heuristics.json",
+      "file": "heuristics.tex"
     }
   }
 }

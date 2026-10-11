@@ -1,0 +1,30 @@
+{
+  "name": "double_greedy_next10",
+  "output": "results/double_greedy_vs_heuristic_next10.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "inject": false,
+  "skip_completed": false,
+  "datasets": [
+    "konect/bitcoin",
+    "konect/pgp-arenas",
+    "konect/wiki_talk_nds",
+    "konect/openflights",
+    "konect/dimacs-polblogs",
+    "konect/gnutella",
+    "konect/ciaodvd",
+    "konect/dblp_cite",
+    "konect/matter",
+    "amazon/boxes"
+  ],
+  "baseline": {
+    "method": "heuristic",
+    "label": "heuristic"
+  },
+  "challenger": {
+    "method": "double-greedy",
+    "label": "double-greedy"
+  }
+}

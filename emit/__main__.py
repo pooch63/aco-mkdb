@@ -397,6 +397,10 @@ def main(argv=None):
         from . import reduce
         reduce.run(args.directory, args.output)
 
+    elif args.mode == "heuristics":
+        from . import heuristics
+        heuristics.run(args.directory, args.output)
+
     elif args.mode == "epoch-table":
         from . import epoch_table
         epoch_table.run(args.directory, args.output, ants=args.ants)

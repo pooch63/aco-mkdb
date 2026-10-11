@@ -21,6 +21,12 @@ isdefined(@__MODULE__, :__METHOD_JL__) || include(joinpath(SRC, "method.jl"))
     @test "oracle-aco" in known
     @test "clique_aco" in known
     @test "clique-aco" in known
+    @test "clique-order" in known
+    @test "clique_order" in known
+    @test "clique-order-edge" in known
+    @test "clique_order_edge" in known
+    @test "double-greedy" in known
+    @test "double_greedy" in known
 
     m = make_method("heuristic")
     @test m isa HeuristicMethod
@@ -60,6 +66,22 @@ isdefined(@__MODULE__, :__METHOD_JL__) || include(joinpath(SRC, "method.jl"))
     @test clique.ants == 4
     @test make_method("clique-aco") isa CliqueACOMethod
 
+    order = make_method("clique-order")
+    @test order isa CliqueOrderMethod
+    @test method_id(order) == "clique-order"
+    @test make_method("clique_order") isa CliqueOrderMethod
+
+    edge = make_method("clique-order-edge")
+    @test edge isa CliqueOrderEdgeMethod
+    @test method_id(edge) == "clique-order-edge"
+    @test edge.side == :smaller
+    @test make_method("clique_order_edge"; side=:V).side == :V
+
+    dg = make_method("double-greedy")
+    @test dg isa DoubleGreedyMethod
+    @test method_id(dg) == "double-greedy"
+    @test make_method("double_greedy") isa DoubleGreedyMethod
+
     oracle = make_method("oracle_aco"; ants=3, iterations=2, discrepancy=1, decompose=false)
     @test oracle isa OracleACOMethod
     @test oracle.ants == 3
@@ -80,6 +102,14 @@ end
     @test h.name == "heuristic"
     sc = score_result(freeze(g), h, k, θ)
     @test sc.k_valid
+
+    dg = run_method!(DoubleGreedyMethod(), deepcopy(g), k, θ; reduction=reduction)
+    @test dg isa MethodResult
+    @test dg.name == "double-greedy"
+    dgsc = score_result(freeze(g), dg, k, θ)
+    @test dgsc.k_valid
+    @test dgsc.theta_feasible
+    @test dgsc.edges == 36
 
     a = run_method!(ACOMethod(; ants=2, iterations=1, parallelize=false),
         deepcopy(g), k, θ; reduction=reduction)
