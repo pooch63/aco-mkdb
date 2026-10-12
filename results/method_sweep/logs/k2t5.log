@@ -1,0 +1,46 @@
+Multi compare: 37 graph(s), 2 methods, reference=double-greedy  → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k2t5.json
+Resuming: 37 already completed
+[1/37] skip (completed): konect-small/moreno  (|E|=2277)
+[2/37] skip (completed): konect-small/facebook  (|E|=2981)
+[3/37] skip (completed): konect-small/maayan-vidal  (|E|=6726)
+[4/37] skip (completed): konect-small/edit-zuwiktionary  (|E|=7532)
+[5/37] skip (completed): konect-small/edit-srwikiquote  (|E|=8672)
+[6/37] skip (completed): konect-small/edit-vewiki  (|E|=11047)
+[7/37] skip (completed): konect-small/edit-guwikiquote  (|E|=11364)
+[8/37] skip (completed): konect-small/dnc-corecipient  (|E|=12085)
+[9/37] skip (completed): konect-small/moreno_health  (|E|=12969)
+[10/37] skip (completed): konect-small/edit-mkwikisource  (|E|=13801)
+[11/37] skip (completed): konect-small/edit-mrwiktionary  (|E|=14353)
+[12/37] skip (completed): amazon/boxes  (|E|=16216)
+[13/37] skip (completed): konect-small/petster-hamster  (|E|=16631)
+[14/37] skip (completed): konect-small/edit-nowikinews  (|E|=16900)
+[15/37] skip (completed): konect-small/edit-jamwiki  (|E|=17647)
+[16/37] skip (completed): konect-small/edit-wowiktionary  (|E|=17778)
+[17/37] skip (completed): konect-small/edit-rowikibooks  (|E|=18527)
+[18/37] skip (completed): konect-small/moreno_blogs  (|E|=19025)
+[19/37] skip (completed): konect/bitcoin  (|E|=24186)
+[20/37] skip (completed): konect/pgp-arenas  (|E|=24316)
+[21/37] skip (completed): konect-small/p2p-Gnutella09  (|E|=26013)
+[22/37] skip (completed): konect/wiki_talk_nds  (|E|=27432)
+[23/37] skip (completed): konect/dimacs-polblogs  (|E|=33430)
+[24/37] skip (completed): konect/gnutella  (|E|=39994)
+[25/37] skip (completed): konect/ciaodvd  (|E|=40133)
+[26/37] skip (completed): konect/dblp_cite  (|E|=49759)
+[27/37] skip (completed): konect/matter  (|E|=58595)
+[28/37] skip (completed): konect/openflights  (|E|=67663)
+[29/37] skip (completed): konect-small/nawiki  (|E|=70695)
+[30/37] skip (completed): amazon/magazine  (|E|=71497)
+[31/37] skip (completed): amazon/music  (|E|=130434)
+[32/37] skip (completed): amazon/gift-cards  (|E|=152410)
+[33/37] skip (completed): amazon/health  (|E|=494121)
+[34/37] skip (completed): amazon/beauty  (|E|=701528)
+[35/37] skip (completed): amazon/appliances  (|E|=2128605)
+[36/37] skip (completed): amazon/fashion  (|E|=2500939)
+[37/37] skip (completed): amazon/instruments  (|E|=3017439)
+
+==================== SUITE SUMMARY ====================
+  planned / completed  : 37 / 37
+  reference            : double-greedy
+  clique-order-edge vs double-greedy : challenger=20 baseline=9 tie=8
+  checkpoint           : /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k2t5.json
+=======================================================

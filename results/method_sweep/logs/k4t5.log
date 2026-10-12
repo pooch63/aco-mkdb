@@ -1,0 +1,41 @@
+Multi compare: 32 graph(s), 2 methods, reference=double-greedy  → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k4t5.json
+Resuming: 35 already completed
+[1/32] skip (completed): konect-small/moreno  (|E|=2277)
+[2/32] skip (completed): konect-small/facebook  (|E|=2981)
+[3/32] skip (completed): konect-small/maayan-vidal  (|E|=6726)
+[4/32] skip (completed): konect-small/edit-zuwiktionary  (|E|=7532)
+[5/32] skip (completed): konect-small/edit-srwikiquote  (|E|=8672)
+[6/32] skip (completed): konect-small/edit-vewiki  (|E|=11047)
+[7/32] skip (completed): konect-small/edit-guwikiquote  (|E|=11364)
+[8/32] skip (completed): konect-small/dnc-corecipient  (|E|=12085)
+[9/32] skip (completed): konect-small/moreno_health  (|E|=12969)
+[10/32] skip (completed): konect-small/edit-mkwikisource  (|E|=13801)
+[11/32] skip (completed): konect-small/edit-mrwiktionary  (|E|=14353)
+[12/32] skip (completed): amazon/boxes  (|E|=16216)
+[13/32] skip (completed): konect-small/petster-hamster  (|E|=16631)
+[14/32] skip (completed): konect-small/edit-nowikinews  (|E|=16900)
+[15/32] skip (completed): konect-small/edit-jamwiki  (|E|=17647)
+[16/32] skip (completed): konect-small/edit-wowiktionary  (|E|=17778)
+[17/32] skip (completed): konect-small/edit-rowikibooks  (|E|=18527)
+[18/32] skip (completed): konect-small/moreno_blogs  (|E|=19025)
+[19/32] skip (completed): konect/bitcoin  (|E|=24186)
+[20/32] skip (completed): konect/pgp-arenas  (|E|=24316)
+[21/32] skip (completed): konect-small/p2p-Gnutella09  (|E|=26013)
+[22/32] skip (completed): konect/dimacs-polblogs  (|E|=33430)
+[23/32] skip (completed): konect/gnutella  (|E|=39994)
+[24/32] skip (completed): konect/ciaodvd  (|E|=40133)
+[25/32] skip (completed): konect/dblp_cite  (|E|=49759)
+[26/32] skip (completed): konect/matter  (|E|=58595)
+[27/32] skip (completed): konect/openflights  (|E|=67663)
+[28/32] skip (completed): konect-small/nawiki  (|E|=70695)
+[29/32] skip (completed): amazon/magazine  (|E|=71497)
+[30/32] skip (completed): amazon/music  (|E|=130434)
+[31/32] skip (completed): amazon/health  (|E|=494121)
+[32/32] skip (completed): amazon/beauty  (|E|=701528)
+
+==================== SUITE SUMMARY ====================
+  planned / completed  : 32 / 35
+  reference            : double-greedy
+  clique-order-edge vs double-greedy : challenger=19 baseline=11 tie=5
+  checkpoint           : /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k4t5.json
+=======================================================

@@ -13,4 +13,5 @@ MODES = (
     "reduce",
     "epoch-table",
     "heuristics",
+    "metrics",
 )

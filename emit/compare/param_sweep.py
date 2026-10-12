@@ -6,11 +6,14 @@ Plot groups
   k-sweep
     Both win-rate lines in one compact, captionless pair that stays in
     the paragraph (no float, so it cannot force a float page). Left:
-    ACO win rate versus defect budget k at fixed θ. Right: the same
-    versus minimum side size θ at fixed k. Uses every ``--param-dir``
-    whose JSON reports the shared fixed value (default: the modal value
-    among param dirs, typically θ = 5 and k = 3). Graphs are matched
-    across the selected directories of each panel.
+    win rate versus defect budget k at fixed θ. Right: the same versus
+    minimum side size θ at fixed k. When ``--method-sweep-dir`` has a
+    finished file for a suite, each method is the share of graphs on
+    which it matches the best θ-feasible edge count (ties count). ACO
+    and the θ-heuristic come from the vary JSON; every other method
+    comes from that directory. Suites that are still missing those
+    methods keep the earlier ACO-versus-θ line. Graphs are matched
+    across the directories drawn in each panel.
 
   theta-sweep
     Drawn as the right panel of ``k-sweep``. This plot group emits only
@@ -22,6 +25,18 @@ Plot groups
     density). Lower: the same versus θ at fixed k. Same fixed values as
     k-sweep. No quintiles.
 
+  method-density
+    One column. At the (k, θ) on the comparison file (currently k=2,
+    θ=5), the share of graphs in each equal-count reduced-density
+    third on which a method matches the best θ-feasible edge count.
+    Ties count for every matching method. ACO comes from the vary
+    directory; the θ-heuristic, double-greedy, and clique-order-edge
+    come from --method-results.
+
+  method-size
+    Same panel and win rule as method-density. The thirds are
+    equal-count groups of original node count |U|+|V|.
+
   param-runtime
     Discovery time on four instances. Which sweeps are drawn is
     ``runtime_sweeps`` in build.json (passed as ``--runtime-sweep``):
@@ -29,8 +44,10 @@ Plot groups
     ``theta`` entry is time versus θ at one fixed k. The swept values
     are every completed suite at that fixed parameter in ``param_dirs``,
     including any value beyond the listed ``values``.     One color per
-    sweep; circles are ACO and triangles are the θ-heuristic. A legend
-    under each 2×2 names the color and the marker. Each panel's axis
+    sweep. The marker is the method: circle ACO, triangle the
+    θ-heuristic, and one marker each for every method in
+    ``--method-sweep-dir``. A legend under each 2×2 names the color
+    and the marker. Each panel's axis
     is the range that graph has. The four instances are evenly spaced
     by $|U|+|V|$ among graphs finished at every plotted suite. A
     listed (k, θ) with no completed JSON is skipped with a warning.
@@ -50,6 +67,7 @@ from collections import Counter
 
 from ..common import (
     COL2_WIDTH,
+    COLUMN_WIDTH,
     aco_timed_out,
     begin_float,
     begin_tikz,
@@ -61,6 +79,7 @@ from ..common import (
 from ..table import (
     SECTION_ACO,
     compare_section,
+    is_theta_feasible,
     summarize_file,
 )
 from .helpers import reduced_edge_density
@@ -69,6 +88,8 @@ PLOT_GROUPS = (
     "k-sweep",
     "theta-sweep",
     "density-wins",
+    "method-density",
+    "method-size",
     "param-runtime",
 )
 
@@ -236,6 +257,338 @@ def _win_rate(rows_for_label):
     return 100.0 * wins / len(rows_for_label)
 
 
+# Shared with the density bars. Marker is the runtime figure; color is the
+# win-rate figure. ACO and the θ-heuristic are read from vary JSON. Any
+# other id is read from the method-sweep file when that file is complete.
+_SWEEP_METHODS = (
+    ("aco", "ACO", "blue!70!black", "*"),
+    ("heuristic", r"$\theta$-heuristic", "black!60", "triangle*"),
+    ("double-greedy", "Double-greedy", "orange!80!black", "square*"),
+    ("clique-order-edge", "Clique-order-edge", "teal!70!black", "diamond*"),
+)
+_VARY_METHOD_IDS = ("aco", "heuristic")
+
+
+def _method_style(method_id):
+    for mid, legend, color, mark in _SWEEP_METHODS:
+        if mid == method_id:
+            return legend, color, mark
+    label = method_id.replace("-", " ").replace("_", " ").title()
+    return label, "black", "otimes*"
+
+
+def _extra_ids(by_label):
+    """Method ids joined from the sweep files, in display order."""
+    found = []
+    seen = set()
+    for rows in by_label.values():
+        for row in rows.values():
+            for mid in row.get("extra_runs") or {}:
+                if mid in seen or mid in _VARY_METHOD_IDS:
+                    continue
+                seen.add(mid)
+                found.append(mid)
+    preferred = [mid for mid, *_rest in _SWEEP_METHODS if mid not in _VARY_METHOD_IDS]
+    ordered = [mid for mid in preferred if mid in seen]
+    ordered.extend(mid for mid in found if mid not in ordered)
+    return ordered
+
+
+def _row_ready(row, extra_ids):
+    extra = row.get("extra_runs") or {}
+    return all(mid in extra for mid in extra_ids)
+
+
+def attach_method_sweep(by_label, meta, directory):
+    """
+    Join per-(k, θ) method JSON onto the vary rows.
+
+    ``directory`` holds ``k{k}t{theta}.json`` from compare-methods.
+    ACO and the θ-heuristic stay on the vary row. Other method ids are
+    stored on ``row["extra_runs"]``.
+    """
+    if not directory or not os.path.isdir(directory):
+        print(
+            f"Warning: method sweep: no directory {directory}.",
+            file=sys.stderr,
+        )
+        return
+    for label, info in meta.items():
+        k = info.get("k")
+        theta = info.get("theta")
+        if k is None or theta is None:
+            continue
+        path = os.path.join(directory, f"k{int(k)}t{int(theta)}.json")
+        if not os.path.isfile(path):
+            print(
+                f"Warning: method sweep: no file for "
+                f"{_config_label(k, theta)} ({path}).",
+                file=sys.stderr,
+            )
+            continue
+        data = load_json(path)
+        if not isinstance(data, dict):
+            print(
+                f"Warning: method sweep: could not read {path}.",
+                file=sys.stderr,
+            )
+            continue
+        by_leaf = {}
+        for item in data.get("results") or []:
+            if not isinstance(item, dict):
+                continue
+            leaf = _dataset_leaf(item.get("dataset") or "")
+            runs = item.get("runs")
+            if leaf and isinstance(runs, dict):
+                by_leaf[leaf] = runs
+        attached = 0
+        for key, row in by_label.get(label, {}).items():
+            runs = by_leaf.get(key)
+            if not isinstance(runs, dict):
+                continue
+            extra = {
+                mid: run
+                for mid, run in runs.items()
+                if mid not in _VARY_METHOD_IDS and isinstance(run, dict)
+            }
+            if not extra:
+                continue
+            row["extra_runs"] = extra
+            attached += 1
+        print(
+            f"# method sweep {label}: {attached} graph(s) from {path}",
+            file=sys.stderr,
+        )
+
+
+def _heuristic_scored(row):
+    theta = row.get("theta")
+    if not is_theta_feasible(row.get("heur_nU"), row.get("heur_nV"), theta):
+        return None
+    edges = row.get("heur_edges")
+    if edges is None:
+        return None
+    return int(edges)
+
+
+def _scores_for_row(row, method_ids):
+    theta = row.get("theta")
+    scores = {}
+    if "aco" in method_ids:
+        scores["aco"] = _aco_scored_edges(row, theta)
+    if "heuristic" in method_ids:
+        scores["heuristic"] = _heuristic_scored(row)
+    extra = row.get("extra_runs") or {}
+    for mid in method_ids:
+        if mid in _VARY_METHOD_IDS:
+            continue
+        scores[mid] = _scored_edges(extra.get(mid))
+    return scores
+
+
+def _best_rate(rows, method_id, method_ids):
+    if not rows:
+        return None
+    wins = sum(
+        1
+        for row in rows
+        if method_id in _best_methods(_scores_for_row(row, method_ids))
+    )
+    return 100.0 * wins / len(rows)
+
+
+def _complete_sweep(by_label, selected, extra_ids):
+    """Suites where every vary row has every extra method, plus the rest."""
+    usable = []
+    skipped = []
+    for lab, info in selected:
+        rows = by_label.get(lab, {})
+        if rows and all(_row_ready(row, extra_ids) for row in rows.values()):
+            usable.append((lab, info))
+            continue
+        if info.get("k") is None:
+            skipped.append(lab)
+        else:
+            skipped.append(_config_label(info["k"], info["theta"]))
+    return usable, skipped
+
+
+def _method_sweep_series(by_label, meta, extra_ids, *, axis, fixed_value=None):
+    """
+    One point sequence per method, or None when this axis is not ready.
+
+    A suite counts only when every graph in it has the extra methods.
+    The denominator is the graphs shared by those finished suites.
+    """
+    name = "k-sweep" if axis == "k" else "theta-sweep"
+    selected, fixed = _select_sweep(meta, axis=axis, fixed_value=fixed_value)
+    if not selected:
+        return None, [rf"% {name}: no param dirs available for this sweep"]
+    usable, skipped = _complete_sweep(by_label, selected, extra_ids)
+    if len(usable) < 2:
+        return None, [
+            rf"% {name}: waiting for method-sweep files "
+            rf"({len(usable)} finished suite(s))"
+        ]
+    for where in skipped:
+        print(
+            f"Warning: win rate: {where} is missing a method-sweep "
+            "file; that point is omitted.",
+            file=sys.stderr,
+        )
+    matched = match_sweep(by_label, [lab for lab, _ in usable])
+    matched = [g for g in matched if all(
+        _row_ready(by_label[lab][g], extra_ids) for lab, _ in usable
+    )]
+    if not matched:
+        return None, [rf"% {name}: no graphs matched across finished suites"]
+
+    method_ids = list(_VARY_METHOD_IDS) + list(extra_ids)
+    points = {mid: [] for mid in method_ids}
+    for lab, info in usable:
+        rows = [by_label[lab][g] for g in matched]
+        x = float(info["k"] if axis == "k" else info["theta"])
+        for mid in method_ids:
+            rate = _best_rate(rows, mid, method_ids)
+            if rate is None:
+                continue
+            points[mid].append((x, float(rate)))
+        cells = "  ".join(
+            f"{mid}={points[mid][-1][1]:.0f}%"
+            for mid in method_ids
+            if points[mid]
+        )
+        print(
+            f"# {name} {_config_label(info['k'], info['theta'])}: "
+            f"n={len(rows)} best-or-tie  {cells}",
+            file=sys.stderr,
+        )
+    if axis == "k":
+        held = fixed if fixed is not None else 5
+        title = rf"$\theta = {int(held)}$"
+        xlabel = r"$k$"
+    else:
+        held = fixed if fixed is not None else 3
+        title = rf"$k = {int(held)}$"
+        xlabel = r"$\theta$"
+    return {
+        "points": points,
+        "methods": method_ids,
+        "title": title,
+        "xlabel": xlabel,
+    }, []
+
+
+def _method_pair_figure(by_label, meta, *, fixed_theta=None, fixed_k=None):
+    """
+    Win rate of every recorded method, or None when the sweep files
+    are not finished enough to replace the ACO-versus-θ line.
+    """
+    extra_ids = _extra_ids(by_label)
+    if not extra_ids:
+        return None
+    k_series, comments = _method_sweep_series(
+        by_label, meta, extra_ids, axis="k", fixed_value=fixed_theta
+    )
+    t_series, t_comments = _method_sweep_series(
+        by_label, meta, extra_ids, axis="theta", fixed_value=fixed_k
+    )
+    comments += t_comments
+    series = [s for s in (k_series, t_series) if s is not None]
+    if not series:
+        return None
+
+    rates = [
+        y
+        for s in series
+        for mid in s["methods"]
+        for _x, y in s["points"].get(mid, ())
+    ]
+    if not rates:
+        return None
+    ymin, ymax = _pad_axis(rates, include=50.0, floor=0.0, ceil=100.0, frac=0.08)
+    yticks = ",".join(f"{t:g}" for t in _rate_ticks(ymin, ymax))
+    lines = comments + [
+        r"\begin{center}",
+        r"\begin{tikzpicture}",
+        r"\begin{groupplot}[",
+        rf"  group style={{group size={len(series)} by 1,",
+        r"    horizontal sep=0.55cm},",
+        r"  scale only axis,",
+        r"  width=0.32\columnwidth,",
+        r"  height=0.26\columnwidth,",
+        r"  tick label style={font=\footnotesize, inner sep=1pt},",
+        r"  label style={font=\footnotesize, inner sep=1pt},",
+        r"  title style={font=\footnotesize, inner sep=1.5pt},",
+        r"  xlabel style={align=center},",
+        r"  grid=major,",
+        r"  grid style={gray!25},",
+        r"  tick align=outside,",
+        rf"  ymin={ymin:.4f},",
+        rf"  ymax={ymax:.4f},",
+        rf"  ytick={{{yticks}}},",
+        r"]",
+    ]
+    for i, s in enumerate(series):
+        xs = []
+        for mid in s["methods"]:
+            xs.extend(x for x, _y in s["points"].get(mid, ()))
+        if not xs:
+            continue
+        xmin, xmax = _pad_axis(xs, frac=0.18)
+        xtick = ",".join(_tick_label(x) for x in sorted(set(xs)))
+        lines += [
+            r"\nextgroupplot[",
+            rf"  xlabel={{{s['xlabel']}}},",
+            rf"  title={{{s['title']}}},",
+            rf"  xmin={xmin:g},",
+            rf"  xmax={xmax:g},",
+            rf"  xtick={{{xtick}}},",
+        ]
+        if i == 0:
+            lines += [
+                r"  legend to name=sweepWin,",
+                r"  legend columns=2,",
+                r"  legend cell align=left,",
+                r"  legend style={",
+                r"    draw=none, fill=none, font=\footnotesize,",
+                r"    inner sep=1pt,",
+                r"    /tikz/every even column/.append style={column sep=0.7em}},",
+            ]
+        else:
+            lines.append(r"  yticklabels={},")
+        lines.append(r"]")
+        for mid in s["methods"]:
+            pts = s["points"].get(mid) or []
+            if not pts:
+                continue
+            legend, color, mark = _method_style(mid)
+            coords = " ".join(f"({x:g},{y:.4f})" for x, y in pts)
+            lines.append(
+                rf"\addplot[solid, thick, mark={{{mark}}}, mark size=1.3pt, "
+                rf"color={{{color}}}] coordinates {{{coords}}};"
+            )
+            if i == 0:
+                lines.append(rf"\addlegendentry{{{legend}}}")
+        lines.append(
+            rf"\draw[dashed, gray] (axis cs:{xmin:g},50) -- "
+            rf"(axis cs:{xmax:g},50);"
+        )
+    lines += [
+        r"\end{groupplot}",
+        r"\path (group c1r1.west)",
+        r"  node[xshift=-30pt, rotate=90, anchor=center,",
+        r"       font=\footnotesize, inner sep=0pt]",
+        r"  {Win rate (\%)};",
+        r"\node[anchor=north, inner sep=0pt]",
+        r"  at ([yshift=-2pt]current bounding box.south)",
+        r"  {\pgfplotslegendfromname{sweepWin}};",
+        r"\end{tikzpicture}",
+        r"\end{center}",
+    ]
+    return lines
+
+
 def _pad_axis(values, *, include=None, floor=None, ceil=None, frac=0.12):
     """Pad a numeric axis the way the quality line plots do."""
     vals = [float(v) for v in values]
@@ -327,7 +680,15 @@ def _sweep_pair_figure(by_label, meta, *, fixed_theta=None, fixed_k=None):
     resized, so the pair stays short enough to sit with its paragraph.
     The right panel shares the left y scale and hides its tick labels.
     There is no caption: the surrounding prose names both panels.
+
+    When method-sweep files are finished, the pair is one line per
+    method instead of the ACO-versus-θ rate.
     """
+    multi = _method_pair_figure(
+        by_label, meta, fixed_theta=fixed_theta, fixed_k=fixed_k
+    )
+    if multi is not None:
+        return multi
     k_series, comments = _sweep_series(
         by_label, meta, axis="k", fixed_value=fixed_theta
     )
@@ -439,8 +800,9 @@ def _sweep_observations(by_label, selected, *, axis):
 
 
 def _obs_sort_key(ob):
-    """Stable order so equal densities always fall in the same bin."""
-    return (ob["density"], ob["graph"], ob["k"], ob["theta"])
+    """Stable order so equal bin values always fall in the same third."""
+    primary = ob["bin"] if "bin" in ob else ob["density"]
+    return (primary, ob["graph"], ob["k"], ob["theta"])
 
 
 def _split_equal_count(obs, n_bins):
@@ -693,7 +1055,14 @@ _RUNTIME_PANELS = 4
 
 
 def _positive_time(row, key):
-    value = row.get(key)
+    if isinstance(key, tuple):
+        kind, mid = key
+        if kind != "extra":
+            return None
+        run = (row.get("extra_runs") or {}).get(mid)
+        value = run.get("wall_time_s") if isinstance(run, dict) else None
+    else:
+        value = row.get(key)
     if value is None:
         return None
     value = float(value)
@@ -894,7 +1263,27 @@ def _half_series(resolved, axis):
     return series
 
 
-def _panel_xs(by_label, series, graph):
+def _runtime_specs(by_label):
+    """ACO, the θ-heuristic, then every extra method that has a time."""
+    specs = [dict(item) for item in _RUNTIME_SERIES]
+    present = set()
+    for rows in by_label.values():
+        for row in rows.values():
+            for mid in row.get("extra_runs") or {}:
+                if _positive_time(row, ("extra", mid)) is not None:
+                    present.add(mid)
+    preferred = [
+        mid for mid, *_rest in _SWEEP_METHODS if mid not in _VARY_METHOD_IDS
+    ]
+    ordered = [mid for mid in preferred if mid in present]
+    ordered.extend(sorted(mid for mid in present if mid not in ordered))
+    for mid in ordered:
+        legend, _color, mark = _method_style(mid)
+        specs.append({"legend": legend, "key": ("extra", mid), "mark": mark})
+    return specs
+
+
+def _panel_xs(by_label, series, graph, specs):
     """Swept values this graph can actually plot, across every series."""
     xs = set()
     for s in series:
@@ -904,7 +1293,7 @@ def _panel_xs(by_label, series, graph):
                 continue
             if any(
                 _positive_time(row, spec["key"]) is not None
-                for spec in _RUNTIME_SERIES
+                for spec in specs
             ):
                 xs.add(x)
     return sorted(xs)
@@ -916,10 +1305,10 @@ def _legend_entry(spec, series):
 
 
 def _multi_series_panel(
-    by_label, series, graph, *, xlabel, with_ylabel, legend_name=None,
+    by_label, series, graph, specs, *, xlabel, with_ylabel, legend_name=None,
 ):
-    """One instance: every sweep on this axis, ACO and the θ-heuristic."""
-    xs = _panel_xs(by_label, series, graph)
+    """One instance: every sweep on this axis, one marker per method."""
+    xs = _panel_xs(by_label, series, graph, specs)
     if not xs:
         return None
     lines = [r"\nextgroupplot["]
@@ -950,7 +1339,7 @@ def _multi_series_panel(
     drew = False
     for s in series:
         color = s["color"]
-        for spec in _RUNTIME_SERIES:
+        for spec in specs:
             pts = []
             for x, lab in s["pairs"]:
                 row = by_label.get(lab, {}).get(graph)
@@ -963,7 +1352,9 @@ def _multi_series_panel(
             if not pts:
                 continue
             drew = True
-            dashed = "" if spec["key"] == "aco_time" else "dashed, "
+            # Two methods stay solid ACO / dashed θ-heuristic. More
+            # methods are all solid; the marker names the method.
+            dashed = "" if len(specs) > 2 or spec["key"] == "aco_time" else "dashed, "
             lines.append(
                 rf"  \addplot[{dashed}semithick, mark={spec['mark']}, "
                 rf"mark size=1.6pt, color={color}, "
@@ -979,7 +1370,7 @@ def _multi_series_panel(
     return lines
 
 
-def _runtime_half(by_label, series, instances, *, xlabel, legend_name):
+def _runtime_half(by_label, series, instances, specs, *, xlabel, legend_name):
     """One 2×2 group: four instances, sweeps on ``series``."""
     lines = begin_tikz(resize=False)
     for s in series:
@@ -1019,6 +1410,7 @@ def _runtime_half(by_label, series, instances, *, xlabel, legend_name):
             by_label,
             series,
             graph,
+            specs,
             xlabel=xlabel,
             with_ylabel=(i % 2 == 0),
             legend_name=None if legend_open else legend_name,
@@ -1077,6 +1469,7 @@ def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None,
     instances = _pick_runtime_instances(by_label, chosen)
     if not instances:
         return [r"% param-runtime: no instance finished every plotted suite"]
+    specs = _runtime_specs(by_label)
 
     halves = []
     if _half_series(resolved, "k"):
@@ -1094,6 +1487,7 @@ def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None,
             by_label,
             series,
             instances,
+            specs,
             xlabel=xlabel,
             legend_name="paramRuntimeK" if axis == "k" else "paramRuntimeTheta",
         )
@@ -1114,9 +1508,289 @@ def param_runtime_figure(by_label, meta, *, fixed_theta=None, fixed_k=None,
     return lines
 
 
+# Same order and colors as the k / θ win-rate lines.
+
+
+def _dataset_leaf(label):
+    return str(label).replace("\\", "/").split("/")[-1].removesuffix("_ants")
+
+
+def _scored_edges(run):
+    """θ-feasible, k-valid edge count, or None when that run does not count."""
+    if not isinstance(run, dict) or run.get("status") == "error":
+        return None
+    if run.get("k_valid", True) is False:
+        return None
+    if run.get("theta_feasible") is not True:
+        return None
+    edges = run.get("final_edges")
+    if edges is None:
+        return None
+    return int(edges)
+
+
+def _aco_scored_edges(row, theta):
+    if row.get("aco_edges") is None:
+        return None
+    if not is_theta_feasible(row.get("aco_nU"), row.get("aco_nV"), theta):
+        return None
+    return int(row["aco_edges"])
+
+
+def _best_methods(scores):
+    """Method ids that match the best θ-feasible edge count. Ties all count."""
+    ranked = [(method, score) for method, score in scores.items() if score is not None]
+    if not ranked:
+        return []
+    best = max(score for _, score in ranked)
+    return [method for method, score in ranked if score == best]
+
+
+def _node_count(item):
+    """Original bipartition size |U|+|V| stored on a comparison row."""
+    n_u = item.get("nU")
+    n_v = item.get("nV")
+    if n_u is None or n_v is None:
+        return None
+    return int(n_u) + int(n_v)
+
+
+def _method_compare_rows(named_rows, data):
+    """
+    Graphs present in both the vary rows and the multi-method comparison.
+
+    ``density`` is the reduced density on the comparison file. ``nodes``
+    is |U|+|V| on that same file. ACO edges come from the vary row at
+    the ant count already selected upstream.
+    """
+    aco_by_leaf = {}
+    for _name, row in named_rows:
+        dataset = row.get("dataset")
+        if not dataset:
+            continue
+        aco_by_leaf[_dataset_leaf(dataset)] = row
+
+    theta = data.get("theta")
+    results = data.get("results") if isinstance(data.get("results"), list) else []
+    rows = []
+    missing_aco = []
+    density_mismatch = 0
+    for item in results:
+        if not isinstance(item, dict) or "dataset" not in item:
+            continue
+        leaf = _dataset_leaf(item["dataset"])
+        aco = aco_by_leaf.get(leaf)
+        if aco is None:
+            missing_aco.append(leaf)
+            continue
+        if aco.get("aco_timed_out"):
+            print(
+                f"Warning: method compare: skip {leaf}; ACO timed out.",
+                file=sys.stderr,
+            )
+            continue
+        density = item.get("reduced_density")
+        if density is not None:
+            density = float(density)
+            aco_density = reduced_edge_density(aco)
+            if (
+                density > 0
+                and aco_density is not None
+                and abs(aco_density - density) > 1e-3
+            ):
+                density_mismatch += 1
+        nodes = _node_count(item)
+        runs = item.get("runs") if isinstance(item.get("runs"), dict) else {}
+        scores = {"aco": _aco_scored_edges(aco, theta)}
+        for method_id, _label, _color, _mark in _SWEEP_METHODS:
+            if method_id == "aco":
+                continue
+            scores[method_id] = _scored_edges(runs.get(method_id))
+        rows.append({
+            "graph": leaf,
+            "density": density,
+            "nodes": nodes,
+            "k": 0.0,
+            "theta": 0.0,
+            "scores": scores,
+        })
+    if missing_aco:
+        print(
+            "# method compare: no ACO trial for "
+            + ", ".join(sorted(missing_aco)),
+            file=sys.stderr,
+        )
+    if density_mismatch:
+        print(
+            "# method compare: reduced density differs on "
+            f"{density_mismatch} graph(s) between the ACO suite and "
+            "the comparison file (ACO is the injected ant-count run).",
+            file=sys.stderr,
+        )
+    return rows, theta
+
+
+def _kt_tex(data, theta):
+    k = data.get("k")
+    if isinstance(k, (int, float)) and float(k) == int(k):
+        k_tex = str(int(k))
+    else:
+        k_tex = "2"
+    if isinstance(theta, (int, float)) and float(theta) == int(theta):
+        theta_tex = str(int(theta))
+    else:
+        theta_tex = "5"
+    return k_tex, theta_tex
+
+
+def _method_win_figure(named_rows, data, *, bin_key, tag, axis_phrase, label):
+    """
+    One-column grouped bars: win rate in equal-count thirds of ``bin_key``.
+
+    A method counts on a graph when its θ-feasible edge count matches
+    the best one there. Ties count for every matching method.
+    """
+    if not isinstance(data, dict) or not data.get("results"):
+        return [rf"% {tag}: no comparison file"]
+    if not named_rows:
+        return [rf"% {tag}: no ACO vary rows"]
+
+    rows, theta = _method_compare_rows(named_rows, data)
+    obs = []
+    for row in rows:
+        value = row.get(bin_key)
+        if value is None:
+            print(
+                f"Warning: {tag}: {row['graph']} has no {bin_key}.",
+                file=sys.stderr,
+            )
+            continue
+        value = float(value)
+        if value <= 0:
+            continue
+        ob = dict(row)
+        ob["bin"] = value
+        obs.append(ob)
+    chunks = _split_equal_count(obs, _N_TERTILES)
+    if len(chunks) < _N_TERTILES or any(len(c) < 3 for c in chunks):
+        print(
+            f"Warning: {tag}: not enough graphs for thirds (n={len(obs)}).",
+            file=sys.stderr,
+        )
+        return [rf"% {tag}: not enough graphs"]
+
+    names = _TERTILE_NAMES
+    rates = {method_id: {} for method_id, _label, _color, _mark in _SWEEP_METHODS}
+    print(
+        f"# {tag}: best-or-tie rate by third (low / mid / high)",
+        file=sys.stderr,
+    )
+    for index, chunk in enumerate(chunks):
+        wins = Counter()
+        for ob in chunk:
+            for winner in _best_methods(ob["scores"]):
+                wins[winner] += 1
+        values = [ob["bin"] for ob in chunk]
+        if bin_key == "nodes":
+            span = f"n=[{int(min(values))},{int(max(values))}]"
+        else:
+            span = (
+                f"den=[{_density_tick(min(values))},"
+                f"{_density_tick(max(values))}]"
+            )
+        cells = []
+        for method_id, _label, _color, _mark in _SWEEP_METHODS:
+            rate = wins[method_id] / len(chunk)
+            rates[method_id][names[index]] = rate
+            cells.append(f"{method_id}={100.0 * rate:.0f}%")
+        print(
+            f"#   {names[index]} n={len(chunk)} {span} " + "  ".join(cells),
+            file=sys.stderr,
+        )
+
+    k_tex, theta_tex = _kt_tex(data, theta)
+    env, lines = begin_float("figure", star=False)
+    lines += begin_tikz()
+    lines += [
+        r"  \begin{axis}[",
+        rf"    width={COLUMN_WIDTH},",
+        r"    height=0.48\columnwidth,",
+        r"    ybar,",
+        r"    bar width=6.5pt,",
+        r"    ylabel={Win rate (\%)},",
+        r"    ylabel style={font=\scriptsize},",
+        r"    ymin=0,",
+        r"    ymax=100,",
+        r"    ytick={0,50,100},",
+        r"    ymajorgrids=true,",
+        r"    xmajorgrids=false,",
+        r"    grid style={gray!25},",
+        r"    tick label style={font=\scriptsize},",
+        r"    symbolic x coords={low,mid,high},",
+        r"    xtick=data,",
+        r"    enlarge x limits=0.28,",
+        r"    legend style={",
+        r"      at={(0.5,-0.16)}, anchor=north, legend columns=2,",
+        r"      font=\scriptsize, draw=none, fill=none,",
+        r"      inner sep=1pt,",
+        r"      /tikz/every even column/.append style={column sep=0.9em}},",
+        r"    legend cell align=left,",
+        r"  ]",
+    ]
+    for method_id, legend, color, _mark in _SWEEP_METHODS:
+        coords = " ".join(
+            f"({name},{100.0 * rates[method_id][name]:.4g})" for name in names
+        )
+        lines.append(
+            rf"  \addplot[fill={color}, draw=black!55] coordinates {{{coords}}};"
+        )
+        lines.append(rf"  \addlegendentry{{{legend}}}")
+    lines += [
+        r"  \draw[dashed, gray] (rel axis cs:0,0.5) -- (rel axis cs:1,0.5);",
+        r"  \end{axis}",
+    ]
+    lines += end_tikz()
+    lines += [
+        r"  \caption{Share of graphs on which each method matches the "
+        rf"best $\theta$-feasible edge count, by {axis_phrase} "
+        rf"($k={k_tex}$, $\theta={theta_tex}$). "
+        r"A tie counts for every method that matches. "
+        r"ACO is the injected 100-ant run; the other methods are uninjected.}",
+        rf"  \label{{{label}}}",
+    ]
+    lines += end_float(env)
+    return lines
+
+
+def method_density_figure(named_rows, data):
+    """Win rate by reduced-density third for each recorded method."""
+    return _method_win_figure(
+        named_rows,
+        data,
+        bin_key="density",
+        tag="method-density",
+        axis_phrase="reduced-density third",
+        label="fig:method-density",
+    )
+
+
+def method_size_figure(named_rows, data):
+    """Win rate by |U|+|V| third for each recorded method."""
+    return _method_win_figure(
+        named_rows,
+        data,
+        bin_key="nodes",
+        tag="method-size",
+        axis_phrase=r"third of $|U|+|V|$",
+        label="fig:method-size",
+    )
+
+
 BUILDERS = {
     "k-sweep": k_sweep_figure,
     "theta-sweep": theta_sweep_figure,
     "density-wins": density_wins_figure,
+    "method-density": method_density_figure,
+    "method-size": method_size_figure,
     "param-runtime": param_runtime_figure,
 }

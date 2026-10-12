@@ -1,0 +1,74 @@
+{
+  "name": "metrics_budget_probe",
+  "output": "results/metrics/probe.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "inject": true,
+  "jit_warmup": true,
+  "skip_completed": true,
+  "datasets": [
+    "konect-small/facebook",
+    "konect-small/edit-vewiki",
+    "konect-small/edit-wowiktionary",
+    "konect/dimacs-polblogs"
+  ],
+  "methods": [
+    {
+      "id": "clique-order-edge",
+      "method": "clique-order-edge",
+      "label": "Clique-edge",
+      "replicates": 1
+    },
+    {
+      "id": "aco-a100-t5-8",
+      "method": "aco",
+      "label": "ACO A100 T5 8thr",
+      "replicates": 1,
+      "params": {"ants": 100, "iterations": 5, "parallelize": true}
+    },
+    {
+      "id": "aco-a100-t5-1",
+      "method": "aco",
+      "label": "ACO A100 T5 1thr",
+      "replicates": 1,
+      "params": {"ants": 100, "iterations": 5, "parallelize": false}
+    },
+    {
+      "id": "aco-a100-t1-8",
+      "method": "aco",
+      "label": "ACO A100 T1 8thr",
+      "replicates": 1,
+      "params": {"ants": 100, "iterations": 1, "parallelize": true}
+    },
+    {
+      "id": "aco-a50-t1-8",
+      "method": "aco",
+      "label": "ACO A50 T1 8thr",
+      "replicates": 1,
+      "params": {"ants": 50, "iterations": 1, "parallelize": true}
+    },
+    {
+      "id": "aco-a20-t1-8",
+      "method": "aco",
+      "label": "ACO A20 T1 8thr",
+      "replicates": 1,
+      "params": {"ants": 20, "iterations": 1, "parallelize": true}
+    },
+    {
+      "id": "aco-a10-t1-8",
+      "method": "aco",
+      "label": "ACO A10 T1 8thr",
+      "replicates": 1,
+      "params": {"ants": 10, "iterations": 1, "parallelize": true}
+    },
+    {
+      "id": "aco-a5-t1-8",
+      "method": "aco",
+      "label": "ACO A5 T1 8thr",
+      "replicates": 1,
+      "params": {"ants": 5, "iterations": 1, "parallelize": true}
+    }
+  ]
+}

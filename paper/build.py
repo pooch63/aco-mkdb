@@ -35,7 +35,8 @@ that path + "N"). Falls back to vary_base if missing_at_base is omitted.
 STATISTICS pivot-tested / pivot-excluded fields use compare_dir (compare-seeds
 JSON) together with the vary input directory.
 COMPARE k-sweep / theta-sweep / density-wins / param-runtime use param_dirs
-(labeled vary_* suites).
+(labeled vary_* suites). method-density also reads method_results, a
+compare-methods JSON, and the primary vary directory for ACO.
 METHODS:<dir> reads load.jl --benchmark JSON from results_dir/<dir>; the
 fragment's "methods" list sets column order (first = focal method).
 """
@@ -73,6 +74,14 @@ COMPARE_PARAM_PLOTS = frozenset(
         "k-sweep",
         "theta-sweep",
         "density-wins",
+        "param-runtime",
+    }
+)
+# Win-rate and runtime sweeps that join extra methods from method_sweep_dir.
+METHOD_SWEEP_PLOTS = frozenset(
+    {
+        "k-sweep",
+        "theta-sweep",
         "param-runtime",
     }
 )
@@ -123,6 +132,7 @@ EMIT_MODE_SOURCES: dict[str, tuple[Path, ...]] = {
     "ablation": (EMIT_DIR / "ablation.py",),
     "reduce": (EMIT_DIR / "reduce.py",),
     "heuristics": (EMIT_DIR / "heuristics.py",),
+    "metrics": (EMIT_DIR / "metrics.py",),
     "epoch-table": (
         EMIT_DIR / "epoch_table.py",
         EMIT_DIR / "compare" / "budget_curves.py",
@@ -154,6 +164,8 @@ COMPARE_PLOT_SOURCES: dict[str, Path] = {
     "k-sweep": EMIT_DIR / "compare" / "param_sweep.py",
     "theta-sweep": EMIT_DIR / "compare" / "param_sweep.py",
     "density-wins": EMIT_DIR / "compare" / "param_sweep.py",
+    "method-density": EMIT_DIR / "compare" / "param_sweep.py",
+    "method-size": EMIT_DIR / "compare" / "param_sweep.py",
     "param-runtime": EMIT_DIR / "compare" / "param_sweep.py",
 }
 
@@ -245,7 +257,7 @@ def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> P
     if name == "METHODS" and args:
         directory, _subset = parse_table_args(args)
         return resolve_results_path(cfg, directory)
-    if name == "REDUCE" and args == "sweep":
+    if name == "REDUCE" and (not args or args == "sweep"):
         sweep = frag.get("sweep") or "reduce_sweep"
         return resolve_results_path(cfg, sweep)
     if name == "TABLE":
@@ -349,6 +361,18 @@ def fragment_emit_source_deps(
     return deps
 
 
+def heuristics_param_dirs(cfg: dict, frag: dict) -> dict:
+    """Vary suites joined onto each method-sweep table.
+
+    A fragment-level ``param_dirs`` wins. Otherwise use the compare
+    sweep list, which is the paper's $(k, \\theta)$ suite map.
+    """
+    if frag.get("param_dirs"):
+        return frag["param_dirs"]
+    compare = (cfg.get("fragments") or {}).get("COMPARE") or {}
+    return compare.get("param_dirs") or {}
+
+
 def fragment_dep_paths(
     cfg: dict,
     name: str,
@@ -368,20 +392,27 @@ def fragment_dep_paths(
         if plot_names & COMPARE_PARAM_PLOTS and frag.get("param_dirs"):
             for path in frag["param_dirs"].values():
                 deps.append(resolve_results_path(cfg, path))
+        if frag.get("method_sweep_dir") and plot_names & METHOD_SWEEP_PLOTS:
+            sweep_path = resolve_results_path(cfg, frag["method_sweep_dir"])
+            if sweep_path.exists():
+                deps.append(sweep_path)
         if plot_names & COMPARE_BUDGET_PLOTS and frag.get("ablation_dirs"):
             for path in frag["ablation_dirs"].values():
                 deps.append(resolve_results_path(cfg, path))
-        # Complexity / budget plots read the primary vary directory.
         if plot_names - (COMPARE_FLAG_PLOTS | COMPARE_PARAM_PLOTS):
             deps.append(fragment_input_path(cfg, name, frag, args))
+        if {"method-density", "method-size"} & plot_names and frag.get("method_results"):
+            deps.append(resolve_results_path(cfg, frag["method_results"]))
     else:
         deps.append(fragment_input_path(cfg, name, frag, args))
-        if name == "REDUCE" and args == "sweep":
+        if name == "REDUCE":
             deps.append(REPO_ROOT / "scripts" / "kt-sweep.bash")
-        if name == "QUALITY" and frag.get("ablation_dirs"):
+            if not args and frag.get("input"):
+                deps.append(resolve_results_path(cfg, frag["input"]))
+        if name == "QUALITY" and args == "sweeps" and frag.get("ablation_dirs"):
             for path in frag["ablation_dirs"].values():
                 deps.append(resolve_results_path(cfg, path))
-        if name == "QUALITY" and frag.get("budget_dir"):
+        elif name == "QUALITY" and frag.get("budget_dir"):
             deps.append(resolve_results_path(cfg, frag["budget_dir"]))
         if frag.get("flag_dirs"):
             for path in frag["flag_dirs"].values():
@@ -392,6 +423,9 @@ def fragment_dep_paths(
 
     if frag.get("vary_dir"):
         deps.append(resolve_results_path(cfg, frag["vary_dir"]))
+    if name == "HEURISTICS":
+        for path in heuristics_param_dirs(cfg, frag).values():
+            deps.append(resolve_results_path(cfg, path))
 
     if name == "STATISTICS" and args in STATISTICS_MISSING_AT_FIELDS:
         missing_at_base = (
@@ -409,6 +443,8 @@ def fragment_dep_paths(
         compare_dir = frag.get("compare_dir") or cfg.get("compare_dir")
         if compare_dir:
             deps.append(resolve_results_path(cfg, compare_dir))
+    if name == "METRICS" and frag.get("compare_dir"):
+        deps.append(resolve_results_path(cfg, frag["compare_dir"]))
 
     # Deduplicate while preserving order.
     seen: set[Path] = set()
@@ -474,12 +510,12 @@ def build_emit_job(
     max_repl = frag.get("max_replicates", cfg.get("max_replicates"))
     if max_repl is not None:
         cmd.append(f"--max-replicates={int(max_repl)}")
-    if name == "QUALITY" and frag.get("ablation_dirs"):
+    if name == "QUALITY" and args == "sweeps" and frag.get("ablation_dirs"):
         for label, path in frag["ablation_dirs"].items():
             cmd.append(
                 f"--ablation-dir={label}={resolve_results_path(cfg, path)}"
             )
-    if name == "QUALITY" and frag.get("budget_dir"):
+    if name == "QUALITY" and args != "sweeps" and frag.get("budget_dir"):
         cmd.append(
             f"--budget-dir={resolve_results_path(cfg, frag['budget_dir'])}"
         )
@@ -488,10 +524,27 @@ def build_emit_job(
             cmd.append(
                 f"--flag-dir={label}={resolve_results_path(cfg, path)}"
             )
-    if frag.get("param_dirs"):
-        for label, path in frag["param_dirs"].items():
+    param_dirs = frag.get("param_dirs")
+    if name == "HEURISTICS" and not param_dirs:
+        param_dirs = heuristics_param_dirs(cfg, frag)
+    if param_dirs:
+        for label, path in param_dirs.items():
             cmd.append(
                 f"--param-dir={label}={resolve_results_path(cfg, path)}"
+            )
+    if name == "COMPARE" and frag.get("method_results") and (
+        args is None
+        or {"method-density", "method-size"} & {p.strip() for p in str(args).split(",")}
+    ):
+        cmd.append(
+            f"--method-results={resolve_results_path(cfg, frag['method_results'])}"
+        )
+    if name == "COMPARE" and frag.get("method_sweep_dir"):
+        sweep_plots = {p.strip() for p in str(args or "").split(",") if p.strip()}
+        if not sweep_plots or sweep_plots & METHOD_SWEEP_PLOTS:
+            cmd.append(
+                "--method-sweep-dir="
+                + str(resolve_results_path(cfg, frag["method_sweep_dir"]))
             )
     if name == "COMPARE" and frag.get("runtime_sweeps"):
         for spec in frag["runtime_sweeps"].get("k") or []:
@@ -505,6 +558,10 @@ def build_emit_job(
             cmd.append(
                 f"--trace-dir={label}={resolve_results_path(cfg, path)}"
             )
+    if name == "REDUCE" and not args and frag.get("input"):
+        extra = resolve_results_path(cfg, frag["input"])
+        if extra.is_file() and extra != input_path:
+            cmd.append(f"--also={extra}")
     if name == "STATISTICS" and args:
         cmd.append(f"--field={args}")
     if name == "ABLATION" and args:
@@ -526,6 +583,10 @@ def build_emit_job(
             cmd.append(
                 f"--compare-dir={resolve_results_path(cfg, compare_dir)}"
             )
+    if name == "METRICS" and frag.get("compare_dir"):
+        cmd.append(
+            f"--compare-dir={resolve_results_path(cfg, frag['compare_dir'])}"
+        )
 
     label = name if not args else f"{name}:{args}"
     return EmitJob(

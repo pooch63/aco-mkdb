@@ -1,0 +1,1983 @@
+Multi compare: 37 graph(s), 2 methods, reference=double-greedy  → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+JIT warmup (discarded): konect-small/moreno
+Graph edges: 2277
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [203, 293, 343, 565, 712, 842, 851]
+  planted V: [62, 388, 440, 735, 888, 962, 1241]
+  reserved missing: [(343, 888), (343, 962), (565, 1241)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/moreno  |E|=2323  nU=888 nV=1597
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.81 KiB  (5952 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0002s
+  time_to_best_s               —
+  allocated_bytes              125.67 KiB  (128688 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+[1/37] konect-small/moreno  (|E|=2277)
+Graph edges: 2277
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [203, 293, 343, 565, 712, 842, 851]
+  planted V: [62, 388, 440, 735, 888, 962, 1241]
+  reserved missing: [(343, 888), (343, 962), (565, 1241)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/moreno  |E|=2323  nU=888 nV=1597
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.81 KiB  (5952 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0002s
+  time_to_best_s               —
+  allocated_bytes              125.67 KiB  (128688 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[2/37] konect-small/facebook  (|E|=2981)
+Graph edges: 2981
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [2, 11, 18, 20, 24, 26, 28]
+  planted V: [287, 382, 675, 1510, 1876, 1957, 2517]
+  reserved missing: [(2, 1957), (20, 287), (26, 1510)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/facebook  |E|=3027  nU=28 nV=2885
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.83 KiB  (5968 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0002s
+  time_to_best_s               —
+  allocated_bytes              136.27 KiB  (139544 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[3/37] konect-small/maayan-vidal  (|E|=6726)
+Graph edges: 6726
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [592, 634, 661, 872, 1123, 1322, 1391]
+  planted V: [658, 786, 852, 1067, 1280, 1563, 2215]
+  reserved missing: [(634, 658), (661, 1563), (661, 2215)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/maayan-vidal  |E|=6772  nU=1633 nV=2929
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=15 nV=15 |E_R|=78 (density=0.3467)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              8.27 KiB  (8464 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0002s
+  time_to_best_s               —
+  allocated_bytes              168.3 KiB  (172336 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[4/37] konect-small/edit-zuwiktionary  (|E|=7532)
+Graph edges: 7532
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [38, 60, 107, 137, 152, 156, 182]
+  planted V: [29, 289, 297, 487, 758, 828, 1129]
+  reserved missing: [(38, 297), (107, 758), (137, 297)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-zuwiktionary  |E|=7578  nU=214 nV=1404
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=33 nV=468 |E_R|=2870 (density=0.1858)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0023s
+  time_to_best_s               —
+  allocated_bytes              4.04 MiB  (4238520 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=25 edges=172 missing=3 (k=3)
+  final_edges                  172
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=172  θ-feasible=true  time=0.002s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0042s
+  time_to_best_s               —
+  allocated_bytes              1.77 MiB  (1857768 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=8 edges=53 missing=3 (k=3)
+  final_edges                  53
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=53  θ-feasible=true  time=0.004s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[5/37] konect-small/edit-srwikiquote  (|E|=8672)
+Graph edges: 8672
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [36, 114, 169, 191, 340, 371, 375]
+  planted V: [263, 311, 652, 1229, 1235, 1336, 1649]
+  reserved missing: [(191, 263), (191, 311), (371, 311)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-srwikiquote  |E|=8718  nU=402 nV=1823
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=52 nV=292 |E_R|=2160 (density=0.1423)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0016s
+  time_to_best_s               —
+  allocated_bytes              4.01 MiB  (4208968 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.002s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0032s
+  time_to_best_s               —
+  allocated_bytes              1.56 MiB  (1634344 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=0 |V|=0 edges=0 missing=0 (k=3)
+  final_edges                  0
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  clique-order-edge edges=0  θ-feasible=false  time=0.003s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[6/37] konect-small/edit-vewiki  (|E|=11047)
+Graph edges: 11047
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [11, 72, 124, 202, 270, 483, 503]
+  planted V: [281, 835, 905, 1186, 1216, 1311, 1521]
+  reserved missing: [(124, 1216), (270, 281), (483, 1311)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-vewiki  |E|=11093  nU=543 nV=1532
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=98 nV=234 |E_R|=3241 (density=0.1413)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0038s
+  time_to_best_s               —
+  allocated_bytes              10.56 MiB  (11068520 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=60 edges=417 missing=3 (k=3)
+  final_edges                  417
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=417  θ-feasible=true  time=0.004s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0067s
+  time_to_best_s               —
+  allocated_bytes              2.98 MiB  (3129232 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=60 edges=417 missing=3 (k=3)
+  final_edges                  417
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=417  θ-feasible=true  time=0.007s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[7/37] konect-small/edit-guwikiquote  (|E|=11364)
+Graph edges: 11364
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [26, 453, 507, 635, 848, 892, 921]
+  planted V: [360, 401, 500, 640, 1212, 1398, 1587]
+  reserved missing: [(26, 401), (892, 1398), (921, 360)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-guwikiquote  |E|=11410  nU=963 nV=1678
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=88 nV=402 |E_R|=2411 (density=0.0682)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0035s
+  time_to_best_s               —
+  allocated_bytes              8.98 MiB  (9413056 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=6 |V|=9 edges=51 missing=3 (k=3)
+  final_edges                  51
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=51  θ-feasible=false  time=0.003s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0042s
+  time_to_best_s               —
+  allocated_bytes              2.14 MiB  (2246600 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.004s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[8/37] konect-small/dnc-corecipient  (|E|=12085)
+Graph edges: 12085
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [163, 221, 257, 361, 505, 572, 584]
+  planted V: [119, 170, 185, 485, 504, 552, 588]
+  reserved missing: [(257, 170), (257, 485), (361, 504)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/dnc-corecipient  |E|=12131  nU=653 nV=714
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=344 nV=326 |E_R|=11063 (density=0.0986)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0112s
+  time_to_best_s               —
+  allocated_bytes              31.36 MiB  (32886616 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=83 edges=578 missing=3 (k=3)
+  final_edges                  578
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=578  θ-feasible=true  time=0.011s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.1085s
+  time_to_best_s               —
+  allocated_bytes              31.62 MiB  (33152304 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=65 |V|=9 edges=582 missing=3 (k=3)
+  final_edges                  582
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=582  θ-feasible=true  time=0.109s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[9/37] konect-small/moreno_health  (|E|=12969)
+Graph edges: 12969
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [55, 135, 324, 387, 728, 2029, 2257]
+  planted V: [402, 919, 981, 994, 1440, 1987, 2183]
+  reserved missing: [(135, 1440), (2029, 994), (2029, 2183)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/moreno_health  |E|=13015  nU=2313 nV=2441
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=41 nV=30 |E_R|=221 (density=0.1797)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0001s
+  time_to_best_s               —
+  allocated_bytes              241.44 KiB  (247232 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=6 edges=39 missing=3 (k=3)
+  final_edges                  39
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=39  θ-feasible=false  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0003s
+  time_to_best_s               —
+  allocated_bytes              291.99 KiB  (299000 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[10/37] konect-small/edit-mkwikisource  (|E|=13801)
+Graph edges: 13801
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [1, 39, 57, 60, 102, 110, 138]
+  planted V: [97, 200, 1180, 2551, 3847, 5318, 5839]
+  reserved missing: [(60, 5318), (102, 5318), (138, 5839)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-mkwikisource  |E|=13847  nU=218 nV=6635
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=12 nV=19 |E_R|=100 (density=0.4386)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0001s
+  time_to_best_s               —
+  allocated_bytes              94.02 KiB  (96272 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=4 |V|=10 edges=37 missing=3 (k=3)
+  final_edges                  37
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=37  θ-feasible=false  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0002s
+  time_to_best_s               —
+  allocated_bytes              231.35 KiB  (236904 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[11/37] konect-small/edit-mrwiktionary  (|E|=14353)
+Graph edges: 14353
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [16, 24, 49, 79, 89, 127, 225]
+  planted V: [13, 1711, 1855, 2101, 3497, 3724, 3890]
+  reserved missing: [(16, 3724), (49, 1855), (127, 1711)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-mrwiktionary  |E|=14399  nU=281 nV=3995
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=34 nV=623 |E_R|=3400 (density=0.1605)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0030s
+  time_to_best_s               —
+  allocated_bytes              6.64 MiB  (6961024 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=18 edges=123 missing=3 (k=3)
+  final_edges                  123
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=123  θ-feasible=true  time=0.003s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0048s
+  time_to_best_s               —
+  allocated_bytes              2.25 MiB  (2357304 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=13 edges=88 missing=3 (k=3)
+  final_edges                  88
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=88  θ-feasible=true  time=0.005s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[12/37] amazon/boxes  (|E|=16216)
+Graph edges: 16216
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [2793, 3022, 4439, 4671, 8838, 12338, 14043]
+  planted V: [11, 316, 540, 606, 658, 720, 735]
+  reserved missing: [(3022, 11), (4671, 720), (12338, 606)]
+
+══════════════════════════════════════════════════
+dataset=amazon/boxes  |E|=16262  nU=15237 nV=1128
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.83 KiB  (5968 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0002s
+  time_to_best_s               —
+  allocated_bytes              424.58 KiB  (434768 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[13/37] konect-small/petster-hamster  (|E|=16631)
+Graph edges: 16631
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [123, 684, 1294, 1358, 1479, 1503, 1544]
+  planted V: [194, 266, 330, 934, 1137, 1216, 1718]
+  reserved missing: [(684, 934), (1479, 1216), (1503, 1216)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/petster-hamster  |E|=16677  nU=2244 nV=1766
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=972 nV=627 |E_R|=11250 (density=0.0185)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0128s
+  time_to_best_s               —
+  allocated_bytes              43.59 MiB  (45712392 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=17 |V|=7 edges=116 missing=3 (k=3)
+  final_edges                  116
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=116  θ-feasible=true  time=0.013s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0483s
+  time_to_best_s               —
+  allocated_bytes              14.27 MiB  (14961848 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=15 edges=102 missing=3 (k=3)
+  final_edges                  102
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=102  θ-feasible=true  time=0.048s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[14/37] konect-small/edit-nowikinews  (|E|=16900)
+Graph edges: 16900
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [54, 140, 231, 277, 314, 342, 406]
+  planted V: [964, 2277, 2374, 2553, 3113, 3885, 3991]
+  reserved missing: [(54, 2277), (406, 3113), (406, 3991)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-nowikinews  |E|=16946  nU=430 nV=4060
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=51 nV=710 |E_R|=3538 (density=0.0977)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0025s
+  time_to_best_s               —
+  allocated_bytes              5.43 MiB  (5691424 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=6 |V|=8 edges=45 missing=3 (k=3)
+  final_edges                  45
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=45  θ-feasible=false  time=0.003s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0059s
+  time_to_best_s               —
+  allocated_bytes              2.97 MiB  (3119072 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=8 edges=53 missing=3 (k=3)
+  final_edges                  53
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=53  θ-feasible=true  time=0.006s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[15/37] konect-small/edit-jamwiki  (|E|=17647)
+Graph edges: 17647
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [1, 58, 60, 78, 83, 85, 142]
+  planted V: [767, 783, 994, 1461, 1820, 1830, 2167]
+  reserved missing: [(1, 1830), (83, 1830), (85, 1461)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-jamwiki  |E|=17693  nU=177 nV=2741
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=54 nV=1168 |E_R|=7296 (density=0.1157)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0092s
+  time_to_best_s               —
+  allocated_bytes              18.56 MiB  (19457208 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=70 edges=487 missing=3 (k=3)
+  final_edges                  487
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=487  θ-feasible=true  time=0.009s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0142s
+  time_to_best_s               —
+  allocated_bytes              4.26 MiB  (4467128 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=134 edges=935 missing=3 (k=3)
+  final_edges                  935
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=935  θ-feasible=true  time=0.014s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[16/37] konect-small/edit-wowiktionary  (|E|=17778)
+Graph edges: 17778
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [9, 40, 60, 104, 133, 170, 174]
+  planted V: [807, 1057, 1204, 1939, 2100, 2195, 2967]
+  reserved missing: [(9, 2100), (9, 2967), (133, 2100)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-wowiktionary  |E|=17824  nU=193 nV=3646
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=29 nV=1020 |E_R|=6474 (density=0.2189)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0059s
+  time_to_best_s               —
+  allocated_bytes              11.67 MiB  (12238968 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=121 edges=844 missing=3 (k=3)
+  final_edges                  844
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=844  θ-feasible=true  time=0.006s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0124s
+  time_to_best_s               —
+  allocated_bytes              4.07 MiB  (4269408 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=121 edges=844 missing=3 (k=3)
+  final_edges                  844
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=844  θ-feasible=true  time=0.012s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[17/37] konect-small/edit-rowikibooks  (|E|=18527)
+Graph edges: 18527
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [69, 83, 145, 197, 205, 345, 384]
+  planted V: [50, 259, 948, 2003, 2894, 3753, 4221]
+  reserved missing: [(69, 50), (205, 259), (205, 2003)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/edit-rowikibooks  |E|=18573  nU=443 nV=4221
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=27 nV=68 |E_R|=326 (density=0.1776)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0002s
+  time_to_best_s               —
+  allocated_bytes              411.6 KiB  (421480 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=4 |V|=11 edges=41 missing=3 (k=3)
+  final_edges                  41
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=41  θ-feasible=false  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0003s
+  time_to_best_s               —
+  allocated_bytes              216.95 KiB  (222160 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[18/37] konect-small/moreno_blogs  (|E|=19025)
+Graph edges: 19025
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [272, 315, 680, 737, 852, 873, 934]
+  planted V: [326, 540, 547, 648, 743, 943, 965]
+  reserved missing: [(272, 943), (680, 547), (680, 648)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/moreno_blogs  |E|=19071  nU=1065 nV=990
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=705 nV=501 |E_R|=17134 (density=0.0485)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0212s
+  time_to_best_s               —
+  allocated_bytes              56.75 MiB  (59508664 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=42 |V|=7 edges=291 missing=3 (k=3)
+  final_edges                  291
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=291  θ-feasible=true  time=0.021s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.1290s
+  time_to_best_s               —
+  allocated_bytes              48.11 MiB  (50444184 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=31 |V|=8 edges=245 missing=3 (k=3)
+  final_edges                  245
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=245  θ-feasible=true  time=0.129s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[19/37] konect/bitcoin  (|E|=24186)
+Graph edges: 24186
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [144, 530, 707, 1160, 1225, 1708, 2847]
+  planted V: [586, 1055, 1177, 1649, 2625, 3219, 3391]
+  reserved missing: [(530, 586), (1708, 3391), (2847, 1649)]
+
+══════════════════════════════════════════════════
+dataset=konect/bitcoin  |E|=24232  nU=3286 nV=3754
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=586 nV=623 |E_R|=11230 (density=0.0308)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0091s
+  time_to_best_s               —
+  allocated_bytes              27.75 MiB  (29101256 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=10 |V|=7 edges=67 missing=3 (k=3)
+  final_edges                  67
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=67  θ-feasible=true  time=0.009s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0941s
+  time_to_best_s               —
+  allocated_bytes              23.19 MiB  (24319560 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=9 |V|=7 edges=60 missing=3 (k=3)
+  final_edges                  60
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=60  θ-feasible=true  time=0.094s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[20/37] konect/pgp-arenas  (|E|=24316)
+Graph edges: 24316
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [175, 459, 700, 2566, 3777, 4017, 5592]
+  planted V: [47, 2439, 4290, 4378, 6888, 8306, 9507]
+  reserved missing: [(459, 9507), (700, 4378), (5592, 9507)]
+
+══════════════════════════════════════════════════
+dataset=konect/pgp-arenas  |E|=24362  nU=5596 nV=9657
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=577 nV=745 |E_R|=7364 (density=0.0171)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0080s
+  time_to_best_s               —
+  allocated_bytes              28.93 MiB  (30334760 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=25 edges=172 missing=3 (k=3)
+  final_edges                  172
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=172  θ-feasible=true  time=0.008s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0183s
+  time_to_best_s               —
+  allocated_bytes              8.67 MiB  (9093568 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=14 |V|=16 edges=221 missing=3 (k=3)
+  final_edges                  221
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=221  θ-feasible=true  time=0.018s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[21/37] konect-small/p2p-Gnutella09  (|E|=26013)
+Graph edges: 26013
+Injected biclique: u=7 v=7 k=3 (existing=1 inserted=45 missing=3)
+  planted U: [13, 554, 1119, 1740, 1869, 2011, 2587]
+  planted V: [111, 2505, 2889, 4104, 6086, 6348, 7683]
+  reserved missing: [(13, 7683), (1869, 6086), (2587, 7683)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/p2p-Gnutella09  |E|=26058  nU=3055 nV=8038
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=384 nV=73 |E_R|=3485 (density=0.1243)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0008s
+  time_to_best_s               —
+  allocated_bytes              1.21 MiB  (1271872 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=5 edges=32 missing=3 (k=3)
+  final_edges                  32
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=32  θ-feasible=false  time=0.001s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0078s
+  time_to_best_s               —
+  allocated_bytes              4.51 MiB  (4729856 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.008s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[22/37] konect/wiki_talk_nds  (|E|=27432)
+Graph edges: 27432
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [207, 225, 295, 310, 385, 560, 588]
+  planted V: [2511, 2847, 9470, 15208, 15629, 17023, 17918]
+  reserved missing: [(207, 2511), (295, 17918), (588, 2511)]
+
+══════════════════════════════════════════════════
+dataset=konect/wiki_talk_nds  |E|=27478  nU=605 nV=23094
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=26 nV=26 |E_R|=180 (density=0.2663)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0001s
+  time_to_best_s               —
+  allocated_bytes              190.22 KiB  (194784 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=5 |V|=7 edges=32 missing=3 (k=3)
+  final_edges                  32
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=32  θ-feasible=false  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0004s
+  time_to_best_s               —
+  allocated_bytes              648.67 KiB  (664240 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               748.8 MiB  (785174528 bytes)
+  iterations_to_best           —
+  solution                     |U|=8 |V|=7 edges=53 missing=3 (k=3)
+  final_edges                  53
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=53  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[23/37] konect/dimacs-polblogs  (|E|=33430)
+Graph edges: 33430
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [36, 240, 700, 806, 960, 975, 1143]
+  planted V: [148, 272, 322, 349, 523, 711, 886]
+  reserved missing: [(700, 272), (700, 711), (1143, 886)]
+
+══════════════════════════════════════════════════
+dataset=konect/dimacs-polblogs  |E|=33476  nU=1224 nV=1224
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=850 nV=849 |E_R|=31741 (density=0.044)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0492s
+  time_to_best_s               —
+  allocated_bytes              98.1 MiB  (102860576 bytes)
+  rss_delta_bytes              20.77 MiB  (21774336 bytes)
+  rss_peak_bytes               769.57 MiB  (806948864 bytes)
+  iterations_to_best           —
+  solution                     |U|=51 |V|=7 edges=354 missing=3 (k=3)
+  final_edges                  354
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=354  θ-feasible=true  time=0.049s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.6341s
+  time_to_best_s               —
+  allocated_bytes              92.14 MiB  (96619408 bytes)
+  rss_delta_bytes              136.0 KiB  (139264 bytes)
+  rss_peak_bytes               769.7 MiB  (807088128 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=42 edges=291 missing=3 (k=3)
+  final_edges                  291
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=291  θ-feasible=true  time=0.634s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[24/37] konect/gnutella  (|E|=39994)
+Graph edges: 39994
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [151, 273, 426, 2012, 2422, 3209, 4168]
+  planted V: [343, 413, 2299, 2614, 5801, 9394, 9700]
+  reserved missing: [(273, 5801), (2422, 2614), (2422, 5801)]
+
+══════════════════════════════════════════════════
+dataset=konect/gnutella  |E|=40040  nU=4935 nV=10856
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=256 nV=141 |E_R|=1701 (density=0.0471)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0008s
+  time_to_best_s               —
+  allocated_bytes              2.64 MiB  (2771624 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               770.9 MiB  (808349696 bytes)
+  iterations_to_best           —
+  solution                     |U|=11 |V|=7 edges=74 missing=3 (k=3)
+  final_edges                  74
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=74  θ-feasible=true  time=0.001s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0038s
+  time_to_best_s               —
+  allocated_bytes              2.45 MiB  (2566792 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               770.9 MiB  (808349696 bytes)
+  iterations_to_best           —
+  solution                     |U|=8 |V|=8 edges=61 missing=3 (k=3)
+  final_edges                  61
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=61  θ-feasible=true  time=0.004s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[25/37] konect/ciaodvd  (|E|=40133)
+Graph edges: 40133
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [521, 522, 682, 697, 912, 982, 1369]
+  planted V: [193, 1101, 1149, 1486, 1963, 3024, 3867]
+  reserved missing: [(522, 3024), (682, 3024), (982, 1963)]
+
+══════════════════════════════════════════════════
+dataset=konect/ciaodvd  |E|=40179  nU=1438 nV=4299
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=843 nV=1161 |E_R|=32287 (density=0.033)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0400s
+  time_to_best_s               —
+  allocated_bytes              99.58 MiB  (104414160 bytes)
+  rss_delta_bytes              852.0 KiB  (872448 bytes)
+  rss_peak_bytes               771.73 MiB  (809222144 bytes)
+  iterations_to_best           —
+  solution                     |U|=23 |V|=7 edges=158 missing=3 (k=3)
+  final_edges                  158
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=158  θ-feasible=true  time=0.04s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.6839s
+  time_to_best_s               —
+  allocated_bytes              93.04 MiB  (97563096 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               771.73 MiB  (809222144 bytes)
+  iterations_to_best           —
+  solution                     |U|=17 |V|=7 edges=116 missing=3 (k=3)
+  final_edges                  116
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=116  θ-feasible=true  time=0.684s
+  versus double-greedy → clique-order-edge : baseline
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[26/37] konect/dblp_cite  (|E|=49759)
+Graph edges: 49759
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [766, 1680, 1893, 2454, 2508, 2520, 2531]
+  planted V: [1011, 2904, 6783, 9330, 10313, 10763, 11534]
+  reserved missing: [(766, 6783), (1680, 11534), (2508, 6783)]
+
+══════════════════════════════════════════════════
+dataset=konect/dblp_cite  |E|=49805  nU=3158 nV=11566
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=1633 nV=1455 |E_R|=18569 (density=0.0078)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0504s
+  time_to_best_s               —
+  allocated_bytes              122.4 MiB  (128347928 bytes)
+  rss_delta_bytes              6.12 MiB  (6414336 bytes)
+  rss_peak_bytes               778.43 MiB  (816238592 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.05s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0880s
+  time_to_best_s               —
+  allocated_bytes              28.65 MiB  (30046784 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.43 MiB  (816238592 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=13 edges=88 missing=3 (k=3)
+  final_edges                  88
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=88  θ-feasible=true  time=0.088s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[27/37] konect/matter  (|E|=58595)
+Graph edges: 58595
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [727, 6000, 7198, 10038, 10803, 10938, 12950]
+  planted V: [598, 1775, 2290, 3106, 7666, 16554, 19428]
+  reserved missing: [(727, 598), (6000, 7666), (7198, 19428)]
+
+══════════════════════════════════════════════════
+dataset=konect/matter  |E|=58641  nU=16726 nV=22015
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=391 nV=490 |E_R|=2316 (density=0.0121)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0019s
+  time_to_best_s               —
+  allocated_bytes              5.05 MiB  (5299152 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.43 MiB  (816238592 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=8 edges=53 missing=3 (k=3)
+  final_edges                  53
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=53  θ-feasible=true  time=0.002s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0014s
+  time_to_best_s               —
+  allocated_bytes              1.52 MiB  (1596184 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.43 MiB  (816238592 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=12 edges=82 missing=2 (k=3)
+  final_edges                  82
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=82  θ-feasible=true  time=0.001s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[28/37] konect/openflights  (|E|=67663)
+Graph edges: 67663
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [602, 666, 668, 1294, 1467, 1522, 3215]
+  planted V: [379, 1826, 1892, 2526, 2649, 2918, 3412]
+  reserved missing: [(602, 379), (1294, 1826), (1294, 2918)]
+
+══════════════════════════════════════════════════
+dataset=konect/openflights  |E|=67709  nU=3409 nV=3418
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=1175 nV=1180 |E_R|=30001 (density=0.0216)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0473s
+  time_to_best_s               —
+  allocated_bytes              109.08 MiB  (114378472 bytes)
+  rss_delta_bytes              328.0 KiB  (335872 bytes)
+  rss_peak_bytes               778.75 MiB  (816574464 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=64 edges=445 missing=3 (k=3)
+  final_edges                  445
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=445  θ-feasible=true  time=0.047s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.4966s
+  time_to_best_s               —
+  allocated_bytes              90.63 MiB  (95027376 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.75 MiB  (816574464 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=64 edges=445 missing=3 (k=3)
+  final_edges                  445
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=445  θ-feasible=true  time=0.497s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[29/37] konect-small/nawiki  (|E|=70695)
+Graph edges: 70695
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [114, 333, 443, 560, 669, 679, 690]
+  planted V: [598, 886, 2008, 2475, 2997, 3058, 3291]
+  reserved missing: [(333, 2008), (333, 2997), (669, 598)]
+
+══════════════════════════════════════════════════
+dataset=konect-small/nawiki  |E|=70741  nU=844 nV=4014
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=171 nV=1118 |E_R|=21275 (density=0.1113)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0321s
+  time_to_best_s               —
+  allocated_bytes              71.48 MiB  (74956440 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.75 MiB  (816574464 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=346 edges=2419 missing=3 (k=3)
+  final_edges                  2419
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=2419  θ-feasible=true  time=0.032s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0463s
+  time_to_best_s               —
+  allocated_bytes              13.47 MiB  (14124192 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.75 MiB  (816574464 bytes)
+  iterations_to_best           —
+  solution                     |U|=11 |V|=222 edges=2439 missing=3 (k=3)
+  final_edges                  2439
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=2439  θ-feasible=true  time=0.046s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[30/37] amazon/magazine  (|E|=71497)
+Graph edges: 71497
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [138, 21216, 28770, 28950, 35120, 43730, 56374]
+  planted V: [990, 1031, 1153, 1340, 1545, 1681, 2682]
+  reserved missing: [(28770, 1031), (28770, 1153), (43730, 1031)]
+
+══════════════════════════════════════════════════
+dataset=amazon/magazine  |E|=71543  nU=60144 nV=3391
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=11 nV=11 |E_R|=62 (density=0.5124)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              7.31 KiB  (7488 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.75 MiB  (816574464 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0004s
+  time_to_best_s               —
+  allocated_bytes              1.44 MiB  (1508360 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               778.75 MiB  (816574464 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.0s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[31/37] amazon/music  (|E|=130434)
+Graph edges: 130434
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [1550, 45038, 63836, 64804, 77912, 80817, 92101]
+  planted V: [11116, 11509, 29058, 35345, 44723, 46434, 57922]
+  reserved missing: [(1550, 44723), (80817, 35345), (80817, 46434)]
+
+══════════════════════════════════════════════════
+dataset=amazon/music  |E|=130480  nU=100952 nV=70519
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.83 KiB  (5968 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               842.43 MiB  (883347456 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0006s
+  time_to_best_s               —
+  allocated_bytes              3.53 MiB  (3697520 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               842.43 MiB  (883347456 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.001s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[32/37] amazon/gift-cards  (|E|=152410)
+Graph edges: 152410
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [22310, 47479, 67873, 95444, 96590, 98519, 110986]
+  planted V: [15, 246, 688, 749, 1407, 1728, 1768]
+  reserved missing: [(98519, 246), (98519, 688), (110986, 1728)]
+
+══════════════════════════════════════════════════
+dataset=amazon/gift-cards  |E|=152456  nU=132732 nV=1894
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=30 nV=24 |E_R|=142 (density=0.1972)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0001s
+  time_to_best_s               —
+  allocated_bytes              153.31 KiB  (156992 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               874.17 MiB  (916631552 bytes)
+  iterations_to_best           —
+  solution                     |U|=9 |V|=4 edges=33 missing=3 (k=3)
+  final_edges                  33
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=33  θ-feasible=false  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0006s
+  time_to_best_s               —
+  allocated_bytes              3.06 MiB  (3207288 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               874.17 MiB  (916631552 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.001s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[33/37] amazon/health  (|E|=494121)
+Graph edges: 494121
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [105611, 123891, 242465, 293905, 382763, 416601, 458583]
+  planted V: [3942, 8660, 18787, 24504, 25662, 46163, 54643]
+  reserved missing: [(382763, 46163), (416601, 18787), (458583, 25662)]
+
+══════════════════════════════════════════════════
+dataset=amazon/health  |E|=494167  nU=461656 nV=62597
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.84 KiB  (5984 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.07 GiB  (1147686912 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0035s
+  time_to_best_s               —
+  allocated_bytes              11.88 MiB  (12459856 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.07 GiB  (1147686912 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.004s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[34/37] amazon/beauty  (|E|=701528)
+Graph edges: 701528
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [169743, 254555, 343585, 470938, 539801, 556143, 569261]
+  planted V: [508, 18809, 43071, 54104, 63688, 79971, 109408]
+  reserved missing: [(169743, 79971), (539801, 109408), (569261, 18809)]
+
+══════════════════════════════════════════════════
+dataset=amazon/beauty  |E|=701574  nU=631986 nV=115709
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=11 nV=11 |E_R|=62 (density=0.5124)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              7.33 KiB  (7504 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.42 GiB  (1521258496 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0120s
+  time_to_best_s               —
+  allocated_bytes              15.69 MiB  (16456512 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               1.42 GiB  (1521258496 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.012s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[35/37] amazon/appliances  (|E|=2128605)
+Graph edges: 2128605
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [148229, 358504, 757733, 839617, 1086524, 1204849, 1574479]
+  planted V: [16329, 18354, 28311, 30941, 45582, 57291, 86605]
+  reserved missing: [(757733, 45582), (1086524, 16329), (1204849, 28311)]
+
+══════════════════════════════════════════════════
+dataset=amazon/appliances  |E|=2128651  nU=1755732 nV=104237
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.84 KiB  (5984 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               2.33 GiB  (2499448832 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0241s
+  time_to_best_s               —
+  allocated_bytes              38.29 MiB  (40151952 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               2.33 GiB  (2499448832 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.024s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[36/37] amazon/fashion  (|E|=2500939)
+Graph edges: 2500939
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [94979, 652084, 1174015, 1419490, 1510763, 1791799, 2001027]
+  planted V: [65637, 127336, 261148, 363857, 457541, 551408, 846905]
+  reserved missing: [(94979, 457541), (652084, 261148), (1510763, 846905)]
+
+══════════════════════════════════════════════════
+dataset=amazon/fashion  |E|=2500985  nU=2035490 nV=874297
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=7 nV=7 |E_R|=46 (density=0.9388)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0000s
+  time_to_best_s               —
+  allocated_bytes              5.84 KiB  (5984 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               3.47 GiB  (3721883648 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  double-greedy edges=46  θ-feasible=true  time=0.0s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0504s
+  time_to_best_s               —
+  allocated_bytes              65.6 MiB  (68784848 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               3.47 GiB  (3721883648 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.05s
+  versus double-greedy → clique-order-edge : tie
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+[37/37] amazon/instruments  (|E|=3017439)
+Graph edges: 3017439
+Injected biclique: u=7 v=7 k=3 (existing=0 inserted=46 missing=3)
+  planted U: [90963, 585830, 612351, 795327, 972917, 1078996, 1140041]
+  planted V: [24167, 44994, 64216, 137258, 168214, 168578, 188174]
+  reserved missing: [(90963, 64216), (795327, 137258), (1078996, 188174)]
+
+══════════════════════════════════════════════════
+dataset=amazon/instruments  |E|=3017485  nU=1762679 nV=259791
+k=3  θ=7  reduction=lo  seed=1
+methods=double-greedy, clique-order-edge
+inject: u=7 v=7 k=3
+reduced: nU=236 nV=201 |E_R|=1503 (density=0.0317)
+
+── double-greedy (double-greedy) ──
+
+Running double-greedy…
+
+── double-greedy ──
+  wall_time_s                  0.0012s
+  time_to_best_s               —
+  allocated_bytes              3.55 MiB  (3719312 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               3.59 GiB  (3856470016 bytes)
+  iterations_to_best           —
+  solution                     |U|=6 |V|=7 edges=40 missing=2 (k=3)
+  final_edges                  40
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               false
+  double-greedy edges=40  θ-feasible=false  time=0.001s
+
+── clique-order-edge (clique-order-edge) ──
+
+Running clique-order-edge…
+
+── clique-order-edge ──
+  wall_time_s                  0.0066s
+  time_to_best_s               —
+  allocated_bytes              44.82 MiB  (46994528 bytes)
+  rss_delta_bytes              0.0 B  (0 bytes)
+  rss_peak_bytes               3.59 GiB  (3856470016 bytes)
+  iterations_to_best           —
+  solution                     |U|=7 |V|=7 edges=46 missing=3 (k=3)
+  final_edges                  46
+  optimal_edges                —
+  matched_optimal              false
+  theta_feasible               true
+  clique-order-edge edges=46  θ-feasible=true  time=0.007s
+  versus double-greedy → clique-order-edge : challenger
+══════════════════════════════════════════════════
+Wrote benchmark results → /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+
+==================== SUITE SUMMARY ====================
+  planned / completed  : 37 / 37
+  reference            : double-greedy
+  clique-order-edge vs double-greedy : challenger=15 baseline=9 tie=13
+  checkpoint           : /home/kiyaanpillai/Documents/aco-mkdb/results/method_sweep/k3t7.json
+=======================================================

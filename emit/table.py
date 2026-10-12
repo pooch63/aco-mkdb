@@ -139,6 +139,7 @@ def summarize_file(data, ants=None):
     return {
         "k": data.get("k"),
         "theta": data.get("theta"),
+        "dataset": data.get("dataset"),
         "nU": graph.get("nU"),
         "nV": graph.get("nV"),
         "edge_count": edge_count,

@@ -1,0 +1,62 @@
+{
+  "name": "method_sweep_k2t5",
+  "output": "results/method_sweep/k2t5.json",
+  "k": 2,
+  "theta": 5,
+  "seed": 1,
+  "reduction": "lo",
+  "inject": true,
+  "jit_warmup": true,
+  "skip_completed": true,
+  "datasets": [
+    "amazon/appliances",
+    "amazon/beauty",
+    "konect/bitcoin",
+    "amazon/boxes",
+    "konect/ciaodvd",
+    "konect/dblp_cite",
+    "konect/dimacs-polblogs",
+    "konect-small/dnc-corecipient",
+    "konect-small/edit-guwikiquote",
+    "konect-small/edit-jamwiki",
+    "konect-small/edit-mkwikisource",
+    "konect-small/edit-mrwiktionary",
+    "konect-small/edit-nowikinews",
+    "konect-small/edit-rowikibooks",
+    "konect-small/edit-srwikiquote",
+    "konect-small/edit-vewiki",
+    "konect-small/edit-wowiktionary",
+    "konect-small/edit-zuwiktionary",
+    "konect-small/facebook",
+    "amazon/fashion",
+    "amazon/gift-cards",
+    "konect/gnutella",
+    "amazon/health",
+    "amazon/instruments",
+    "konect-small/maayan-vidal",
+    "amazon/magazine",
+    "konect/matter",
+    "konect-small/moreno",
+    "konect-small/moreno_blogs",
+    "konect-small/moreno_health",
+    "amazon/music",
+    "konect-small/nawiki",
+    "konect/openflights",
+    "konect-small/p2p-Gnutella09",
+    "konect-small/petster-hamster",
+    "konect/pgp-arenas",
+    "konect/wiki_talk_nds"
+  ],
+  "methods": [
+    {
+      "id": "double-greedy",
+      "method": "double-greedy",
+      "label": "double-greedy"
+    },
+    {
+      "id": "clique-order-edge",
+      "method": "clique-order-edge",
+      "label": "clique-order-edge"
+    }
+  ]
+}

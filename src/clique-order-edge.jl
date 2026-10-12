@@ -27,6 +27,9 @@ walk is:
   5. Every feasible prefix is scored by edge count. The walk returns the
      best one. The opposite side is that prefix's greedy cost packing.
 
+`within_clique=true` runs `max_clique_heuristic` on this projection first.
+The seed and every later step then use only edges of that clique.
+
     julia src/clique-order-edge.jl
 =#
 
@@ -212,7 +215,8 @@ and is not tried in a later component.
 """
 function _edge_walk!(st::OracleState, fg::FrozenBipartite, eg::EdgeOrderGraph,
         a::Int, b::Int, k::Int, θ::Int, used::BitVector, mark::Vector{Int},
-        stamp::Base.RefValue{Int}, best_e::Base.RefValue{Int}, best::Vector{Int})
+        stamp::Base.RefValue{Int}, best_e::Base.RefValue{Int}, best::Vector{Int};
+        in_clique::Union{Nothing,BitVector}=nothing)
     tip, other = _edge_tip(eg, a, b)
     reset_oracle!(st)
     add_left!(st, fg, eg.side_id[other])
@@ -231,6 +235,7 @@ function _edge_walk!(st::OracleState, fg::FrozenBipartite, eg::EdgeOrderGraph,
         nbrs = eg.adj[tip]
         for nbr in nbrs
             used[nbr] && continue
+            in_clique !== nothing && !in_clique[nbr] && continue
             _joins_path(eg.adj, mark, stamp, nbr, path) || continue
             add_left!(st, fg, eg.side_id[nbr])
             _, nsel = oracle_score(st, k)
@@ -251,14 +256,31 @@ function _edge_walk!(st::OracleState, fg::FrozenBipartite, eg::EdgeOrderGraph,
 end
 
 """
-    edge_order_search!(st, fg, eg, k, θ) -> (members, components)
+Mask of one clique from `max_clique_heuristic` on the projection.
+
+Indices match `eg.side_id`. The second value is the clique size.
+"""
+function _edge_clique_mask(eg::EdgeOrderGraph)
+    members, _ = max_clique_heuristic(eg.adj)
+    _is_clique(eg.adj, members) ||
+        error("edge-order clique heuristic returned a set that is not a clique")
+    mask = falses(length(eg.side_id))
+    for i in members
+        mask[i] = true
+    end
+    return mask, length(members)
+end
+
+"""
+    edge_order_search!(st, fg, eg, k, θ; in_clique=nothing) -> (members, components)
 
 Park `st` on the feasible prefix with the most edges. `members` are compact
 ids on the searched side. `components` is how many edges grew a pack with at
-least θ opposite vertices.
+least θ opposite vertices. `in_clique` limits seeds and growth steps to edges
+inside that vertex set.
 """
 function edge_order_search!(st::OracleState, fg::FrozenBipartite, eg::EdgeOrderGraph,
-        k::Int, θ::Int)
+        k::Int, θ::Int; in_clique::Union{Nothing,BitVector}=nothing)
     st.search_is_u == eg.search_is_u ||
         error("edge-order oracle side does not match the projection")
     n = length(eg.side_id)
@@ -270,7 +292,11 @@ function edge_order_search!(st::OracleState, fg::FrozenBipartite, eg::EdgeOrderG
     components = 0
     for (_, a, b) in eg.seeds
         (used[a] || used[b]) && continue
-        _edge_walk!(st, fg, eg, a, b, k, θ, used, mark, stamp, best_e, best) || continue
+        if in_clique !== nothing && !(in_clique[a] && in_clique[b])
+            continue
+        end
+        _edge_walk!(st, fg, eg, a, b, k, θ, used, mark, stamp, best_e, best;
+            in_clique=in_clique) || continue
         components += 1
     end
     _replay!(st, fg, best)
@@ -290,23 +316,28 @@ function _edge_order_empty(; search_is_u::Bool=true)
         reduced_nV=0,
         reduced_m=0,
         edges=0,
+        clique_size=0,
         reduce_s=0.0,
         project_s=0.0,
+        clique_s=0.0,
         order_s=0.0,
     )
 end
 
 """
-    clique_order_edge(g, k, θ; verbose=false, side=:smaller) -> NamedTuple
+    clique_order_edge(g, k, θ; verbose=false, side=:smaller, within_clique=false) -> NamedTuple
 
 Mutates `g`. Applies `super_reduce!`, weights one side's compatibility edges
 by common-neighbor count, and walks those edges. Vertex ids in the result
 are original. `side` is forwarded to `super_reduce!` and selects the
 projection: `:smaller` (the default) and `:larger` follow the reduced graph,
 and `:U` / `:V` force that part.
+
+`within_clique` runs `max_clique_heuristic` on the projection and keeps the
+walk on edges of that clique.
 """
 function clique_order_edge(g::BipartiteGraph, k::Int, θ::Int;
-        verbose::Bool=false, side::Symbol=:smaller)
+        verbose::Bool=false, side::Symbol=:smaller, within_clique::Bool=false)
     k >= 0 || throw(ArgumentError("k must be ≥ 0, got $k"))
     side in (:smaller, :larger, :U, :V) ||
         throw(ArgumentError("side must be :smaller, :larger, :U, or :V, got :$side"))
@@ -332,9 +363,18 @@ function clique_order_edge(g::BipartiteGraph, k::Int, θ::Int;
             reduce_s, project_s, reduced_nU, reduced_nV, reduced_m)
     end
 
+    in_clique = nothing
+    clique_size = 0
+    clique_s = 0.0
+    if within_clique
+        t_c = time_ns()
+        in_clique, clique_size = _edge_clique_mask(eg)
+        clique_s = (time_ns() - t_c) / 1e9
+    end
+
     t2 = time_ns()
     st = OracleState(compact_fg, eg.search_is_u)
-    _, components = edge_order_search!(st, compact_fg, eg, k, θ)
+    _, components = edge_order_search!(st, compact_fg, eg, k, θ; in_clique=in_clique)
     order_s = (time_ns() - t2) / 1e9
 
     kept_ids = [_side_original(remap, eg.search_is_u, u) for u in st.members]
@@ -343,6 +383,7 @@ function clique_order_edge(g::BipartiteGraph, k::Int, θ::Int;
     edges = st.nL == 0 ? 0 : Subgraph.edge_count(compact_fg, bare)
     verbose && println("Clique-order-edge: search $(eg.search_is_u ? "U" : "V") " *
                        "projection_n=$n projection_m=$(eg.edges) " *
+                       (within_clique ? "clique=$clique_size " : "") *
                        "components=$components kept=$(length(kept_ids)) edges=$edges")
     return (;
         solution,
@@ -356,18 +397,26 @@ function clique_order_edge(g::BipartiteGraph, k::Int, θ::Int;
         reduced_nV,
         reduced_m,
         edges,
+        clique_size,
         reduce_s,
         project_s,
+        clique_s,
         order_s,
     )
 end
 
 """Run the walk on `g` with no `super_reduce!`. Ids in `kept` are original."""
-function _edge_order_direct(g::BipartiteGraph, k::Int, θ::Int; search_is_u::Bool=true)
+function _edge_order_direct(g::BipartiteGraph, k::Int, θ::Int;
+        search_is_u::Bool=true, within_clique::Bool=false)
     fg, remap = compact_frozen(freeze(g))
     eg = edge_order_graph(fg, k, θ; search_is_u=search_is_u)
+    in_clique = nothing
+    clique_size = 0
+    if within_clique
+        in_clique, clique_size = _edge_clique_mask(eg)
+    end
     st = OracleState(fg, eg.search_is_u)
-    members, components = edge_order_search!(st, fg, eg, k, θ)
+    members, components = edge_order_search!(st, fg, eg, k, θ; in_clique=in_clique)
     oracle_state_consistent(st) || error("oracle state diverged")
     if !isempty(members)
         inv = Dict(eg.side_id[i] => i for i in eachindex(eg.side_id))
@@ -386,7 +435,7 @@ function _edge_order_direct(g::BipartiteGraph, k::Int, θ::Int; search_is_u::Boo
             _side_original(remap, eg.search_is_u, eg.side_id[b]),
         ]
     end
-    return (; eg, kept, components, edges, missing, bare, seed_ids)
+    return (; eg, kept, components, edges, missing, bare, seed_ids, clique_size)
 end
 
 """Checks the weighted walk: codegree, tie-break, rejection, restart, biclique."""
@@ -501,6 +550,30 @@ function clique_order_edge_selftest()
     Set(overlapped.solution.V) == Set([1, 2, 3, 4]) || error("overlap V $(overlapped.solution.V)")
     Subgraph.missing_edges(before, overlapped.solution) == 0 || error("overlap defects")
     Subgraph.edge_count(before, overlapped.solution) == 8 || error("overlap edges")
+
+    # U1–U2 and the edges of {U1,U3..U6} all have codegree 20. U2's private
+    # neighbors make that edge the first seed, so the open walk spends U1 and
+    # the rest of the clique is an 80-edge K4. The clique-restricted walk
+    # keeps U1 and returns the 100-edge K5.
+    steal = BipartiteGraph{Nothing}()
+    for v in 1:20
+        add_edge!(steal, 1, v, nothing)
+        add_edge!(steal, 2, v, nothing)
+    end
+    for v in 41:50
+        add_edge!(steal, 2, v, nothing)
+    end
+    for u in (1, 3, 4, 5, 6), v in 21:40
+        add_edge!(steal, u, v, nothing)
+    end
+    stolen = _edge_order_direct(steal, 0, 2)
+    stolen.edges == 80 || error("steal edges $(stolen.edges), expected 80")
+    Set(stolen.kept) == Set([3, 4, 5, 6]) || error("steal kept $(stolen.kept)")
+    held = _edge_order_direct(steal, 0, 2; within_clique=true)
+    held.clique_size == 5 || error("steal clique $(held.clique_size)")
+    held.edges == 100 || error("steal within-clique edges $(held.edges), expected 100")
+    Set(held.kept) == Set([1, 3, 4, 5, 6]) || error("steal within-clique kept $(held.kept)")
+    held.missing == 0 || error("steal within-clique defects")
     return true
 end
 

@@ -176,20 +176,22 @@ python paper/build.py --tables  # also compile paper/tables.tex → tables.pdf
 
 | Placeholder | Emit mode | Purpose |
 |-------------|-----------|---------|
-| `%%QUALITY%%` | `quality` | One column: ant count, evaporation, deposit, and η-exponent, then epoch budget \(T\) and replicate count \(R\) (deviation on the shared scale, θ-feasibility on the bottom row). Median % deviation from the θ-heuristic (`ablation_dirs`, `budget_dir`). `fig:budget` is the same float |
+| `%%QUALITY%%` | `quality` | One column: ant count, then epoch budget \(T\) and replicate count \(R\) (deviation on the shared scale, θ-feasibility on the bottom row). Median % deviation from the θ-heuristic (`budget_dir`). `fig:budget` is the same float. `%%QUALITY:sweeps%%` is the appendix figure for evaporation, deposit, and the η exponent (`ablation_dirs`) |
 | `%%SEED_COMPARE%%` | `seed-compare` | Full pivot table (appendix); `:highlights` = representative rows in §4.2 |
 | `%%TABLE:k2t5i_PN%%` | `table` | Per-graph ACO vs. θ comparison (appendix); `:k2t5i_PN:highlights` = §4.3; `:k3t5i_PN` / `:k3t6i_PN` / `:k4t5i_PN` = other $(k,\theta)$ |
 | `%%COMPARE:theta-time%%` | `compare` | θ-heuristic runtime vs. \(\theta n + m\) bound |
 | `%%COMPARE:deg-size-time%%` | `compare` | ACO discovery time on log–log axes: vs.\ $n_R$ (empirical exponent) and vs.\ candidate bounds $n_R^2$ / ($T\cdot n_R+|E_R|$) with $T=5$ (slope≈1 ⇒ proportional) |
 | `%%COMPARE:bound-time%%` | `compare` | 2-panel: normalized discovery time \(t/(n_S\cdot T)\) vs.\ naive $n_R^2$ (left) and practical $T\cdot n_R+|E_R|$ (right); shared y-axis for slope contrast |
-| `%%COMPARE:k-sweep%%` | `compare` | Compact captionless pair: ACO win rate vs. \(k\) at fixed \(\theta\) and vs. \(\theta\) at fixed \(k\), in the text (`param_dirs`) |
+| `%%COMPARE:k-sweep%%` | `compare` | Compact captionless pair: win rate vs. \(k\) at fixed \(\theta\) and vs. \(\theta\) at fixed \(k\), in the text (`param_dirs`). Finished files in `method_sweep_dir` add one line per method (best θ-feasible edge count, ties count); ACO and the θ-heuristic stay in the vary JSON. Until two suites on an axis are finished, the line stays ACO vs. the θ-heuristic |
 | `%%COMPARE:theta-sweep%%` | `compare` | Comment only; the \(\theta\) panel is part of `k-sweep` |
 | `%%COMPARE:density-wins%%` | `compare` | One column: ACO win rate versus \(k\) at fixed \(\theta\), and versus \(\theta\) at fixed \(k\), with equal-count reduced-density thirds as three bars |
-| `%%COMPARE:param-runtime%%` | `compare` | Four instances, log time. A legend under each 2×2 names the sweep color (fixed \(\theta\) when \(k\) varies, fixed \(k\) when \(\theta\) varies) and the marker (circle ACO, triangle \(\theta\)-heuristic). Sweeps are `runtime_sweeps` in `build.json`: every completed value at that fixed parameter. Each panel's axis is the range that graph finished |
+| `%%COMPARE:param-runtime%%` | `compare` | Four instances, log time. A legend under each 2×2 names the sweep color (fixed \(\theta\) when \(k\) varies, fixed \(k\) when \(\theta\) varies) and the marker (circle ACO, triangle θ-heuristic, then one marker per method in `method_sweep_dir`). Sweeps are `runtime_sweeps` in `build.json`: every completed value at that fixed parameter. Each panel's axis is the range that graph finished |
 | `%%COMPARE:budget%%` | `compare` | Standalone epoch-trace 2×2. The paper draws these panels inside `%%QUALITY%%` instead |
 | `%%COMPARE:pheromone-ablation%%` | `compare` | Anytime median with pheromone on vs \(\Delta\tau=0\) (\(\tau\equiv 1\)) and optional \(\rho\) sweep (`ablation_dirs`) |
 | `%%STATISTICS:…%%` | `statistics` | Inline win/loss counts, Wilcoxon, median % edge increase (`median-edge-pct`), θ-feasibility rates, missing-at-size stats, pivot-tested vs excluded ACO-win size means (`compare_dir`) |
 | `%%ABLATION%%` / `%%ABLATION:summary%%` | `ablation` | Settings table rows and the Section 4.3 sentence from `aco_settings_ablation.json` (pheromone off, best-only deposit, greedy fill at the end, GA) |
+| `%%HEURISTICS%%` | `heuristics` | One full-width table per finished file in `method_sweep` (`k{k}t{theta}.json`). Columns are the $\theta$-heuristic and ACO from the matching `param_dirs` vary suite, then every other method in that file. Each caption is only the $(k,\theta)$ setting |
+| `%%METRICS%%` | `metrics` | One comparison at $k=2$, $\theta=5$ from `metrics/k2t5.json`: shared-win rate, geometric-mean ratio to the best $\theta$-feasible edge count (infeasible scores 0), feasibility rate, mean optimality gap on finished branch-and-pivot instances (`compare_dir`), and a Dolan–Moré quality profile. ACO-default is $A=100$, $T=5$, $R=5$, 8 threads; ACO-1thread is that budget on one thread; ACO-matched is $A=20$, $T=1$, $R=1$ |
 
 **Important:** `emit/` must **only read pre-recorded JSON** — it must not re-run Julia or re-simulate ACO. The build must tolerate incomplete data (warn, don't crash). See `paper/AGENTS.md` for emit-specific rules.
 
@@ -205,6 +207,7 @@ All experiment output is **JSON** (plus occasional `.txt` from `scripts/evaluate
 | `results/vary_k2t5i_<flags>/` | `scripts/vary.bash` / `scripts/tests.bash` | Same sweep for other \(F_P\)/\(F_N\) flag combinations |
 | `results/compare_k2t5i_<subset>/` | `scripts/compare-seeds.bash` | Pivot timing per graph: `<graph>.json` |
 | `results/k2t5i/` | `scripts/evaluate.bash` | Quick per-graph ACO vs. θ benchmark (`.txt`) |
+| `results/method_sweep/` | `scripts/method-sweep.bash` | One compare-methods JSON per \((k,\theta)\): `k{k}t{theta}.json`. Default methods are double-greedy and clique-order-edge, on the same injected graphs as `vary_k*t*i_PN`. ACO and the θ-heuristic are not re-run |
 
 Directory names encode hyperparameters: `vary_k{K}t{THETA}i_{P?}{N?}` (e.g. `vary_k2t5i_PN` = k=2, θ=5, injected plant, P+N flags).
 

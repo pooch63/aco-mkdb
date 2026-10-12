@@ -245,7 +245,45 @@ function side_spec_to_dict(spec::Dict{String,Any})
     if haskey(spec, "id")
         out["id"] = String(spec["id"])
     end
+    if haskey(spec, "replicates")
+        out["replicates"] = Int(spec["replicates"])
+    end
     return out
+end
+
+"""
+How many independent seeds to run. Omitted means one run and the historical
+single-result JSON shape.
+"""
+function spec_replicates(spec::Dict{String,Any})::Int
+    n = Int(get(spec, "replicates", 1))
+    n >= 1 || throw(ArgumentError("replicates must be ≥ 1, got $n"))
+    return n
+end
+
+function spec_thread_count(spec::Dict{String,Any})::Int
+    params = get(spec, "params", Dict{String,Any}())
+    params isa AbstractDict || return 1
+    parallel = get(params, "parallelize", false) == true
+    return parallel ? Threads.nthreads() : 1
+end
+
+"""
+Best replicate: a θ-feasible solution outranks an infeasible one, then edge count.
+"""
+function best_replicate_index(rows::Vector{Dict{String,Any}})::Int
+    best_i = 1
+    best_key = (false, typemin(Int))
+    for (i, row) in enumerate(rows)
+        edges = Int(get(row, "final_edges", 0))
+        feas = get(row, "theta_feasible", false) == true && get(row, "k_valid", true) != false
+        key = (feas, edges)
+        if key > best_key
+            best_key = key
+            best_i = i
+        end
+    end
+    return best_i
 end
 
 function build_side_from_spec(spec::Dict{String,Any})
@@ -597,21 +635,83 @@ function compare_multi_one_graph!(dataset::AbstractString, edge_hint::Int,
         push!(ids, id)
         label = String(get(spec, "label", id))
         method = build_side_from_spec(spec)
+        n_rep = spec_replicates(spec)
+        threads = spec_thread_count(spec)
         println()
-        println("── $id ($label) ──")
-        Random.seed!(seed)
+        println("── $id ($label)  replicates=$n_rep  threads=$threads ──")
+        if !haskey(spec, "replicates")
+            Random.seed!(seed)
+            try
+                stats = benchmark_method!(method, g_reduced, k, θ, solver_reduction;
+                    label=label, injected_biclique=plant)
+                d = method_result_to_dict(stats.result, fg; k=k, θ=θ)
+                d["wall_time_s"] = stats.time
+                d["label"] = label
+                d["id"] = id
+                d["status"] = "ok"
+                runs[id] = d
+                results_by_id[id] = stats.result
+                println("  $id edges=$(stats.final_edges)  θ-feasible=$(stats.theta_feasible)  " *
+                        "time=$(round(stats.time; digits=3))s")
+            catch e
+                @error "Method $id failed on $dataset" exception=(e, catch_backtrace())
+                runs[id] = Dict{String,Any}(
+                    "id" => id,
+                    "label" => label,
+                    "method" => String(get(spec, "method", "")),
+                    "status" => "error",
+                    "error" => sprint(showerror, e),
+                    "final_edges" => 0,
+                    "theta_feasible" => false,
+                    "k_valid" => false,
+                    "beats_valid" => false,
+                    "wall_time_s" => nothing,
+                    "nU" => 0,
+                    "nV" => 0,
+                )
+                results_by_id[id] = nothing
+            end
+            continue
+        end
+        rep_rows = Dict{String,Any}[]
+        rep_results = Any[]
         try
-            stats = benchmark_method!(method, g_reduced, k, θ, solver_reduction;
-                label=label, injected_biclique=plant)
-            d = method_result_to_dict(stats.result, fg; k=k, θ=θ)
-            d["wall_time_s"] = stats.time
-            d["label"] = label
-            d["id"] = id
-            d["status"] = "ok"
-            runs[id] = d
-            results_by_id[id] = stats.result
-            println("  $id edges=$(stats.final_edges)  θ-feasible=$(stats.theta_feasible)  " *
-                    "time=$(round(stats.time; digits=3))s")
+            for r in 1:n_rep
+                rep_seed = seed + UInt64(r - 1)
+                Random.seed!(rep_seed)
+                stats = benchmark_method!(method, g_reduced, k, θ, solver_reduction;
+                    label=label, injected_biclique=plant)
+                d = method_result_to_dict(stats.result, fg; k=k, θ=θ)
+                d["wall_time_s"] = stats.time
+                d["label"] = label
+                d["id"] = id
+                d["status"] = "ok"
+                d["seed"] = string(rep_seed)
+                d["threads"] = threads
+                d["replicate"] = r
+                delete!(d, "U")
+                delete!(d, "V")
+                push!(rep_rows, d)
+                push!(rep_results, stats.result)
+                println("  $id seed=$(rep_seed) edges=$(stats.final_edges)  " *
+                        "θ-feasible=$(stats.theta_feasible)  " *
+                        "time=$(round(stats.time; digits=3))s")
+            end
+            best_i = best_replicate_index(rep_rows)
+            headline = copy(rep_rows[best_i])
+            total_time = sum(Float64(row["wall_time_s"]) for row in rep_rows)
+            headline["wall_time_s"] = total_time
+            headline["replicates"] = rep_rows
+            headline["replicate_count"] = n_rep
+            # The vertex lists live on each seed record. Drop the copies on
+            # the headline so the checkpoint stays the per-seed record.
+            delete!(headline, "U")
+            delete!(headline, "V")
+            runs[id] = headline
+            results_by_id[id] = rep_results[best_i]
+            println("  $id best seed=$(headline["seed"]) edges=$(headline["final_edges"])  " *
+                    "θ-feasible=$(headline["theta_feasible"])  " *
+                    "time=$(round(total_time; digits=3))s (sum of $n_rep)")
         catch e
             @error "Method $id failed on $dataset" exception=(e, catch_backtrace())
             runs[id] = Dict{String,Any}(
@@ -774,11 +874,17 @@ function load_compare_config(path::AbstractString)
         end
         if !haskey(d, "params")
             d["params"] = Dict{String,Any}(string(k) => v for (k, v) in d
-                if !(string(k) in ("method", "label", "params", "id")))
+                if !(string(k) in ("method", "label", "params", "id", "replicates")))
         elseif !(d["params"] isa AbstractDict)
             throw(ArgumentError("\"$side_name.params\" must be an object"))
         else
             d["params"] = Dict{String,Any}(string(k) => v for (k, v) in d["params"])
+        end
+        if haskey(d, "replicates")
+            nrep = Int(d["replicates"])
+            nrep >= 1 || throw(ArgumentError(
+                "\"$side_name.replicates\" must be ≥ 1, got $nrep"))
+            d["replicates"] = nrep
         end
         return d
     end
@@ -807,6 +913,7 @@ function load_compare_config(path::AbstractString)
     seed = UInt64(get(raw, "seed", 1))
     reduction = parse_reduction_name(String(get(raw, "reduction", "lo")))
     skip_completed = Bool(get(raw, "skip_completed", true))
+    jit_warmup = Bool(get(raw, "jit_warmup", false))
     prefix = get(raw, "prefix", nothing)
     prefix = prefix === nothing ? nothing : String(prefix)
     datasets = get(raw, "datasets", nothing)
@@ -824,7 +931,7 @@ function load_compare_config(path::AbstractString)
     return (;
         name = name === nothing ? nothing : String(name),
         output=String(output),
-        k, θ, seed, reduction, skip_completed, prefix, datasets,
+        k, θ, seed, reduction, skip_completed, jit_warmup, prefix, datasets,
         baseline, challenger, methods,
         inject_cfg=raw,
         config_path=path,
@@ -930,6 +1037,27 @@ function run_compare_suite(; graphs,
     return results
 end
 
+function _spec_ids(specs)
+    return [String(get(spec, "id", get(spec, "label", get(spec, "method", "method"))))
+            for spec in specs]
+end
+
+"""
+A resumed graph is done when every requested method id is already stored.
+
+Adding a method to the config re-runs only the graphs that lack that id.
+The new row replaces the old one, so the methods still run together.
+"""
+function _row_has_methods(row, ids)
+    get(row, "status", "") == "ok" || return false
+    runs = get(row, "runs", nothing)
+    runs isa AbstractDict || return false
+    for id in ids
+        haskey(runs, id) || return false
+    end
+    return true
+end
+
 function summarize_multi(results::Vector, ref::AbstractString)
     counts = Dict{String,Any}()
     for r in results
@@ -955,6 +1083,7 @@ function run_multi_suite(; graphs, specs::Vector{Dict{String,Any}},
     k::Int, θ::Int, reduction::ReductionMode.T, seed::UInt64, inject,
     save_path::Union{Nothing,AbstractString},
     skip_completed::Bool=true,
+    jit_warmup::Bool=false,
     cfg_meta::Dict{String,Any}=Dict{String,Any}())
 
     isempty(graphs) && error("No graphs to compare (check data/ index, --prefix= / datasets / dataset arg)")
@@ -965,8 +1094,13 @@ function run_multi_suite(; graphs, specs::Vector{Dict{String,Any}},
     if out_path !== nothing && skip_completed
         results, _prev = load_existing_results(out_path)
     end
-    done = Set(String(r["dataset"]) for r in results if haskey(r, "dataset") &&
-        get(r, "status", "") == "ok")
+    needed = _spec_ids(specs)
+    done = Set{String}()
+    for r in results
+        haskey(r, "dataset") || continue
+        _row_has_methods(r, needed) || continue
+        push!(done, String(r["dataset"]))
+    end
 
     ref = String(get(specs[1], "id", get(specs[1], "label", "method")))
     cfg_meta = merge(Dict{String,Any}(
@@ -981,6 +1115,22 @@ function run_multi_suite(; graphs, specs::Vector{Dict{String,Any}},
             (out_path === nothing ? "" : "  → $out_path"))
     if !isempty(done)
         println("Resuming: $(length(done)) already completed")
+    end
+
+    # One discarded pass so the first recorded graph is not the JIT outlier.
+    if jit_warmup
+        warm = findfirst(entry -> !(entry.key in done), graphs)
+        if warm !== nothing
+            entry = graphs[warm]
+            println("JIT warmup (discarded): $(entry.key)")
+            Random.seed!(seed)
+            try
+                compare_multi_one_graph!(entry.key, entry.edges, specs,
+                    k, θ, reduction, seed, inject)
+            catch e
+                @warn "JIT warmup failed on $(entry.key)" exception=(e, catch_backtrace())
+            end
+        end
     end
 
     for (i, entry) in enumerate(graphs)
@@ -1097,6 +1247,7 @@ function main_from_config(config_path::AbstractString)
             k=k, θ=θ, reduction=reduction, seed=seed, inject=inject,
             save_path=save_path,
             skip_completed=cfg.skip_completed,
+            jit_warmup=cfg.jit_warmup,
             cfg_meta=Dict{String,Any}(
                 "name" => cfg.name,
                 "config_path" => cfg.config_path,

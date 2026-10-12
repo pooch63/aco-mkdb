@@ -1,7 +1,12 @@
 """
-reduce mode — super-reduce phase JSON → one compact full-width table.
+reduce mode — super-reduce phase JSON → compact full-width tables.
 
 Reads the array written by ``report_super_reduce`` (one object per graph).
+A directory of ``k{k}t{theta}.json`` files (the reduction sweep) becomes one
+captionless table per recorded ``(k, \\theta)``, two tables to a page.
+``--plots=sweep`` on that directory is the median-removal figure. A single
+JSON file is one table.
+
 Each row is the original ``nU``, ``nV``, and ``edges``, then the same counts
 and wall time after:
 
@@ -96,8 +101,39 @@ def _cell(row, key, warned):
     return row[key]
 
 
-def render(rows):
-    """LaTeX for every recorded graph. ``rows`` is a list of JSON objects."""
+def _load_rows(path):
+    """List of graph objects, or None when the file cannot be used."""
+    data = load_json(path)
+    if data is None:
+        return None
+    if isinstance(data, dict):
+        data = data.get("rows") or data.get("graphs") or []
+    if not isinstance(data, list):
+        return None
+    return [row for row in data if isinstance(row, dict)]
+
+
+def _setting_of(rows, path):
+    """``(k, theta)`` when the file is one setting, else ``(None, None)``."""
+    ks = {row.get("k") for row in rows if row.get("k") is not None}
+    thetas = {row.get("theta") for row in rows if row.get("theta") is not None}
+    if len(ks) == 1 and len(thetas) == 1:
+        return int(next(iter(ks))), int(next(iter(thetas)))
+    match = re.fullmatch(r"k(\d+)t(\d+)", Path(path).stem)
+    if match and not ks and not thetas:
+        return int(match.group(1)), int(match.group(2))
+    return None, None
+
+
+def render(rows, *, wrapped=True):
+    """
+    LaTeX for every recorded graph. ``rows`` is a list of JSON objects.
+
+    The block has no caption. A one-line $(k, \\theta)$ heading identifies
+    the setting. ``wrapped`` puts that block in its own ``table*`` float;
+    a directory of settings leaves the floats to the caller so two tables
+    share a page.
+    """
     if not rows:
         print("# reduction table: no graphs in the results file", file=sys.stderr)
         return (
@@ -110,9 +146,6 @@ def render(rows):
     body = []
     ks = {r.get("k") for r in rows if isinstance(r, dict) and r.get("k") is not None}
     thetas = {r.get("theta") for r in rows if isinstance(r, dict) and r.get("theta") is not None}
-    injected = all(
-        isinstance(r, dict) and r.get("injected") is True for r in rows
-    )
     k_tex = str(int(next(iter(ks)))) if len(ks) == 1 else "varied"
     theta_tex = str(int(next(iter(thetas)))) if len(thetas) == 1 else "varied"
     for row in rows:
@@ -164,32 +197,18 @@ def render(rows):
             r"\end{center}"
         )
 
-    # scriptsize, zero booktabs padding, and a short header: 40 graphs
-    # should stay about one full-width block, not a loose float page.
+    # scriptsize and tight booktabs padding: two of these fit on a page
+    # once the caption is gone. The $(k, \theta)$ line is a heading, not
+    # a caption, so the float has no table number.
     lines = [
-        r"\begin{table*}[t]",
-        r"\centering",
-        r"\setlength{\abovecaptionskip}{1pt}",
-        r"\setlength{\belowcaptionskip}{0pt}",
-        r"\caption{Percentage of nodes ($|U|+|V|$) and edges removed, and wall "
-        r"time $t$ in seconds, for common-neighbor reduction (CNR), one "
-        r"pass (Once), and the repeated reduction (Full). "
-        r"Bold is the largest removal on that graph. "
-        r"Initial side sizes $U_k$ and $V_k$, and the edge count $E_k$, "
-        r"are in thousands. "
-        + (
-            rf"A $\theta \times \theta$ biclique with $k$ missing edges was "
-            rf"injected first. "
-            if injected else ""
-        )
-        + rf"Experiments use $k={k_tex}$ and $\theta={theta_tex}$." + "}",
-        r"\label{tab:reduction}",
+        rf"{{\scriptsize $k = {k_tex}$, $\theta = {theta_tex}$\par}}",
+        r"\vspace{1pt}",
         r"\scriptsize",
         r"\setlength{\tabcolsep}{1.6pt}",
         r"\setlength{\aboverulesep}{0.12ex}",
         r"\setlength{\belowrulesep}{0.12ex}",
         r"\setlength{\cmidrulesep}{0pt}",
-        r"\renewcommand{\arraystretch}{0.9}",
+        r"\renewcommand{\arraystretch}{0.82}",
         r"\begin{tabular}{@{}l rrr rrr rrr rrr@{}}",
         r"\toprule",
         r"& \multicolumn{3}{c}{Initial}"
@@ -206,9 +225,16 @@ def render(rows):
         *body,
         r"\bottomrule",
         r"\end{tabular}",
-        r"\end{table*}",
     ]
-    return "\n".join(lines)
+    body_tex = "\n".join(lines)
+    if not wrapped:
+        return body_tex
+    return "\n".join([
+        r"\begin{table*}[t]",
+        r"\centering",
+        body_tex,
+        r"\end{table*}",
+    ])
 
 
 # Same file PHASE=kt reads. Duplicate pairs are ignored.
@@ -586,19 +612,119 @@ def render_sweep(directory, pairs_path=None):
     return lines
 
 
-def run(path, output):
+def render_tables(directory, extra_paths=(), pairs_path=None):
+    """
+    One table per recorded ``(k, \\theta)``.
+
+    Files are ``k{k}t{theta}.json`` in ``directory``, plus any
+    ``extra_paths`` whose ``(k, \\theta)`` is not already present.
+    Tables are ordered by increasing ``k``, then ``\\theta``. A pair
+    listed in ``scripts/kt-sweep.bash`` with no file is a stderr warning.
+    """
+    directory = Path(directory)
+    by_pair = {}
+    unordered = []
+
+    def take(path):
+        path = Path(path)
+        rows = _load_rows(path)
+        if rows is None:
+            print(f"# reduction table: could not read {path}", file=sys.stderr)
+            return
+        k, theta = _setting_of(rows, path)
+        if k is None or theta is None:
+            unordered.append((path, rows, k, theta))
+            return
+        key = (k, theta)
+        if key in by_pair:
+            print(
+                f"# reduction table: skipping {path.name}; "
+                f"k={k}, θ={theta} already read from {by_pair[key][0].name}",
+                file=sys.stderr,
+            )
+            return
+        by_pair[key] = (path, rows)
+
+    if directory.is_dir():
+        for path in sorted(directory.glob("k*t*.json")):
+            take(path)
+    else:
+        print(f"# reduction table: not a directory: {directory}", file=sys.stderr)
+    for path in extra_paths:
+        take(path)
+
+    for k, theta in load_kt_pairs(pairs_path):
+        if (k, theta) not in by_pair:
+            print(
+                f"# reduction table: no results for k={k}, θ={theta}",
+                file=sys.stderr,
+            )
+
+    ordered = [
+        (*by_pair[key], *key)
+        for key in sorted(by_pair)
+    ]
+    ordered.extend(unordered)
+
+    if not ordered:
+        print(f"# reduction table: no sweep files in {directory}", file=sys.stderr)
+        return render([])
+
+    blocks = []
+    for path, rows, k, theta in ordered:
+        blocks.append(render(rows, wrapped=False))
+        print(
+            f"# reduction table: {path.name} "
+            f"(k={k}, θ={theta}, {len(rows)} graph(s))",
+            file=sys.stderr,
+        )
+    # One float holds two settings. The column key is typeset once,
+    # above the first pair, so later pages stay captionless.
+    intro = "\n".join([
+        r"\begin{minipage}{\textwidth}",
+        r"\raggedright\scriptsize",
+        r"Each table is one $(k, \theta)$ setting. A row is one graph. "
+        r"$U_k$, $V_k$, and $E_k$ are the initial side sizes and edge count "
+        r"in thousands. For common-neighbor reduction (CNR), one pass (Once), "
+        r"and the repeated reduction (Full), $n\%$ and $e\%$ are the percentage "
+        r"of nodes and edges removed and $t$ is wall time in seconds. Bold "
+        r"marks the largest removal on that graph. A $\theta \times \theta$ "
+        r"biclique with $k$ missing edges was injected before reduction.",
+        r"\end{minipage}",
+        r"\par\vspace{4pt}",
+    ])
+    pages = []
+    for index in range(0, len(blocks), 2):
+        pair = blocks[index:index + 2]
+        parts = []
+        if index == 0:
+            parts.append(intro)
+        parts.append("\n\\par\\vspace{3pt}\n".join(pair))
+        pages.append("\n".join([
+            r"\begin{table*}[p]",
+            r"\centering",
+            *parts,
+            r"\end{table*}",
+        ]))
+    return "\n\n".join(pages)
+
+
+def run(path, output, plots=None, also=None):
     path = Path(path)
-    if path.is_dir():
-        write_tex("\n".join(render_sweep(path)) + "\n", output)
+    if plots == "sweep":
+        directory = path if path.is_dir() else path.parent
+        write_tex("\n".join(render_sweep(directory)) + "\n", output)
         return
-    data = load_json(path)
-    if data is None:
+    if path.is_dir():
+        extras = [also] if also else []
+        write_tex(render_tables(path, extras), output)
+        return
+    if also and Path(also).is_dir():
+        write_tex(render_tables(Path(also), [path]), output)
+        return
+    rows = _load_rows(path)
+    if rows is None:
         print(f"# reduction table: could not read {path}", file=sys.stderr)
         write_tex(render([]), output)
         return
-    if isinstance(data, dict):
-        data = data.get("rows") or data.get("graphs") or []
-    if not isinstance(data, list):
-        print(f"# reduction table: expected a list in {path}", file=sys.stderr)
-        data = []
-    write_tex(render(data), output)
+    write_tex(render(rows), output)

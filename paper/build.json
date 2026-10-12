@@ -65,6 +65,8 @@
         "k3t6": "vary_k3t6i_PN",
         "k3t7": "vary_k3t7i_PN"
       },
+      "method_results": "three_heuristics.json",
+      "method_sweep_dir": "method_sweep",
       "runtime_sweeps": {
         "k": [
           {"theta": 5, "values": [1, 2, 3, 4]},
@@ -104,8 +106,15 @@
     },
     "HEURISTICS": {
       "emit": "heuristics",
-      "input": "three_heuristics.json",
+      "input": "method_sweep",
+      "ants": 100,
       "file": "heuristics.tex"
+    },
+    "METRICS": {
+      "emit": "metrics",
+      "input": "metrics/k2t5.json",
+      "compare_dir": "compare_k2t5i",
+      "file": "metrics.tex"
     }
   }
 }

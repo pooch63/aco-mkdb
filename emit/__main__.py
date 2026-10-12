@@ -6,12 +6,13 @@ Modes
 -----
   quality
       Vary.jl ant-count format → cross-graph median percent deviation
-      from the θ-heuristic vs ant count. Optional --ablation-dir=LABEL=DIR
-      (rho, pheromone, eta-exp) adds those sweeps as compact panels in
-      the same figure. Optional --budget-dir adds the epoch and
-      replicate sweeps (deviation, then θ-feasibility) from epoch_trace.
-      Per-graph means, not pooled replicates; θ-infeasible outcomes
-      count as −100%. The budget panels ignore --max-replicates.
+      from the θ-heuristic vs ant count. Optional --budget-dir adds the
+      epoch and replicate sweeps (deviation, then θ-feasibility) from
+      epoch_trace, under the ant-count panel. --plots=sweeps with
+      --ablation-dir=LABEL=DIR (rho, pheromone, eta-exp) writes those
+      three panels as a separate figure. Per-graph means, not pooled
+      replicates; θ-infeasible outcomes count as −100%. The budget
+      panels ignore --max-replicates.
 
   seed-compare
       compare-seeds.jl (+ vary.jl) → table:
@@ -40,12 +41,16 @@ Modes
         max-deg-time, flag-ablation, flag-ablation-replicates,
         flag-feasibility, flag-feasibility-replicates, budget,
         pheromone-ablation,
-        k-sweep, theta-sweep, density-wins, param-runtime
+        k-sweep, theta-sweep, density-wins, method-density, method-size,
+        param-runtime
       Pass a single results directory, e.g. vary_k2t5i_PN.
       flag-ablation / flag-feasibility (and *-replicates) use
       --flag-dir=LABEL=DIR.
       k-sweep / theta-sweep / density-wins / param-runtime use
       --param-dir=LABEL=DIR (see build.json).
+      method-density and method-size read --method-results (a
+      compare-methods JSON with several methods) together with the
+      vary directory for ACO.
       budget and pheromone-ablation read per-epoch incumbent traces
       (``epoch_trace``). pheromone-ablation also takes
       ``--trace-dir=LABEL=DIR`` for the Δτ=0 run and any ρ sweep.
@@ -184,6 +189,12 @@ def main(argv=None):
              "or (table only) original graph sizes",
     )
     parser.add_argument(
+        "--also",
+        default=None,
+        help="reduce mode: extra phase JSON included when the directory "
+             "does not already contain that (k, θ)",
+    )
+    parser.add_argument(
         "--plots",
         default=None,
         help="compare mode: comma-separated plot groups "
@@ -192,7 +203,8 @@ def main(argv=None):
              "flag-ablation, flag-ablation-replicates, "
              "flag-feasibility, flag-feasibility-replicates, "
              "budget, pheromone-ablation, "
-             "k-sweep, theta-sweep, density-wins, param-runtime)",
+             "k-sweep, theta-sweep, density-wins, method-density, "
+             "method-size, param-runtime)",
     )
     parser.add_argument(
         "--flag-dir",
@@ -211,6 +223,20 @@ def main(argv=None):
         help="compare k-sweep / theta-sweep / density-wins / "
              "param-runtime: (k, θ) suite directory (repeat; labels are "
              "free-form, k/θ read from JSON)",
+    )
+    parser.add_argument(
+        "--method-sweep-dir",
+        default=None,
+        help="compare k-sweep / param-runtime: directory of "
+             "k{k}t{theta}.json files from compare-methods. ACO and the "
+             "θ-heuristic still come from the vary suites.",
+    )
+    parser.add_argument(
+        "--method-results",
+        default=None,
+        help="compare method-density / method-size: multi-method "
+             "compare JSON (θ-heuristic, double-greedy, clique-order-edge). "
+             "ACO still comes from the vary directory.",
     )
     parser.add_argument(
         "--runtime-sweep",
@@ -234,7 +260,7 @@ def main(argv=None):
         action="append",
         metavar="LABEL=DIR",
         default=None,
-        help="quality mode: hyperparameter sweep directory "
+        help="quality mode (--plots=sweeps): hyperparameter sweep directory "
              "(repeat; labels rho, pheromone, eta-exp)",
     )
     parser.add_argument(
@@ -264,7 +290,8 @@ def main(argv=None):
         "--compare-dir",
         default=None,
         help="statistics mode: compare-seeds JSON directory for "
-             "pivot-tested / pivot-excluded win coverage fields",
+             "pivot-tested / pivot-excluded win coverage fields. "
+             "metrics mode: finished branch-and-pivot optima",
     )
 
     parser.add_argument(
@@ -297,11 +324,17 @@ def main(argv=None):
                     )
                 ablation_dirs[label.strip()] = path.strip()
         from . import quality
+        subset = args.plots or "main"
+        if subset not in ("main", "sweeps"):
+            raise SystemExit(
+                f"quality: unknown --plots={subset}; use sweeps"
+            )
         quality.run(
             json_paths,
             args.output,
             ablation_dirs=ablation_dirs,
             budget_dir=args.budget_dir,
+            subset=subset,
         )
 
     elif args.mode == "seed-compare":
@@ -387,6 +420,8 @@ def main(argv=None):
             param_dirs=param_dirs,
             trace_dirs=trace_dirs,
             runtime_sweeps=_parse_runtime_sweeps(args.runtime_sweep),
+            method_results_path=args.method_results,
+            method_sweep_dir=args.method_sweep_dir,
         )
 
     elif args.mode == "ablation":
@@ -395,11 +430,27 @@ def main(argv=None):
 
     elif args.mode == "reduce":
         from . import reduce
-        reduce.run(args.directory, args.output)
+        reduce.run(args.directory, args.output, plots=args.plots, also=args.also)
 
     elif args.mode == "heuristics":
+        param_dirs = None
+        if args.param_dir:
+            param_dirs = {}
+            for item in args.param_dir:
+                label, sep, path = item.partition("=")
+                if not sep or not label.strip() or not path.strip():
+                    raise SystemExit(
+                        f"Invalid --param-dir entry {item!r}; use LABEL=DIR"
+                    )
+                param_dirs[label.strip()] = path.strip()
         from . import heuristics
-        heuristics.run(args.directory, args.output)
+        heuristics.run(
+            args.directory,
+            args.output,
+            vary_dir=args.vary_dir,
+            ants=args.ants,
+            param_dirs=param_dirs,
+        )
 
     elif args.mode == "epoch-table":
         from . import epoch_table
@@ -417,6 +468,15 @@ def main(argv=None):
             field=args.field,
             vary_base=args.vary_base,
             compare_dir=args.compare_dir,
+        )
+
+    elif args.mode == "metrics":
+        from . import metrics
+        metrics.run(
+            args.directory,
+            args.output,
+            compare_dir=args.compare_dir,
+            plots=args.plots or "main",
         )
 
     elif args.mode == "methods":

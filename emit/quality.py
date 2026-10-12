@@ -1,14 +1,14 @@
 """
 quality mode — vary.jl ant-count format → median percent deviation from
-the θ-heuristic versus ant count. With ``--ablation-dir`` for ``rho``,
-``pheromone``, and ``eta-exp``, the same median is drawn with the
-ant-count curve. ``--budget-dir`` adds the epoch-budget and
-replicate-count sweeps (deviation, then θ-feasibility) from the
-recorded epoch traces, in the same one-column groupplot. θ-infeasible
-outcomes count as −100%. One value per graph at each axis point (mean
-over that graph's counted replicates), then the median across graphs.
-The epoch-trace panels ignore ``--max-replicates`` and use every
-counted replicate.
+the θ-heuristic versus ant count. ``--budget-dir`` adds the epoch-budget
+and replicate-count sweeps (deviation, then θ-feasibility) from the
+recorded epoch traces, in the same one-column figure. ``--plots=sweeps``
+with ``--ablation-dir`` for ``rho``, ``pheromone``, and ``eta-exp``
+writes those three panels as a separate figure. θ-infeasible outcomes
+count as −100%. One value per graph at each axis point (mean over that
+graph's counted replicates), then the median across graphs. The
+epoch-trace panels ignore ``--max-replicates`` and use every counted
+replicate.
 """
 
 from __future__ import annotations
@@ -194,12 +194,15 @@ _PANEL_DEFAULTS = {
     "eta-exp": 3.0,
 }
 
-_ROW_PANELS = (
+_MAIN_PANELS = (
     ("ants", "ants", r"Number of ants", "log2"),
+)
+_SWEEP_PANELS = (
     ("rho", "param_value", r"Evaporation $\rho$", "log10"),
     ("pheromone", "param_value", r"Deposit $\Delta\tau$", "linear"),
     ("eta-exp", "param_value", r"$\eta$ exponent", "linear"),
 )
+_ROW_PANELS = _MAIN_PANELS + _SWEEP_PANELS
 
 
 def _axis_limits(xs, scale):
@@ -293,8 +296,13 @@ def _panel_plots(xy, xmin, xmax, ymin, ymax, default, *, zero_line=True):
 
 _CAPTION = r"Median deviation from the $\theta$-heuristic."
 _CAPTION_WITH_BUDGET = (
-    r"Median deviation from the $\theta$-heuristic. "
-    r"Bottom row: median $\theta$-feasibility versus epoch budget and replicate count."
+    r"Median deviation from the $\theta$-heuristic versus ant count, "
+    r"epoch budget, and replicate count. "
+    r"Bottom row: median $\theta$-feasibility."
+)
+_CAPTION_SWEEPS = (
+    r"Median deviation from the $\theta$-heuristic versus evaporation "
+    r"$\rho$, deposit $\Delta\tau$, and the $\eta$ exponent."
 )
 
 _METRIC_LABEL = {
@@ -312,18 +320,30 @@ _BUDGET_ROW = (
 )
 
 
-def _quality_figure(body, *, resize=True, caption=_CAPTION, extra_labels=()):
-    """One column float around a tikz body, with the shared caption."""
+def _quality_figure(
+    body,
+    *,
+    bodies=None,
+    resize=True,
+    caption=_CAPTION,
+    extra_labels=(),
+    label="fig:quality-groupplot",
+):
+    """One column float around one or more tikz bodies."""
+    chunks = bodies if bodies is not None else [body]
     env, lines = begin_float("figure", star=False)
-    lines += begin_tikz(resize=resize)
-    lines += body
-    lines += end_tikz(resize=resize)
+    for i, chunk in enumerate(chunks):
+        if i:
+            lines.append(r"  \vspace{0.45em}")
+        lines += begin_tikz(resize=resize)
+        lines += chunk
+        lines += end_tikz(resize=resize)
     lines += [
         rf"  \caption{{{caption}}}",
-        r"  \label{fig:quality-groupplot}",
+        rf"  \label{{{label}}}",
     ]
-    for label in extra_labels:
-        lines.append(rf"  \label{{{label}}}")
+    for extra in extra_labels:
+        lines.append(rf"  \label{{{extra}}}")
     lines += end_float(env)
     return "\n".join(lines)
 
@@ -389,19 +409,74 @@ def build_quality_latex(median_xy):
     return _quality_figure(body)
 
 
-def build_quality_row_latex(panels):
+def _panel_bounds(panel, ymin, ymax):
+    """Axis limits and tick list for one panel."""
+    xy = panel["xy"] or {}
+    if xy:
+        xs = sorted(float(x) for x in xy)
+        xmin, xmax, scale = _axis_limits(xs, panel["scale"])
+        xtick = "{" + ",".join(f"{x:g}" for x in _tick_values(xs, scale)) + "}"
+    else:
+        xmin, xmax, scale = panel["empty"]
+        xtick = None
+    if panel.get("ymin") is not None:
+        ymin = panel["ymin"]
+    if panel.get("ymax") is not None:
+        ymax = panel["ymax"]
+    return xmin, xmax, scale, xtick, ymin, ymax
+
+
+def _standalone_axis(panel, ymin, ymax, *, width, height):
+    """One axis, used for the ant-count panel above the budget grid."""
+    xmin, xmax, scale, xtick, ymin, ymax = _panel_bounds(panel, ymin, ymax)
+    metric = panel.get("metric", "dev")
+    lines = [
+        r"\begin{axis}[",
+        rf"  width={width},",
+        rf"  height={height},",
+        r"  scale only axis,",
+        r"  tick label style={font=\scriptsize, inner sep=1pt},",
+        r"  label style={font=\scriptsize, inner sep=1pt},",
+        r"  xlabel style={align=center},",
+        r"  ylabel style={font=\scriptsize},",
+        rf"  xlabel={{{panel['xlabel']}}},",
+        rf"  ylabel={{{_METRIC_LABEL[metric]}}},",
+        r"  grid=major,",
+        r"  grid style={gray!25},",
+        r"  tick align=outside,",
+        rf"  ymin={ymin:.4f},",
+        rf"  ymax={ymax:.4f},",
+    ]
+    lines += _xscale_opts(scale)
+    lines.append(rf"  xmin={xmin:g},")
+    lines.append(rf"  xmax={xmax:g},")
+    if xtick is not None:
+        lines.append(rf"  xtick={xtick},")
+    if panel.get("ytick"):
+        lines.append(rf"  ytick={{{panel['ytick']}}},")
+    lines.append(r"]")
+    lines += _panel_plots(
+        panel["xy"] or {}, xmin, xmax, ymin, ymax, panel["default"],
+        zero_line=panel.get("zero_line", True),
+    )
+    lines.append(r"\end{axis}")
+    return lines
+
+
+def _groupplot_lines(
+    panels,
+    *,
+    ncols=2,
+    width=r"0.34\columnwidth",
+    height=r"0.26\columnwidth",
+):
     """
-    Panels in a 2-column grid that fits one column. The first four are
-    ant count, evaporation, deposit, and the η exponent. When epoch
-    traces are passed in, epochs and replicates follow: deviation on
-    the shared vertical scale, then θ-feasibility on its own scale.
-    Missing sweeps stay blank.
+    Groupplot body for ``panels``. Missing sweeps stay blank.
 
     Axis boxes are a fraction of \\columnwidth and the picture is not
     resized, so a short grid stays small instead of stretching to the
     column. Each ylabel sits left of the tick labels.
     """
-    ncols = 2
     nrows = (len(panels) + ncols - 1) // ncols
     shared_lo, shared_hi = _shared_ylim(
         [p["xy"] for p in panels if p.get("ymin") is None]
@@ -411,8 +486,8 @@ def build_quality_row_latex(panels):
         rf"  group style={{group size={ncols} by {nrows},",
         r"    horizontal sep=0.48cm, vertical sep=0.82cm},",
         r"  scale only axis,",
-        r"  width=0.34\columnwidth,",
-        r"  height=0.26\columnwidth,",
+        rf"  width={width},",
+        rf"  height={height},",
         r"  tick label style={font=\scriptsize, inner sep=1pt},",
         r"  label style={font=\scriptsize, inner sep=1pt},",
         r"  xlabel style={align=center},",
@@ -456,12 +531,67 @@ def build_quality_row_latex(panels):
         )
     body.append(r"\end{groupplot}")
     body += _row_ylabels(panels, ncols)
+    return body
+
+
+def build_quality_row_latex(
+    panels,
+    *,
+    ncols=2,
+    width=r"0.34\columnwidth",
+    height=r"0.26\columnwidth",
+    caption=None,
+    label="fig:quality-groupplot",
+    extra_labels=(),
+):
+    """One-column groupplot. Caption follows the panels unless overridden."""
     has_budget = any(p.get("metric") == "feas" for p in panels)
+    if caption is None:
+        caption = _CAPTION_WITH_BUDGET if has_budget else _CAPTION
+    if has_budget and not extra_labels:
+        extra_labels = ("fig:budget",)
     return _quality_figure(
-        body,
+        _groupplot_lines(panels, ncols=ncols, width=width, height=height),
         resize=False,
-        caption=_CAPTION_WITH_BUDGET if has_budget else _CAPTION,
-        extra_labels=("fig:budget",) if has_budget else (),
+        caption=caption,
+        extra_labels=extra_labels,
+        label=label,
+    )
+
+
+def build_main_quality_latex(ants_panel, budget):
+    """
+    Ant count above the epoch and replicate grid.
+
+    Deviation panels share one vertical scale. θ-feasibility stays on
+    the 0–100 scale in the bottom row of the grid.
+    """
+    shared_lo, shared_hi = _shared_ylim(
+        [ants_panel["xy"]]
+        + [p["xy"] for p in budget if p.get("ymin") is None]
+    )
+    locked = []
+    for panel in budget:
+        if panel.get("ymin") is None:
+            panel = dict(panel)
+            panel["ymin"] = shared_lo
+            panel["ymax"] = shared_hi
+        locked.append(panel)
+    return _quality_figure(
+        None,
+        bodies=[
+            _standalone_axis(
+                ants_panel,
+                shared_lo,
+                shared_hi,
+                width=r"0.74\columnwidth",
+                height=r"0.26\columnwidth",
+            ),
+            _groupplot_lines(locked),
+        ],
+        resize=False,
+        caption=_CAPTION_WITH_BUDGET,
+        extra_labels=("fig:budget",),
     )
 
 
@@ -556,50 +686,22 @@ def budget_panels(budget_dir, skipped):
     return panels
 
 
-def run(json_paths, output, ablation_dirs=None, budget_dir=None):
-    if not ablation_dirs:
-        heuristic_series = []
-        skipped = []
-        for path in json_paths:
-            data = load_json(path)
-            if data is None:
-                skipped.append((path, "unreadable"))
-                continue
-            if aco_timed_out(data):
-                limit = data.get("aco_timeout_s")
-                reason = "aco timed out"
-                if limit is not None:
-                    reason = f"aco timed out ({limit}s)"
-                skipped.append((path, reason))
-                continue
-            result = summarize_file(data)
-            if result is None:
-                skipped.append((path, "no usable optimum or heuristic"))
-                continue
-            _, heur_pct_by_ants, _, _ = result
-            if heur_pct_by_ants:
-                heuristic_series.append((series_name(path, data), heur_pct_by_ants))
-        if not heuristic_series:
-            raise SystemExit(
-                "No files had a usable heuristic baseline -- nothing to plot."
-            )
-        median_xy = aggregate_median_series(heuristic_series)
-        write_tex(build_quality_latex(median_xy), output)
-        print(
-            f"# quality: median deviation over {len(heuristic_series)} graph(s)",
-            file=sys.stderr,
-        )
-        report_skipped(skipped)
-        return
+_EMPTY_LIMITS = {
+    "ants": (1.0, 400.0, "log2"),
+    "rho": (0.005, 1.0, "log10"),
+    "pheromone": (-1.0, 12.0, "linear"),
+    "eta-exp": (0.5, 5.5, "linear"),
+}
 
+
+def _load_row_panels(specs, json_paths, ablation_dirs, skipped):
+    """One panel dict per spec. Missing sweeps stay blank and are warned about."""
     panels = []
-    skipped = []
-    for key, axis, xlabel, scale in _ROW_PANELS:
+    for key, axis, xlabel, scale in specs:
         if key == "ants":
             paths = json_paths
-            directory = None
         else:
-            directory = ablation_dirs.get(key)
+            directory = (ablation_dirs or {}).get(key)
             if not directory or not os.path.isdir(directory):
                 print(
                     f"Warning: quality: no {key} sweep"
@@ -619,29 +721,61 @@ def run(json_paths, output, ablation_dirs=None, budget_dir=None):
             paths, axis, expect_param=None if key == "ants" else key,
         )
         skipped.extend(panel_skipped)
-        if key == "ants" and not xy:
-            raise SystemExit(
-                "No files had a usable heuristic baseline -- nothing to plot."
-            )
-        empty = {
-            "ants": (1.0, 400.0, "log2"),
-            "rho": (0.005, 1.0, "log10"),
-            "pheromone": (-1.0, 12.0, "linear"),
-            "eta-exp": (0.5, 5.5, "linear"),
-        }[key]
         panels.append({
             "xy": xy,
             "xlabel": xlabel,
             "scale": scale,
             "default": _PANEL_DEFAULTS[key],
-            "empty": empty,
+            "empty": _EMPTY_LIMITS[key],
             "metric": "dev",
         })
         status = "not recorded" if not xy else f"{len(xy)} point(s)"
         print(f"# quality: {key}: {status}", file=sys.stderr)
+    return panels
 
+
+def run(json_paths, output, ablation_dirs=None, budget_dir=None, subset="main"):
+    """
+    ``subset="main"`` is ant count, plus epoch and replicate panels when
+    ``budget_dir`` is set. ``subset="sweeps"`` is evaporation, deposit,
+    and the η exponent.
+    """
+    if subset not in ("main", "sweeps"):
+        raise SystemExit(f"quality: unknown --plots={subset}; use sweeps")
+
+    skipped = []
+    if subset == "sweeps":
+        panels = _load_row_panels(
+            _SWEEP_PANELS, json_paths, ablation_dirs, skipped,
+        )
+        write_tex(
+            build_quality_row_latex(
+                panels,
+                ncols=1,
+                width=r"0.72\columnwidth",
+                height=r"0.24\columnwidth",
+                caption=_CAPTION_SWEEPS,
+                label="fig:quality-sweeps",
+                extra_labels=(),
+            ),
+            output,
+        )
+        report_skipped(skipped)
+        return
+
+    panels = _load_row_panels(_MAIN_PANELS, json_paths, None, skipped)
+    ants = panels[0]
+    if not ants["xy"]:
+        raise SystemExit(
+            "No files had a usable heuristic baseline -- nothing to plot."
+        )
     if budget_dir is not None:
-        panels.extend(budget_panels(budget_dir, skipped))
-
-    write_tex(build_quality_row_latex(panels), output)
+        budget = budget_panels(budget_dir, skipped)
+        write_tex(build_main_quality_latex(ants, budget), output)
+    else:
+        write_tex(build_quality_latex(ants["xy"]), output)
+        print(
+            f"# quality: median deviation, {len(ants['xy'])} ant-count point(s)",
+            file=sys.stderr,
+        )
     report_skipped(skipped)

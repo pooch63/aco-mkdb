@@ -52,9 +52,12 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
       sweep passed via --trace-dir. Same ant count.
 
   k-sweep
-    - Compact captionless pair: ACO win rate versus k at fixed θ, and
+    - Compact captionless pair: win rate versus k at fixed θ, and
       versus θ at fixed k, side by side in the text (not a float).
       Requires --param-dir for each (k, θ) suite (build.json param_dirs).
+      With --method-sweep-dir, each finished suite adds one line per
+      method (best-or-tie). Otherwise the line is ACO versus the
+      θ-heuristic.
 
   theta-sweep
     - Included as the right panel of k-sweep. Emits a comment only.
@@ -64,11 +67,22 @@ statistics mode. Select plot groups with ``--plots`` (comma-separated):
       fixed k. At each value, three bars are equal-count thirds of
       reduced density (light to dark).
 
+  method-density
+    - One column. At the (k, θ) of --method-results, the share of
+      graphs in each reduced-density third on which a method matches
+      the best θ-feasible edge count. ACO comes from the vary directory.
+
+  method-size
+    - Same win rate as method-density, with equal-count thirds of
+      |U|+|V| instead of reduced density.
+
   param-runtime
     - Log-scale runtime on four instances. Sweeps come from
       runtime_sweeps in build.json: each ``k`` entry is time versus
       k at one fixed θ, and each ``theta`` entry is time versus θ at
-      one fixed k. The axis uses every completed suite at that fixed
+      one fixed k. Markers are the methods (ACO and the θ-heuristic
+      from the vary JSON, others from --method-sweep-dir). The axis
+      uses every completed suite at that fixed
       value, and each panel spans only the range that graph has.
       A legend under each 2×2 names the sweep color and the marker.
       Timed-out graphs are excluded.
@@ -110,7 +124,10 @@ PLOT_GROUPS = (
     + budget_curves.PLOT_GROUPS
     + param_sweep.PLOT_GROUPS
 )
-PARAM_SWEEP_PLOTS = frozenset(param_sweep.PLOT_GROUPS)
+PARAM_SWEEP_PLOTS = frozenset(param_sweep.PLOT_GROUPS) - {
+    "method-density",
+    "method-size",
+}
 FLAG_ABLATION_PLOTS = frozenset(flag_ablation.PLOT_GROUPS)
 MULTI_DIR_PLOTS = FLAG_ABLATION_PLOTS | PARAM_SWEEP_PLOTS
 BUDGET_PLOTS = frozenset(budget_curves.PLOT_GROUPS)
@@ -146,6 +163,7 @@ def build_compare_plots(
     budget_graphs=None,
     ablation_suites=None,
     runtime_sweeps=None,
+    method_results=None,
 ):
     """
     Build selected compare figures from [(name, row), ...].
@@ -175,6 +193,8 @@ def build_compare_plots(
                 param_meta or {},
                 sweeps=runtime_sweeps,
             )
+        elif name in ("method-density", "method-size"):
+            block = builders[name](named_rows, method_results)
         else:
             block = builders[name](param_by_label or {}, param_meta or {})
         if not block:
@@ -187,7 +207,8 @@ def build_compare_plots(
 
 
 def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=None,
-        trace_dirs=None, runtime_sweeps=None):
+        trace_dirs=None, runtime_sweeps=None, method_results_path=None,
+        method_sweep_dir=None):
     selected = _parse_plots(plots) if plots else list(PLOT_GROUPS)
     matched_ablation = None
     param_by_label = None
@@ -214,6 +235,23 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
                 file=sys.stderr,
             )
 
+    method_results = None
+    if {"method-density", "method-size"}.intersection(selected):
+        if not method_results_path:
+            print(
+                "Warning: method-density / method-size: "
+                "pass --method-results=FILE.",
+                file=sys.stderr,
+            )
+        else:
+            method_results = load_json(method_results_path)
+            if method_results is None:
+                print(
+                    "Warning: method-density: could not read "
+                    f"{method_results_path}.",
+                    file=sys.stderr,
+                )
+
     if PARAM_SWEEP_PLOTS.intersection(selected):
         param_by_label, param_meta, param_skipped = param_sweep.load_param_dirs(
             param_dirs or {}, ants=ants
@@ -223,6 +261,10 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             print(
                 "Warning: param-sweep plots: no usable param directories.",
                 file=sys.stderr,
+            )
+        elif method_sweep_dir and {"k-sweep", "theta-sweep", "param-runtime"} & set(selected):
+            param_sweep.attach_method_sweep(
+                param_by_label, param_meta, method_sweep_dir
             )
 
     if BUDGET_PLOTS.intersection(selected):
@@ -320,6 +362,7 @@ def run(json_paths, output, ants=None, plots=None, flag_dirs=None, param_dirs=No
             budget_graphs=budget_graphs,
             ablation_suites=ablation_suites,
             runtime_sweeps=runtime_sweeps,
+            method_results=method_results,
         ),
         output,
     )
