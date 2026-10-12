@@ -243,6 +243,14 @@ The Double-Greedy algorithm scores every candidate node, which costs $\mathcal{O
 \end{algorithmic}
 \end{algorithm}
 
+\subsubsection{Theoretical Time Complexity} Let $n = |U| + |V|$, $m = |E|$, and let $h = |\tilde{E}|$ be the number of edges in the mapped graph $H$. Building $H$ requires $|C(u,u')|$ for every pair $u,u' \in U$. Each $v \in V$ is a common neighbor of every pair in $N(v)$, so enumerating these pairs for all $v \in V$ takes $O(\sum_{v \in V} d(v)^2)$. Each iteration of the main loop either adds a vertex $p$ to $S$ or removes $p$ from $H$. A vertex in $S$ is never removed, and a removed vertex never joins $S$, so each vertex of $U$ is considered as $p$ at most once and the loop runs at most $|U|$ times. In each iteration, lines 6–10 scan the edges of $H$ incident to $S$, which costs $O(h)$. GreedyFill (Algorithm 1) can be evaluated in $O(d(p) + |V|)$ by maintaining $n(v) = |N(v) \cap U_S|$ for each $v \in V$. Adding $p$ to $U_S$ increments $n(v)$ for each $v \in N(p)$, after which $c(v) = |U_S| - n(v)$ is available in $O(1)$. Since $c(v) > k$ excludes $v$ from $V_T$, a single pass over $V$ places each remaining vertex into one of $k+1$ buckets by cost. Draining the buckets in ascending order until the budget is exhausted then yields $V_T$ and $|E(T)|$ in $O(|V| + k) = O(|V|)$. If $p$ is rejected, the increments are undone at the same $O(d(p))$ cost. Because each vertex is considered as $p$ at most once, the updates to $n(v)$ total $O(m)$ over the whole run. The total time complexity is therefore
+
+$$
+O\left(\sum_{v \in V} d(v)^2 + |U|(h + |V|) + m\right),
+$$
+
+with space $O(h + m)$. In the worst case, $h \leq |U|^2$ and $\sum_{v \in V} d(v)^2 \leq |V| \cdot |U|^2$, and since $|U| \leq |V|$, this gives $O(|U|^2|V|) \subseteq O(n^3)$. On real graphs, CNR removes most vertices and edges before Clique-Edge runs (Table III), so $|U|$, $|V|$, and $h$ are much smaller than these bounds suggest.
+
 \subsection{ACO Algorithm}
 
 \subsubsection{Overview of Algorithm}
@@ -286,7 +294,7 @@ Section~4.3 compares variations of the ACO algorithm as well as a genetic algori
 
 \subsubsection{Theoretical Time Complexity}
 
-Let $n = |U| + |V|$ and $m = |E|$ for a bipartite graph. Each ant must first examine $n$ vertices. A single node's neighbors may not have any $k$-feasible additions, so in the worst case, an ant must consider all vertices it can add to its subgraph at every step. It therefore examines at most $n + (n - 1) + (n - 2) \ldots = n(n + 1)/2$ nodes. Ants also run independently, only syncing pheromone at the end of each epoch, and the upper time complexity is therefore $\mathcal{O}(\lceil A / p \rceil \times T \times n^2)$ on a computer with $p$ processors. [maybe add just one sentence about in-practice complexity]
+Let $n = |U| + |V|$ and $m = |E|$ for a bipartite graph. Each ant must first examine $n$ vertices. A single node's neighbors may not have any $k$-feasible additions, so in the worst case, an ant must consider all vertices it can add to its subgraph at every step. As described in Section~3.3, the maximum number of nodes in a $k$-MDB is $\mathcal{O}(\min(n, \Delta + k)$. An ant therefore examines $\mathcal{O}(\min(n, \Delta + k) \times n)$ nodes. Additionally, it prefers to examine the [TOMORROW, BE SURE TO TALK ABOUT THE $k \times |V|$ FOR THE GREEDY ALGORITHM, REMOVE THE GREEDY FILL INFORMATION CURRENTLY IN CLIQUE-EDGE AND PUT IT RIGHT NEXT TO GREEDY FILL / TALK ABOUT IT IN THE GREEDY FILL SECTION, FINISH THIS SENTENCE ABOUT HOW ANTS PREFER THE NEIGHBORS SO IT'S + $m$, ALSO PUT THE BIT ABOUT MEMOIZING SUBGRAPH DEGREE IN AN ABOVE BULLET POINT SO I DON'T HAVE TO REPEAT IT AND EVERY ALGORITHM CAN USE THAT IDEA]. Ants also run independently, only syncing pheromone at the end of each epoch, so the upper time complexity is therefore $\mathcal{O}(\lceil A / p \rceil \times T \times (\min(n, \Delta + k) \times n + m))$ on a computer with $p$ processors. In practice, $\Delta + k \ll n$, so this does not scale quadratically with $n$.
 
 \subsection{Experimental Setup}
 
@@ -297,6 +305,8 @@ We test on 37 graphs from two public collections: 28 from \href{http://konect.cc
 [note: Add somewhere that every algorithm is guaranteed to be $k$-feasible but not necessarily $\theta$-feasible]
 
 \section{Results}
+
+We define a win as an instance for which an algorithm produces a $\theta$-feasible solution with more edges than any other heuristic. If an algorithm produces a $\theta$-infeasible solution, it is marked as a loss. If all algorithms produce a $\theta$-infeasible solution, it is marked as a tie and not counted in win rate.
 
 \subsection{Comparing the heuristics}
 
@@ -332,7 +342,7 @@ We vary colony size $A$, the epoch budget $T$, and the number of independent rep
     \end{tabular}
  \end{table} 
 
-Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $\theta$-heuristic against ant count, evaporation $\rho$, pheromone deposit $\Delta\tau$, the exponent on $\eta$, epoch count $T$, and replicate count $R$. $\theta$-infeasible outcomes are scored as a $-100\%$ deviation.
+Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $\theta$-heuristic against ant count, evaporation $\rho$, pheromone deposit $\Delta\tau$, the exponent on $\eta$, epoch count $T$, and replicate count $R$. $\theta$-infeasible outcomes are scored as a $-100\%$ deviation. Figure~\ref{fig:pheromone-ablation} removes the pheromone system by setting $\Delta\tau = 0$ and $\rho = 0$.
 
 %%QUALITY%%
 
@@ -414,6 +424,9 @@ Figure~\ref{fig:quality-sweeps} shows the median percent deviation from the $\th
 Each table is one $(k, \theta)$ setting. A row is one graph. $|U|$ and $|V|$ are the side sizes of the returned subgraph, $|E|$ is its edge count, and $t$ is wall time in milliseconds. Bold marks the largest $\theta$-feasible $|E|$ on that graph, and a tie bolds every method that matches. ACO is the best of the counted $100$-ant replicates, and its $t$ is the sum of those replicates. The other columns are a single run.
 
 %%HEURISTICS%%
+
+Each table is one $(k, \theta)$ setting. A row is one graph. $U_k$, $V_k$, and $E_k$ are the initial side sizes and edge count in thousands. For common-neighbor reduction (CNR), one pass (Once), and the repeated reduction (Full), $n\%$ and $e\%$ are the percentage of nodes and edges removed and $t$ is wall time in seconds. Bold marks the largest removal on that graph. A $\theta \times \theta$ biclique with $k$ missing edges was injected before reduction.
+
 %%REDUCE%%
 
 \end{document}
