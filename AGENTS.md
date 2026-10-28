@@ -159,7 +159,7 @@ results/*.json  →  emit/  →  paper/generated/*.tex  →  build.py  →  buil
 1. **Experiments** write JSON under `results/` (see below).
 2. **`python -m emit`** (or `make paper-emit`) reads JSON and writes LaTeX fragments to `paper/generated/`.
    Fragments rebuild when results JSON **or** the emit Python that produces them is newer (see `paper/build.py`).
-3. **`paper/build.py`** substitutes `%%PLACEHOLDER%%` tokens in `main.tex` with generated fragments → `build.tex` → compiles PDF. `--tables` does the same for `tables.tex` → `tables.pdf`.
+3. **`paper/build.py`** substitutes `%%PLACEHOLDER%%` tokens in `main.tex` with generated fragments → `build.tex` → compiles PDF. `--tables` does the same for `tables.tex` → `tables.pdf`. `--full` compiles `build.pdf` first, then compiles the same `main.tex` again with `%%FULL:…%%` … `%%ENDFULL%%` regions included, writing `full-paper.pdf`. There is no `full-paper.tex` source. Without `--full` those regions are omitted and their placeholders are not emitted.
 
 **Commands:**
 
@@ -170,6 +170,7 @@ python paper/build.py emit      # only regenerate fragments
 python paper/build.py assemble  # only substitute placeholders
 python paper/build.py pdf       # only compile
 python paper/build.py --tables  # also compile paper/tables.tex → tables.pdf
+python paper/build.py --full    # build.pdf, then full-paper.pdf (%%FULL%% regions)
 ```
 
 **Configuration:** `paper/build.json` maps placeholders to emit modes, input directories, and options. Set `results_dir` once (default `../results`); fragment paths are bare names under that tree (e.g. `vary_k2t5i_PN`). Absolute / `../…` paths still resolve from `paper/`. Optional top-level `max_replicates` (or per-fragment override / `--max-replicates=R`) retrospectively prefixes counted non-JIT replicates per ant count for emit aggregates; omit/`null` keeps all. The `budget` and `pheromone-ablation` figures always use the full counted set.

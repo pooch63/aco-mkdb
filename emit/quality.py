@@ -296,9 +296,8 @@ def _panel_plots(xy, xmin, xmax, ymin, ymax, default, *, zero_line=True):
 
 _CAPTION = r"Median deviation from the $\theta$-heuristic."
 _CAPTION_WITH_BUDGET = (
-    r"Median deviation from the $\theta$-heuristic versus ant count, "
+    r"Median deviation from the $\theta$-heuristic and $\theta$-feasibility versus ant count, "
     r"epoch budget, and replicate count. "
-    r"Bottom row: median $\theta$-feasibility."
 )
 _CAPTION_SWEEPS = (
     r"Median deviation from the $\theta$-heuristic versus evaporation "

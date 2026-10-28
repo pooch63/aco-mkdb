@@ -288,16 +288,16 @@ Section~4.3 compares variations of the ACO algorithm as well as a genetic algori
 
 \subsubsection{Theoretical Time Complexity}
 
-Let $n = |U| + |V|$ and $m = |E|$ for a bipartite graph. Each ant must first examine $n$ vertices. A single vertex's neighbors may not have any $k$-feasible additions, so in the worst case, an ant must consider all vertices it can add to its subgraph at every step. As described in Section~3.3, the maximum number of vertices in a $k$-MDB is $\mathcal{O}(\min(n, \Delta + k))$. An ant therefore examines $\mathcal{O}(\min(n, \Delta + k) \times n)$ vertices. Additionally, it prefers to examine the [TOMORROW, BE SURE TO TALK ABOUT THE $k \times |V|$ FOR THE GREEDY ALGORITHM, REMOVE THE GREEDY FILL INFORMATION CURRENTLY IN CLIQUE-EDGE AND PUT IT RIGHT NEXT TO GREEDY FILL / TALK ABOUT IT IN THE GREEDY FILL SECTION, FINISH THIS SENTENCE ABOUT HOW ANTS PREFER THE NEIGHBORS SO IT'S + $m$, ALSO PUT THE BIT ABOUT MEMOIZING SUBGRAPH DEGREE IN AN ABOVE BULLET POINT SO I DON'T HAVE TO REPEAT IT AND EVERY ALGORITHM CAN USE THAT IDEA]. Ants also run independently, only syncing pheromone at the end of each epoch, so the upper time complexity is therefore $\mathcal{O}(\lceil A / p \rceil \times T \times (\min(n, \Delta + k) \times n + m))$ on a computer with $p$ processors. In practice, $\Delta + k \ll n$, so this does not scale quadratically with $n$.
+Let $n = |U| + |V|$ and $m = |E|$. For any $u \in U_S$ at most $k$ vertices of $V_S$ are non-neighbors of $u$, so $|V_S| \le \Delta + k$, and symmetrically $|U_S| \le \Delta + k$. An ant therefore takes $\mathcal{O}(\min(n, \Delta + k))$ steps. Using the memoized subgraph degree $d_S$ (Section~3.X), the feasibility of any candidate $w$ is checked in $\mathcal{O}(1)$, and $\eta$ is evaluated in $\mathcal{O}(1)$. When the ant has a feasible neighbor of $z_{\text{last}}$, a step costs $\mathcal{O}(d(z_{\text{last}}))$, and over a whole trajectory these costs sum to $\mathcal{O}(m)$, as do the $d_S$ updates. A step with no feasible neighbor falls back to all candidates at cost $\mathcal{O}(n)$. In the worst case every step falls back, so one ant costs $\mathcal{O}(\min(n, \Delta + k) \cdot n + m)$. Ants run independently and synchronize pheromone only at the end of each epoch, so with $p$ processors, $T$ epochs, and $R$ replicates the total is $\mathcal{O}(R \cdot \lceil A/p \rceil \cdot T \cdot (\min(n, \Delta + k) \cdot n + m))$. In practice $\Delta + k \ll n$ and most steps use the neighbor path, so the cost is close to linear in $n + m$.
+
+Let $n = |U| + |V|$ and $m = |E|$ for a bipartite graph. Each ant must first examine $n$ vertices. A single vertex's neighbors may not have any $k$-feasible additions, so in the worst case, an ant must consider all vertices it can add to its subgraph at every step. As described in Section~3.3, the maximum number of vertices in a $k$-MDB is $\mathcal{O}(\min(|V|, \Delta + k))$. An ant therefore has a total cost of $\mathcal{O}(\min(|V|, \Delta + k) \times (|V| + |E|))$ per epoch. At each iteration, however, it prefers to examine only . Ants also run independently, only syncing pheromone at the end of each epoch, so the upper time complexity is therefore $\mathcal{O}(\lceil A / p \rceil \times T \times (\min(n, \Delta + k) \times n + m))$ on a computer with $p$ processors. In practice, $\Delta + k \ll n$, so this does not scale quadratically with $n$.
 
 \subsection{Experimental Setup}
 
 
 Unless otherwise noted, all ACO experiments use $A = 100, \rho = 0.05, \Delta\tau = 0.05, T = 5, R = 5$. ACO is stochastic, so we report the best solution over $R$ independent ``replicates'', each with its own ant population and pheromone state, and its runtime includes all five. One warmup replicate per trial is discarded to exclude Julia JIT compilation.
 
-
 We test on 37 graphs from two public collections: 28 from \href{http://konect.cc}{KONECT}, a standard repository of real-world bipartite networks; and 9 from \href{http://amazon-reviews-2023.github.io}{Amazon Reviews 2023}, user-product review graphs in selected product categories. All tests were run on a computer with Ubuntu, an Intel(R) Core(TM) Ultra 7 258V CPU, 8 threads, and 32 gigabytes of RAM.
-
 
 [note: Add somewhere that every algorithm is guaranteed to be $k$-feasible but not necessarily $\theta$-feasible]
 
@@ -323,7 +323,7 @@ with a $\theta$-infeasible solution scored $0$. Table~\ref{tab:metrics} also rep
 
 We vary colony size $A$, the epoch budget $T$, and the number of independent replicates $R$. $\rho$, $\Delta\tau$ and $\eta$ exponent had no measured effect on speed (Appendix~\ref{app:sweeps}). We set $k = 2, \theta = 5$.
 
-Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $\theta$-heuristic, where $\theta$-infeasible outcomes are scored as a $-100\%$ deviation. Figure~\ref{fig:pheromone-ablation} removes the pheromone system by setting $\Delta\tau = 0$ and $\rho = 0$.
+Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $\theta$-heuristic, where $\theta$-infeasible outcomes are scored as a $-100\%$ deviation.
 
 %%QUALITY%%
 
@@ -339,18 +339,18 @@ We examine different variations of ACO and their effect on solution quality and 
      Variant & Median $|E|$ & Feas. & Time \\
      \midrule
      None & 23 & 54 & 0.16 \\
-     $F_N$ & 76 & 89 & 0.06 \\
+     $F_N$ & 76 & 95 & 0.11 \\
      \midrule
      %%ABLATION%%
      \bottomrule
  \end{tabular}
 \end{center}
 
-For median edge count, the table scores $\theta$-infeasible solutions scored as $0$. Restricting candidate selection to neighbors of the most recently visited vertex ($F_N$) increases the median edge count from $23$ to $76$ while reducing runtime from $0.16$ to $0.06$ seconds. Among variants using $F_N$, allowing only the best ant each epoch to deposit pheromone yields better solution quality than allowing every ant or no ants to deposit pheromone; greedy fill further increases the median edge count from $76$ to $79$, at the cost of increasing median runtime from $0.11$ to $0.17$ seconds.
+For median edge count, the table scores $\theta$-infeasible solutions scored as $0$. Restricting candidate selection to neighbors of the most recently visited vertex ($F_N$) results in increased edge count and reduced runtime. Among variants using $F_N$, allowing only the best ant each epoch to deposit pheromone yields better solution quality than allowing every ant or no ants to deposit pheromone. Greedy fill further increases the median edge count at the cost of increased runtime. Because of this, remaining tests use best-only pheromone deposit and $F_N$ but no greedy fill.
 
 NOTE: [it was every epoch, i think we should deposit pheromone on the grown subgraph rather than the ant's version of it, cause what if the ant found a decent left side but a terrible right side].
 
-\subsection{Variations in $k$ and $\theta$}
+\subsection{Variations in \texorpdfstring{$k$}{k} and \texorpdfstring{$\theta$}{θ}}
 
 We repeat the 100-ant comparison for $k \in \{1,2,3,4\}$ at $\theta = 5$ and for $\theta \in \{5,6,7\}$ at $k = 3$.
 
@@ -361,8 +361,9 @@ Splitting the suite into density thirds, ACO wins most often on sparse and mediu
 %%COMPARE:method-density%%
 %%COMPARE:method-size%%
 
-When ACO finished within its $600$s budget, it ran a median of $400\times$--$700\times$ slower than the $\theta$-heuristic (Figure~\ref{fig:param-runtime}). Runtime grows with $k$, but the win rate also rises through $k=3$ and stays above $50\%$ at $k=4$. Larger $\theta$ lowers the win rate and the runtime. We hypothesize this is because smaller $k$ and larger $\theta$ let reductions prune more, but the surviving graph is denser, which gives ACO's stochastic construction more candidates and weakens its early search.
+ACO is consistently the slowest algorithm, followed by clique edge ordering, double-greedy, and the $\theta$-heuristic being the fastest (Figure~\ref{fig:param-runtime}). The $\theta$-heuristic never has a higher win rate on any density or size third. As the the heuristic we propose with the fastest time complexity, double-greedy consistently beats the $\theta$-heuristic in every category except the middle density of the graphs.
 
+%%HEURISTICS:summary%%
 
 %%COMPARE:param-runtime%%
 
@@ -370,15 +371,11 @@ When ACO finished within its $600$s budget, it ran a median of $400\times$--$700
 
 \subsection{Interpretation of Results}
 
-While ACO is substantially slower than the $\theta$-heuristic, it often finds solutions several times larger in edge count. Even small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. Additionally, ACO had a higher $\theta$-feasibility rate than the $\theta$-heuristic, meaning it can be used as a valid lower bound more often. In cases where runtime is more critical, ant count $A$, epoch budget $T$, and replicate count $R$ can be reduced for a linear effect on wall-clock time, at the expense of solution size and $\theta$-feasibility (Section~4.1).
-
-ACO improves quality in several types of solutions. On several graphs, both ACO and the $\theta$-heuristic find a solution with exactly $\theta$ vertices on one side, but ACO finds a substantially larger opposite side. In other cases, ACO identified $\theta \times \theta$ $k$-DB on graphs that the $\theta$-heuristic failed to make $\theta$-feasible. ACO may escape the $\theta$-exact limitation entirely, finding $k$-DB with both sides larger than $\theta$ vertices that the $\theta$-heuristic could not have found.
-
-We hypothesize this is due to ACO's exploration. Because the $\theta$-heuristic arbitrarily chooses $U$ as its $\theta$-side and greedily expands, early vertex choices can permanently shrink the retained neighborhood. Conversely, ACO's stochastic, massively parallel construction samples alternative $\theta \times \theta$ cores and often recovers a better one. Thus, ACO often beats the $\theta$-heuristic even on structures the latter was designed for.
+Our proposed algorithms address several limitations of the $\theta$-heuristic. 
 
 \subsection{Limitations}
 
-As described in Section~3.3, because branch-and-pivot runtime scales exponentially with vertex count, our seeding experiment cannot yet confirm whether the pruning benefit observed on small graphs extends to larger instances. Additionally, we could not validate ACO's solution quality against the absolute optimum on large graphs. Finally, we injected bicliques with $\theta$ vertices on both sides into the graphs. The $\theta$-heuristic may have performed better with a more realistic biclique of $\gg \theta$ vertices on one side. However, our observations that ACO can beat the $\theta$-heuristic on subgraphs with $\gg \theta$ vertices on only one side demonstrate that ACO is inherently a more explorative heuristic.
+As described in Section~3.3, because branch-and-pivot runtime scales exponentially with vertex count, we could not validate the heuristics' solution quality against the absolute optimum on large graphs. Finally, we injected bicliques with $\theta$ vertices on both sides into the graphs. The $\theta$-heuristic may have performed better with a more realistic biclique of $\gg \theta$ vertices on one side. However, our observations that the proposed algorithms can beat the $\theta$-heuristic on subgraphs with $\gg \theta$ vertices on only one side demonstrate that they address fundamental weaknesses with the $\theta$-heuristic.
 
 \section{Conclusion}
 
@@ -407,6 +404,7 @@ Figure~\ref{fig:quality-sweeps} shows the median percent deviation from the $\th
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
+%%FULL:TABLES%%
 Each table is one $(k, \theta)$ setting. A row is one graph. $|U|$ and $|V|$ are the side sizes of the returned subgraph, $|E|$ is its edge count, and $t$ is wall time in milliseconds. Bold marks the largest $\theta$-feasible $|E|$ on that graph, and a tie bolds every method that matches. ACO is the best of the counted $100$-ant replicates, and its $t$ is the sum of those replicates. The other columns are a single run.
 
 %%HEURISTICS%%
@@ -414,5 +412,6 @@ Each table is one $(k, \theta)$ setting. A row is one graph. $|U|$ and $|V|$ are
 Each table is one $(k, \theta)$ setting. A row is one graph. $U_k$, $V_k$, and $E_k$ are the initial side sizes and edge count in thousands. For common-neighbor reduction (CNR), one pass (Once), and the repeated reduction (Full), $n\%$ and $e\%$ are the percentage of vertices and edges removed and $t$ is wall time in seconds. Bold marks the largest removal on that graph. A $\theta \times \theta$ biclique with $k$ missing edges was injected before reduction.
 
 %%REDUCE%%
+%%ENDFULL%%
 
 \end{document}

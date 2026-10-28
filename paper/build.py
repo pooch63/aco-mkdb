@@ -19,6 +19,10 @@ Use --keep-tex to retain build.tex after compiling.
 Use --tables to also assemble and compile tables.tex (landscape per-graph
 tables) into tables.pdf. main.tex includes the same tables in a short
 side-by-side form (``:compact``); the landscape pages stay opt-in.
+Use --full to compile twice: first the paper with ``%%FULL:…%%`` regions
+omitted (build.pdf), then the same source with those regions included
+(full-paper.pdf). There is no full-paper.tex source. Without --full the
+regions are omitted and the second PDF is not built.
 
 Placeholders in main.tex and tables.tex use the form %%QUALITY%%,
 %%COMPARE:theta-time%%, etc.
@@ -56,6 +60,11 @@ from pathlib import Path
 PAPER_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PAPER_DIR.parent
 PLACEHOLDER_RE = re.compile(r"%%([A-Z][A-Z0-9_]*)(?::([^%]+))?%%")
+# Own-line markers. Not emit targets: dropped unless --full, which compiles
+# a second PDF with the interior kept and the markers removed.
+_FULL_MARKER_RE = re.compile(
+    r"(?m)^[ \t]*%%(END)?FULL(?::([^%]*))?%%[ \t]*$"
+)
 AUX_SUFFIXES = (".aux", ".bbl", ".blg", ".log", ".fls", ".fdb_latexmk", ".out")
 # Assembled from fragment sidecars (*.preamble.tex); not a normal emit target.
 SPECIAL_PLACEHOLDERS = frozenset({"PREAMBLE"})
@@ -202,6 +211,69 @@ def parse_table_args(args: str | None) -> tuple[str, str]:
     return raw, "full"
 
 
+def _full_token(label: str | None, *, end: bool = False) -> str:
+    name = "ENDFULL" if end else "FULL"
+    if label:
+        return f"%%{name}:{label}%%"
+    return f"%%{name}%%"
+
+
+def _marker_end(text: str, match: re.Match[str]) -> int:
+    """End index of a marker line, including its trailing newline."""
+    end = match.end()
+    if end < len(text) and text[end] == "\n":
+        return end + 1
+    if text[end:end + 2] == "\r\n":
+        return end + 2
+    return end
+
+
+def apply_full_blocks(text: str, *, include: bool) -> str:
+    """Drop or unwrap ``%%FULL%%`` … ``%%ENDFULL%%`` regions.
+
+    Markers sit on their own lines. Normal assembly removes each region.
+    ``--full`` keeps the interior and still removes the markers, then
+    compiles that document as ``full-paper.pdf``.
+    """
+    parts: list[str] = []
+    pos = 0
+    open_label: str | None = None
+    open_at: int | None = None
+    for match in _FULL_MARKER_RE.finditer(text):
+        is_end = match.group(1) == "END"
+        label = match.group(2) or None
+        if not is_end:
+            if open_at is not None:
+                raise SystemExit(
+                    f"Nested {_full_token(open_label)} is not supported "
+                    f"(close it with %%ENDFULL%% first)"
+                )
+            parts.append(text[pos:match.start()])
+            open_label = label
+            open_at = match.start()
+            pos = _marker_end(text, match)
+            continue
+        if open_at is None:
+            raise SystemExit(
+                f"{_full_token(label, end=True)} without a matching %%FULL%%"
+            )
+        if label is not None and open_label is not None and label != open_label:
+            raise SystemExit(
+                f"{_full_token(label, end=True)} closes {_full_token(open_label)}"
+            )
+        if include:
+            parts.append(text[pos:match.start()])
+        open_label = None
+        open_at = None
+        pos = _marker_end(text, match)
+    if open_at is not None:
+        raise SystemExit(
+            f"Unclosed {_full_token(open_label)} (missing %%ENDFULL%%)"
+        )
+    parts.append(text[pos:])
+    return "".join(parts)
+
+
 def placeholders_in_source(source_text: str) -> list[tuple[str, str | None]]:
     """Unique (name, args) pairs in document order."""
     seen: set[tuple[str, str | None]] = set()
@@ -257,7 +329,7 @@ def fragment_input_path(cfg: dict, name: str, frag: dict, args: str | None) -> P
     if name == "METHODS" and args:
         directory, _subset = parse_table_args(args)
         return resolve_results_path(cfg, directory)
-    if name == "REDUCE" and (not args or args == "sweep"):
+    if name == "REDUCE" and (not args or args in ("sweep", "summary")):
         sweep = frag.get("sweep") or "reduce_sweep"
         return resolve_results_path(cfg, sweep)
     if name == "TABLE":
@@ -407,7 +479,7 @@ def fragment_dep_paths(
         deps.append(fragment_input_path(cfg, name, frag, args))
         if name == "REDUCE":
             deps.append(REPO_ROOT / "scripts" / "kt-sweep.bash")
-            if not args and frag.get("input"):
+            if args in (None, "summary") and frag.get("input"):
                 deps.append(resolve_results_path(cfg, frag["input"]))
         if name == "QUALITY" and args == "sweeps" and frag.get("ablation_dirs"):
             for path in frag["ablation_dirs"].values():
@@ -558,7 +630,7 @@ def build_emit_job(
             cmd.append(
                 f"--trace-dir={label}={resolve_results_path(cfg, path)}"
             )
-    if name == "REDUCE" and not args and frag.get("input"):
+    if name == "REDUCE" and args in (None, "summary") and frag.get("input"):
         extra = resolve_results_path(cfg, frag["input"])
         if extra.is_file() and extra != input_path:
             cmd.append(f"--also={extra}")
@@ -645,10 +717,16 @@ def run_emit(
     force: bool = False,
     jobs: int | None = None,
     sources: list[str] | None = None,
+    include_full: bool = False,
 ) -> None:
     generated = resolve(cfg["generated_dir"])
     generated.mkdir(parents=True, exist_ok=True)
-    source_text = "\n".join(read_source(name) for name in (sources or [cfg["source"]]))
+    # Placeholders that exist only inside %%FULL%% regions are emitted when
+    # --full is set. A normal build never asks for those fragments.
+    source_text = "\n".join(
+        apply_full_blocks(read_source(name), include=include_full)
+        for name in (sources or [cfg["source"]])
+    )
 
     planned: list[EmitJob] = []
     for name, args in placeholders_in_source(source_text):
@@ -734,11 +812,12 @@ def assemble(
     *,
     source_name: str | None = None,
     output_name: str | None = None,
+    include_full: bool = False,
 ) -> Path:
     source = PAPER_DIR / (source_name or cfg["source"])
     output = PAPER_DIR / (output_name or cfg["output"])
     generated = resolve(cfg["generated_dir"])
-    text = read_source(source.name)
+    text = apply_full_blocks(read_source(source.name), include=include_full)
 
     missing: list[str] = []
 
@@ -788,7 +867,11 @@ def assemble(
         )
 
     output.write_text(built, encoding="utf-8")
-    print(f"# assembled {output.relative_to(PAPER_DIR)}", file=sys.stderr)
+    note = " (full blocks included)" if include_full else ""
+    print(
+        f"# assembled {output.relative_to(PAPER_DIR)}{note}",
+        file=sys.stderr,
+    )
     return output
 
 
@@ -949,31 +1032,61 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="also assemble and compile tables.tex into tables.pdf",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help=(
+            "after build.pdf, compile main.tex again with %%FULL:…%% "
+            "regions included, writing full-paper.pdf"
+        ),
+    )
     args = parser.parse_args(argv)
     cfg = load_config()
     sources = source_names(cfg, tables=args.tables)
 
     if args.step in ("all", "emit"):
-        run_emit(cfg, force=args.force, jobs=args.jobs, sources=sources)
+        run_emit(
+            cfg,
+            force=args.force,
+            jobs=args.jobs,
+            sources=sources,
+            include_full=args.full,
+        )
 
-    documents: list[tuple[str, str, str | None]] = [
-        (cfg["source"], cfg["output"], cfg.get("pdf")),
+    # (source, assembled tex, pdf, include %%FULL%% regions)
+    # The short paper is always first. --full then rebuilds the same source
+    # with those regions kept. --tables stays a separate landscape document.
+    documents: list[tuple[str, str, str | None, bool]] = [
+        (cfg["source"], cfg["output"], cfg.get("pdf"), False),
     ]
+    if args.full:
+        documents.append(
+            (
+                cfg["source"],
+                cfg.get("full_output", "full-build.tex"),
+                cfg.get("full_pdf", "full-paper.pdf"),
+                True,
+            )
+        )
     if args.tables:
         documents.append(
             (
                 cfg.get("tables_source", "tables.tex"),
                 cfg.get("tables_output", "tables-build.tex"),
                 cfg.get("tables_pdf", "tables.pdf"),
+                False,
             )
         )
 
     if args.step == "emit":
         return
 
-    for source_name, output_name, pdf_name in documents:
+    for source_name, output_name, pdf_name, include_full in documents:
         tex_path = assemble(
-            cfg, source_name=source_name, output_name=output_name
+            cfg,
+            source_name=source_name,
+            output_name=output_name,
+            include_full=include_full,
         )
         if args.step == "assemble":
             continue

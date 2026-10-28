@@ -5,6 +5,7 @@
 #   make assemble substitute placeholders into build.tex
 #   make pdf      compile build.tex (runs assemble if needed)
 #   make tables   same as make, and also compile tables.tex → tables.pdf
+#   make full     paper PDF, then full-paper.pdf (%%FULL%% blocks included)
 #   make clean    remove generated artifacts
 #
 # Emit is incremental (skip up-to-date fragments) and parallel. A fragment is
@@ -16,16 +17,20 @@
 PYTHON ?= python3
 FORCE  ?=
 JOBS   ?=
-BUILD_FLAGS := $(if $(KEEP_AUX),--keep-aux,) $(if $(FORCE),--force,) $(if $(JOBS),-j$(JOBS),)
+FULL   ?=
+BUILD_FLAGS := $(if $(KEEP_AUX),--keep-aux,) $(if $(FORCE),--force,) $(if $(JOBS),-j$(JOBS),) $(if $(FULL),--full,)
 BUILD  := $(PYTHON) build.py $(BUILD_FLAGS)
 
-.PHONY: all emit assemble pdf tables clean
+.PHONY: all emit assemble pdf tables full clean
 
 all:
 	$(BUILD) all
 
 tables:
 	$(BUILD) all --tables
+
+full:
+	$(BUILD) all --full
 
 emit:
 	$(BUILD) emit
@@ -44,5 +49,8 @@ clean:
 	rm -f build.tex build.pdf build.aux build.bbl build.blg build.fdb_latexmk \
 	      build.fls build.log build.out build.synctex.gz \
 	      tables-build.tex tables.pdf tables.aux tables.bbl tables.blg \
-	      tables.fdb_latexmk tables.fls tables.log tables.out tables.synctex.gz
+	      tables.fdb_latexmk tables.fls tables.log tables.out tables.synctex.gz \
+	      full-build.tex full-paper.pdf full-paper.aux full-paper.bbl \
+	      full-paper.blg full-paper.fdb_latexmk full-paper.fls full-paper.log \
+	      full-paper.out full-paper.synctex.gz
 	rm -rf generated/

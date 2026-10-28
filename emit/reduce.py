@@ -4,8 +4,10 @@ reduce mode — super-reduce phase JSON → compact full-width tables.
 Reads the array written by ``report_super_reduce`` (one object per graph).
 A directory of ``k{k}t{theta}.json`` files (the reduction sweep) becomes one
 captionless table per recorded ``(k, \\theta)``, two tables to a page.
-``--plots=sweep`` on that directory is the median-removal figure. A single
-JSON file is one table.
+``--plots=sweep`` on that directory is the median-removal figure.
+``--plots=summary`` (placeholder ``%%REDUCE:summary%%``) is one table:
+each row is a $(k, \\theta)$, and each reduction has the median percent of
+nodes and of edges removed. A single JSON file is one per-graph table.
 
 Each row is the original ``nU``, ``nV``, and ``edges``, then the same counts
 and wall time after:
@@ -612,14 +614,14 @@ def render_sweep(directory, pairs_path=None):
     return lines
 
 
-def render_tables(directory, extra_paths=(), pairs_path=None):
+def _ordered_settings(directory, extra_paths=(), pairs_path=None):
     """
-    One table per recorded ``(k, \\theta)``.
+    ``(path, rows, k, theta)`` for every recorded setting.
 
     Files are ``k{k}t{theta}.json`` in ``directory``, plus any
     ``extra_paths`` whose ``(k, \\theta)`` is not already present.
-    Tables are ordered by increasing ``k``, then ``\\theta``. A pair
-    listed in ``scripts/kt-sweep.bash`` with no file is a stderr warning.
+    Order is increasing ``k``, then ``\\theta``. A pair listed in
+    ``scripts/kt-sweep.bash`` with no file is a stderr warning.
     """
     directory = Path(directory)
     by_pair = {}
@@ -660,12 +662,99 @@ def render_tables(directory, extra_paths=(), pairs_path=None):
                 file=sys.stderr,
             )
 
-    ordered = [
-        (*by_pair[key], *key)
-        for key in sorted(by_pair)
-    ]
+    ordered = [(*by_pair[key], *key) for key in sorted(by_pair)]
     ordered.extend(unordered)
+    return ordered
 
+
+def render_summary(directory, extra_paths=(), pairs_path=None):
+    """One table: median percent of nodes and edges removed at each $(k, \\theta)$."""
+    ordered = _ordered_settings(directory, extra_paths, pairs_path)
+    if not ordered:
+        print(f"# reduction summary: no sweep files in {directory}", file=sys.stderr)
+        return (
+            r"\begin{center}" "\n"
+            r"\scriptsize Reduction summaries are not available." "\n"
+            r"\end{center}"
+        )
+
+    body = []
+    for path, rows, k, theta in ordered:
+        node_text, edge_text = [], []
+        node_score, edge_score = [], []
+        used = 0
+        for prefix, _label in _PHASES:
+            nodes, edges = [], []
+            for row in rows:
+                if not isinstance(row, dict) or "dataset" not in row:
+                    continue
+                nodes.append(_pct_removed(row, prefix, "nodes"))
+                edges.append(_pct_removed(row, prefix, "edges"))
+            node_vals = [value for value in nodes if value is not None]
+            edge_vals = [value for value in edges if value is not None]
+            used = max(used, len(node_vals), len(edge_vals))
+            node_med = _median(node_vals)
+            edge_med = _median(edge_vals)
+            node_text.append("--" if node_med is None else f"{node_med:.1f}")
+            edge_text.append("--" if edge_med is None else f"{edge_med:.1f}")
+            node_score.append(node_med)
+            edge_score.append(edge_med)
+        cells = [
+            "--" if k is None else str(k),
+            "--" if theta is None else str(theta),
+        ]
+        for nodes, edges in zip(
+            _bold_winners(node_text, node_score, higher=True),
+            _bold_winners(edge_text, edge_score, higher=True),
+        ):
+            cells.extend((nodes, edges))
+        body.append(" & ".join(cells) + r" \\")
+        print(
+            f"# reduction summary: {path.name} "
+            f"(k={k}, θ={theta}, {used} graph(s))",
+            file=sys.stderr,
+        )
+
+    lines = [
+        r"\begin{table}[t]",
+        r"\centering",
+        r"\setlength{\abovecaptionskip}{1pt}",
+        r"\setlength{\belowcaptionskip}{0pt}",
+        r"\caption{Median percent of nodes ($n\%$) and edges ($e\%$) removed "
+        r"at each $(k, \theta)$. Bold marks the largest removal in that row.}",
+        r"\label{tab:reduce-summary}",
+        r"\scriptsize",
+        r"\setlength{\tabcolsep}{3pt}",
+        r"\setlength{\aboverulesep}{0.12ex}",
+        r"\setlength{\belowrulesep}{0.12ex}",
+        r"\setlength{\cmidrulesep}{0pt}",
+        r"\renewcommand{\arraystretch}{0.9}",
+        r"\begin{tabular}{@{}rr rr rr rr@{}}",
+        r"\toprule",
+        r"& & \multicolumn{2}{c}{CNR}"
+        r"& \multicolumn{2}{c}{Once}"
+        r"& \multicolumn{2}{c}{Full} \\",
+        r"\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}",
+        r"$k$ & $\theta$ & $n\%$ & $e\%$ & $n\%$ & $e\%$ & $n\%$ & $e\%$ \\",
+        r"\midrule",
+        *body,
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\end{table}",
+    ]
+    return "\n".join(lines)
+
+
+def render_tables(directory, extra_paths=(), pairs_path=None):
+    """
+    One table per recorded ``(k, \\theta)``.
+
+    Files are ``k{k}t{theta}.json`` in ``directory``, plus any
+    ``extra_paths`` whose ``(k, \\theta)`` is not already present.
+    Tables are ordered by increasing ``k``, then ``\\theta``. A pair
+    listed in ``scripts/kt-sweep.bash`` with no file is a stderr warning.
+    """
+    ordered = _ordered_settings(directory, extra_paths, pairs_path)
     if not ordered:
         print(f"# reduction table: no sweep files in {directory}", file=sys.stderr)
         return render([])
@@ -711,6 +800,11 @@ def render_tables(directory, extra_paths=(), pairs_path=None):
 
 def run(path, output, plots=None, also=None):
     path = Path(path)
+    if plots == "summary":
+        directory = path if path.is_dir() else path.parent
+        extras = [also] if also else ([] if path.is_dir() else [path])
+        write_tex(render_summary(directory, extras), output)
+        return
     if plots == "sweep":
         directory = path if path.is_dir() else path.parent
         write_tex("\n".join(render_sweep(directory)) + "\n", output)

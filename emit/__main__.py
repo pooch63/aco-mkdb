@@ -450,6 +450,7 @@ def main(argv=None):
             vary_dir=args.vary_dir,
             ants=args.ants,
             param_dirs=param_dirs,
+            plots=args.plots,
         )
 
     elif args.mode == "epoch-table":

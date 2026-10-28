@@ -67,6 +67,11 @@ The paper build (`python paper/build.py`) **must complete** even when some resul
    short side-by-side blocks: `%%TABLE:…:compact%%`, `%%SEED_COMPARE:compact%%`,
    and `%%METHODS:dir:compact%%`. The appendix is one column, and each block
    row is repeated horizontally so the tables stay short.
+   `%%FULL:…%%` … `%%ENDFULL%%` regions in `main.tex` are omitted from
+   `build.pdf`. `python paper/build.py --full` (or `make full`) compiles
+   `build.pdf` first, then the same source with those regions included,
+   writing `full-paper.pdf`. There is no `full-paper.tex`. Placeholders that
+   appear only inside a FULL region are emitted only for `--full`.
 
 Emit is incremental: a fragment rebuilds when results JSON, `build.json`, or the
 **emit Python sources for that fragment** are newer than `paper/generated/*.tex`

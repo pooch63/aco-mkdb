@@ -3,6 +3,8 @@
   "output": "build.tex",
   "generated_dir": "generated",
   "pdf": "build.pdf",
+  "full_output": "full-build.tex",
+  "full_pdf": "full-paper.pdf",
   "tables_source": "tables.tex",
   "tables_output": "tables-build.tex",
   "tables_pdf": "tables.pdf",

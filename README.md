@@ -195,6 +195,7 @@ cd paper && make
 make paper-emit      # only run emit (writes paper/generated/*.tex)
 make -C paper assemble   # substitute placeholders → build.tex
 make -C paper pdf        # compile build.tex
+make paper-full          # build.pdf, then full-paper.pdf (%%FULL%% regions)
 ```
 
 Data paths and emit options live in `paper/build.json` (defaults point at `results/vary_k2t5i_PN`, `results/compare_k2t5i_konect-small`, etc.). Edit that file if your result directories differ.

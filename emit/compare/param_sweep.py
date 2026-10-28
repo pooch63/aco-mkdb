@@ -1753,9 +1753,7 @@ def _method_win_figure(named_rows, data, *, bin_key, tag, axis_phrase, label):
     lines += [
         r"  \caption{Share of graphs on which each method matches the "
         rf"best $\theta$-feasible edge count, by {axis_phrase} "
-        rf"($k={k_tex}$, $\theta={theta_tex}$). "
-        r"A tie counts for every method that matches. "
-        r"ACO is the injected 100-ant run; the other methods are uninjected.}",
+        rf"($k={k_tex}$, $\theta={theta_tex}$).}} "
         rf"  \label{{{label}}}",
     ]
     lines += end_float(env)

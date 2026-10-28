@@ -18,10 +18,20 @@ Each caption is only the $(k, \\theta)$ setting. Bold marks the largest
 $\\theta$-feasible, $k$-valid edge count on that graph; a tie bolds every
 method that matches. Wall time is not bold. Missing fields become ``--``
 and a stderr warning. This module only reads the JSON.
+
+``--plots=summary`` (placeholder ``%%HEURISTICS:summary%%``) is one table.
+Each row is a $(k, \\theta)$ setting. Each method has its win rate, median
+edge count, $\\theta$-feasibility rate, and median wall time. A win matches
+the best $\\theta$-feasible edge count on that graph; ties count, and a graph
+where every method is $\\theta$-infeasible is left out of the win rate. Median
+$|E|$ scores a $\\theta$-infeasible solution as 0. Median time uses every
+finished graph. ACO's time is the sum of its counted replicates, the same
+value as the per-graph table.
 """
 
 from __future__ import annotations
 
+import statistics
 import sys
 from pathlib import Path
 
@@ -440,6 +450,260 @@ def _vary_dir_for(path, data, param_dirs):
     return None
 
 
+def _usable_run(run):
+    return isinstance(run, dict) and run.get("status") != "error"
+
+
+def _scored_edges(run):
+    """θ-feasible, k-valid edge count, or None when the run does not count."""
+    if not _usable_run(run):
+        return None
+    if run.get("k_valid", True) is False:
+        return None
+    if run.get("theta_feasible") is not True:
+        return None
+    edges = run.get("final_edges")
+    if edges is None:
+        return None
+    return int(edges)
+
+
+def _fmt_pct(value):
+    if value is None:
+        return "--"
+    return f"{value:.1f}"
+
+
+def _fmt_median_edges(value):
+    if value is None:
+        return "--"
+    if abs(value - round(value)) < 1e-9:
+        return str(int(round(value)))
+    return f"{value:.1f}"
+
+
+def _fmt_median_seconds(value):
+    """Median wall time in seconds."""
+    if value is None:
+        return "--"
+    seconds = float(value)
+    if seconds >= 10:
+        return f"{seconds:.1f}"
+    if seconds >= 1:
+        return f"{seconds:.2f}"
+    if seconds >= 0.01:
+        return f"{seconds:.3f}"
+    return f"{seconds:.4f}"
+
+
+def _wall_s(run):
+    if not _usable_run(run):
+        return None
+    seconds = run.get("wall_time_s")
+    if seconds is None:
+        return None
+    return float(seconds)
+
+
+def _mark_best(texts, scores):
+    """Bold every cell that ties the highest score. Comparison is on the raw score."""
+    ranked = [(i, score) for i, score in enumerate(scores) if score is not None]
+    if not ranked:
+        return list(texts)
+    best = max(score for _, score in ranked)
+    winner_text = {
+        texts[i] for i, score in ranked if score == best and texts[i] != "--"
+    }
+    return [
+        rf"\textbf{{{text}}}" if text in winner_text else text
+        for text in texts
+    ]
+
+
+def _setting_rows(data, vary_runs):
+    """
+    Runs for graphs where every method finished.
+
+    A timeout or a missing ACO trial drops that graph from the row so the
+    rates and medians share one set of graphs.
+    """
+    methods = _column_methods(_methods(data), vary_runs)
+    kept = []
+    skipped = 0
+    missing = {"aco": [], "heuristic": []}
+    for row in data.get("results") or []:
+        if not isinstance(row, dict) or "dataset" not in row:
+            continue
+        runs = dict(row.get("runs") if isinstance(row.get("runs"), dict) else {})
+        _fill_from_vary(runs, row, vary_runs, methods, missing)
+        if any(not _usable_run(runs.get(method_id)) for method_id in methods):
+            skipped += 1
+            continue
+        kept.append(runs)
+    return methods, kept, skipped
+
+
+def _method_stats(runs_by_graph, method_id, method_ids):
+    """Win percent, median |E| (infeasible scores 0), feasibility, median seconds."""
+    if not runs_by_graph:
+        return None, None, None, None
+    wins = 0
+    counted = 0
+    edges = []
+    times = []
+    feasible = 0
+    for runs in runs_by_graph:
+        scores = {
+            mid: _scored_edges(runs.get(mid)) for mid in method_ids
+        }
+        scored = [score for score in scores.values() if score is not None]
+        if scored:
+            counted += 1
+            if scores[method_id] is not None and scores[method_id] == max(scored):
+                wins += 1
+        own = scores[method_id]
+        edges.append(0 if own is None else own)
+        if own is not None:
+            feasible += 1
+        seconds = _wall_s(runs.get(method_id))
+        if seconds is not None:
+            times.append(seconds)
+    n = len(runs_by_graph)
+    win = None if counted == 0 else 100.0 * wins / counted
+    feas = 100.0 * feasible / n
+    med_t = statistics.median(times) if times else None
+    return win, statistics.median(edges), feas, med_t
+
+
+def render_summary(directory, ants=None, param_dirs=None):
+    """One table: win rate, median $|E|$, θ-feasibility, and median time."""
+    paths = list_json_paths(directory)
+    loaded = []
+    for path in paths:
+        data = load_json(path)
+        if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+            print(
+                f"# heuristics summary: skipping {path} (not a compare-methods file)",
+                file=sys.stderr,
+            )
+            continue
+        loaded.append((path, data))
+    loaded.sort(key=lambda item: _kt_key(item[0], item[1]))
+    if not loaded:
+        print(f"# heuristics summary: no sweep files in {directory}", file=sys.stderr)
+        return (
+            r"\begin{center}" "\n"
+            r"\scriptsize Method summaries are not available." "\n"
+            r"\end{center}"
+        )
+
+    methods = None
+    body = []
+    for path, data in loaded:
+        vary_dir = _vary_dir_for(path, data, param_dirs)
+        if vary_dir is None:
+            print(
+                f"# heuristics summary: no vary suite for {Path(path).name}",
+                file=sys.stderr,
+            )
+            vary_runs = {}
+        else:
+            vary_runs = load_vary_runs(vary_dir, ants)
+        row_methods, rows, skipped = _setting_rows(data, vary_runs)
+        if methods is None:
+            methods = row_methods
+        elif row_methods != methods:
+            print(
+                f"# heuristics summary: {Path(path).name} methods "
+                f"{row_methods} differ from {methods}; missing columns are --",
+                file=sys.stderr,
+            )
+        k = _as_int(data.get("k"))
+        theta = _as_int(data.get("theta"))
+        win_text, edge_text, feas_text, time_text = [], [], [], []
+        win_score, edge_score, feas_score, time_score = [], [], [], []
+        for method_id in methods or []:
+            if method_id not in row_methods:
+                win_text.append("--")
+                edge_text.append("--")
+                feas_text.append("--")
+                time_text.append("--")
+                win_score.append(None)
+                edge_score.append(None)
+                feas_score.append(None)
+                time_score.append(None)
+                continue
+            win, med, feas, med_t = _method_stats(rows, method_id, row_methods)
+            win_text.append(_fmt_pct(win))
+            edge_text.append(_fmt_median_edges(med))
+            feas_text.append(_fmt_pct(feas))
+            time_text.append(_fmt_median_seconds(med_t))
+            win_score.append(win)
+            edge_score.append(med)
+            feas_score.append(feas)
+            time_score.append(None if med_t is None else -med_t)
+        cells = [
+            "--" if k is None else str(k),
+            "--" if theta is None else str(theta),
+        ]
+        for win, edges, feas, seconds in zip(
+            _mark_best(win_text, win_score),
+            _mark_best(edge_text, edge_score),
+            _mark_best(feas_text, feas_score),
+            _mark_best(time_text, time_score),
+        ):
+            cells.extend((win, edges, feas, seconds))
+        body.append(" & ".join(cells) + r" \\")
+        print(
+            f"# heuristics summary: k={k}, θ={theta}, "
+            f"{len(rows)} graph(s), skipped {skipped}",
+            file=sys.stderr,
+        )
+
+    if not methods:
+        print("# heuristics summary: no methods", file=sys.stderr)
+        return (
+            r"\begin{center}" "\n"
+            r"\scriptsize Method summaries are not available." "\n"
+            r"\end{center}"
+        )
+
+    groups = [r"&"]
+    rules = []
+    sub = [r"$k$ & $\theta$"]
+    col = 3
+    for method_id in methods:
+        groups.append(rf"& \multicolumn{{4}}{{c}}{{{_label(method_id)}}}")
+        rules.append(rf"\cmidrule(lr){{{col}-{col + 3}}}")
+        sub.append(r"& Win & $|E|$ & Feas. & $t$")
+        col += 4
+    spec = "@{}rr" + " rrrr" * len(methods) + "@{}"
+    lines = [
+        r"\begin{table*}[t]",
+        r"\centering",
+        r"\setlength{\abovecaptionskip}{1pt}",
+        r"\setlength{\belowcaptionskip}{0pt}",
+        r"\label{tab:method-summary}",
+        r"\scriptsize",
+        r"\setlength{\tabcolsep}{2.2pt}",
+        r"\setlength{\aboverulesep}{0.12ex}",
+        r"\setlength{\belowrulesep}{0.12ex}",
+        r"\setlength{\cmidrulesep}{0pt}",
+        r"\renewcommand{\arraystretch}{0.9}",
+        rf"\begin{{tabular}}{{{spec}}}",
+        r"\toprule",
+        "".join(groups) + r" \\",
+        "".join(rules),
+        "".join(sub) + r" \\",
+        r"\midrule",
+        *body,
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\end{table*}",
+    ]
+    return "\n".join(lines)
+
+
 def render_directory(directory, ants=None, param_dirs=None):
     """One table per ``k{k}t{theta}.json`` in ``directory``, ordered by $(k, \\theta)$."""
     paths = list_json_paths(directory)
@@ -491,8 +755,21 @@ def render_directory(directory, ants=None, param_dirs=None):
     return "\n\n".join(parts)
 
 
-def run(path, output, vary_dir=None, ants=None, param_dirs=None):
+def run(path, output, vary_dir=None, ants=None, param_dirs=None, plots=None):
     path = Path(path)
+    if plots == "summary":
+        if not path.is_dir():
+            print(
+                f"# heuristics summary: expected a directory, got {path}",
+                file=sys.stderr,
+            )
+            write_tex(render_summary(path, ants=ants, param_dirs=param_dirs), output)
+            return
+        write_tex(
+            render_summary(path, ants=ants, param_dirs=param_dirs),
+            output,
+        )
+        return
     if path.is_dir():
         write_tex(
             render_directory(path, ants=ants, param_dirs=param_dirs),

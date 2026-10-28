@@ -12,5 +12,7 @@ build.tex
 build.pdf
 tables-build.tex
 tables.pdf
+full-build.tex
+full-paper.pdf
 main.pdf
 generated/

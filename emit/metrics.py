@@ -358,7 +358,7 @@ def _table(method_ids, stats, *, k, theta, n_wins, n_gap):
         r"\begin{table}[!t]",
         r"  \centering",
         r"  \caption{Solution quality and runtime of different algorithms at "
-        + rf"$k = {k_bit}$, $\theta = {t_bit}$"
+        + rf"$k = {k_bit}$, $\theta = {t_bit}$}}",
         r"  \label{tab:metrics}",
         r"  \footnotesize",
         r"  \setlength{\tabcolsep}{4pt}",
@@ -436,11 +436,7 @@ def _figure(method_ids, profiles):
     lines += [r"  \end{axis}"]
     lines += end_tikz()
     lines += [
-        r"  \caption{Performance profile of solution quality. The horizontal "
-        r"axis is the best $\theta$-feasible edge count divided by the "
-        r"algorithm's edge count, so $1$ matches the best and $2$ is half "
-        r"as many edges. A $\theta$-infeasible solution is never within a "
-        r"finite factor.}",
+        r"  \caption{Dolan–Moré performance profile of solution quality.}",
         r"  \label{fig:performance-profile}",
     ]
     lines += end_float(env)
