@@ -8,9 +8,9 @@ This README describes how to reproduce the paper's datasets, experiments, and fi
 
 | Path | Purpose |
 |------|---------|
-| `src/` | Core graph, reduction, ACO, and branch-and-pivot code |
+| `src/` | Reduction, ACO, and branch-and-pivot code (`graph.jl` / `io.jl` / `paths.jl` load GraphLogic) |
 | `bin/` | CLI entry points (`load.jl`, `vary.jl`, `compare-seeds.jl`, …) |
-| `providers/` | Dataset download/convert adapters (KONECT, Amazon, Wikipedia, …) |
+| `../graph-logic` | Shared [GraphLogic](../graph-logic) package: graph structures, CSV I/O, dataset paths, and download providers (KONECT, Amazon, SNAP, …) |
 | `data/datasets.txt` | Manifest of graphs used in the paper |
 | `scripts/` | Bash wrappers that batch experiments across all datasets |
 | `emit/` | Python tool that turns JSON results into LaTeX tables/figures |
@@ -37,6 +37,13 @@ julia -e 'using Pkg; Pkg.add([
   "CSV", "DataFrames", "Downloads", "EnumX", "JSON3",
   "ProfileCanvas", "StatsBase"
 ])'
+```
+
+Graph structures and dataset downloads come from the shared GraphLogic package,
+expected as a sibling checkout at `../graph-logic`. Register it once:
+
+```bash
+julia -e 'using Pkg; Pkg.develop(path="../graph-logic")'
 ```
 
 No Python packages are required beyond the standard library.
@@ -275,7 +282,7 @@ Use `SKIP_EXISTING=1` and `RESUME_FROM` to restart long jobs without redoing fin
 
 ## Adding datasets
 
-1. Implement or reuse a provider in `providers/`.
+1. Implement or reuse a provider in GraphLogic (`../graph-logic/src/providers/`).
 2. Add the key (`provider/name`) to `data/datasets.txt`.
 3. Run `./scripts/fetch-datasets.bash` or `julia bin/process.jl provider/name --download`.
 4. Re-run the experiment scripts; discovery order is automatic via `bin/order_graphs.jl`.
