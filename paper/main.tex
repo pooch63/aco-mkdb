@@ -294,9 +294,12 @@ Let $n = |U| + |V|$ and $m = |E|$ for a bipartite graph. Each ant must first exa
 
 \subsection{Experimental Setup}
 
-Unless otherwise noted, all ACO experiments use the following hyperparameter values: $A = 100, \rho = 0.05, \Delta\tau = 0.05, T = 5, R = 5$. ACO is stochastic, so we report the best solution over $R$ independent ``replicates'', each with its own ant population and pheromone state, and its runtime includes all five. One warmup replicate per trial is discarded to exclude Julia JIT compilation.
+
+Unless otherwise noted, all ACO experiments use $A = 100, \rho = 0.05, \Delta\tau = 0.05, T = 5, R = 5$. ACO is stochastic, so we report the best solution over $R$ independent ``replicates'', each with its own ant population and pheromone state, and its runtime includes all five. One warmup replicate per trial is discarded to exclude Julia JIT compilation.
+
 
 We test on 37 graphs from two public collections: 28 from \href{http://konect.cc}{KONECT}, a standard repository of real-world bipartite networks; and 9 from \href{http://amazon-reviews-2023.github.io}{Amazon Reviews 2023}, user-product review graphs in selected product categories. All tests were run on a computer with Ubuntu, an Intel(R) Core(TM) Ultra 7 258V CPU, 8 threads, and 32 gigabytes of RAM.
+
 
 [note: Add somewhere that every algorithm is guaranteed to be $k$-feasible but not necessarily $\theta$-feasible]
 
@@ -306,7 +309,7 @@ We define a win as an instance for which an algorithm produces a $\theta$-feasib
 
 \subsection{Comparing the heuristics}
 
-The $\theta$-heuristic, double-greedy, and clique-edge each run once. ACO-default uses $A = 100$, $T = 5$, and $R = 5$ counted replicates on 8 threads. ACO-1thread uses that same budget on one thread, so its time is the CPU-time comparison. ACO-matched uses $A = 20$, $T = 1$, and $R = 1$ on 8 threads. On a four-graph calibration, this was the probed budget whose median wall-clock time was closest to clique-edge ($2.5\times$) while still matching clique-edge's edge count on those graphs. The reported ACO solution is the best $\theta$-feasible replicate. Its time is the sum of the replicates.
+The $\theta$-heuristic, double-greedy, and clique-edge each run once. ACO-default uses $A = 100$, $T = 5$, and $R = 5$ counted replicates on 8 threads, and ACO-1thread uses 1 thread. ACO-budget uses $A = 20$, $T = 1$, and $R = 1$ on 8 threads to closely match clique edge. On a four-graph calibration, this was the probed budget whose median wall-clock time was closest to clique-edge ($2.5\times$) while still matching clique-edge's edge count on those graphs. The reported ACO solution is the best $\theta$-feasible replicate. Its time is the sum of the replicates.
 
 A win is an instance on which an algorithm returns a $\theta$-feasible solution whose edge count equals the largest $\theta$-feasible edge count on that instance. When several algorithms match that count, each records a shared win, so the rates need not sum to $100\%$. An algorithm with fewer edges does not. A $\theta$-infeasible solution is a loss. An instance on which every algorithm is $\theta$-infeasible is excluded from the win rate.
 
@@ -314,7 +317,7 @@ The ratio to the best known solution on an instance is
 \[
 r_A(I) = \frac{|E_A(I)|}{\max_B |E_B(I)|},
 \]
-with a $\theta$-infeasible solution scored $0$. The geometric mean of $r_A(I)$ is $0$ when the algorithm is $\theta$-infeasible on any counted instance. Table~\ref{tab:metrics} also reports the fraction of instances on which each algorithm is $\theta$-feasible, and the mean optimality gap $(E^\star - |E_A|)/E^\star$ on the instances where branch-and-pivot finished. Those optima are the finished runs from the seeding experiment, which was started only on graphs where an earlier ACO trial beat the $\theta$-heuristic. Figure~\ref{fig:performance-profile} is the performance profile of solution quality: the fraction of instances on which an algorithm's edge count is within a factor $\tau$ of the best $\theta$-feasible count.
+with a $\theta$-infeasible solution scored $0$. Table~\ref{tab:metrics} also reports the fraction of instances on which each algorithm is $\theta$-feasible, and the mean optimality gap $(E^\star - |E_A|)/E^\star$ on the instances where branch-and-pivot finished. Those optima are the finished runs from the seeding experiment, which was started only on graphs where an earlier ACO trial beat the $\theta$-heuristic. Figure~\ref{fig:performance-profile} is the performance profile of solution quality: the fraction of instances on which an algorithm's edge count is within a factor $\tau$ of the best $\theta$-feasible count.
 
 %%METRICS%%
 
@@ -322,23 +325,23 @@ with a $\theta$-infeasible solution scored $0$. The geometric mean of $r_A(I)$ i
 
 \subsubsection{Speed-quality tradeoff}
 
-We vary colony size $A$, the epoch budget $T$, and the number of independent replicates $R$. Pheromone parameters $\rho$ and $\Delta\tau$ as well as the $\eta$ exponet were also varied, but these hyperparamters' effect on solution quality is likely graph-specific, and they have no measured effect on speed (Appendix~\ref{app:sweeps}). We set $k = 2, \theta = 5$.
+We vary colony size $A$, the epoch budget $T$, and the number of independent replicates $R$. $\rho$, $\Delta\tau$ and $\eta$ exponent had no measured effect on speed (Appendix~\ref{app:sweeps}). We set $k = 2, \theta = 5$.
 
 \begin{table}[H]
-    \centering
-    \caption{ACO hyperparameter variations}
-    \begin{tabular}{ll}
-        \toprule
-        Parameter & Tested Values \\
-        \midrule
-        Number of ants ($A$) & $\{2, 5, 10, 20, 50, 100, 200\}$ \\
-        Number of epochs ($T$) & \{1, 2, 3, 4, 5\} \\
-        Number of replicates ($R$) & \{1, 2, 3, 4, 5\} \\
-        \bottomrule
-    \end{tabular}
- \end{table} 
+   \centering
+   \caption{ACO hyperparameter variations}
+   \begin{tabular}{ll}
+       \toprule
+       Parameter & Tested Values \\
+       \midrule
+       Number of ants ($A$) & $\{2, 5, 10, 20, 50, 100, 200\}$ \\
+       Number of epochs ($T$) & \{1, 2, 3, 4, 5\} \\
+       Number of replicates ($R$) & \{1, 2, 3, 4, 5\} \\
+       \bottomrule
+   \end{tabular}
+\end{table}
 
-Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $\theta$-heuristic against ant count, evaporation $\rho$, pheromone deposit $\Delta\tau$, the exponent on $\eta$, epoch count $T$, and replicate count $R$. $\theta$-infeasible outcomes are scored as a $-100\%$ deviation. Figure~\ref{fig:pheromone-ablation} removes the pheromone system by setting $\Delta\tau = 0$ and $\rho = 0$.
+Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $\theta$-heuristic, where $\theta$-infeasible outcomes are scored as a $-100\%$ deviation. Figure~\ref{fig:pheromone-ablation} removes the pheromone system by setting $\Delta\tau = 0$ and $\rho = 0$.
 
 %%QUALITY%%
 
@@ -347,23 +350,21 @@ Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $
 We examine different variations of ACO and their effect on solution quality and runtime.
 
 \begin{center}
-   \footnotesize
-   \setlength{\tabcolsep}{4pt}
-   \begin{tabular}{@{}lrrr@{}}
-       \toprule
-       Variant & Median $|E|$ & Feas. & Time \\
-       \midrule
-       None & 23 & 54 & 0.16 \\
-       $F_N$ & 76 & 89 & 0.06 \\
-       \midrule
-       %%ABLATION%%
-       \bottomrule
-   \end{tabular}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrr@{}}
+      \toprule
+      Variant & Median $|E|$ & Feas. & Time \\
+      \midrule
+      None & 23 & 54 & 0.16 \\
+      $F_N$ & 76 & 89 & 0.06 \\
+      \midrule
+      %%ABLATION%%
+      \bottomrule
+  \end{tabular}
 \end{center}
 
-
-
-The table compares $\theta$-feasibility rate, median edge count (with $\theta$-infeasible solutions scored as $0$), and median runtime across ACO variants. Restricting candidate selection to neighbors of the most recently visited vertex ($F_N$) increases the median edge count from $23$ to $76$ while reducing runtime from $0.16$ to $0.06$ seconds. Among variants using $F_N$, allowing only the best ant each epoch to deposit pheromone yields better solution quality than allowing every ant or no ants to deposit pheromone; greedy fill further increases the median edge count from $76$ to $79$, at the cost of increasing median runtime from $0.11$ to $0.17$ seconds.
+For median edge count, the table scores $\theta$-infeasible solutions scored as $0$. Restricting candidate selection to neighbors of the most recently visited vertex ($F_N$) increases the median edge count from $23$ to $76$ while reducing runtime from $0.16$ to $0.06$ seconds. Among variants using $F_N$, allowing only the best ant each epoch to deposit pheromone yields better solution quality than allowing every ant or no ants to deposit pheromone; greedy fill further increases the median edge count from $76$ to $79$, at the cost of increasing median runtime from $0.11$ to $0.17$ seconds.
 
 NOTE: [it was every epoch, i think we should deposit pheromone on the grown subgraph rather than the ant's version of it, cause what if the ant found a decent left side but a terrible right side].
 
@@ -379,6 +380,7 @@ Splitting the suite into density thirds, ACO wins most often on sparse and mediu
 %%COMPARE:method-size%%
 
 When ACO finished within its $600$s budget, it ran a median of $400\times$--$700\times$ slower than the $\theta$-heuristic (Figure~\ref{fig:param-runtime}). Runtime grows with $k$, but the win rate also rises through $k=3$ and stays above $50\%$ at $k=4$. Larger $\theta$ lowers the win rate and the runtime. We hypothesize this is because smaller $k$ and larger $\theta$ let reductions prune more, but the surviving graph is denser, which gives ACO's stochastic construction more candidates and weakens its early search.
+
 
 %%COMPARE:param-runtime%%
 
