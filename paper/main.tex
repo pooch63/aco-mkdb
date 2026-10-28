@@ -11,12 +11,12 @@
 \usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage{tikz}
-   \usetikzlibrary{positioning}
+  \usetikzlibrary{positioning}
 \usepackage{pgfplots}
 \usepgfplotslibrary{groupplots}
 \usepgfplotslibrary{fillbetween}
 \usepgfplotslibrary{statistics}
-   \pgfplotsset{compat=1.18}
+  \pgfplotsset{compat=1.18}
 %%PREAMBLE%%
 \usepackage[margin=1in]{geometry}
 % Tall result figures: prefer top-of-page placement with following text
@@ -38,19 +38,19 @@
 %     block tra cking and throws \endcsname errors)
 \makeatletter
 \algdef{SE}[FORPAR]{ForPar}{EndForPar}[1]%
- {\algpx@startIndent\algpx@startCodeCommand\textbf{parallel for each}\ #1\ \algorithmicdo}%
- {\algpx@endIndent\algpx@startCodeCommand\algorithmicend\ \textbf{parallel for each}}%
+{\algpx@startIndent\algpx@startCodeCommand\textbf{parallel for each}\ #1\ \algorithmicdo}%
+{\algpx@endIndent\algpx@startCodeCommand\algorithmicend\ \textbf{parallel for each}}%
 
 \ifbool{algpx@noEnd}{%
- \algtext*{EndForPar}%
- \apptocmd{\EndForPar}{\algpx@endIndent}{}{}%
+\algtext*{EndForPar}%
+\apptocmd{\EndForPar}{\algpx@endIndent}{}{}%
 }{}%
 
 \pretocmd{\ForPar}{\algpx@endCodeCommand}{}{}
 \ifbool{algpx@noEnd}{%
- \pretocmd{\EndForPar}{\algpx@endCodeCommand[1]}{}{}%
+\pretocmd{\EndForPar}{\algpx@endCodeCommand[1]}{}{}%
 }{%
- \pretocmd{\EndForPar}{\algpx@endCodeCommand[0]}{}{}%
+\pretocmd{\EndForPar}{\algpx@endCodeCommand[0]}{}{}%
 }%
 \makeatother
 
@@ -58,7 +58,7 @@
 \maketitle
 
 \begin{abstract}
-The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization. We three new heuristics which have different cost-quality tradeoffs. In many instances, these heuristics produces bicliques with up $80\%$ more edges than previously proposed heuristics. Finally, we identify novel graph reduction techniques that reduce graph size compared to previous methods.
+The maximum $k$-defective edge biclique ($k$-MDB) problem is an emerging NP-hard optimization. We test three new heuristics which have different cost-quality tradeoffs. In many instances, these heuristics produce bicliques with up to $80\%$ more edges than previously proposed techniques. Finally, we identify novel graph reductions that significantly reduce graph size.
 \end{abstract}
 
 \section{Introduction}
@@ -67,33 +67,31 @@ Bipartite graphs can model user-product behavior, person-place interaction, and 
 
 Similar dense subgraph models provide precedent for the $k$-MDB. In unipartite graphs, \emph{defective cliques}, cliques that are missing up to a certain number of edges, have been used to recover nearly complete structures from noisy biological interaction graphs~\cite{yu2006}. On bipartite graphs, relaxed models include $k$-biplexes, which permit each vertex up to $k$ nonneighbors in the biplex~\cite{yu2023}, and quasi-bicliques, which allows a maximum of $\gamma\%$ edges to be missing~\cite{TODO_quasi_biclique}. Wang et al.~\cite{wang2025} studied the problem of finding a $k$-defective biclique with the largest vertex count rather than edge count, which is also an NP-hard problem. The problem we study is similar to theirs, but it maximizes the number of edges. The $k$-defective maximum edge biclique generalizes to the maximum edge biclique when $k = 0$~\cite{cui,wang2025}.
 
-Maximizing edge count alone is not enough for real-world interpretability. Without a lower bound on each side's size, the optimum is often a lopsided subgraph with many edges but little practical significance. In the case of fraud, a single popular item purchased by thousands of unrelated users could be a massive biclique with one vertex opposite many others, but it signals mass-market demand rather than a coordinated ring. We therefore seek only $\theta$-feasible \mbox{$k$-DB}: \mbox{$k$-DB} where both sides have at least $\theta$ vertices and $\theta$ is a user-defined parameter.
+Maximizing edge count alone is not enough for real-world interpretability. Without a lower bound on each side's size, the optimum is often a lopsided subgraph with many edges but little practical significance. In the case of fraud, a single popular item purchased by thousands of unrelated users could be a massive biclique with one vertex opposite many others, but it signals mass-market demand rather than a coordinated ring. We therefore seek only bicliques where both sides have at least $\theta$ vertices.
 
-Dorigo et al.~\cite{dorigo1996} proposed a metaheuristic known as Ant Colony Optimization (ACO) for exploring graphs. ACO is a natural metaheuristic for problems like maximum clique~\cite{solnon2006} or $k$-MDB where solutions are built by adding each vertex one at a time. We introduce an ACO heuristic for the $k$-defective maximum edge biclique ($k$-MDB) problem. Additionally, we introduce two deterministic heuristics that beat the $\theta$-heuristic on several types of graphs.
+Ant Colony Optimization is a natural metaheuristic to apply to the $k$-defective, originally proposed by Dorigo et al.~\cite{dorigo1996}. We introduce an ACO heuristic for the maximum edge $k$-defective biclique problem, as well as two deterministic heuristics that beat the $\theta$-heuristic on several types of graphs.
 
-The $k$-MDB is an emerging NP-hard problem. To our knowledge, the $\theta$-heuristic of Cui et al.~\cite{cui} is the only published heuristic algorithm for the $k$-MDB problem. We therefore benchmark three new heuristics against the only baseline in the literature.
-
-Reductions have been used for maximum clique \cite{TODO_clique_reduction}, maximum (edge) biclique \cite{TODO_biclique_reduction}, and relaxed variants such as $k$-plexes and $k$-biplexes \cite{TODO_kplex_reduction}. For the $k$-MDB problem, Cui et al.~\cite{cui} propose pruning methods that remove vertex and edge pruning methods which provably cannot appear in a valid solution. We propose novel reduction methods that build on their work. By mapping a single side of the bipartite graph onto a graph, where edges denote vertices that could potentially be in a $k$-DB, we can significantly reduce graph size. This leads to speed improvements, and because it reduces the number of potential subgraphs, it improves quality as well. Additionally, because the cost of branching grows exponentially with the number of vertices, even modest reductions can substantially speed up search.
+The maximum edge $k$-defective biclique is an emerging NP-hard problem. To our knowledge, the $\theta$-heuristic of Cui et al.~\cite{cui} is the only published heuristic algorithm for this problem. We therefore benchmark three new heuristics against the only baseline in the literature. Additionally, to speed up heuristics and brute-force searches, we propose novel reduction methods. By mapping a single set of disjoint vertices onto a unipartite graph, we can significantly reduce graph size.
 
 \section{Definitions}
 
-Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices where $|U| \leq |V|$, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. We use $u$ to refer to a vertex that lies on the $U$ side, $v$ for a vertex on the $V$ side, $z$ to refer to a vertex on either side, and $n$ to refer to $|U| + |V|$. Let $S = (U_S, V_S)$ denote a set of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$ be the set of edges in a subgraph $S$. Define $\bar{E}_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
+Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices such that $|U| \leq |V|$, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. We use $u$ to refer to a vertex that lies on the $U$ side, $v$ for a vertex on the $V$ side, $z$ to refer to a vertex on either side, and $n$ to refer to $|U| + |V|$. Let $S = (U_S, V_S)$ denote a set of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$ be the set of edges in a subgraph $S$. Define $\bar{E}_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}_S| \leq k$.
 
 Define the neighbors of a vertex $z$ in a subgraph $S$ as $N_S(z) = \{w \in S \mid \{w, z\} \in E_S\}$. Define the nonneighbors of a vertex as $\bar{N}_S(z) = \{w \in S \mid (w, z) \not\in E_S\}$. Define the degree of a vertex as $d_S(z) = |N_S(z)|$, and the nondegree as $\bar{d}_S(z) = |\bar{N}_S(z)|$.
 
-Define the maximum $k$-MDB as the $k$-DB with the largest number of edges in a graph $G$. Let $\theta$ be a user-defined minimum side size. The algorithms proposed in this paper seek the maximum $k$-MDB $D^*$ with $|U_{D^*}| \geq \theta$ and $|V_{D^*}| \geq \theta$ as described in Section~1. We require that $\theta > k$ so that vertices must be connected to at least one vertex in the subgraph to be included in a $k$-MDB. The maximum clique reduces to the $k$-MDB, making the optimization variant of the latter NP-hard~\cite{cui}.
+Define a $k$-defective biclique ($k$-DB) as a subgraph $S$ such that $\bar{E}_S \leq k$. Define a $\theta$-feasible $k$-DB as a subgraph $S = (U_S, V_S)$ such that $|U_S| \geq \theta$ and $|V_S| \geq \theta$ for a user-defined minimum size side $\theta$. Define the maximum $k$-MDB as the $\theta$-feasible $k$-DB with the largest number of edges in a graph $G$. We require that $\theta > k$ so that vertices must be connected to at least one vertex in the subgraph to be included in a $k$-MDB. The maximum clique reduces to the $k$-MDB, making the optimization variant of the latter NP-hard~\cite{cui}.
 
 \section{Methods}
 
-\subsection{Branch-and-Pivot Approach}
+\subsection{Baseline Heuristic}
 
-As a baseline against our proposed algorithms, we implement the approach proposed by Cui et al.~\cite{cui}. These authors observe that many $\theta$-feasible $k$-DB have one side with exactly $\theta$ vertices. They therefore propose a heuristic that expands one side of the graph to $\theta$ vertices while removing vertices on the other side to respect the $k$ constraint. The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + |E|)$~\cite{cui}.
+As a baseline against our proposed algorithms, we implement the approach proposed by Cui et al.~\cite{cui}. These authors observe that many $\theta$-feasible $k$-DB have one side with exactly $\theta$ vertices. They therefore propose a heuristic that expands one side of the graph to $\theta$ vertices while peeling vertices on the other side to respect the $k$ constraint. The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + |E|)$~\cite{cui}.
 
 \FloatBarrier
 
 \subsection{Graph Reduction Techniques}
 
-Cui et al.~\cite{cui} propose common-neighbor reduction (CNR), which discards same-side vertex pairs with fewer than $\theta - k$ common neighbors, along with any vertex left with fewer than $\theta - k$ incident edges. We observe that CNR shrinks real-world graphs significantly, and use it as the base for the two reductions below. Both are slower than CNR, but they prune far more of the graph. A smaller graph also gives branch-and-pivot fewer vertices to branch on.
+Cui et al.~\cite{cui} propose common-neighbor reduction (CNR), which discards same-side vertex pairs with fewer than $\theta - k$ common neighbors, as well as any remaining vertex with degree less than $\theta - k$. We observe that CNR shrinks real-world graphs significantly, and use it as the base for the two reductions below. Both are slower than CNR, but they prune far more of the graph.
 
 %%REDUCE:sweep%%
 
@@ -109,16 +107,16 @@ Because the non-edges of $v \in V$ are disjoint, the cost of a subset $V_S \subs
 \caption{GreedyFill}
 \label{alg:greedy-fill}
 \begin{algorithmic}[1]
-    \Require $G = (U, V, E)$; $U_S \subseteq U$; $k$
-    \Ensure $(U_S, V_S)$ with the most edges among all $k$-DB with left side $U_S$
+   \Require $G = (U, V, E)$; $U_S \subseteq U$; $k$
+   \Ensure $(U_S, V_S)$ with the most edges among all $k$-DB with left side $U_S$
 
-    \State $c(v) \gets |U_S| - |N(v) \cap U_S|$ \textbf{for each} $v \in V$
-    \State sort $V$ by $c$ ascending; \quad $V_S \gets \emptyset$; \quad $b \gets k$
-    \For{$v \in V$ in sorted order}
-        \If{$c(v) > b$ \textbf{or} $c(v) = |U_S|$} \textbf{break} \EndIf
-        \State $V_S \gets V_S \cup \{v\}$; \quad $b \gets b - c(v)$
-    \EndFor
-    \State \Return $(U_S, V_S)$
+   \State $c(v) \gets |U_S| - |N(v) \cap U_S|$ \textbf{for each} $v \in V$
+   \State sort $V$ by $c$ ascending; \quad $V_S \gets \emptyset$; \quad $b \gets k$
+   \For{$v \in V$ in sorted order}
+       \If{$c(v) > b$ \textbf{or} $c(v) = |U_S|$} \textbf{break} \EndIf
+       \State $V_S \gets V_S \cup \{v\}$; \quad $b \gets b - c(v)$
+   \EndFor
+   \State \Return $(U_S, V_S)$
 \end{algorithmic}
 \end{algorithm}
 
@@ -130,8 +128,8 @@ Let $C(u, u') = N_H(u) \cap N_H(u')$ be the common neighbors of two same-side ve
 
 If $u$ and $u'$ both appear in a $\theta$-feasible $k$-DB $D$, then each of the at least $\theta$ vertices in $V_D$ is adjacent to both, except for those incident to a missing edge. At most $k$ vertices can be, so $|C(u, u')| \ge \theta - k$. Therefore $U_D$ is a clique of at least $\theta$ vertices in $H$, which gives two pruning rules:
 \begin{itemize}
-    \item A vertex with degree less than $\theta - 1$ in $H$ cannot be in a clique of size $\theta$, and can be removed.
-    \item An edge $uu'$ with fewer than $\theta - 2$ common neighbors in $H$ ($|N(u) \cap N(u')| < \theta - 2$) cannot be in a clique of size $\theta$, and can be removed.
+   \item A vertex with degree less than $\theta - 1$ in $H$ cannot be in a clique of size $\theta$, and can be removed.
+   \item An edge $uu'$ with fewer than $\theta - 2$ common neighbors in $H$ ($|N(u) \cap N(u')| < \theta - 2$) cannot be in a clique of size $\theta$, and can be removed.
 \end{itemize}
 Each removal can lower the degrees of other vertices, so both rules are applied until no vertex or edge changes.
 
@@ -168,32 +166,32 @@ For each vertex $v$, take the largest $\binom{\theta - 1}{2}$ edges of $E(N(v))$
 \caption{Double-Greedy Algorithm for $k$-MDB}
 \label{alg:double-greedy}
 \begin{algorithmic}[1]
-    \Require $G = (U, V, E)$; $k$, $\theta$
-    \Ensure $S = (U_S, V_S)$, a $k$-DB of $G$
+   \Require $G = (U, V, E)$; $k$, $\theta$
+   \Ensure $S = (U_S, V_S)$, a $k$-DB of $G$
 
-    \State $z \gets \operatorname*{arg\,max}_{x \in U \cup V} d_G(x)$
-    \State $S \gets (\{z\}, N(z))$ \textbf{if} $z \in U$ \textbf{else} $(N(z), \{z\})$
+   \State $z \gets \operatorname*{arg\,max}_{x \in U \cup V} d_G(x)$
+   \State $S \gets (\{z\}, N(z))$ \textbf{if} $z \in U$ \textbf{else} $(N(z), \{z\})$
 
-    \While{true}
-        \If{$\min(|U_S|, |V_S|) < \theta$}
-            \State $P \gets U \setminus U_S$ \textbf{if} $|U_S| \le |V_S|$ \textbf{else} $V \setminus V_S$
-            \Comment{only grow the smaller side}
-        \Else
-            \State $P \gets (U \cup V) \setminus S$
-        \EndIf
+   \While{true}
+       \If{$\min(|U_S|, |V_S|) < \theta$}
+           \State $P \gets U \setminus U_S$ \textbf{if} $|U_S| \le |V_S|$ \textbf{else} $V \setminus V_S$
+           \Comment{only grow the smaller side}
+       \Else
+           \State $P \gets (U \cup V) \setminus S$
+       \EndIf
 
-        \State $C \gets \{z \in P : |\bar{E}(S \cup \{z\})| \le k\}$
-        \Comment{$k$-feasible candidates}
-        \If{$C = \emptyset$}
-            \State \textbf{break}
-        \EndIf
+       \State $C \gets \{z \in P : |\bar{E}(S \cup \{z\})| \le k\}$
+       \Comment{$k$-feasible candidates}
+       \If{$C = \emptyset$}
+           \State \textbf{break}
+       \EndIf
 
-        \State $z^* \gets \operatorname*{arg\,max}_{z \in C} |E(S \cup \{z\})|$
-        \State $S \gets S \cup \{z^*\}$
-        \Comment{$z^*$ joins $U_S$ if $z^* \in U$, else $V_S$}
-    \EndWhile
+       \State $z^* \gets \operatorname*{arg\,max}_{z \in C} |E(S \cup \{z\})|$
+       \State $S \gets S \cup \{z^*\}$
+       \Comment{$z^*$ joins $U_S$ if $z^* \in U$, else $V_S$}
+   \EndWhile
 
-    \State \Return $S$
+   \State \Return $S$
 \end{algorithmic}
 \end{algorithm}
 
@@ -206,36 +204,36 @@ The Double-Greedy algorithm scores every candidate vertex, which costs $\mathcal
 \caption{Clique-Edge}
 \label{alg:clique-edge}
 \begin{algorithmic}[1]
-    \Require $G = (U, V, E)$ with $|U| \le |V|$; $k$, $\theta$
-    \Ensure $D = (U_D, V_D)$, a $k$-DB of $G$
+   \Require $G = (U, V, E)$ with $|U| \le |V|$; $k$, $\theta$
+   \Ensure $D = (U_D, V_D)$, a $k$-DB of $G$
 
-    \State $H \gets (U, \tilde{E})$ with $uu' \in \tilde{E}$ iff $|C(u,u')| \ge \theta - k$
-    \Comment{weight $\omega(uu') = |C(u,u')|$}
-    \State $uu' \gets \operatorname*{arg\,max}_{e \in \tilde{E}} \omega(e)$
-    \State $S \gets \{u, u'\}$; \quad $x \gets \operatorname*{arg\,max}_{y \in S} d_H(y)$
-    \State $D \gets \emptyset$
-    \While{true}
-        \State $R \gets N_H(x) \setminus S$
-        \If{$R = \emptyset$}
-            \State $R \gets N_H(S) \setminus S$
-            \Comment{fall back to the whole frontier}
-        \EndIf
-        \If{$R = \emptyset$} \textbf{break} \EndIf
+   \State $H \gets (U, \tilde{E})$ with $uu' \in \tilde{E}$ iff $|C(u,u')| \ge \theta - k$
+   \Comment{weight $\omega(uu') = |C(u,u')|$}
+   \State $uu' \gets \operatorname*{arg\,max}_{e \in \tilde{E}} \omega(e)$
+   \State $S \gets \{u, u'\}$; \quad $x \gets \operatorname*{arg\,max}_{y \in S} d_H(y)$
+   \State $D \gets \emptyset$
+   \While{true}
+       \State $R \gets N_H(x) \setminus S$
+       \If{$R = \emptyset$}
+           \State $R \gets N_H(S) \setminus S$
+           \Comment{fall back to the whole frontier}
+       \EndIf
+       \If{$R = \emptyset$} \textbf{break} \EndIf
 
-        \State $(s, p) \gets \operatorname*{arg\,max}_{s \in S,\, p \in R,\, sp \in \tilde{E}} \omega(sp)$
-        \State $T \gets \textsc{GreedyFill}(S \cup \{p\})$
-        \If{$|V_T| \ge \theta$}
-            \State $S \gets S \cup \{p\}$; \quad $x \gets p$
-            \If{$|S| \geq \theta$ \textbf{and} $|E(T)| > |E(D)|$}
-                \State$D \gets T$
-            \EndIf
-        \Else
-            \State remove $p$ from $H$
-            \Comment{infeasibility is monotone in $S$}
-        \EndIf
-    \EndWhile
+       \State $(s, p) \gets \operatorname*{arg\,max}_{s \in S,\, p \in R,\, sp \in \tilde{E}} \omega(sp)$
+       \State $T \gets \textsc{GreedyFill}(S \cup \{p\})$
+       \If{$|V_T| \ge \theta$}
+           \State $S \gets S \cup \{p\}$; \quad $x \gets p$
+           \If{$|S| \geq \theta$ \textbf{and} $|E(T)| > |E(D)|$}
+               \State$D \gets T$
+           \EndIf
+       \Else
+           \State remove $p$ from $H$
+           \Comment{infeasibility is monotone in $S$}
+       \EndIf
+   \EndWhile
 
-    \State \Return $D$
+   \State \Return $D$
 \end{algorithmic}
 \end{algorithm}
 
@@ -261,28 +259,28 @@ Algorithm~\ref{alg:aco} is the colony loop. Here, $\sigma(x) = 1/(1+e^{-x})$ den
 \caption{ACO for $k$-MDB}
 \label{alg:aco}
 \begin{algorithmic}[1]
-    \Require $G$; $A$, $T$, $\rho$, $\Delta\tau$
-    \Ensure $B$, a $k$-DB of $G$
-    \Function{$\eta$}{$z, S_i$}
-        \State \Return $\tau(z) \times (d_S(z) + d_G(z) \times (1 - \sigma(|U_S| + |V_S|)))^3$
-    \EndFunction
-    \State $\tau \gets \mathbf{1}$; $B \gets \emptyset$
-    \For{$e = 1,\dots,T$}
-        \For{$i = 1,\dots,A$ \textbf{in parallel}}
-        \State $S_i \gets \emptyset$; $C \gets V(G)$
-        \While{$C \neq \emptyset$}
-            \State $P \gets C \cap N(z_{\mathrm{last}})$ \textbf{if} nonempty \textbf{else} $C$
-            \State sample $z \in P$ with $\Pr[z] \propto \eta(z, S_i)$
-            \State $S_i \gets S_i \cup \{z\}$
-            \State $C \gets \{w \in C \setminus \{z\} : |\bar E(S_i \cup \{w\})| \le k\}$
-        \EndWhile
-        \EndFor
-        \State $S^* \gets \arg\max_{S \in \{S_1,\dots,S_A\}} |E(S)|$
-        \State $B \gets \arg\max_{S \in \{B, S^*\}} |E(S)|$
-        \State $\tau(z) \gets \tau(z) + \Delta\tau$ \textbf{for all} $z \in S^*$
-        \State $\tau \gets (1-\rho)\,\tau$
-    \EndFor
-    \State \Return $B$
+   \Require $G$; $A$, $T$, $\rho$, $\Delta\tau$
+   \Ensure $B$, a $k$-DB of $G$
+   \Function{$\eta$}{$z, S_i$}
+       \State \Return $\tau(z) \times (d_S(z) + d_G(z) \times (1 - \sigma(|U_S| + |V_S|)))^3$
+   \EndFunction
+   \State $\tau \gets \mathbf{1}$; $B \gets \emptyset$
+   \For{$e = 1,\dots,T$}
+       \For{$i = 1,\dots,A$ \textbf{in parallel}}
+       \State $S_i \gets \emptyset$; $C \gets V(G)$
+       \While{$C \neq \emptyset$}
+           \State $P \gets C \cap N(z_{\mathrm{last}})$ \textbf{if} nonempty \textbf{else} $C$
+           \State sample $z \in P$ with $\Pr[z] \propto \eta(z, S_i)$
+           \State $S_i \gets S_i \cup \{z\}$
+           \State $C \gets \{w \in C \setminus \{z\} : |\bar E(S_i \cup \{w\})| \le k\}$
+       \EndWhile
+       \EndFor
+       \State $S^* \gets \arg\max_{S \in \{S_1,\dots,S_A\}} |E(S)|$
+       \State $B \gets \arg\max_{S \in \{B, S^*\}} |E(S)|$
+       \State $\tau(z) \gets \tau(z) + \Delta\tau$ \textbf{for all} $z \in S^*$
+       \State $\tau \gets (1-\rho)\,\tau$
+   \EndFor
+   \State \Return $B$
 \end{algorithmic}
 \end{algorithm}
 
@@ -309,15 +307,13 @@ We define a win as an instance for which an algorithm produces a $\theta$-feasib
 
 \subsection{Comparing the heuristics}
 
-The $\theta$-heuristic, double-greedy, and clique-edge each run once. ACO-default uses $A = 100$, $T = 5$, and $R = 5$ counted replicates on 8 threads, and ACO-1thread uses 1 thread. ACO-budget uses $A = 20$, $T = 1$, and $R = 1$ on 8 threads to closely match clique edge. On a four-graph calibration, this was the probed budget whose median wall-clock time was closest to clique-edge ($2.5\times$) while still matching clique-edge's edge count on those graphs. The reported ACO solution is the best $\theta$-feasible replicate. Its time is the sum of the replicates.
-
-A win is an instance on which an algorithm returns a $\theta$-feasible solution whose edge count equals the largest $\theta$-feasible edge count on that instance. When several algorithms match that count, each records a shared win, so the rates need not sum to $100\%$. An algorithm with fewer edges does not. A $\theta$-infeasible solution is a loss. An instance on which every algorithm is $\theta$-infeasible is excluded from the win rate.
+The $\theta$-heuristic, double-greedy, and clique-edge each run once. ACO-default uses $A = 100$, $T = 5$, and $R = 5$ on 8 threads, and ACO-1thread uses 1 thread. ACO-budget uses $A = 20$, $T = 1$, and $R = 1$ on 8 threads, as this was the probed budget whose median wall-clock time was closest to clique-edge ($2.5\times$) while still matching clique-edge's edge count. The reported ACO solution is the best $\theta$-feasible replicate. Its time is the sum of the replicates.
 
 The ratio to the best known solution on an instance is
 \[
 r_A(I) = \frac{|E_A(I)|}{\max_B |E_B(I)|},
 \]
-with a $\theta$-infeasible solution scored $0$. Table~\ref{tab:metrics} also reports the fraction of instances on which each algorithm is $\theta$-feasible, and the mean optimality gap $(E^\star - |E_A|)/E^\star$ on the instances where branch-and-pivot finished. Those optima are the finished runs from the seeding experiment, which was started only on graphs where an earlier ACO trial beat the $\theta$-heuristic. Figure~\ref{fig:performance-profile} is the performance profile of solution quality: the fraction of instances on which an algorithm's edge count is within a factor $\tau$ of the best $\theta$-feasible count.
+with a $\theta$-infeasible solution scored $0$. Table~\ref{tab:metrics} also reports the fraction of instances on which each algorithm is $\theta$-feasible, and the mean optimality gap $(E^\star - |E_A|)/E^\star$ on the instances where branch-and-pivot finished. Figure~\ref{fig:performance-profile} is a Dolan-More~\cite{dolan-more} plot of performance. It shows the percent of graphs for which an algorithm returned a solution within a factor of X of the best solution. The y-axis shows the percent of graphs where an algorithm returned the best answer or tied for the best answer.
 
 %%METRICS%%
 
@@ -326,20 +322,6 @@ with a $\theta$-infeasible solution scored $0$. Table~\ref{tab:metrics} also rep
 \subsubsection{Speed-quality tradeoff}
 
 We vary colony size $A$, the epoch budget $T$, and the number of independent replicates $R$. $\rho$, $\Delta\tau$ and $\eta$ exponent had no measured effect on speed (Appendix~\ref{app:sweeps}). We set $k = 2, \theta = 5$.
-
-\begin{table}[H]
-   \centering
-   \caption{ACO hyperparameter variations}
-   \begin{tabular}{ll}
-       \toprule
-       Parameter & Tested Values \\
-       \midrule
-       Number of ants ($A$) & $\{2, 5, 10, 20, 50, 100, 200\}$ \\
-       Number of epochs ($T$) & \{1, 2, 3, 4, 5\} \\
-       Number of replicates ($R$) & \{1, 2, 3, 4, 5\} \\
-       \bottomrule
-   \end{tabular}
-\end{table}
 
 Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $\theta$-heuristic, where $\theta$-infeasible outcomes are scored as a $-100\%$ deviation. Figure~\ref{fig:pheromone-ablation} removes the pheromone system by setting $\Delta\tau = 0$ and $\rho = 0$.
 
@@ -350,18 +332,18 @@ Figure~\ref{fig:quality-groupplot} shows the median percent deviation from the $
 We examine different variations of ACO and their effect on solution quality and runtime.
 
 \begin{center}
-  \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}lrrr@{}}
-      \toprule
-      Variant & Median $|E|$ & Feas. & Time \\
-      \midrule
-      None & 23 & 54 & 0.16 \\
-      $F_N$ & 76 & 89 & 0.06 \\
-      \midrule
-      %%ABLATION%%
-      \bottomrule
-  \end{tabular}
+ \footnotesize
+ \setlength{\tabcolsep}{4pt}
+ \begin{tabular}{@{}lrrr@{}}
+     \toprule
+     Variant & Median $|E|$ & Feas. & Time \\
+     \midrule
+     None & 23 & 54 & 0.16 \\
+     $F_N$ & 76 & 89 & 0.06 \\
+     \midrule
+     %%ABLATION%%
+     \bottomrule
+ \end{tabular}
 \end{center}
 
 For median edge count, the table scores $\theta$-infeasible solutions scored as $0$. Restricting candidate selection to neighbors of the most recently visited vertex ($F_N$) increases the median edge count from $23$ to $76$ while reducing runtime from $0.16$ to $0.06$ seconds. Among variants using $F_N$, allowing only the best ant each epoch to deposit pheromone yields better solution quality than allowing every ant or no ants to deposit pheromone; greedy fill further increases the median edge count from $76$ to $79$, at the cost of increasing median runtime from $0.11$ to $0.17$ seconds.
@@ -388,7 +370,7 @@ When ACO finished within its $600$s budget, it ran a median of $400\times$--$700
 
 \subsection{Interpretation of Results}
 
-While ACO is substantially slower than the $\theta$-heuristic, it often finds solutions several times larger in edge count. Even small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. Additionally, ACO had a higher $\theta$-feasibility rate than the $\theta$-heuristic, meaning it can be used as a valid lower bound more often. In cases where runtime is more critical, ant count $A$, epoch budget $T$, and replicate count $R$ can be reduced for a linear effect on wall-clock time, at the expense of solution size and $\theta$-feasibility (Section~4.1). 
+While ACO is substantially slower than the $\theta$-heuristic, it often finds solutions several times larger in edge count. Even small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. Additionally, ACO had a higher $\theta$-feasibility rate than the $\theta$-heuristic, meaning it can be used as a valid lower bound more often. In cases where runtime is more critical, ant count $A$, epoch budget $T$, and replicate count $R$ can be reduced for a linear effect on wall-clock time, at the expense of solution size and $\theta$-feasibility (Section~4.1).
 
 ACO improves quality in several types of solutions. On several graphs, both ACO and the $\theta$-heuristic find a solution with exactly $\theta$ vertices on one side, but ACO finds a substantially larger opposite side. In other cases, ACO identified $\theta \times \theta$ $k$-DB on graphs that the $\theta$-heuristic failed to make $\theta$-feasible. ACO may escape the $\theta$-exact limitation entirely, finding $k$-DB with both sides larger than $\theta$ vertices that the $\theta$-heuristic could not have found.
 
@@ -406,7 +388,7 @@ Ant Colony Optimization is a promising heuristic approach to identifying large $
 
 A natural next step would be to rerun the seeded branch-and-pivot comparison of Section~4.2 on higher-performance hardware, so that the larger graphs excluded under the timeout in Section~3.3 can be included and the scaling of the seeding benefit can be tested directly. Additionally, ACO could be adapted to have N subspecies that find N solutions in parallel by using a repulsion mechanism similar to that proposed for diversity in other ant colony variants~\cite{tfaili2008}, extending previous multi-colony parallelization strategies~\cite{middendorf2002}.
 
-Additionally, we observe that in \ref{sec:missing-edge-reduction}, if 
+Additionally, we observe that in \ref{sec:missing-edge-reduction}, if
 \[
 (|N_H| + |\{u, u'\}| + 1)^{-1}\sum_{A, B \in N_H}w(A, B) > k
 \]

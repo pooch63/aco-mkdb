@@ -357,18 +357,14 @@ def _table(method_ids, stats, *, k, theta, n_wins, n_gap):
     lines = [
         r"\begin{table}[!t]",
         r"  \centering",
-        r"  \caption{Heuristic comparison at "
+        r"  \caption{Solution quality and runtime of different algorithms at "
         + rf"$k = {k_bit}$, $\theta = {t_bit}$"
-        + r". Win and Feas.\ are percentages. $r$ is a geometric mean. "
-        + r"Gap is the mean percent short of the branch-and-pivot optimum on "
-        + gap_n
-        + r". $t$ is the median wall-clock time in seconds.}",
         r"  \label{tab:metrics}",
         r"  \footnotesize",
         r"  \setlength{\tabcolsep}{4pt}",
         r"  \begin{tabular}{@{}lrrrrr@{}}",
         r"    \toprule",
-        r"    Algorithm & Win & $r$ & Feas. & Gap & $t$ \\",
+        r"    Algorithm & Win & Feas. & Gap & $t$ \\",
         r"    \midrule",
     ]
     for mid in method_ids:
@@ -379,7 +375,6 @@ def _table(method_ids, stats, *, k, theta, n_wins, n_gap):
                 [
                     _label(mid),
                     _fmt_pct(row["win"]),
-                    _fmt_ratio(row["ratio"]),
                     _fmt_pct(row["feas"]),
                     _fmt_gap(row["gap"]),
                     _fmt_time(row["time"]),
