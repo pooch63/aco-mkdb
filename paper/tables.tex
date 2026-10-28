@@ -41,7 +41,7 @@ Table~\ref{tab:methods-k2t5i_heuristic-aco-tow} lists per-graph results for the 
 %%METHODS:k2t5i_heuristic-aco-tow%%
 
 \section{Pivot seed comparison}
-Table~\ref{tab:seed-compare-full} lists branch-and-pivot timings for every graph. $n_k$ is the reduced node count in thousands, and $|E_R|$ is the reduced edge count.
+Table~\ref{tab:seed-compare-full} lists branch-and-pivot timings for every graph. $n_k$ is the reduced vertex count in thousands, and $|E_R|$ is the reduced edge count.
 Rows are grouped into two blocks separated by a horizontal rule: graphs where ACO seeding reduced net end-to-end time (top), and graphs with no net savings or overhead (bottom). Within each block, rows are sorted by ascending absolute time saved.
 Time saved is defined as $T_{\mathrm{pivot}}(\theta) - T_{\mathrm{discovery}} - T_{\mathrm{pivot}}(\mathrm{ACO})$, where $T_{\mathrm{discovery}}$ is the cost of running ACO for all 5 replicates. Time saved represents the net wall-clock time change of running branch-and-pivot with an ACO seed versus running branch-and-pivot on the $\theta$-heuristic seed alone. Positive values mean the ACO-seeded pipeline is faster overall. Negative values mean ACO search did not beat the $\theta$-heuristic, in which case $\text{time saved} = -T_{ACO}$. In some small graphs, ACO did beat the $\theta$-heuristic, but the time it took to run ACO meant it did not result in overall time savings. Reduction (\%) is defined as $100 \times \text{Time saved} / T_{\mathrm{pivot}}(\theta)$. Graphs where both ACO-seeded pivot and the $\theta$-seeded pivot are omitted, as defined in Section~3.3.
 %%SEED_COMPARE%%

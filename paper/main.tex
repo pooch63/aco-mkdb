@@ -73,13 +73,13 @@ Dorigo et al.~\cite{dorigo1996} proposed a metaheuristic known as Ant Colony Opt
 
 The $k$-MDB is an emerging NP-hard problem. To our knowledge, the $\theta$-heuristic of Cui et al.~\cite{cui} is the only published heuristic algorithm for the $k$-MDB problem. We therefore benchmark three new heuristics against the only baseline in the literature.
 
-Reductions have been used for maximum clique \cite{TODO_clique_reduction}, maximum (edge) biclique \cite{TODO_biclique_reduction}, and relaxed variants such as $k$-plexes and $k$-biplexes \cite{TODO_kplex_reduction}. For the $k$-MDB problem, Cui et al.~\cite{cui} propose pruning methods that remove vertex and edge pruning methods which provably cannot appear in a valid solution. We propose novel reduction methods that build on their work. By mapping a single side of the bipartite graph onto a graph, where edges denote nodes that could potentially be in a $k$-DB, we can significantly reduce graph size. This leads to speed improvements, and because it reduces the number of potential subgraphs, it improves quality as well. Additionally, because the cost of branching grows exponentially with the number of vertices, even modest reductions can substantially speed up search.
+Reductions have been used for maximum clique \cite{TODO_clique_reduction}, maximum (edge) biclique \cite{TODO_biclique_reduction}, and relaxed variants such as $k$-plexes and $k$-biplexes \cite{TODO_kplex_reduction}. For the $k$-MDB problem, Cui et al.~\cite{cui} propose pruning methods that remove vertex and edge pruning methods which provably cannot appear in a valid solution. We propose novel reduction methods that build on their work. By mapping a single side of the bipartite graph onto a graph, where edges denote vertices that could potentially be in a $k$-DB, we can significantly reduce graph size. This leads to speed improvements, and because it reduces the number of potential subgraphs, it improves quality as well. Additionally, because the cost of branching grows exponentially with the number of vertices, even modest reductions can substantially speed up search.
 
 \section{Definitions}
 
-Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. Let $S = (U_S, V_S)$ denote a set of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$ be the set of edges in a subgraph $S$. Define $\bar{E}(S) = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
+Define a bipartite graph as a graph $G = (U, V, E)$, where $U$ and $V$ are two disjoint sets of vertices where $|U| \leq |V|$, and $E \subseteq U \times V$ is the set of edges between $U$ and $V$. We use $u$ to refer to a vertex that lies on the $U$ side, $v$ for a vertex on the $V$ side, $z$ to refer to a vertex on either side, and $n$ to refer to $|U| + |V|$. Let $S = (U_S, V_S)$ denote a set of vertices where $U_S \subseteq U$ and $V_S \subseteq V$. Let $E_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \in E \}$ be the set of edges in a subgraph $S$. Define $\bar{E}_S = \{(u, v) \mid u \in U_S \wedge v \in V_S \wedge (u, v) \not\in E \}$ be the set of non-edges in a subgraph. Let a $k$-defective biclique be a subgraph $S$ where $|\bar{E}(S)| \leq k$.
 
-Define the neighbors of a vertex $u$ in a subgraph $S$ as $N_S(u) = \{v \in S \mid \{u, v\} \in E(S)\}$. Define the nonneighbors of a vertex as $\bar{N}_S(u) = \{v \in S \mid (u, v) \not\in E(S)\}$. Define the degree of a vertex as $d_S(u) = |N_S(u)|$, and the nondegree as $\bar{d}_S(u) = |\bar{N}_S(u)|$.
+Define the neighbors of a vertex $z$ in a subgraph $S$ as $N_S(z) = \{w \in S \mid \{w, z\} \in E_S\}$. Define the nonneighbors of a vertex as $\bar{N}_S(z) = \{w \in S \mid (w, z) \not\in E_S\}$. Define the degree of a vertex as $d_S(z) = |N_S(z)|$, and the nondegree as $\bar{d}_S(z) = |\bar{N}_S(z)|$.
 
 Define the maximum $k$-MDB as the $k$-DB with the largest number of edges in a graph $G$. Let $\theta$ be a user-defined minimum side size. The algorithms proposed in this paper seek the maximum $k$-MDB $D^*$ with $|U_{D^*}| \geq \theta$ and $|V_{D^*}| \geq \theta$ as described in Section~1. We require that $\theta > k$ so that vertices must be connected to at least one vertex in the subgraph to be included in a $k$-MDB. The maximum clique reduces to the $k$-MDB, making the optimization variant of the latter NP-hard~\cite{cui}.
 
@@ -87,7 +87,7 @@ Define the maximum $k$-MDB as the $k$-DB with the largest number of edges in a g
 
 \subsection{Branch-and-Pivot Approach}
 
-As a baseline against ACO, we implement the approach proposed by Cui et al.~\cite{cui}. These authors observe that many $\theta$-feasible $k$-DB have one side with exactly $\theta$ vertices. They therefore propose a heuristic that expands one side of the graph to $\theta$ vertices while removing vertices on the other side to respect the $k$ constraint. The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + m)$~\cite{cui}.
+As a baseline against our proposed algorithms, we implement the approach proposed by Cui et al.~\cite{cui}. These authors observe that many $\theta$-feasible $k$-DB have one side with exactly $\theta$ vertices. They therefore propose a heuristic that expands one side of the graph to $\theta$ vertices while removing vertices on the other side to respect the $k$ constraint. The $\theta$-heuristic has a time complexity of $\mathcal{O}(\theta n + |E|)$~\cite{cui}.
 
 \FloatBarrier
 
@@ -122,9 +122,11 @@ Because the non-edges of $v \in V$ are disjoint, the cost of a subset $V_S \subs
 \end{algorithmic}
 \end{algorithm}
 
-\subsubsection{$\theta$ Neighbor Reduction}
+The naive time complexity of \ref{alg:greedy-fill} is $\mathcal{O}(|V| + |E|)$. However, a memoized approach can reduce the time complexity of greedy fill as a subgraph is incrementally added. By keeping track of the degree of every candidate vertex in a subgraph $U_S \subseteq U$, the cost of computing $N_S(v)$ for a given vertex $v$ goes from $\mathcal{O}(d_S(v))$ to $\mathcal{O}(1)$, and therefore the memoized complexity of \ref{alg:greedy-fill} is $\mathcal{O}(d(v) + |V|)$ when adding a vertex $v$.
 
-Let $U$ be the smaller side, and let $C(u, u') = N(u) \cap N(u')$ be the common neighbors of two same-side vertices. Define the mapped graph $H = (U, \tilde{E})$, where $uu' \in \tilde{E}$ if $|C(u, u')| \ge \theta - k$.
+\subsubsection{\texorpdfstring{$\theta$}{θ} Neighbor Reduction}
+
+Let $C(u, u') = N_H(u) \cap N_H(u')$ be the common neighbors of two same-side vertices. Define the mapped graph $H = (U, \tilde{E})$, where $uu' \in \tilde{E}$ if $|C(u, u')| \ge \theta - k$.
 
 If $u$ and $u'$ both appear in a $\theta$-feasible $k$-DB $D$, then each of the at least $\theta$ vertices in $V_D$ is adjacent to both, except for those incident to a missing edge. At most $k$ vertices can be, so $|C(u, u')| \ge \theta - k$. Therefore $U_D$ is a clique of at least $\theta$ vertices in $H$, which gives two pruning rules:
 \begin{itemize}
@@ -134,6 +136,7 @@ If $u$ and $u'$ both appear in a $\theta$-feasible $k$-DB $D$, then each of the 
 Each removal can lower the degrees of other vertices, so both rules are applied until no vertex or edge changes.
 
 \subsubsection{Missing Edge Reduction}
+\label{sec:missing-edge-reduction}
 
 On the remaining edges of $H$, assign a weight
 \[
@@ -141,9 +144,9 @@ w(u, u') = \max\bigl(0,\ \theta - |C(u, u')|\bigr).
 \]
 $|C(u, u')|$ is the largest number of edges that $u$ and $u'$ could contribute to a $k$-DB. $|V_D| \geq \theta$, so a lower bound on the number of missing edges that $u$ and $u'$ contribute to $D$ is $\theta - |C(u, u')|$. Because this is a lower bound, we floor this estimate at 0.
 
-Take three vertices $u, u', z \in U_D$. $w(u, u')$ is the number of missing edges that $u$ and $u'$ would contribute, but $w(u, u') + w(u, z) + w(u', z)$ would overcount. For instance, if on a bipartite graph with three nodes each there is only one missing edge, the missing edge would be counted twice: once for $uu'$ and once for $uz$. For a given $u$, its missing edges may be overcounted on any other edge it's connected to. Because in the graph $\{u, u', z\}$, each node has exactly two edges, each edge may be overcounted by a maximum factor of $1/2$. In general, for a clique of size $N$, each node's missing edges might be overcounted by a factor of $N - 1$, and therefore the maximum missing edge count of a subgraph is $(N - 1)^{-1}\sum_{u, u' \in S}w(u, u')$ Hence
+Take three vertices $u, u', u'' \in U_D$. $w(u, u')$ is the number of missing edges that $u$ and $u'$ would contribute, but $w(u, u') + w(u, u'') + w(u', u'')$ would overcount. For instance, if on a bipartite graph with three vertices each there is only one missing edge, the missing edge would be counted twice: once for $uu'$ and once for $uz$. For a given $u$, its missing edges may be overcounted on any other edge it's connected to. Because in the graph $\{u, u', z\}$, each vertex has exactly two edges, each edge may be overcounted by a maximum factor of $1/2$. Hence
 \[
-|\bar{E}(D)| \ge \tfrac{1}{2}\bigl(w(u, u') + w(u, z) + w(u', z)\bigr).
+|\bar{E}(D)| \ge \tfrac{1}{2}\bigl(w(u, u') + w(u, z) + w(u', z)\bigr)
 \]
 Since $|U_D| \ge \theta \ge 3$, every $k$-DB containing $u$ and $u'$ contains some $z \in C_H(u, u')$, where $C_H$ is the common neighborhood in $H$. We therefore prune the edge $uu'$ if
 \[
@@ -151,18 +154,11 @@ Since $|U_D| \ge \theta \ge 3$, every $k$-DB containing $u$ and $u'$ contains so
 \]
 As with $\theta$ neighbor reduction, this is repeated until the graph stops changing, since removing edges changes common neighborhoods and weights.
 
-Additionally, let $N_H = C_H(u, u') \cup \{u, u'\}$. if 
-\[
-(|N_H| + 1)^{-1}\sum_{A, B \in N_H}w(A, B) > k
-\]
-
-the edge can be pruned by the same logic.
-
 \subsubsection{Maximum Shared Neighbor Edges}
 
 Take the same mapped graph. Update the weight \[w(u, u') = |C(u, u')|\]
 
-This is the maximum number of edges that two nodes could contribute to a $k$-DB. Let $M$ be an upper bound on the number of edges in the $k$-DB.
+This is the maximum number of edges that two vertices could contribute to a $k$-DB. Let $M$ be an upper bound on the number of edges in the $k$-DB.
 
 For each vertex $v$, take the largest $\binom{\theta - 1}{2}$ edges of $E(N(v))$ by their edge weights. If the sum of those edge weights is less than the lower bound [could i do less than OR EQUAL TO] of edges, prune that vertex.
 
@@ -175,8 +171,8 @@ For each vertex $v$, take the largest $\binom{\theta - 1}{2}$ edges of $E(N(v))$
     \Require $G = (U, V, E)$; $k$, $\theta$
     \Ensure $S = (U_S, V_S)$, a $k$-DB of $G$
 
-    \State $u \gets \operatorname*{arg\,max}_{x \in U \cup V} d_G(x)$
-    \State $S \gets (\{u\}, N(u))$ \textbf{if} $u \in U$ \textbf{else} $(N(u), \{u\})$
+    \State $z \gets \operatorname*{arg\,max}_{x \in U \cup V} d_G(x)$
+    \State $S \gets (\{z\}, N(z))$ \textbf{if} $z \in U$ \textbf{else} $(N(z), \{z\})$
 
     \While{true}
         \If{$\min(|U_S|, |V_S|) < \theta$}
@@ -186,15 +182,15 @@ For each vertex $v$, take the largest $\binom{\theta - 1}{2}$ edges of $E(N(v))$
             \State $P \gets (U \cup V) \setminus S$
         \EndIf
 
-        \State $C \gets \{v \in P : |\bar{E}(S \cup \{v\})| \le k\}$
+        \State $C \gets \{z \in P : |\bar{E}(S \cup \{z\})| \le k\}$
         \Comment{$k$-feasible candidates}
         \If{$C = \emptyset$}
             \State \textbf{break}
         \EndIf
 
-        \State $v^* \gets \operatorname*{arg\,max}_{v \in C} |E(S \cup \{v\})|$
-        \State $S \gets S \cup \{v^*\}$
-        \Comment{$v^*$ joins $U_S$ if $v^* \in U$, else $V_S$}
+        \State $z^* \gets \operatorname*{arg\,max}_{z \in C} |E(S \cup \{z\})|$
+        \State $S \gets S \cup \{z^*\}$
+        \Comment{$z^*$ joins $U_S$ if $z^* \in U$, else $V_S$}
     \EndWhile
 
     \State \Return $S$
@@ -202,7 +198,7 @@ For each vertex $v$, take the largest $\binom{\theta - 1}{2}$ edges of $E(N(v))$
 \end{algorithm}
 
 \subsubsection{Theoretical Time Complexity}
-The Double-Greedy algorithm scores every candidate node, which costs $\mathcal{O}(m)$. It repeats this process until it builds a large solution. Every step loops through the graph to generate a list of candidates,  and therefore a naive implementation has a complexity of $\mathcal{O}(n \times m)$. A memoized implementation can update the subgraph count by tracking $d_S$ for every vertex. Each time a vertex is added to the solution, its neighbors add $1$ to their $d_S$. The number of edges visited is equal to the total degree of each of the nodes in $S$, which is $\mathcal{O}(m)$. Each step loops over every $v \in G$ to generate a candidate step. The number of steps is equal to the size of the solution, which is $n$ in the worst case. Therefore, a memoized implementation has a complexity of $\mathcal{O}(n^2 + m)$. Finally, the maximum size of any one side of a $k$-DB is $\min(n, \Delta + k)$, where $\Delta$ is the maximum degree of a node. Therefore, naive implementation has a time complexity of $\mathcal{O}(\min(n, \Delta + k) \times m)$. Therefore, an optimized complexity is $\mathcal{O}(\min(n, \Delta + k) \times n + m)$, with space $\mathcal{O}(n)$.
+The Double-Greedy algorithm scores every candidate vertex, which costs $\mathcal{O}(|E|)$. It repeats this process until it builds a large solution. Every step loops through the graph to generate a list of candidates,  and therefore a naive implementation has a complexity of $\mathcal{O}(n \times |E|)$. A memoized implementation can update the subgraph count by tracking $d_S$ for every vertex. Each time a vertex is added to the solution, its neighbors add $1$ to their $d_S$. The number of edges visited is equal to the total degree of each of the vertices in $S$, which is $\mathcal{O}(|E|)$. Each step loops over every $z \in G$ to generate a candidate step. The number of steps is equal to the size of the solution, which is $n$ in the worst case. Therefore, a memoized implementation has a complexity of $\mathcal{O}(n^2 + |E|)$. Finally, the maximum size of any one side of a $k$-DB is $\min(|V|, \Delta + k)$, where $\Delta$ is the maximum degree of a vertex. Therefore, naive implementation has a time complexity of $\mathcal{O}(\min(|V|, \Delta + k) \times |E|)$. Therefore, an optimized complexity is $\mathcal{O}(\min(|V|, \Delta + k) \times n + |E|)$, with space $\mathcal{O}(n)$.
 
 \subsection{Clique-Edge Algorithm}
 
@@ -267,23 +263,23 @@ Algorithm~\ref{alg:aco} is the colony loop. Here, $\sigma(x) = 1/(1+e^{-x})$ den
 \begin{algorithmic}[1]
     \Require $G$; $A$, $T$, $\rho$, $\Delta\tau$
     \Ensure $B$, a $k$-DB of $G$
-    \Function{$\eta$}{$u, S_i$}
-        \State \Return $\tau(u) \times (d_S(u) + d_G(u) \times (1 - \sigma(|U_S| + |V_S|)))^3$
+    \Function{$\eta$}{$z, S_i$}
+        \State \Return $\tau(z) \times (d_S(z) + d_G(z) \times (1 - \sigma(|U_S| + |V_S|)))^3$
     \EndFunction
     \State $\tau \gets \mathbf{1}$; $B \gets \emptyset$
     \For{$e = 1,\dots,T$}
         \For{$i = 1,\dots,A$ \textbf{in parallel}}
         \State $S_i \gets \emptyset$; $C \gets V(G)$
         \While{$C \neq \emptyset$}
-            \State $P \gets C \cap N(v_{\mathrm{last}})$ \textbf{if} nonempty \textbf{else} $C$
-            \State sample $u \in P$ with $\Pr[u] \propto \eta(u, S_i)$
-            \State $S_i \gets S_i \cup \{u\}$
-            \State $C \gets \{w \in C \setminus \{u\} : |\bar E(S_i \cup \{w\})| \le k\}$
+            \State $P \gets C \cap N(z_{\mathrm{last}})$ \textbf{if} nonempty \textbf{else} $C$
+            \State sample $z \in P$ with $\Pr[z] \propto \eta(z, S_i)$
+            \State $S_i \gets S_i \cup \{z\}$
+            \State $C \gets \{w \in C \setminus \{z\} : |\bar E(S_i \cup \{w\})| \le k\}$
         \EndWhile
         \EndFor
         \State $S^* \gets \arg\max_{S \in \{S_1,\dots,S_A\}} |E(S)|$
         \State $B \gets \arg\max_{S \in \{B, S^*\}} |E(S)|$
-        \State $\tau(u) \gets \tau(u) + \Delta\tau$ \textbf{for all} $u \in S^*$
+        \State $\tau(z) \gets \tau(z) + \Delta\tau$ \textbf{for all} $z \in S^*$
         \State $\tau \gets (1-\rho)\,\tau$
     \EndFor
     \State \Return $B$
@@ -294,7 +290,7 @@ Section~4.3 compares variations of the ACO algorithm as well as a genetic algori
 
 \subsubsection{Theoretical Time Complexity}
 
-Let $n = |U| + |V|$ and $m = |E|$ for a bipartite graph. Each ant must first examine $n$ vertices. A single node's neighbors may not have any $k$-feasible additions, so in the worst case, an ant must consider all vertices it can add to its subgraph at every step. As described in Section~3.3, the maximum number of nodes in a $k$-MDB is $\mathcal{O}(\min(n, \Delta + k))$. An ant therefore examines $\mathcal{O}(\min(n, \Delta + k) \times n)$ nodes. Additionally, it prefers to examine the [TOMORROW, BE SURE TO TALK ABOUT THE $k \times |V|$ FOR THE GREEDY ALGORITHM, REMOVE THE GREEDY FILL INFORMATION CURRENTLY IN CLIQUE-EDGE AND PUT IT RIGHT NEXT TO GREEDY FILL / TALK ABOUT IT IN THE GREEDY FILL SECTION, FINISH THIS SENTENCE ABOUT HOW ANTS PREFER THE NEIGHBORS SO IT'S + $m$, ALSO PUT THE BIT ABOUT MEMOIZING SUBGRAPH DEGREE IN AN ABOVE BULLET POINT SO I DON'T HAVE TO REPEAT IT AND EVERY ALGORITHM CAN USE THAT IDEA]. Ants also run independently, only syncing pheromone at the end of each epoch, so the upper time complexity is therefore $\mathcal{O}(\lceil A / p \rceil \times T \times (\min(n, \Delta + k) \times n + m))$ on a computer with $p$ processors. In practice, $\Delta + k \ll n$, so this does not scale quadratically with $n$.
+Let $n = |U| + |V|$ and $m = |E|$ for a bipartite graph. Each ant must first examine $n$ vertices. A single vertex's neighbors may not have any $k$-feasible additions, so in the worst case, an ant must consider all vertices it can add to its subgraph at every step. As described in Section~3.3, the maximum number of vertices in a $k$-MDB is $\mathcal{O}(\min(n, \Delta + k))$. An ant therefore examines $\mathcal{O}(\min(n, \Delta + k) \times n)$ vertices. Additionally, it prefers to examine the [TOMORROW, BE SURE TO TALK ABOUT THE $k \times |V|$ FOR THE GREEDY ALGORITHM, REMOVE THE GREEDY FILL INFORMATION CURRENTLY IN CLIQUE-EDGE AND PUT IT RIGHT NEXT TO GREEDY FILL / TALK ABOUT IT IN THE GREEDY FILL SECTION, FINISH THIS SENTENCE ABOUT HOW ANTS PREFER THE NEIGHBORS SO IT'S + $m$, ALSO PUT THE BIT ABOUT MEMOIZING SUBGRAPH DEGREE IN AN ABOVE BULLET POINT SO I DON'T HAVE TO REPEAT IT AND EVERY ALGORITHM CAN USE THAT IDEA]. Ants also run independently, only syncing pheromone at the end of each epoch, so the upper time complexity is therefore $\mathcal{O}(\lceil A / p \rceil \times T \times (\min(n, \Delta + k) \times n + m))$ on a computer with $p$ processors. In practice, $\Delta + k \ll n$, so this does not scale quadratically with $n$.
 
 \subsection{Experimental Setup}
 
@@ -310,7 +306,7 @@ We define a win as an instance for which an algorithm produces a $\theta$-feasib
 
 \subsection{Comparing the heuristics}
 
-Each recorded trial stores the algorithm, the variant, the seed, $|E(D)|$, $|U_D|$, $|V_D|$, whether the solution is $\theta$-feasible, and the wall-clock time. The $\theta$-heuristic, double-greedy, and clique-edge each run once. ACO-default uses $A = 100$, $T = 5$, and $R = 5$ counted replicates on 8 threads. ACO-1thread uses that same budget on one thread, so its time is the CPU-time comparison. ACO-matched uses $A = 20$, $T = 1$, and $R = 1$ on 8 threads. On a four-graph calibration, this was the probed budget whose median wall-clock time was closest to clique-edge ($2.5\times$) while still matching clique-edge's edge count on those graphs. The reported ACO solution is the best $\theta$-feasible replicate. Its time is the sum of the replicates.
+The $\theta$-heuristic, double-greedy, and clique-edge each run once. ACO-default uses $A = 100$, $T = 5$, and $R = 5$ counted replicates on 8 threads. ACO-1thread uses that same budget on one thread, so its time is the CPU-time comparison. ACO-matched uses $A = 20$, $T = 1$, and $R = 1$ on 8 threads. On a four-graph calibration, this was the probed budget whose median wall-clock time was closest to clique-edge ($2.5\times$) while still matching clique-edge's edge count on those graphs. The reported ACO solution is the best $\theta$-feasible replicate. Its time is the sum of the replicates.
 
 A win is an instance on which an algorithm returns a $\theta$-feasible solution whose edge count equals the largest $\theta$-feasible edge count on that instance. When several algorithms match that count, each records a shared win, so the rates need not sum to $100\%$. An algorithm with fewer edges does not. A $\theta$-infeasible solution is a loss. An instance on which every algorithm is $\theta$-infeasible is excluded from the win rate.
 
@@ -392,7 +388,7 @@ When ACO finished within its $600$s budget, it ran a median of $400\times$--$700
 
 While ACO is substantially slower than the $\theta$-heuristic, it often finds solutions several times larger in edge count. Even small improvements ACO makes over the $\theta$-heuristic can meaningfully reduce the time that branch-and-pivot takes. Additionally, ACO had a higher $\theta$-feasibility rate than the $\theta$-heuristic, meaning it can be used as a valid lower bound more often. In cases where runtime is more critical, ant count $A$, epoch budget $T$, and replicate count $R$ can be reduced for a linear effect on wall-clock time, at the expense of solution size and $\theta$-feasibility (Section~4.1). 
 
-ACO improves quality in several types of solutions. On several graphs, both ACO and the $\theta$-heuristic find a solution with exactly $\theta$ nodes on one side, but ACO finds a substantially larger opposite side. In other cases, ACO identified $\theta \times \theta$ $k$-DB on graphs that the $\theta$-heuristic failed to make $\theta$-feasible. ACO may escape the $\theta$-exact limitation entirely, finding $k$-DB with both sides larger than $\theta$ nodes that the $\theta$-heuristic could not have found.
+ACO improves quality in several types of solutions. On several graphs, both ACO and the $\theta$-heuristic find a solution with exactly $\theta$ vertices on one side, but ACO finds a substantially larger opposite side. In other cases, ACO identified $\theta \times \theta$ $k$-DB on graphs that the $\theta$-heuristic failed to make $\theta$-feasible. ACO may escape the $\theta$-exact limitation entirely, finding $k$-DB with both sides larger than $\theta$ vertices that the $\theta$-heuristic could not have found.
 
 We hypothesize this is due to ACO's exploration. Because the $\theta$-heuristic arbitrarily chooses $U$ as its $\theta$-side and greedily expands, early vertex choices can permanently shrink the retained neighborhood. Conversely, ACO's stochastic, massively parallel construction samples alternative $\theta \times \theta$ cores and often recovers a better one. Thus, ACO often beats the $\theta$-heuristic even on structures the latter was designed for.
 
@@ -407,6 +403,12 @@ Ant Colony Optimization is a promising heuristic approach to identifying large $
 \subsection{Future Work}
 
 A natural next step would be to rerun the seeded branch-and-pivot comparison of Section~4.2 on higher-performance hardware, so that the larger graphs excluded under the timeout in Section~3.3 can be included and the scaling of the seeding benefit can be tested directly. Additionally, ACO could be adapted to have N subspecies that find N solutions in parallel by using a repulsion mechanism similar to that proposed for diversity in other ant colony variants~\cite{tfaili2008}, extending previous multi-colony parallelization strategies~\cite{middendorf2002}.
+
+Additionally, we observe that in \ref{sec:missing-edge-reduction}, if 
+\[
+(|N_H| + |\{u, u'\}| + 1)^{-1}\sum_{A, B \in N_H}w(A, B) > k
+\]
+the edge on the mapped graph can be pruned. This could be a way to prune more of the graph, although at a slower cost.
 
 Code and full results are available on \url{https://github.com/pooch63/aco-kmdb}.
 
@@ -425,7 +427,7 @@ Each table is one $(k, \theta)$ setting. A row is one graph. $|U|$ and $|V|$ are
 
 %%HEURISTICS%%
 
-Each table is one $(k, \theta)$ setting. A row is one graph. $U_k$, $V_k$, and $E_k$ are the initial side sizes and edge count in thousands. For common-neighbor reduction (CNR), one pass (Once), and the repeated reduction (Full), $n\%$ and $e\%$ are the percentage of nodes and edges removed and $t$ is wall time in seconds. Bold marks the largest removal on that graph. A $\theta \times \theta$ biclique with $k$ missing edges was injected before reduction.
+Each table is one $(k, \theta)$ setting. A row is one graph. $U_k$, $V_k$, and $E_k$ are the initial side sizes and edge count in thousands. For common-neighbor reduction (CNR), one pass (Once), and the repeated reduction (Full), $n\%$ and $e\%$ are the percentage of vertices and edges removed and $t$ is wall time in seconds. Bold marks the largest removal on that graph. A $\theta \times \theta$ biclique with $k$ missing edges was injected before reduction.
 
 %%REDUCE%%
 
